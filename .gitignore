@@ -1,0 +1,26 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.env
+.venv
+venv/
+*.egg-info/
+
+# SQLite database (use seed.py to repopulate)
+backend/livingwell.db
+
+# Node
+node_modules/
+livingwell-frontend/node_modules/
+livingwell-frontend/.next/
+livingwell-frontend/tsconfig.tsbuildinfo
+
+# Env files with secrets
+.env.local
+livingwell-frontend/.env.local
+backend/.env
+
+# OS
+.DS_Store
+Thumbs.db
