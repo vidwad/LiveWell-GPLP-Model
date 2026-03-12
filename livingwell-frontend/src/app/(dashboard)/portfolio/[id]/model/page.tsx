@@ -1,6 +1,6 @@
 "use client";
 
-import { use, useState } from "react";
+import { useState } from "react";
 import { toast } from "sonner";
 import { ArrowLeft, Calculator } from "lucide-react";
 import { useRunModel, useProperty } from "@/hooks/usePortfolio";
@@ -16,9 +16,9 @@ import { formatCurrency, formatPercent } from "@/lib/utils";
 export default function ModelPage({
   params,
 }: {
-  params: Promise<{ id: string }>;
+  params: { id: string };
 }) {
-  const { id } = use(params);
+  const { id } = params;
   const propertyId = Number(id);
   const { data: property } = useProperty(propertyId);
   const { mutateAsync: runModel, isPending } = useRunModel();

@@ -1,6 +1,6 @@
 "use client";
 
-import { use, useState } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { ArrowLeft, Plus, Trash2, Calculator } from "lucide-react";
@@ -22,9 +22,9 @@ import { DevelopmentPlanCreate } from "@/types/portfolio";
 export default function PropertyDetailPage({
   params,
 }: {
-  params: Promise<{ id: string }>;
+  params: { id: string };
 }) {
-  const { id } = use(params);
+  const { id } = params;
   const propertyId = Number(id);
   const router = useRouter();
   const { user } = useAuth();

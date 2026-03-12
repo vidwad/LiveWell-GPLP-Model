@@ -1,6 +1,6 @@
 "use client";
 
-import { use, useState } from "react";
+import { useState } from "react";
 import { toast } from "sonner";
 import { ArrowLeft, Plus } from "lucide-react";
 import { useInvestorDashboard, useContributions, useAddContribution, useAddOwnership, useCreateDistribution } from "@/hooks/useInvestors";
@@ -22,9 +22,9 @@ import { DistributionMethod } from "@/types/investor";
 export default function InvestorDetailPage({
   params,
 }: {
-  params: Promise<{ id: string }>;
+  params: { id: string };
 }) {
-  const { id } = use(params);
+  const { id } = params;
   const investorId = Number(id);
   const { user } = useAuth();
 
