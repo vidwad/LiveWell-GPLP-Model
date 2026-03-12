@@ -5,11 +5,12 @@ from sqlalchemy.orm import Session
 
 from app.core.deps import get_current_user, require_gp_ops_pm, require_gp_or_ops
 from app.db.models import (
-    Community, MaintenanceRequest, MaintenanceStatus, Resident,
+    Bed, BedStatus, Community, MaintenanceRequest, MaintenanceStatus, Resident,
     RentPayment, PaymentStatus, Unit, User,
 )
 from app.db.session import get_db
 from app.schemas.community import (
+    BedCreate, BedOut,
     CommunityCreate, CommunityOut,
     MaintenanceRequestCreate, MaintenanceRequestOut, MaintenanceRequestUpdate,
     RentPaymentCreate, RentPaymentOut,
@@ -91,6 +92,59 @@ def add_unit(
     db.commit()
     db.refresh(unit)
     return unit
+
+
+# ---------------------------------------------------------------------------
+# Beds
+# ---------------------------------------------------------------------------
+
+@router.get("/units/{unit_id}/beds", response_model=list[BedOut])
+def list_beds(
+    unit_id: int,
+    db: Session = Depends(get_db),
+    _: User = Depends(get_current_user),
+):
+    unit = db.query(Unit).filter(Unit.unit_id == unit_id).first()
+    if not unit:
+        raise HTTPException(status_code=404, detail="Unit not found")
+    return unit.beds
+
+
+@router.post(
+    "/units/{unit_id}/beds",
+    response_model=BedOut,
+    status_code=status.HTTP_201_CREATED,
+)
+def add_bed(
+    unit_id: int,
+    payload: BedCreate,
+    db: Session = Depends(get_db),
+    _: User = Depends(require_gp_ops_pm),
+):
+    unit = db.query(Unit).filter(Unit.unit_id == unit_id).first()
+    if not unit:
+        raise HTTPException(status_code=404, detail="Unit not found")
+    bed = Bed(unit_id=unit_id, bed_label=payload.bed_label,
+              monthly_rent=payload.monthly_rent, rent_type=payload.rent_type)
+    db.add(bed)
+    db.commit()
+    db.refresh(bed)
+    return bed
+
+
+@router.patch("/beds/{bed_id}/status")
+def update_bed_status(
+    bed_id: int,
+    new_status: BedStatus,
+    db: Session = Depends(get_db),
+    _: User = Depends(require_gp_ops_pm),
+):
+    bed = db.query(Bed).filter(Bed.bed_id == bed_id).first()
+    if not bed:
+        raise HTTPException(status_code=404, detail="Bed not found")
+    bed.status = new_status
+    db.commit()
+    return {"bed_id": bed_id, "status": new_status.value}
 
 
 # ---------------------------------------------------------------------------

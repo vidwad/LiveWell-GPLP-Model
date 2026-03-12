@@ -1,4 +1,5 @@
 import axios from "axios";
+import type { CostEstimateInput, CostEstimateResult } from "@/types/portfolio";
 
 const BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
@@ -46,3 +47,10 @@ apiClient.interceptors.response.use(
     return Promise.reject(error);
   }
 );
+
+export const portfolio = {
+  estimateCosts: async (data: CostEstimateInput) => {
+    const response = await apiClient.post<CostEstimateResult>('/api/portfolio/modeling/estimate-costs', data);
+    return response.data;
+  },
+};

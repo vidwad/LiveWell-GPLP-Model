@@ -14,9 +14,11 @@ import { DevelopmentStage } from "@/types/portfolio";
 
 const STAGE_COLORS: Record<DevelopmentStage, string> = {
   acquisition: "bg-blue-100 text-blue-800",
+  interim_operation: "bg-cyan-100 text-cyan-800",
   planning: "bg-yellow-100 text-yellow-800",
   construction: "bg-orange-100 text-orange-800",
-  operational: "bg-green-100 text-green-800",
+  stabilized: "bg-green-100 text-green-800",
+  exit: "bg-gray-100 text-gray-800",
 };
 
 export default function PortfolioPage() {

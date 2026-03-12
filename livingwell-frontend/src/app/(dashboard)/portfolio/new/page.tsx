@@ -153,7 +153,7 @@ export default function NewPropertyPage() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {(["acquisition", "planning", "construction", "operational"] as DevelopmentStage[]).map((s) => (
+                    {(["acquisition", "interim_operation", "planning", "construction", "stabilized", "exit"] as DevelopmentStage[]).map((s) => (
                       <SelectItem key={s} value={s}>
                         {s.charAt(0).toUpperCase() + s.slice(1)}
                       </SelectItem>

@@ -58,7 +58,6 @@ export default function CommunityDetailPage({
     unit_type: "studio" as UnitType,
     bed_count: 1,
     sqft: 0,
-    monthly_rent: 0,
   });
 
   const [resOpen, setResOpen] = useState(false);
@@ -208,17 +207,7 @@ export default function CommunityDetailPage({
                             required
                           />
                         </div>
-                        <div className="space-y-2 col-span-2">
-                          <Label>Monthly Rent (CAD)</Label>
-                          <Input
-                            type="number"
-                            value={unitForm.monthly_rent || ""}
-                            onChange={(e) =>
-                              setUnitForm((f) => ({ ...f, monthly_rent: Number(e.target.value) }))
-                            }
-                            required
-                          />
-                        </div>
+                        {/* TODO: fetch bed rents — rent is now tracked per bed, not per unit */}
                       </div>
                       <Button type="submit" disabled={unitPending}>
                         {unitPending ? "Adding…" : "Add Unit"}
@@ -239,7 +228,6 @@ export default function CommunityDetailPage({
                       <TableHead>Type</TableHead>
                       <TableHead>Beds</TableHead>
                       <TableHead>Sqft</TableHead>
-                      <TableHead>Rent/mo</TableHead>
                       <TableHead>Status</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -250,7 +238,6 @@ export default function CommunityDetailPage({
                         <TableCell>{u.unit_type}</TableCell>
                         <TableCell>{u.bed_count}</TableCell>
                         <TableCell>{Number(u.sqft).toLocaleString()}</TableCell>
-                        <TableCell>{formatCurrency(u.monthly_rent)}</TableCell>
                         <TableCell>
                           <Badge variant={u.is_occupied ? "default" : "secondary"}>
                             {u.is_occupied ? "Occupied" : "Vacant"}

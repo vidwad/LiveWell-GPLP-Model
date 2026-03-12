@@ -15,7 +15,7 @@ const STAGE_COLORS: Record<string, string> = {
   acquisition: "#f59e0b",
   planning: "#3b82f6",
   construction: "#8b5cf6",
-  operational: "#10b981",
+  stabilized: "#10b981",
 };
 const TYPE_COLORS = ["#10b981", "#3b82f6", "#f59e0b", "#ef4444"];
 const STATUS_COLORS: Record<string, string> = {
