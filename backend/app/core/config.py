@@ -1,5 +1,6 @@
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from pydantic import Field
+import os
 
 
 class Settings(BaseSettings):
@@ -21,12 +22,21 @@ class Settings(BaseSettings):
 
     @property
     def db_url(self) -> str:
+        # 1. Explicit DATABASE_URL always wins
         if self.DATABASE_URL:
             return self.DATABASE_URL
-        return (
-            f"postgresql://{self.POSTGRES_USER}:{self.POSTGRES_PASSWORD}"
-            f"@{self.POSTGRES_SERVER}:{self.POSTGRES_PORT}/{self.POSTGRES_DB}"
-        )
+
+        # 2. If PostgreSQL env vars are explicitly set, build a PG URL
+        if os.environ.get("POSTGRES_SERVER") or os.environ.get("POSTGRES_USER"):
+            return (
+                f"postgresql://{self.POSTGRES_USER}:{self.POSTGRES_PASSWORD}"
+                f"@{self.POSTGRES_SERVER}:{self.POSTGRES_PORT}/{self.POSTGRES_DB}"
+            )
+
+        # 3. Default: SQLite for local development (zero-config)
+        _backend_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        _db_path = os.path.join(_backend_dir, "livingwell_dev.db")
+        return f"sqlite:///{_db_path}"
 
 
 settings = Settings()

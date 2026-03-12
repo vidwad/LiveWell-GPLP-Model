@@ -7,8 +7,10 @@ __pycache__/
 venv/
 *.egg-info/
 
-# SQLite database (use seed.py to repopulate)
+# SQLite dev database (use seed.py to repopulate)
+backend/livingwell_dev.db
 backend/livingwell.db
+*.db
 
 # Node
 node_modules/
