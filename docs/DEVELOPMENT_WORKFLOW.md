@@ -1,6 +1,6 @@
 # Living Well Communities — Development Workflow
 
-**Last updated:** 2026-03-11
+**Last updated:** 2026-03-12
 
 ---
 
@@ -150,7 +150,9 @@ docs/
   DEVELOPMENT_WORKFLOW.md   — This file
   build-specs/
     sprint-01-enhanced-data-model.md
-    sprint-02-*.md          — Future sprints
+    sprint-02-cost-estimation-engine.md
+    sprint-03-investor-portal.md
+    sprint-04-ai-decision-layer.md
     ...
 ```
 
@@ -160,10 +162,10 @@ docs/
 
 | Sprint | Focus | Status |
 |--------|-------|--------|
-| 1 | Enhanced Data Model (beds, clusters, economic entities, lifecycle) | Ready for implementation |
-| 2 | Construction Cost Estimation Engine | Ready for implementation |
-| 3 | Investor Portal Enhancement (waterfall, documents, messaging) | Ready for implementation |
-| 4 | AI Decision Layer (assumption validation, compliance, market intel) | Planned |
+| 1 | Enhanced Data Model (beds, clusters, economic entities, lifecycle) | Implemented |
+| 2 | Construction Cost Estimation Engine | Implemented |
+| 3 | Investor Portal Enhancement (waterfall, documents, messaging) | Implemented |
+| 4 | AI Decision Layer (structured outputs, risk analysis, auto-defaults) | Ready for implementation |
 | 5 | Dashboard & Reporting Overhaul | Planned |
 | 6 | Community Apps Integration (RecoverWell, StudyWell, RetireWell) | Planned |
 
