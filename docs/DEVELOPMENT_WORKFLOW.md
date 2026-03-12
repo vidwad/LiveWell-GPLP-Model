@@ -162,7 +162,7 @@ docs/
 |--------|-------|--------|
 | 1 | Enhanced Data Model (beds, clusters, economic entities, lifecycle) | Ready for implementation |
 | 2 | Construction Cost Estimation Engine | Ready for implementation |
-| 3 | Investor Portal Enhancement (waterfall, documents, messaging) | Planned |
+| 3 | Investor Portal Enhancement (waterfall, documents, messaging) | Ready for implementation |
 | 4 | AI Decision Layer (assumption validation, compliance, market intel) | Planned |
 | 5 | Dashboard & Reporting Overhaul | Planned |
 | 6 | Community Apps Integration (RecoverWell, StudyWell, RetireWell) | Planned |
