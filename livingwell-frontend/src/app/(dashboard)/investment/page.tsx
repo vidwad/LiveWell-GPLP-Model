@@ -53,9 +53,9 @@ export default function InvestmentPage() {
               <TableBody>
                 {gps.map((gp) => (
                   <TableRow key={gp.gp_id}>
-                    <TableCell className="font-medium">{gp.name}</TableCell>
-                    <TableCell>{gp.legal_name ?? "—"}</TableCell>
-                    <TableCell>{gp.jurisdiction ?? "—"}</TableCell>
+                    <TableCell className="font-medium">{gp.legal_name}</TableCell>
+                    <TableCell>{(gp as any).jurisdiction ?? "—"}</TableCell>
+                    <TableCell>{gp.contact_email ?? "—"}</TableCell>
                   </TableRow>
                 ))}
               </TableBody>
@@ -88,7 +88,7 @@ export default function InvestmentPage() {
                 {lps.map((lp) => (
                   <TableRow key={lp.lp_id}>
                     <TableCell className="font-medium">{lp.name}</TableCell>
-                    <TableCell>{lp.legal_name ?? "—"}</TableCell>
+                    <TableCell>{lp.description ?? "—"}</TableCell>
                     <TableCell>
                       <Badge
                         variant={
@@ -105,7 +105,7 @@ export default function InvestmentPage() {
                     <TableCell>
                       {lp.target_raise ? formatCurrency(lp.target_raise) : "—"}
                     </TableCell>
-                    <TableCell>{lp.vintage_year ?? "—"}</TableCell>
+                    <TableCell>{lp.offering_date ? new Date(lp.offering_date).getFullYear() : "—"}</TableCell>
                     <TableCell>
                       {lp.preferred_return_rate
                         ? `${Number(lp.preferred_return_rate).toFixed(1)}%`

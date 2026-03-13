@@ -97,7 +97,7 @@ export default function CommunityDetailPage({
   const handleAddResident = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      await createResident(resForm);
+      await createResident(resForm as any);
       toast.success("Resident added");
       setResOpen(false);
     } catch {

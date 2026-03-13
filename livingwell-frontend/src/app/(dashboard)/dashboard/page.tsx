@@ -175,7 +175,7 @@ export default function DashboardPage() {
                     <CartesianGrid strokeDasharray="3 3" vertical={false} />
                     <XAxis dataKey="name" />
                     <YAxis tickFormatter={(value) => `$${value / 1000000}M`} />
-                    <Tooltip formatter={(value: number) => `$${(value / 1000000).toFixed(2)}M`} />
+                    <Tooltip formatter={(value: any) => `$${(Number(value) / 1000000).toFixed(2)}M`} />
                     <Legend />
                     <Bar dataKey="Debt" stackId="a" fill="#94a3b8" />
                     <Bar dataKey="Equity" stackId="a" fill="#0f172a" />

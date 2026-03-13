@@ -115,11 +115,11 @@ export default function PropertyDetailPage({
               <dl className="grid grid-cols-2 gap-x-6 gap-y-4 text-sm">
                 <div>
                   <dt className="text-muted-foreground">Purchase Price</dt>
-                  <dd className="font-medium">{formatCurrency(property.purchase_price)}</dd>
+                  <dd className="font-medium">{property.purchase_price ? formatCurrency(property.purchase_price) : "—"}</dd>
                 </div>
                 <div>
                   <dt className="text-muted-foreground">Purchase Date</dt>
-                  <dd className="font-medium">{formatDate(property.purchase_date)}</dd>
+                  <dd className="font-medium">{property.purchase_date ? formatDate(property.purchase_date) : "—"}</dd>
                 </div>
                 <div>
                   <dt className="text-muted-foreground">Development Stage</dt>
@@ -271,8 +271,8 @@ export default function PropertyDetailPage({
                         <TableCell>{plan.planned_units}</TableCell>
                         <TableCell>{plan.planned_beds}</TableCell>
                         <TableCell>{Number(plan.planned_sqft).toLocaleString()}</TableCell>
-                        <TableCell>{formatCurrency(plan.estimated_construction_cost)}</TableCell>
-                        <TableCell>{formatDate(plan.development_start_date)}</TableCell>
+                        <TableCell>{plan.estimated_construction_cost ? formatCurrency(plan.estimated_construction_cost) : "—"}</TableCell>
+                        <TableCell>{plan.development_start_date ? formatDate(plan.development_start_date) : "—"}</TableCell>
                         <TableCell>{plan.construction_duration_days} days</TableCell>
                       </TableRow>
                     ))}

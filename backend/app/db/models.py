@@ -165,6 +165,56 @@ class DevelopmentPlanStatus(str, enum.Enum):
     superseded = "superseded"
 
 
+class ETransferStatus(str, enum.Enum):
+    """Tracking state for eTransfer distributions."""
+    initiated = "initiated"
+    sent = "sent"
+    accepted = "accepted"
+    expired = "expired"
+    cancelled = "cancelled"
+    failed = "failed"
+
+
+class QuarterlyReportStatus(str, enum.Enum):
+    """Workflow state of a quarterly report."""
+    draft = "draft"
+    review = "review"
+    approved = "approved"
+    published = "published"
+
+
+class ExpenseCategory(str, enum.Enum):
+    """Operating expense categories."""
+    property_management = "property_management"
+    maintenance_repairs = "maintenance_repairs"
+    utilities = "utilities"
+    insurance = "insurance"
+    property_tax = "property_tax"
+    meal_program = "meal_program"
+    staffing = "staffing"
+    marketing = "marketing"
+    supplies = "supplies"
+    professional_fees = "professional_fees"
+    technology = "technology"
+    other = "other"
+
+
+class BudgetPeriodType(str, enum.Enum):
+    """Budget period granularity."""
+    monthly = "monthly"
+    quarterly = "quarterly"
+    annual = "annual"
+
+
+class MilestoneStatus(str, enum.Enum):
+    """Status of a property milestone."""
+    pending = "pending"
+    in_progress = "in_progress"
+    completed = "completed"
+    overdue = "overdue"
+    skipped = "skipped"
+
+
 # ---------------------------------------------------------------------------
 # Auth & Permissions
 # ---------------------------------------------------------------------------
@@ -265,6 +315,9 @@ class LPEntity(Base):
     holdings = relationship("Holding", back_populates="lp", cascade="all, delete-orphan")
     distribution_events = relationship(
         "DistributionEvent", back_populates="lp", cascade="all, delete-orphan"
+    )
+    quarterly_reports = relationship(
+        "QuarterlyReport", back_populates="lp", cascade="all, delete-orphan"
     )
 
 
@@ -439,6 +492,7 @@ class DistributionAllocation(Base):
 
     event = relationship("DistributionEvent", back_populates="allocations")
     holding = relationship("Holding", back_populates="allocations")
+    etransfer = relationship("ETransferTracking", back_populates="allocation", uselist=False)
 
 
 # ---------------------------------------------------------------------------
@@ -494,6 +548,12 @@ class Property(Base):
         "MaintenanceRequest", back_populates="property", cascade="all, delete-orphan"
     )
     debt_facilities = relationship("DebtFacility", back_populates="property", cascade="all, delete-orphan")
+    stage_transitions = relationship(
+        "PropertyStageTransition", back_populates="property", cascade="all, delete-orphan"
+    )
+    milestones = relationship(
+        "PropertyMilestone", back_populates="property", cascade="all, delete-orphan"
+    )
 
 
 class DevelopmentPlan(Base):
@@ -548,6 +608,7 @@ class OperatorEntity(Base):
     notes = Column(Text, nullable=True)
 
     communities = relationship("Community", back_populates="operator")
+    budgets = relationship("OperatorBudget", back_populates="operator", cascade="all, delete-orphan")
 
 
 # ---------------------------------------------------------------------------
@@ -571,6 +632,12 @@ class Community(Base):
     units = relationship("Unit", back_populates="community", cascade="all, delete-orphan")
     residents = relationship(
         "Resident", back_populates="community", cascade="all, delete-orphan"
+    )
+    budgets = relationship(
+        "OperatorBudget", back_populates="community", cascade="all, delete-orphan"
+    )
+    expenses = relationship(
+        "OperatingExpense", back_populates="community", cascade="all, delete-orphan"
     )
 
 
@@ -700,3 +767,172 @@ class InvestorMessage(Base):
 
     investor = relationship("Investor", back_populates="messages")
     sender = relationship("User")
+    replies = relationship("MessageThread", back_populates="parent_message", cascade="all, delete-orphan")
+
+
+# ---------------------------------------------------------------------------
+# Phase 3: Property Lifecycle — Stage Transitions & Milestones
+# ---------------------------------------------------------------------------
+
+class PropertyStageTransition(Base):
+    """Audit trail of property stage changes with validation gates."""
+    __tablename__ = "property_stage_transitions"
+
+    transition_id = Column(Integer, primary_key=True, index=True)
+    property_id = Column(Integer, ForeignKey("properties.property_id"), nullable=False)
+    from_stage = Column(_enum(DevelopmentStage), nullable=False)
+    to_stage = Column(_enum(DevelopmentStage), nullable=False)
+    transitioned_by = Column(Integer, ForeignKey("users.user_id"), nullable=False)
+    transitioned_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    notes = Column(Text, nullable=True)
+    validation_passed = Column(Boolean, default=True, nullable=False)
+    validation_details = Column(Text, nullable=True)  # JSON: list of checks
+
+    property = relationship("Property", back_populates="stage_transitions")
+    user = relationship("User")
+
+
+class PropertyMilestone(Base):
+    """Key milestones in a property's lifecycle with target and actual dates."""
+    __tablename__ = "property_milestones"
+
+    milestone_id = Column(Integer, primary_key=True, index=True)
+    property_id = Column(Integer, ForeignKey("properties.property_id"), nullable=False)
+    title = Column(String(256), nullable=False)
+    description = Column(Text, nullable=True)
+    target_date = Column(Date, nullable=True)
+    actual_date = Column(Date, nullable=True)
+    status = Column(_enum(MilestoneStatus), nullable=False, default=MilestoneStatus.pending)
+    stage = Column(_enum(DevelopmentStage), nullable=True)  # which stage this belongs to
+    sort_order = Column(Integer, nullable=False, default=0)
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+
+    property = relationship("Property", back_populates="milestones")
+
+
+# ---------------------------------------------------------------------------
+# Phase 3: Enhanced Investor Portal — Quarterly Reports & eTransfer Tracking
+# ---------------------------------------------------------------------------
+
+class QuarterlyReport(Base):
+    """Generated quarterly report for an LP fund."""
+    __tablename__ = "quarterly_reports"
+
+    report_id = Column(Integer, primary_key=True, index=True)
+    lp_id = Column(Integer, ForeignKey("lp_entities.lp_id"), nullable=False)
+    period_label = Column(String(32), nullable=False)  # e.g. "Q1 2026"
+    quarter = Column(Integer, nullable=False)  # 1-4
+    year = Column(Integer, nullable=False)
+    status = Column(_enum(QuarterlyReportStatus), nullable=False, default=QuarterlyReportStatus.draft)
+
+    # Financial summary
+    total_revenue = Column(Numeric(16, 2), nullable=True)
+    total_expenses = Column(Numeric(16, 2), nullable=True)
+    net_operating_income = Column(Numeric(16, 2), nullable=True)
+    total_distributions = Column(Numeric(16, 2), nullable=True)
+    portfolio_value = Column(Numeric(16, 2), nullable=True)
+    portfolio_ltv = Column(Numeric(5, 2), nullable=True)
+
+    # Narrative sections (stored as JSON or markdown)
+    executive_summary = Column(Text, nullable=True)
+    property_updates = Column(Text, nullable=True)  # JSON array of per-property updates
+    market_commentary = Column(Text, nullable=True)
+
+    generated_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    published_at = Column(DateTime, nullable=True)
+    generated_by = Column(Integer, ForeignKey("users.user_id"), nullable=True)
+
+    lp = relationship("LPEntity", back_populates="quarterly_reports")
+    generator = relationship("User")
+
+
+class ETransferTracking(Base):
+    """Tracks individual eTransfer payments for distribution allocations."""
+    __tablename__ = "etransfer_tracking"
+
+    tracking_id = Column(Integer, primary_key=True, index=True)
+    allocation_id = Column(Integer, ForeignKey("distribution_allocations.allocation_id"), nullable=False)
+    recipient_email = Column(String(256), nullable=False)
+    amount = Column(Numeric(14, 2), nullable=False)
+    security_question = Column(String(256), nullable=True)
+    reference_number = Column(String(64), nullable=True)  # bank reference
+    status = Column(_enum(ETransferStatus), nullable=False, default=ETransferStatus.initiated)
+    initiated_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    sent_at = Column(DateTime, nullable=True)
+    accepted_at = Column(DateTime, nullable=True)
+    expires_at = Column(DateTime, nullable=True)
+    notes = Column(Text, nullable=True)
+
+    allocation = relationship("DistributionAllocation", back_populates="etransfer")
+
+
+class MessageThread(Base):
+    """Reply thread for investor messages."""
+    __tablename__ = "message_threads"
+
+    reply_id = Column(Integer, primary_key=True, index=True)
+    parent_message_id = Column(Integer, ForeignKey("investor_messages.message_id"), nullable=False)
+    sender_id = Column(Integer, ForeignKey("users.user_id"), nullable=False)
+    body = Column(Text, nullable=False)
+    sent_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    is_read = Column(Boolean, default=False, nullable=False)
+
+    parent_message = relationship("InvestorMessage", back_populates="replies")
+    sender = relationship("User")
+
+
+# ---------------------------------------------------------------------------
+# Phase 3: Operator Layer — Budgets & Operating Expenses
+# ---------------------------------------------------------------------------
+
+class OperatorBudget(Base):
+    """Annual or quarterly budget for an operator managing a community."""
+    __tablename__ = "operator_budgets"
+
+    budget_id = Column(Integer, primary_key=True, index=True)
+    operator_id = Column(Integer, ForeignKey("operator_entities.operator_id"), nullable=False)
+    community_id = Column(Integer, ForeignKey("communities.community_id"), nullable=False)
+    period_type = Column(_enum(BudgetPeriodType), nullable=False, default=BudgetPeriodType.annual)
+    period_label = Column(String(32), nullable=False)  # e.g. "2026" or "Q1 2026"
+    year = Column(Integer, nullable=False)
+    quarter = Column(Integer, nullable=True)  # null for annual
+
+    # Budget amounts
+    budgeted_revenue = Column(Numeric(14, 2), nullable=False, default=0)
+    budgeted_expenses = Column(Numeric(14, 2), nullable=False, default=0)
+    budgeted_noi = Column(Numeric(14, 2), nullable=False, default=0)
+
+    # Actuals (updated as data comes in)
+    actual_revenue = Column(Numeric(14, 2), nullable=True)
+    actual_expenses = Column(Numeric(14, 2), nullable=True)
+    actual_noi = Column(Numeric(14, 2), nullable=True)
+
+    notes = Column(Text, nullable=True)
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    updated_at = Column(DateTime, nullable=True, onupdate=datetime.utcnow)
+
+    operator = relationship("OperatorEntity", back_populates="budgets")
+    community = relationship("Community", back_populates="budgets")
+
+
+class OperatingExpense(Base):
+    """Individual operating expense line item for a community."""
+    __tablename__ = "operating_expenses"
+
+    expense_id = Column(Integer, primary_key=True, index=True)
+    community_id = Column(Integer, ForeignKey("communities.community_id"), nullable=False)
+    budget_id = Column(Integer, ForeignKey("operator_budgets.budget_id"), nullable=True)
+    category = Column(_enum(ExpenseCategory), nullable=False)
+    description = Column(String(512), nullable=False)
+    amount = Column(Numeric(12, 2), nullable=False)
+    expense_date = Column(Date, nullable=False)
+    period_month = Column(Integer, nullable=False)
+    period_year = Column(Integer, nullable=False)
+    vendor = Column(String(256), nullable=True)
+    invoice_ref = Column(String(128), nullable=True)
+    is_recurring = Column(Boolean, default=False, nullable=False)
+    notes = Column(Text, nullable=True)
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+
+    community = relationship("Community", back_populates="expenses")
+    budget = relationship("OperatorBudget")

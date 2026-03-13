@@ -13,10 +13,13 @@ import { formatCurrency, formatDate } from "@/lib/utils";
 import { DevelopmentStage } from "@/types/portfolio";
 
 const STAGE_COLORS: Record<DevelopmentStage, string> = {
+  prospect: "bg-gray-100 text-gray-800",
   acquisition: "bg-blue-100 text-blue-800",
   interim_operation: "bg-cyan-100 text-cyan-800",
   planning: "bg-yellow-100 text-yellow-800",
+  permit: "bg-violet-100 text-violet-800",
   construction: "bg-orange-100 text-orange-800",
+  lease_up: "bg-purple-100 text-purple-800",
   stabilized: "bg-green-100 text-green-800",
   exit: "bg-gray-100 text-gray-800",
 };
@@ -81,12 +84,12 @@ export default function PortfolioPage() {
                     <div className="flex justify-between">
                       <span className="text-muted-foreground">Purchase Price</span>
                       <span className="font-medium">
-                        {formatCurrency(p.purchase_price)}
+                        {p.purchase_price ? formatCurrency(p.purchase_price) : "—"}
                       </span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-muted-foreground">Purchase Date</span>
-                      <span>{formatDate(p.purchase_date)}</span>
+                      <span>{p.purchase_date ? formatDate(p.purchase_date) : "—"}</span>
                     </div>
                     {p.zoning && (
                       <div className="flex justify-between">

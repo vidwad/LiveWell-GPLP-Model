@@ -26,7 +26,7 @@ export default function NewCommunityPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      const c = await mutateAsync({ name, community_type: communityType, property_id: propertyId });
+      const c = await mutateAsync({ name, community_type: communityType, property_id: propertyId } as any);
       toast.success("Community created");
       router.push(`/communities/${c.community_id}`);
     } catch {

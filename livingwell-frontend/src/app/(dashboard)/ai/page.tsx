@@ -54,7 +54,7 @@ export default function AIDashboardPage() {
           <CardDescription>Select a property to generate a comprehensive risk profile.</CardDescription>
         </CardHeader>
         <CardContent className="flex gap-4">
-          <Select value={selectedPropId} onValueChange={setSelectedPropId}>
+          <Select value={selectedPropId} onValueChange={(v: string | null) => setSelectedPropId(v ?? "")}>
             <SelectTrigger className="w-[300px]">
               <SelectValue placeholder="Select a property..." />
             </SelectTrigger>

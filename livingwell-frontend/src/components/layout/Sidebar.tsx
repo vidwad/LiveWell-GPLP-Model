@@ -13,6 +13,10 @@ import {
   Heart,
   BarChart2,
   Landmark,
+  GitBranch,
+  DollarSign,
+  FileText,
+  Send,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/providers/AuthProvider";
@@ -77,6 +81,30 @@ const NAV_ITEMS = [
       "OPERATIONS_MANAGER",
       "PROPERTY_MANAGER",
     ] as UserRole[],
+  },
+  {
+    href: "/lifecycle",
+    label: "Lifecycle",
+    icon: GitBranch,
+    roles: ["GP_ADMIN", "OPERATIONS_MANAGER", "PROPERTY_MANAGER"] as UserRole[],
+  },
+  {
+    href: "/operator",
+    label: "Operator",
+    icon: DollarSign,
+    roles: ["GP_ADMIN", "OPERATIONS_MANAGER"] as UserRole[],
+  },
+  {
+    href: "/quarterly-reports",
+    label: "Quarterly Reports",
+    icon: FileText,
+    roles: ["GP_ADMIN", "OPERATIONS_MANAGER", "INVESTOR"] as UserRole[],
+  },
+  {
+    href: "/etransfers",
+    label: "eTransfers",
+    icon: Send,
+    roles: ["GP_ADMIN", "OPERATIONS_MANAGER"] as UserRole[],
   },
   {
     href: "/reports",
