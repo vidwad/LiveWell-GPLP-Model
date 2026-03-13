@@ -1,17 +1,21 @@
-import { useMutation } from "@tanstack/react-query";
-import { apiClient } from "@/lib/api";
-import { AssumptionValidationRequest, ScenarioRequest, AIResponse } from "@/types/ai";
+import { useMutation } from '@tanstack/react-query';
+import { apiClient } from '@/lib/api';
+import { PropertyDefaultsRequest, PropertyDefaultsResponse, RiskAnalysisResponse } from '@/types/ai';
 
-export function useValidateAssumptions() {
-  return useMutation({
-    mutationFn: (data: AssumptionValidationRequest) =>
-      apiClient.post<AIResponse>("/api/ai/validate", data).then((r) => r.data),
+export function usePropertyDefaults() {
+  return useMutation<PropertyDefaultsResponse, Error, PropertyDefaultsRequest>({
+    mutationFn: async (data) => {
+      const response = await apiClient.post('/api/ai/suggest-defaults', data);
+      return response.data;
+    },
   });
 }
 
-export function useRunScenario() {
-  return useMutation({
-    mutationFn: (data: ScenarioRequest) =>
-      apiClient.post<AIResponse>("/api/ai/scenario", data).then((r) => r.data),
+export function useRiskAnalysis() {
+  return useMutation<RiskAnalysisResponse, Error, number>({
+    mutationFn: async (propertyId) => {
+      const response = await apiClient.post('/api/ai/analyze-risk', { property_id: propertyId });
+      return response.data;
+    },
   });
 }

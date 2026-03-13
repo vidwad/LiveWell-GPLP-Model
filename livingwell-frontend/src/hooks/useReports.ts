@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { apiClient } from "@/lib/api";
+import { apiClient, reports } from "@/lib/api";
 
 export interface ReportSummary {
   // KPIs
@@ -37,5 +37,32 @@ export function useReportSummary() {
     queryFn: () =>
       apiClient.get<ReportSummary>("/api/reports/summary").then((r) => r.data),
     staleTime: 60_000,
+  });
+}
+
+// ── Fund Performance ──────────────────────────────────────────────────
+
+export interface FundPerformance {
+  lp_id: number;
+  lp_name: string;
+  property_count: number;
+  total_value: number;
+  total_debt: number;
+  total_equity: number;
+  total_noi: number;
+  portfolio_ltv: number;
+  portfolio_dscr: number | null;
+}
+
+export interface FundPerformanceReport {
+  funds: FundPerformance[];
+}
+
+export function useFundPerformance() {
+  return useQuery<FundPerformanceReport, Error>({
+    queryKey: ['reports', 'fund-performance'],
+    queryFn: async () => {
+      return await reports.getFundPerformance();
+    },
   });
 }

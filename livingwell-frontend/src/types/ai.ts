@@ -1,16 +1,26 @@
-export interface AssumptionValidationRequest {
-  cap_rate: number;
-  construction_cost_per_sqft: number;
-  timeline_months: number;
-  market: string;
-  extra?: Record<string, unknown>;
+export interface PropertyDefaultsRequest {
+  address: string;
+  zoning: string;
+  city?: string;
 }
 
-export interface ScenarioRequest {
-  interest_rate_shift: number;
-  portfolio_summary: Record<string, unknown>;
+export interface PropertyDefaultsResponse {
+  estimated_lot_size: number;
+  max_buildable_area: number;
+  recommended_units: number;
+  estimated_cost_per_sqft: number;
+  reasoning: string;
 }
 
-export interface AIResponse {
-  result: string;
+export interface RiskItem {
+  category: string;
+  severity: 'Low' | 'Medium' | 'High' | 'Critical' | string;
+  description: string;
+  mitigation: string;
+}
+
+export interface RiskAnalysisResponse {
+  overall_risk_score: number;
+  summary: string;
+  risks: RiskItem[];
 }

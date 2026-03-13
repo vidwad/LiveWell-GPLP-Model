@@ -1,14 +1,15 @@
-"use client";
+'use client';
 
-import { Building2, Users, Wrench, TrendingUp } from "lucide-react";
+import { Building2, Users, Wrench, TrendingUp, DollarSign, Activity, PieChart as PieChartIcon } from "lucide-react";
 import {
   BarChart, Bar, PieChart, Pie, Cell,
-  XAxis, YAxis, Tooltip, ResponsiveContainer, Legend,
+  XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
 } from "recharts";
 import { KpiCard } from "@/components/dashboard/KpiCard";
 import { useProperties } from "@/hooks/usePortfolio";
 import { useCommunities, useMaintenanceRequests } from "@/hooks/useCommunities";
 import { useInvestors, useInvestorDashboard } from "@/hooks/useInvestors";
+import { useFundPerformance } from "@/hooks/useReports";
 import { useAuth } from "@/providers/AuthProvider";
 import { formatCurrency } from "@/lib/utils";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -41,11 +42,24 @@ export default function DashboardPage() {
   const { data: communities, isLoading: commsLoading } = useCommunities();
   const { data: maintenance, isLoading: maintLoading } = useMaintenanceRequests();
   const { data: investors, isLoading: invLoading } = useInvestors();
+  const { data: report } = useFundPerformance();
   const isInvestor = user?.role === "INVESTOR";
   const { data: dashboard } = useInvestorDashboard(isInvestor ? undefined : undefined);
 
   const openIssues = maintenance?.filter((m) => m.status === "open").length ?? 0;
   const isLoading = propsLoading || commsLoading || maintLoading;
+
+  // Fund performance aggregates
+  const totalValue = report?.funds.reduce((sum, f) => sum + f.total_value, 0) || 0;
+  const totalNOI = report?.funds.reduce((sum, f) => sum + f.total_noi, 0) || 0;
+  const totalDebt = report?.funds.reduce((sum, f) => sum + f.total_debt, 0) || 0;
+  const blendedLTV = totalValue > 0 ? (totalDebt / totalValue) * 100 : 0;
+
+  const capitalStackData = report?.funds.map(f => ({
+    name: f.lp_name.replace('Living Well ', '').replace(' LP', ''),
+    Equity: f.total_equity,
+    Debt: f.total_debt,
+  })) || [];
 
   // Chart data derived from API results
   const stageData = properties
@@ -88,17 +102,118 @@ export default function DashboardPage() {
   }
 
   const showPortfolioCharts = user?.role !== "RESIDENT" && user?.role !== "INVESTOR";
+  const isGPAdmin = user?.role === "GP_ADMIN" || user?.role === "OPERATIONS_MANAGER";
 
   return (
     <div>
       <div className="mb-6">
         <h1 className="text-2xl font-bold">
-          Welcome back{user?.full_name ? `, ${user.full_name}` : ""}
+          {isGPAdmin ? "GP Dashboard" : `Welcome back${user?.full_name ? `, ${user.full_name}` : ""}`}
         </h1>
-        <p className="text-muted-foreground">Here&apos;s an overview of your portfolio.</p>
+        <p className="text-muted-foreground">
+          {isGPAdmin ? "Platform-wide portfolio performance and metrics." : "Here's an overview of your portfolio."}
+        </p>
       </div>
 
-      {/* KPI row */}
+      {/* GP Admin Fund Performance KPIs */}
+      {isGPAdmin && report && (
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4 mb-6">
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Total Portfolio Value</CardTitle>
+              <DollarSign className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">${(totalValue / 1000000).toFixed(2)}M</div>
+              <p className="text-xs text-muted-foreground">Across {properties?.length || 0} properties</p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Estimated Annual NOI</CardTitle>
+              <Activity className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">${(totalNOI / 1000).toFixed(1)}k</div>
+              <p className="text-xs text-muted-foreground">Run-rate based on current plans</p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Blended LTV</CardTitle>
+              <PieChartIcon className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{blendedLTV.toFixed(1)}%</div>
+              <p className="text-xs text-muted-foreground">Total Debt: ${(totalDebt / 1000000).toFixed(2)}M</p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Active Funds</CardTitle>
+              <Building2 className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{report?.funds.length || 0}</div>
+              <p className="text-xs text-muted-foreground">LP Entities under management</p>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* GP Admin Capital Stack Chart + Fund Performance */}
+      {isGPAdmin && report && (
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7 mb-6">
+          <Card className="col-span-4">
+            <CardHeader>
+              <CardTitle>Capital Stack by Fund</CardTitle>
+            </CardHeader>
+            <CardContent className="pl-2">
+              <div className="h-[300px]">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={capitalStackData}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                    <XAxis dataKey="name" />
+                    <YAxis tickFormatter={(value) => `$${value / 1000000}M`} />
+                    <Tooltip formatter={(value: number) => `$${(value / 1000000).toFixed(2)}M`} />
+                    <Legend />
+                    <Bar dataKey="Debt" stackId="a" fill="#94a3b8" />
+                    <Bar dataKey="Equity" stackId="a" fill="#0f172a" />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="col-span-3">
+            <CardHeader>
+              <CardTitle>Fund Performance</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-8">
+                {report?.funds.map((fund) => (
+                  <div key={fund.lp_id} className="flex items-center">
+                    <div className="ml-4 space-y-1 flex-1">
+                      <p className="text-sm font-medium leading-none">{fund.lp_name}</p>
+                      <p className="text-sm text-muted-foreground">
+                        {fund.property_count} Properties
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-sm font-bold">LTV: {fund.portfolio_ltv.toFixed(1)}%</div>
+                      <div className="text-sm text-muted-foreground">
+                        DSCR: {fund.portfolio_dscr ? `${fund.portfolio_dscr.toFixed(2)}x` : 'N/A'}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* Operational KPI row (existing) */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {showPortfolioCharts && (
           <>
@@ -122,7 +237,7 @@ export default function DashboardPage() {
           icon={Wrench}
           description="Maintenance requests"
         />
-        {(user?.role === "GP_ADMIN" || user?.role === "OPERATIONS_MANAGER") && !invLoading && (
+        {isGPAdmin && !invLoading && (
           <KpiCard
             label="Investors"
             value={investors?.length ?? 0}
@@ -151,7 +266,7 @@ export default function DashboardPage() {
         )}
       </div>
 
-      {/* Charts row */}
+      {/* Operational Charts row */}
       {showPortfolioCharts && (
         <div className="mt-6 grid grid-cols-1 gap-4 lg:grid-cols-3">
           {/* Portfolio stage bar chart */}

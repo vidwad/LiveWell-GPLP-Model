@@ -99,4 +99,5 @@ export const communities = {
 // ── Reports ──────────────────────────────────────────────────────────
 export const reports = {
   getSummary: () => apiClient.get("/api/reports/summary").then(r => r.data),
+  getFundPerformance: () => apiClient.get("/api/reports/fund-performance").then(r => r.data),
 };

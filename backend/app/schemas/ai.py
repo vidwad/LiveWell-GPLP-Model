@@ -1,18 +1,28 @@
 from pydantic import BaseModel
+from typing import Optional
 
+class PropertyDefaultsRequest(BaseModel):
+    address: str
+    zoning: str
+    city: str = "Calgary"
 
-class AssumptionValidationRequest(BaseModel):
-    cap_rate: float | None = None
-    construction_cost_per_sqft: float | None = None
-    timeline_months: int | None = None
-    market: str | None = None
-    extra: dict | None = None
+class PropertyDefaultsResponse(BaseModel):
+    estimated_lot_size: float
+    max_buildable_area: float
+    recommended_units: int
+    estimated_cost_per_sqft: float
+    reasoning: str
 
+class RiskAnalysisRequest(BaseModel):
+    property_id: int
 
-class ScenarioRequest(BaseModel):
-    interest_rate_shift: float
-    portfolio_summary: dict
+class RiskItemSchema(BaseModel):
+    category: str
+    severity: str
+    description: str
+    mitigation: str
 
-
-class AIResponse(BaseModel):
-    result: str
+class RiskAnalysisResponse(BaseModel):
+    overall_risk_score: int
+    summary: str
+    risks: list[RiskItemSchema]

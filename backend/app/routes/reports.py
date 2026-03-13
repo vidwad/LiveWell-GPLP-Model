@@ -11,7 +11,8 @@ from fastapi import APIRouter, Depends
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
-from app.core.deps import get_current_user
+from app.core.deps import get_current_user, require_gp_or_ops
+from app.services.reporting import generate_fund_performance_report
 from app.db.models import (
     Community,
     DistributionAllocation,
@@ -30,6 +31,15 @@ from app.db.models import (
 from app.db.session import get_db
 
 router = APIRouter()
+
+
+@router.get("/fund-performance")
+def get_fund_performance(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_gp_or_ops),
+):
+    """Get aggregated performance metrics rolled up by LP."""
+    return generate_fund_performance_report(db)
 
 
 @router.get("/summary")
