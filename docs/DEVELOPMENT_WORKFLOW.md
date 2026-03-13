@@ -178,10 +178,10 @@ These sprints build on the correct Phase 1 foundation. Each is designed for Clau
 
 | Sprint | Focus | Status |
 |--------|-------|--------|
-| P2-S1 | Scope-Based Filtering & Debt Facility Model | Ready for Claude |
-| P2-S2 | Calculation Engines (NOI, DSCR, LTV, IRR, Cap Rate) | Ready for Claude |
-| P2-S3 | AI Decision Layer (structured outputs, risk analysis, auto-defaults) | Planned |
-| P2-S4 | Dashboard & Reporting Overhaul | Planned |
+| P2-S1 | Scope-Based Filtering & Debt Facility Model | Implemented |
+| P2-S2 | Calculation Engines (NOI, DSCR, LTV, IRR, Cap Rate) | Implemented |
+| P2-S3 | AI Decision Layer (structured outputs, risk analysis, auto-defaults) | Ready for Claude |
+| P2-S4 | Dashboard & Reporting Overhaul | Ready for Claude |
 | P2-S5 | Community Apps Integration (RecoverWell, StudyWell, RetireWell) | Planned |
 | P2-S6 | Operator Budget & Expense Tracking | Planned |
 
