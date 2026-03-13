@@ -1,47 +1,35 @@
-export type DistributionMethod = "eTransfer" | "Wire" | "ACH";
-export type DistributionType =
-  | "preferred_return"
-  | "profit_share"
-  | "refinancing"
-  | "sale_proceeds";
+export type EntityType = "individual" | "corporation" | "trust" | "partnership";
+export type AccreditedStatus = "accredited" | "non_accredited" | "pending";
 
 export interface Investor {
   investor_id: number;
   user_id: number | null;
   name: string;
   email: string;
-  accredited_status: string;
   phone: string | null;
-  preferred_return_rate: string | null;
+  address: string | null;
+  entity_type: EntityType;
+  accredited_status: AccreditedStatus;
 }
 
-export interface Contribution {
-  contribution_id: number;
-  investor_id: number;
-  amount: string;
-  date: string;
-  notes: string | null;
+export interface InvestorCreate {
+  name: string;
+  email: string;
+  phone?: string;
+  address?: string;
+  entity_type?: EntityType;
+  accredited_status?: AccreditedStatus;
+  user_id?: number;
 }
 
-export interface Ownership {
-  ownership_id: number;
-  investor_id: number;
-  property_id: number | null;
-  ownership_percent: string;
-  is_gp: boolean;
-}
-
-export interface Distribution {
-  distribution_id: number;
-  investor_id: number;
-  amount: string;
-  payment_date: string;
-  method: DistributionMethod;
-  distribution_type: DistributionType | null;
-  notes: string | null;
-}
-
-export type DocumentType = "subscription_agreement" | "partnership_agreement" | "tax_form" | "quarterly_report" | "capital_call" | "distribution_notice" | "other";
+export type DocumentType =
+  | "subscription_agreement"
+  | "partnership_agreement"
+  | "tax_form"
+  | "quarterly_report"
+  | "capital_call"
+  | "distribution_notice"
+  | "other";
 
 export interface Document {
   document_id: number;
@@ -63,14 +51,14 @@ export interface Message {
   is_read: boolean;
 }
 
-// Update InvestorDashboard to include the new arrays
 export interface InvestorDashboard {
   investor: Investor;
-  total_contributed: string;
-  total_distributed: string;
+  total_committed: string;
+  total_funded: string;
+  total_distributions: string;
   net_position: string;
-  ownership_positions: Ownership[];
-  recent_distributions: Distribution[];
+  subscription_count: number;
+  holding_count: number;
   documents: Document[];
   messages: Message[];
 }
@@ -79,8 +67,10 @@ export interface WaterfallInput {
   distributable_cash: number;
   unreturned_capital: number;
   unpaid_pref_balance: number;
-  pref_rate?: number;
-  gp_promote_share?: number;
+  preferred_rate?: number;
+  gp_catchup_percent?: number;
+  lp_gp_split_lp?: number;
+  lp_gp_split_gp?: number;
 }
 
 export interface WaterfallResult {

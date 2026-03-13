@@ -16,10 +16,15 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 
 const STAGE_COLORS: Record<string, string> = {
+  prospect: "#9ca3af",
   acquisition: "#f59e0b",
+  interim_operation: "#f97316",
   planning: "#3b82f6",
+  permit: "#a855f7",
   construction: "#8b5cf6",
+  lease_up: "#06b6d4",
   stabilized: "#10b981",
+  exit: "#6b7280",
 };
 
 const TYPE_COLORS = ["#10b981", "#3b82f6", "#f59e0b"];
@@ -128,8 +133,13 @@ export default function DashboardPage() {
         {isInvestor && dashboard && (
           <>
             <KpiCard
-              label="Total Contributed"
-              value={formatCurrency(dashboard.total_contributed)}
+              label="Total Committed"
+              value={formatCurrency(dashboard.total_committed)}
+              icon={TrendingUp}
+            />
+            <KpiCard
+              label="Total Funded"
+              value={formatCurrency(dashboard.total_funded)}
               icon={TrendingUp}
             />
             <KpiCard

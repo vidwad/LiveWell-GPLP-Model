@@ -12,6 +12,7 @@ import {
   LogOut,
   Heart,
   BarChart2,
+  Landmark,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/providers/AuthProvider";
@@ -37,6 +38,12 @@ const NAV_ITEMS = [
     label: "Portfolio",
     icon: Building2,
     roles: ["GP_ADMIN", "OPERATIONS_MANAGER", "PROPERTY_MANAGER"] as UserRole[],
+  },
+  {
+    href: "/investment",
+    label: "Investment",
+    icon: Landmark,
+    roles: ["GP_ADMIN", "OPERATIONS_MANAGER"] as UserRole[],
   },
   {
     href: "/communities",

@@ -1,15 +1,20 @@
 export type DevelopmentStage =
+  | "prospect"
   | "acquisition"
   | "interim_operation"
   | "planning"
+  | "permit"
   | "construction"
+  | "lease_up"
   | "stabilized"
   | "exit";
 
-export type EntityType =
-  | "property_lp"
-  | "operating_company"
-  | "property_management";
+export type DevelopmentPlanStatus =
+  | "draft"
+  | "approved"
+  | "active"
+  | "superseded"
+  | "archived";
 
 export interface PropertyCluster {
   cluster_id: number;
@@ -22,11 +27,15 @@ export interface PropertyCluster {
 
 export interface Property {
   property_id: number;
+  lp_id: number | null;
+  lp_name: string | null;
   address: string;
   city: string;
   province: string;
-  purchase_date: string;
-  purchase_price: string;
+  purchase_date: string | null;
+  purchase_price: string | null;
+  assessed_value: string | null;
+  current_market_value: string | null;
   lot_size: string | null;
   zoning: string | null;
   max_buildable_area: string | null;
@@ -39,8 +48,11 @@ export interface PropertyCreate {
   address: string;
   city: string;
   province: string;
-  purchase_date: string;
-  purchase_price: number;
+  lp_id?: number;
+  purchase_date?: string;
+  purchase_price?: number;
+  assessed_value?: number;
+  current_market_value?: number;
   lot_size?: number;
   zoning?: string;
   max_buildable_area?: number;
@@ -53,6 +65,7 @@ export interface DevelopmentPlan {
   plan_id: number;
   property_id: number;
   version: number;
+  status: DevelopmentPlanStatus;
   planned_units: number;
   planned_beds: number;
   planned_sqft: string;
@@ -61,16 +74,19 @@ export interface DevelopmentPlan {
   site_costs: string | null;
   financing_costs: string | null;
   contingency_percent: string | null;
-  cost_escalation_percent_per_year: string | null;
   cost_per_sqft: string | null;
-  estimated_construction_cost: string;
-  development_start_date: string;
-  construction_duration_days: number;
+  estimated_construction_cost: string | null;
+  projected_annual_revenue: string | null;
+  projected_annual_noi: string | null;
+  development_start_date: string | null;
+  construction_duration_days: number | null;
   estimated_completion_date: string | null;
+  estimated_stabilization_date: string | null;
 }
 
 export interface DevelopmentPlanCreate {
   version?: number;
+  status?: DevelopmentPlanStatus;
   planned_units: number;
   planned_beds: number;
   planned_sqft: number;
@@ -79,21 +95,14 @@ export interface DevelopmentPlanCreate {
   site_costs?: number;
   financing_costs?: number;
   contingency_percent?: number;
-  cost_escalation_percent_per_year?: number;
   cost_per_sqft?: number;
-  estimated_construction_cost: number;
-  development_start_date: string;
-  construction_duration_days: number;
+  estimated_construction_cost?: number;
+  projected_annual_revenue?: number;
+  projected_annual_noi?: number;
+  development_start_date?: string;
+  construction_duration_days?: number;
   estimated_completion_date?: string;
-}
-
-export interface EconomicEntity {
-  entity_id: number;
-  property_id: number;
-  entity_type: EntityType;
-  legal_name: string;
-  description: string | null;
-  revenue_share_percent: string | null;
+  estimated_stabilization_date?: string;
 }
 
 export interface ModelingInput {
@@ -114,14 +123,14 @@ export interface ModelingResult {
 
 export interface CostEstimateInput {
   planned_sqft: number;
-  building_type: "multiplex_standard" | "multiplex_premium" | "shared_housing";
-  include_commercial_kitchen: boolean;
-  soft_cost_percent: number;
-  site_cost_flat: number;
-  financing_cost_percent: number;
-  contingency_percent: number;
-  escalation_percent_per_year: number;
-  target_start_date: string | null;
+  building_type?: string;
+  include_commercial_kitchen?: boolean;
+  soft_cost_percent?: number;
+  site_cost_flat?: number;
+  financing_cost_percent?: number;
+  contingency_percent?: number;
+  escalation_percent_per_year?: number;
+  target_start_date?: string | null;
 }
 
 export interface CostEstimateResult {

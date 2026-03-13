@@ -2,6 +2,10 @@
 Aggregated analytics / reporting endpoint.
 Returns a single JSON payload with KPIs and chart data
 so the frontend can build the Reports page without N+1 queries.
+
+Phase 1 Foundation — uses the LP-centric entity model:
+  Subscription (commitments) and DistributionAllocation (payouts)
+  replace the deprecated CapitalContribution and Distribution models.
 """
 from fastapi import APIRouter, Depends
 from sqlalchemy import func
@@ -9,14 +13,17 @@ from sqlalchemy.orm import Session
 
 from app.core.deps import get_current_user
 from app.db.models import (
-    CapitalContribution,
     Community,
-    Distribution,
+    DistributionAllocation,
+    DistributionEvent,
+    Holding,
     Investor,
+    LPEntity,
     MaintenanceRequest,
     Property,
     RentPayment,
     Resident,
+    Subscription,
     Unit,
     User,
 )
@@ -37,6 +44,10 @@ def get_summary(
         stage_counts[p.development_stage] = stage_counts.get(p.development_stage, 0) + 1
 
     total_land_value = sum(float(p.purchase_price or 0) for p in properties)
+
+    # --- LP Funds ---
+    lps = db.query(LPEntity).all()
+    total_lps = len(lps)
 
     # --- Communities / Units ---
     communities = db.query(Community).all()
@@ -71,7 +82,6 @@ def get_summary(
     total_residents = db.query(func.count(Resident.resident_id)).scalar() or 0
 
     # --- Rent payments ---
-    # Monthly revenue: sum by (year, month)
     payment_rows = (
         db.query(
             RentPayment.period_year,
@@ -94,32 +104,40 @@ def get_summary(
     # --- Maintenance ---
     maint_rows = db.query(MaintenanceRequest).all()
     maint_by_status: dict[str, int] = {}
-    for m in maint_rows:
-        maint_by_status[m.status] = maint_by_status.get(m.status, 0) + 1
+    for mr in maint_rows:
+        maint_by_status[mr.status] = maint_by_status.get(mr.status, 0) + 1
 
     resolution_rate = 0.0
     if maint_rows:
         resolved = maint_by_status.get("resolved", 0)
         resolution_rate = round(resolved / len(maint_rows) * 100, 1)
 
-    # --- Investors ---
+    # --- Investors / Capital ---
     total_investors = db.query(func.count(Investor.investor_id)).scalar() or 0
-    total_contributed = float(
-        db.query(func.sum(CapitalContribution.amount)).scalar() or 0
-    )
-    total_distributed = float(
-        db.query(func.sum(Distribution.amount)).scalar() or 0
-    )
-    net_invested = total_contributed - total_distributed
 
-    # Capital deployment over time
+    # Total committed = sum of all subscription commitment_amounts
+    total_committed = float(
+        db.query(func.sum(Subscription.commitment_amount)).scalar() or 0
+    )
+    # Total funded = sum of all subscription funded_amounts
+    total_funded = float(
+        db.query(func.sum(Subscription.funded_amount)).scalar() or 0
+    )
+    # Total distributed = sum of all distribution allocations
+    total_distributed = float(
+        db.query(func.sum(DistributionAllocation.amount)).scalar() or 0
+    )
+    net_invested = total_funded - total_distributed
+
+    # Capital deployment over time (by subscription funded_date)
     contrib_rows = (
         db.query(
-            func.strftime("%Y-%m", CapitalContribution.date).label("month"),
-            func.sum(CapitalContribution.amount).label("total"),
+            func.strftime("%Y-%m", Subscription.funded_date).label("month"),
+            func.sum(Subscription.funded_amount).label("total"),
         )
-        .group_by(func.strftime("%Y-%m", CapitalContribution.date))
-        .order_by(func.strftime("%Y-%m", CapitalContribution.date))
+        .filter(Subscription.funded_date.isnot(None))
+        .group_by(func.strftime("%Y-%m", Subscription.funded_date))
+        .order_by(func.strftime("%Y-%m", Subscription.funded_date))
         .all()
     )
     capital_timeline = [
@@ -131,6 +149,7 @@ def get_summary(
     return {
         # High-level KPIs
         "total_properties": len(properties),
+        "total_lps": total_lps,
         "total_communities": len(communities),
         "total_units": total_units,
         "occupied_units": occupied_units,
@@ -139,7 +158,8 @@ def get_summary(
         "total_investors": total_investors,
         "total_land_value": total_land_value,
         "total_rent_collected": total_rent_collected,
-        "total_contributed": total_contributed,
+        "total_committed": total_committed,
+        "total_funded": total_funded,
         "total_distributed": total_distributed,
         "net_invested": net_invested,
         "maintenance_resolution_rate": resolution_rate,

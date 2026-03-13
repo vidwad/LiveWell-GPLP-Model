@@ -1,80 +1,63 @@
+"""
+Pydantic schemas for the Investor domain.
+Ownership/Contributions/Distributions are now handled via Subscription/Holding/DistributionEvent
+in schemas/investment.py. This file retains Investor CRUD, Documents, Messages, and Waterfall.
+"""
 import datetime
 from decimal import Decimal
+from typing import List, Optional
 
-from pydantic import BaseModel, EmailStr
-from app.db.models import DistributionMethod, DistributionType, DocumentType
+from pydantic import BaseModel
+from app.db.models import DocumentType
 
+
+# ---------------------------------------------------------------------------
+# Investor
+# ---------------------------------------------------------------------------
 
 class InvestorCreate(BaseModel):
     name: str
-    email: EmailStr
-    accredited_status: str
+    email: str
     phone: str | None = None
+    address: str | None = None
+    entity_type: str | None = None
+    accredited_status: str
     user_id: int | None = None
-    preferred_return_rate: Decimal | None = None
+
+
+class InvestorUpdate(BaseModel):
+    name: str | None = None
+    email: str | None = None
+    phone: str | None = None
+    address: str | None = None
+    entity_type: str | None = None
+    accredited_status: str | None = None
 
 
 class InvestorOut(BaseModel):
     investor_id: int
+    user_id: int | None
     name: str
-    email: EmailStr
-    accredited_status: str
+    email: str
     phone: str | None
-    preferred_return_rate: Decimal | None
+    address: str | None
+    entity_type: str | None
+    accredited_status: str
 
     model_config = {"from_attributes": True}
 
 
-class ContributionCreate(BaseModel):
-    amount: Decimal
-    date: datetime.datetime
-    notes: str | None = None
-
-
-class ContributionOut(BaseModel):
-    contribution_id: int
-    investor_id: int
-    amount: Decimal
-    date: datetime.datetime
-    notes: str | None
-
-    model_config = {"from_attributes": True}
-
-
-class OwnershipCreate(BaseModel):
-    property_id: int | None = None
-    ownership_percent: Decimal
-    is_gp: bool = False
-
-
-class OwnershipOut(BaseModel):
-    ownership_id: int
-    investor_id: int
-    property_id: int | None
-    ownership_percent: Decimal
-    is_gp: bool
-
-    model_config = {"from_attributes": True}
-
-
-class DistributionCreate(BaseModel):
-    amount: Decimal
-    payment_date: datetime.datetime
-    method: DistributionMethod
-    distribution_type: DistributionType = DistributionType.preferred_return
-    notes: str | None = None
-
-
-class DistributionOut(BaseModel):
-    distribution_id: int
-    investor_id: int
-    amount: Decimal
-    payment_date: datetime.datetime
-    method: DistributionMethod
-    distribution_type: DistributionType | None
-    notes: str | None
-
-    model_config = {"from_attributes": True}
+class InvestorDashboard(BaseModel):
+    """Investor detail with aggregated investment data."""
+    investor: InvestorOut
+    total_committed: Decimal = Decimal("0")
+    total_funded: Decimal = Decimal("0")
+    total_distributions: Decimal = Decimal("0")
+    net_position: Decimal = Decimal("0")
+    subscription_count: int = 0
+    holding_count: int = 0
+    documents: list = []
+    messages: list = []
 
 
 # ---------------------------------------------------------------------------
@@ -85,6 +68,7 @@ class DocumentCreate(BaseModel):
     title: str
     document_type: DocumentType
     file_url: str
+
 
 class DocumentOut(BaseModel):
     document_id: int
@@ -97,9 +81,11 @@ class DocumentOut(BaseModel):
 
     model_config = {"from_attributes": True}
 
+
 class MessageCreate(BaseModel):
     subject: str
     body: str
+
 
 class MessageOut(BaseModel):
     message_id: int
@@ -112,8 +98,9 @@ class MessageOut(BaseModel):
 
     model_config = {"from_attributes": True}
 
+
 # ---------------------------------------------------------------------------
-# Waterfall
+# Waterfall (now LP-aware — takes LP waterfall terms)
 # ---------------------------------------------------------------------------
 
 class WaterfallInput(BaseModel):
@@ -122,6 +109,7 @@ class WaterfallInput(BaseModel):
     unpaid_pref_balance: Decimal
     pref_rate: Decimal = Decimal("0.08")
     gp_promote_share: Decimal = Decimal("0.20")
+
 
 class WaterfallResultSchema(BaseModel):
     total_distribution: Decimal
@@ -135,14 +123,3 @@ class WaterfallResultSchema(BaseModel):
     tier_3_gp: Decimal
     unpaid_pref_balance: Decimal
     unreturned_capital: Decimal
-
-# Update InvestorDashboard to include documents and messages
-class InvestorDashboard(BaseModel):
-    investor: InvestorOut
-    total_contributed: Decimal
-    total_distributed: Decimal
-    net_position: Decimal
-    ownership_positions: list[OwnershipOut]
-    recent_distributions: list[DistributionOut]
-    documents: list[DocumentOut] = []
-    messages: list[MessageOut] = []

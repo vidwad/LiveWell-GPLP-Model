@@ -4,7 +4,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import RedirectResponse
 
-from app.routes import portfolio, community, investor, ai, auth, reports
+from app.routes import portfolio, community, investor, investment, ai, auth, reports
 
 
 @asynccontextmanager
@@ -19,7 +19,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="Living Well Communities Platform",
-    version="0.1.0",
+    version="0.2.0",
     description=(
         "Enterprise-scale platform for GP/LP development, "
         "community operations, and investor relations."
@@ -39,6 +39,7 @@ app.include_router(auth.router, prefix="/api/auth", tags=["auth"])
 app.include_router(portfolio.router, prefix="/api/portfolio", tags=["portfolio"])
 app.include_router(community.router, prefix="/api/community", tags=["community"])
 app.include_router(investor.router, prefix="/api/investor", tags=["investor"])
+app.include_router(investment.router, prefix="/api/investment", tags=["investment"])
 app.include_router(ai.router, prefix="/api/ai", tags=["ai"])
 app.include_router(reports.router, prefix="/api/reports", tags=["reports"])
 

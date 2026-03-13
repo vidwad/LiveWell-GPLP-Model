@@ -1,10 +1,13 @@
+"""
+Pydantic schemas for the Portfolio domain: Properties, Clusters,
+Development Plans, and Financial Modeling.
+"""
 import datetime
 from decimal import Decimal
+from typing import List, Optional
 
 from pydantic import BaseModel
-from app.db.models import DevelopmentStage, EntityType
-
-
+from app.db.models import DevelopmentStage
 
 
 # ---------------------------------------------------------------------------
@@ -26,6 +29,7 @@ class PropertyClusterOut(BaseModel):
     has_commercial_kitchen: bool
     kitchen_capacity_meals_per_day: int | None
     notes: str | None
+    property_count: int = 0
 
     model_config = {"from_attributes": True}
 
@@ -38,28 +42,34 @@ class PropertyCreate(BaseModel):
     address: str
     city: str
     province: str
-    purchase_date: datetime.date
-    purchase_price: Decimal
+    lp_id: int | None = None
+    cluster_id: int | None = None
+    purchase_date: datetime.date | None = None
+    purchase_price: Decimal | None = None
+    assessed_value: Decimal | None = None
+    current_market_value: Decimal | None = None
     lot_size: Decimal | None = None
     zoning: str | None = None
     max_buildable_area: Decimal | None = None
     floor_area_ratio: Decimal | None = None
-    development_stage: DevelopmentStage = DevelopmentStage.acquisition
-    cluster_id: int | None = None
+    development_stage: DevelopmentStage = DevelopmentStage.prospect
 
 
 class PropertyUpdate(BaseModel):
     address: str | None = None
     city: str | None = None
     province: str | None = None
+    lp_id: int | None = None
+    cluster_id: int | None = None
     purchase_date: datetime.date | None = None
     purchase_price: Decimal | None = None
+    assessed_value: Decimal | None = None
+    current_market_value: Decimal | None = None
     lot_size: Decimal | None = None
     zoning: str | None = None
     max_buildable_area: Decimal | None = None
     floor_area_ratio: Decimal | None = None
     development_stage: DevelopmentStage | None = None
-    cluster_id: int | None = None
 
 
 class PropertyOut(BaseModel):
@@ -67,14 +77,18 @@ class PropertyOut(BaseModel):
     address: str
     city: str
     province: str
-    purchase_date: datetime.date
-    purchase_price: Decimal
+    lp_id: int | None
+    lp_name: str | None = None
+    cluster_id: int | None
+    purchase_date: datetime.date | None
+    purchase_price: Decimal | None
+    assessed_value: Decimal | None
+    current_market_value: Decimal | None
     lot_size: Decimal | None
     zoning: str | None
     max_buildable_area: Decimal | None
     floor_area_ratio: Decimal | None
     development_stage: DevelopmentStage
-    cluster_id: int | None
 
     model_config = {"from_attributes": True}
 
@@ -85,6 +99,7 @@ class PropertyOut(BaseModel):
 
 class DevelopmentPlanCreate(BaseModel):
     version: int = 1
+    status: str = "draft"
     planned_units: int
     planned_beds: int
     planned_sqft: Decimal
@@ -96,15 +111,19 @@ class DevelopmentPlanCreate(BaseModel):
     cost_escalation_percent_per_year: Decimal | None = None
     cost_per_sqft: Decimal | None = None
     estimated_construction_cost: Decimal
-    development_start_date: datetime.date
-    construction_duration_days: int
+    projected_annual_revenue: Decimal | None = None
+    projected_annual_noi: Decimal | None = None
+    development_start_date: datetime.date | None = None
+    construction_duration_days: int | None = None
     estimated_completion_date: datetime.date | None = None
+    estimated_stabilization_date: datetime.date | None = None
 
 
 class DevelopmentPlanOut(BaseModel):
     plan_id: int
     property_id: int
     version: int
+    status: str
     planned_units: int
     planned_beds: int
     planned_sqft: Decimal
@@ -116,37 +135,18 @@ class DevelopmentPlanOut(BaseModel):
     cost_escalation_percent_per_year: Decimal | None
     cost_per_sqft: Decimal | None
     estimated_construction_cost: Decimal
-    development_start_date: datetime.date
-    construction_duration_days: int
+    projected_annual_revenue: Decimal | None
+    projected_annual_noi: Decimal | None
+    development_start_date: datetime.date | None
+    construction_duration_days: int | None
     estimated_completion_date: datetime.date | None
+    estimated_stabilization_date: datetime.date | None
 
     model_config = {"from_attributes": True}
 
 
 # ---------------------------------------------------------------------------
-# Economic Entity
-# ---------------------------------------------------------------------------
-
-class EconomicEntityCreate(BaseModel):
-    entity_type: EntityType
-    legal_name: str
-    description: str | None = None
-    revenue_share_percent: Decimal | None = None
-
-
-class EconomicEntityOut(BaseModel):
-    entity_id: int
-    property_id: int
-    entity_type: EntityType
-    legal_name: str
-    description: str | None
-    revenue_share_percent: Decimal | None
-
-    model_config = {"from_attributes": True}
-
-
-# ---------------------------------------------------------------------------
-# Financial Modeling (unchanged interface, will be enhanced in Sprint 2)
+# Financial Modeling
 # ---------------------------------------------------------------------------
 
 class ModelingInput(BaseModel):
@@ -172,7 +172,7 @@ class ModelingResult(BaseModel):
 
 class CostEstimateInput(BaseModel):
     planned_sqft: Decimal
-    building_type: str = "multiplex_standard"  # multiplex_standard, multiplex_premium, shared_housing
+    building_type: str = "multiplex_standard"
     include_commercial_kitchen: bool = False
     soft_cost_percent: Decimal = Decimal("20.00")
     site_cost_flat: Decimal = Decimal("75000.00")

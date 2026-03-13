@@ -1,618 +1,847 @@
 """
-Seed script — populate the database with realistic Alberta demo data.
+Living Well Communities Platform — Seed Script
+================================================
+Phase 1 Foundation: Seeds the database with demo data that reflects the
+correct GP → LP → Subscription → Holding → Property architecture.
 
-Usage (from the backend/ directory):
+Usage:
+    cd backend
     python seed.py
-
-Idempotent: running it twice will skip rows that already exist.
 """
-
 import sys
 import os
 from datetime import date, datetime, timedelta
 from decimal import Decimal
 
+# Ensure the backend package is importable
 sys.path.insert(0, os.path.dirname(__file__))
 
-from app.core.config import settings
-from app.core.security import hash_password
-from app.db.base import Base
 from app.db.session import engine, SessionLocal
-import app.db.models  # noqa: F401
-
-# ── helpers ────────────────────────────────────────────────────────────────
-
-def _try_add(db, obj):
-    """Add obj to session; roll back silently on integrity error."""
-    try:
-        db.add(obj)
-        db.commit()
-        db.refresh(obj)
-        return obj
-    except Exception:
-        db.rollback()
-        return None
+from app.db.base import Base
+import app.db.models as m  # noqa: F401 — registers all models
 
 
-def run():
+def seed():
+    # Drop and recreate all tables
+    Base.metadata.drop_all(bind=engine)
     Base.metadata.create_all(bind=engine)
+
     db = SessionLocal()
 
-    from app.db.models import (
-        User, Property, PropertyCluster, DevelopmentPlan, Community, Unit, Bed,
-        Resident, RentPayment, MaintenanceRequest, EconomicEntity,
-        Investor, CapitalContribution, Ownership, Distribution,
-        UserRole, DevelopmentStage, CommunityType, UnitType, RentType,
-        BedStatus, PaymentStatus, MaintenanceStatus, DistributionMethod,
-        DistributionType, EntityType,
-    )
+    try:
+        # =================================================================
+        # 1. USERS (6 demo accounts)
+        # =================================================================
+        from app.core.security import hash_password
 
-    # ── Users ──────────────────────────────────────────────────────────
-    print("Seeding users ...")
-    users = {}
-    for email, full_name, role in [
-        ("admin@livingwell.ca",     "Alex Chen",       UserRole.GP_ADMIN),
-        ("ops@livingwell.ca",       "Maria Santos",    UserRole.OPERATIONS_MANAGER),
-        ("pm@livingwell.ca",        "James Okafor",    UserRole.PROPERTY_MANAGER),
-        ("investor1@example.ca",    "Sarah Mitchell",  UserRole.INVESTOR),
-        ("investor2@example.ca",    "David Nguyen",    UserRole.INVESTOR),
-        ("resident1@example.ca",    "Tom Clarke",      UserRole.RESIDENT),
-    ]:
-        existing = db.query(User).filter(User.email == email).first()
-        if existing:
-            users[email] = existing
-            continue
-        u = User(
-            email=email,
-            hashed_password=hash_password("Password1!"),
-            full_name=full_name,
-            role=role,
+        users = {
+            "admin": m.User(
+                email="admin@livingwell.ca",
+                hashed_password=hash_password("Password1!"),
+                full_name="Vidwad Patel (GP Admin)",
+                role=m.UserRole.GP_ADMIN,
+            ),
+            "ops": m.User(
+                email="ops@livingwell.ca",
+                hashed_password=hash_password("Password1!"),
+                full_name="Jordan Ops Manager",
+                role=m.UserRole.OPERATIONS_MANAGER,
+            ),
+            "pm": m.User(
+                email="pm@livingwell.ca",
+                hashed_password=hash_password("Password1!"),
+                full_name="Casey Property Manager",
+                role=m.UserRole.PROPERTY_MANAGER,
+            ),
+            "investor1": m.User(
+                email="investor1@example.com",
+                hashed_password=hash_password("Password1!"),
+                full_name="Sarah Mitchell",
+                role=m.UserRole.INVESTOR,
+            ),
+            "investor2": m.User(
+                email="investor2@example.com",
+                hashed_password=hash_password("Password1!"),
+                full_name="James Chen",
+                role=m.UserRole.INVESTOR,
+            ),
+            "resident": m.User(
+                email="resident@example.com",
+                hashed_password=hash_password("Password1!"),
+                full_name="Alex Resident",
+                role=m.UserRole.RESIDENT,
+            ),
+        }
+        for u in users.values():
+            db.add(u)
+        db.flush()
+
+        # =================================================================
+        # 2. GP ENTITY
+        # =================================================================
+        gp = m.GPEntity(
+            legal_name="Alberta Multiplex GP Inc.",
+            management_fee_percent=Decimal("2.00"),
+            address="Suite 400, 123 Centre St SW, Calgary, AB T2P 0A5",
+            contact_email="gp@albertamultiplex.ca",
+            notes="General partner managing all Living Well LP funds.",
         )
-        result = _try_add(db, u)
-        users[email] = result or db.query(User).filter(User.email == email).first()
-    print(f"  {len(users)} users ready")
+        db.add(gp)
+        db.flush()
 
-    # ── Property Clusters ──────────────────────────────────────────────
-    print("Seeding property clusters ...")
-    cluster = db.query(PropertyCluster).filter(PropertyCluster.name == "Edmonton Central Cluster").first()
-    if not cluster:
-        cluster = _try_add(db, PropertyCluster(
-            name="Edmonton Central Cluster",
-            city="Edmonton",
+        # =================================================================
+        # 3. LP ENTITIES (2 funds)
+        # =================================================================
+        lp1 = m.LPEntity(
+            gp_id=gp.gp_id,
+            name="Living Well Fund I LP",
+            description="First fund — RecoverWell and StudyWell properties in Calgary and Edmonton.",
+            status=m.LPStatus.operating,
+            target_raise=Decimal("5000000.00"),
+            minimum_investment=Decimal("50000.00"),
+            offering_date=date(2024, 6, 1),
+            closing_date=date(2024, 12, 31),
+            preferred_return_rate=Decimal("8.00"),
+            gp_promote_percent=Decimal("20.00"),
+            gp_catchup_percent=Decimal("100.00"),
+            asset_management_fee_percent=Decimal("1.50"),
+            acquisition_fee_percent=Decimal("1.00"),
+        )
+        lp2 = m.LPEntity(
+            gp_id=gp.gp_id,
+            name="Living Well Fund II LP",
+            description="Second fund — RetireWell properties in Red Deer and Lethbridge.",
+            status=m.LPStatus.raising,
+            target_raise=Decimal("8000000.00"),
+            minimum_investment=Decimal("100000.00"),
+            offering_date=date(2025, 3, 1),
+            closing_date=date(2025, 9, 30),
+            preferred_return_rate=Decimal("8.00"),
+            gp_promote_percent=Decimal("20.00"),
+            gp_catchup_percent=Decimal("100.00"),
+            asset_management_fee_percent=Decimal("1.50"),
+            acquisition_fee_percent=Decimal("1.00"),
+        )
+        db.add_all([lp1, lp2])
+        db.flush()
+
+        # =================================================================
+        # 4. INVESTORS
+        # =================================================================
+        inv1 = m.Investor(
+            user_id=users["investor1"].user_id,
+            name="Sarah Mitchell",
+            email="investor1@example.com",
+            phone="403-555-0101",
+            address="456 Investor Ave, Calgary, AB T2N 1N4",
+            entity_type="individual",
+            accredited_status="accredited",
+        )
+        inv2 = m.Investor(
+            user_id=users["investor2"].user_id,
+            name="James Chen",
+            email="investor2@example.com",
+            phone="780-555-0202",
+            address="789 Capital Blvd, Edmonton, AB T5J 0R1",
+            entity_type="corporation",
+            accredited_status="accredited",
+        )
+        inv3 = m.Investor(
+            name="Priya Sharma Family Trust",
+            email="priya@sharmatrust.ca",
+            phone="403-555-0303",
+            address="321 Trust Lane, Calgary, AB T2P 2T2",
+            entity_type="trust",
+            accredited_status="accredited",
+        )
+        db.add_all([inv1, inv2, inv3])
+        db.flush()
+
+        # =================================================================
+        # 5. SUBSCRIPTIONS (investors committing to LPs)
+        # =================================================================
+        sub1 = m.Subscription(
+            investor_id=inv1.investor_id,
+            lp_id=lp1.lp_id,
+            commitment_amount=Decimal("250000.00"),
+            funded_amount=Decimal("250000.00"),
+            status=m.SubscriptionStatus.issued,
+            submitted_date=date(2024, 7, 15),
+            accepted_date=date(2024, 7, 22),
+            funded_date=date(2024, 8, 1),
+            issued_date=date(2024, 8, 5),
+        )
+        sub2 = m.Subscription(
+            investor_id=inv2.investor_id,
+            lp_id=lp1.lp_id,
+            commitment_amount=Decimal("500000.00"),
+            funded_amount=Decimal("500000.00"),
+            status=m.SubscriptionStatus.issued,
+            submitted_date=date(2024, 7, 20),
+            accepted_date=date(2024, 7, 28),
+            funded_date=date(2024, 8, 10),
+            issued_date=date(2024, 8, 15),
+        )
+        sub3 = m.Subscription(
+            investor_id=inv3.investor_id,
+            lp_id=lp1.lp_id,
+            commitment_amount=Decimal("200000.00"),
+            funded_amount=Decimal("200000.00"),
+            status=m.SubscriptionStatus.issued,
+            submitted_date=date(2024, 8, 1),
+            accepted_date=date(2024, 8, 8),
+            funded_date=date(2024, 8, 20),
+            issued_date=date(2024, 8, 25),
+        )
+        sub4 = m.Subscription(
+            investor_id=inv1.investor_id,
+            lp_id=lp2.lp_id,
+            commitment_amount=Decimal("300000.00"),
+            funded_amount=Decimal("150000.00"),
+            status=m.SubscriptionStatus.funded,
+            submitted_date=date(2025, 4, 1),
+            accepted_date=date(2025, 4, 10),
+            funded_date=date(2025, 5, 1),
+            notes="Partial funding — second tranche due Q3 2025.",
+        )
+        sub5 = m.Subscription(
+            investor_id=inv2.investor_id,
+            lp_id=lp2.lp_id,
+            commitment_amount=Decimal("750000.00"),
+            funded_amount=Decimal("0.00"),
+            status=m.SubscriptionStatus.accepted,
+            submitted_date=date(2025, 4, 15),
+            accepted_date=date(2025, 4, 25),
+            notes="Awaiting first capital call.",
+        )
+        db.add_all([sub1, sub2, sub3, sub4, sub5])
+        db.flush()
+
+        # =================================================================
+        # 6. HOLDINGS (equity positions — issued from funded subscriptions)
+        # =================================================================
+        # Fund I total funded: 250K + 500K + 200K = 950K (LP)
+        # GP also holds a position in Fund I (5%)
+        hold_gp_f1 = m.Holding(
+            investor_id=inv1.investor_id,
+            lp_id=lp1.lp_id,
+            ownership_percent=Decimal("5.0000"),
+            cost_basis=Decimal("50000.00"),
+            unreturned_capital=Decimal("50000.00"),
+            unpaid_preferred=Decimal("0.00"),
+            is_gp=True,
+        )
+        hold1 = m.Holding(
+            investor_id=inv1.investor_id,
+            lp_id=lp1.lp_id,
+            subscription_id=sub1.subscription_id,
+            ownership_percent=Decimal("25.0000"),
+            cost_basis=Decimal("250000.00"),
+            unreturned_capital=Decimal("250000.00"),
+            unpaid_preferred=Decimal("0.00"),
+            is_gp=False,
+        )
+        hold2 = m.Holding(
+            investor_id=inv2.investor_id,
+            lp_id=lp1.lp_id,
+            subscription_id=sub2.subscription_id,
+            ownership_percent=Decimal("50.0000"),
+            cost_basis=Decimal("500000.00"),
+            unreturned_capital=Decimal("500000.00"),
+            unpaid_preferred=Decimal("0.00"),
+            is_gp=False,
+        )
+        hold3 = m.Holding(
+            investor_id=inv3.investor_id,
+            lp_id=lp1.lp_id,
+            subscription_id=sub3.subscription_id,
+            ownership_percent=Decimal("20.0000"),
+            cost_basis=Decimal("200000.00"),
+            unreturned_capital=Decimal("200000.00"),
+            unpaid_preferred=Decimal("0.00"),
+            is_gp=False,
+        )
+        # Fund II — only one holding so far (Sarah's partial funding)
+        hold4 = m.Holding(
+            investor_id=inv1.investor_id,
+            lp_id=lp2.lp_id,
+            subscription_id=sub4.subscription_id,
+            ownership_percent=Decimal("18.7500"),
+            cost_basis=Decimal("150000.00"),
+            unreturned_capital=Decimal("150000.00"),
+            unpaid_preferred=Decimal("0.00"),
+            is_gp=False,
+        )
+        db.add_all([hold_gp_f1, hold1, hold2, hold3, hold4])
+        db.flush()
+
+        # =================================================================
+        # 7. DISTRIBUTION EVENT (Fund I Q4 2025)
+        # =================================================================
+        dist_event = m.DistributionEvent(
+            lp_id=lp1.lp_id,
+            period_label="Q4 2025",
+            total_distributable=Decimal("50000.00"),
+            status=m.DistributionEventStatus.paid,
+            created_date=datetime(2025, 12, 15),
+            approved_date=datetime(2025, 12, 20),
+            paid_date=datetime(2025, 12, 28),
+            notes="First quarterly distribution from stabilized operations.",
+        )
+        db.add(dist_event)
+        db.flush()
+
+        # Allocations proportional to LP ownership (25/50/20 out of 95% LP total)
+        alloc1 = m.DistributionAllocation(
+            event_id=dist_event.event_id,
+            holding_id=hold1.holding_id,
+            amount=Decimal("13157.89"),
+            distribution_type=m.DistributionType.preferred_return,
+            method=m.DistributionMethod.etransfer,
+        )
+        alloc2 = m.DistributionAllocation(
+            event_id=dist_event.event_id,
+            holding_id=hold2.holding_id,
+            amount=Decimal("26315.79"),
+            distribution_type=m.DistributionType.preferred_return,
+            method=m.DistributionMethod.wire,
+        )
+        alloc3 = m.DistributionAllocation(
+            event_id=dist_event.event_id,
+            holding_id=hold3.holding_id,
+            amount=Decimal("10526.32"),
+            distribution_type=m.DistributionType.preferred_return,
+            method=m.DistributionMethod.etransfer,
+        )
+        db.add_all([alloc1, alloc2, alloc3])
+        db.flush()
+
+        # =================================================================
+        # 8. OPERATOR ENTITIES
+        # =================================================================
+        op_recover = m.OperatorEntity(
+            name="RecoverWell Operations Inc.",
+            contact_email="ops@recoverwell.ca",
+            contact_phone="403-555-1000",
+            address="Suite 200, 456 Recovery Rd, Calgary, AB",
+            notes="Operates all RecoverWell sober living communities.",
+        )
+        op_study = m.OperatorEntity(
+            name="StudyWell Housing Co.",
+            contact_email="ops@studywell.ca",
+            contact_phone="780-555-2000",
+            address="Suite 100, 789 Campus Dr, Edmonton, AB",
+            notes="Operates all StudyWell student housing communities.",
+        )
+        op_retire = m.OperatorEntity(
+            name="RetireWell Living Corp.",
+            contact_email="ops@retirewell.ca",
+            contact_phone="403-555-3000",
+            address="Suite 300, 321 Sunset Blvd, Red Deer, AB",
+            notes="Operates all RetireWell retirement communities.",
+        )
+        db.add_all([op_recover, op_study, op_retire])
+        db.flush()
+
+        # =================================================================
+        # 9. PROPERTY CLUSTERS
+        # =================================================================
+        cluster_ne = m.PropertyCluster(
+            name="Calgary NE Cluster",
+            city="Calgary",
             has_commercial_kitchen=True,
-            kitchen_capacity_meals_per_day=150,
-            notes="Commercial kitchen at 142 Whyte Ave serves 5 nearby properties",
-        ))
-    print(f"  cluster ready: {cluster.name if cluster else 'N/A'}")
-
-    # ── Properties ─────────────────────────────────────────────────────
-    print("Seeding properties ...")
-    props_data = [
-        {
-            "address": "142 Whyte Ave",
-            "city": "Edmonton",
-            "province": "AB",
-            "purchase_date": date(2021, 6, 15),
-            "purchase_price": Decimal("1850000"),
-            "lot_size": Decimal("6200"),
-            "zoning": "RF3",
-            "max_buildable_area": Decimal("4800"),
-            "floor_area_ratio": Decimal("0.80"),
-            "development_stage": DevelopmentStage.stabilized,
-            "cluster_id": cluster.cluster_id if cluster else None,
-        },
-        {
-            "address": "89 Bow Trail SW",
-            "city": "Calgary",
-            "province": "AB",
-            "purchase_date": date(2022, 2, 28),
-            "purchase_price": Decimal("2100000"),
-            "lot_size": Decimal("5400"),
-            "zoning": "M-C2",
-            "max_buildable_area": Decimal("4200"),
-            "floor_area_ratio": Decimal("0.78"),
-            "development_stage": DevelopmentStage.stabilized,
-            "cluster_id": None,
-        },
-        {
-            "address": "310 Gaetz Ave",
-            "city": "Red Deer",
-            "province": "AB",
-            "purchase_date": date(2023, 9, 1),
-            "purchase_price": Decimal("780000"),
-            "lot_size": Decimal("8100"),
-            "zoning": "R2",
-            "max_buildable_area": Decimal("6500"),
-            "floor_area_ratio": Decimal("0.80"),
-            "development_stage": DevelopmentStage.construction,
-            "cluster_id": None,
-        },
-        {
-            "address": "55 University Dr",
-            "city": "Lethbridge",
-            "province": "AB",
-            "purchase_date": date(2024, 1, 20),
-            "purchase_price": Decimal("920000"),
-            "lot_size": Decimal("4900"),
-            "zoning": "C-N",
-            "max_buildable_area": Decimal("3800"),
-            "floor_area_ratio": Decimal("0.78"),
-            "development_stage": DevelopmentStage.planning,
-            "cluster_id": None,
-        },
-        {
-            "address": "220 Jasper Ave",
-            "city": "Edmonton",
-            "province": "AB",
-            "purchase_date": date(2024, 8, 1),
-            "purchase_price": Decimal("1450000"),
-            "lot_size": Decimal("5800"),
-            "zoning": "RF3",
-            "max_buildable_area": Decimal("4500"),
-            "floor_area_ratio": Decimal("0.78"),
-            "development_stage": DevelopmentStage.acquisition,
-            "cluster_id": cluster.cluster_id if cluster else None,
-        },
-    ]
-    props = []
-    for pd in props_data:
-        existing = db.query(Property).filter(
-            Property.address == pd["address"],
-            Property.city == pd["city"],
-        ).first()
-        if existing:
-            props.append(existing)
-            continue
-        p = Property(**pd)
-        result = _try_add(db, p)
-        props.append(result or existing)
-    print(f"  {len(props)} properties ready")
-
-    # ── Economic Entities ──────────────────────────────────────────────
-    print("Seeding economic entities ...")
-    for prop in props[:2]:  # Only for stabilized properties
-        if not prop:
-            continue
-        for etype, lname, desc, share in [
-            (EntityType.property_lp, f"Alberta Multiplex LP - {prop.address}",
-             "Property ownership entity receiving rental income", Decimal("100.00")),
-            (EntityType.operating_company, f"RecoverWell Operations - {prop.address}",
-             "Manages day-to-day community operations", None),
-            (EntityType.property_management, f"Living Well PM - {prop.address}",
-             "Handles maintenance, building ops, compliance", None),
-        ]:
-            existing = db.query(EconomicEntity).filter(
-                EconomicEntity.property_id == prop.property_id,
-                EconomicEntity.entity_type == etype,
-            ).first()
-            if not existing:
-                _try_add(db, EconomicEntity(
-                    property_id=prop.property_id,
-                    entity_type=etype,
-                    legal_name=lname,
-                    description=desc,
-                    revenue_share_percent=share,
-                ))
-    print("  economic entities ready")
-
-    # ── Development Plans ──────────────────────────────────────────────
-    print("Seeding development plans ...")
-    plan_specs = [
-        (props[0], 1, 12, 24, Decimal("6400"), Decimal("1200000"), Decimal("280000"),
-         Decimal("120000"), Decimal("80000"), Decimal("10.00"), Decimal("4.00"),
-         Decimal("262.50"), Decimal("1920000"), date(2020, 3, 1), 480, date(2021, 6, 24)),
-        (props[1], 1, 10, 18, Decimal("5200"), Decimal("980000"), Decimal("220000"),
-         Decimal("100000"), Decimal("60000"), Decimal("10.00"), Decimal("4.00"),
-         Decimal("261.54"), Decimal("1560000"), date(2021, 6, 1), 420, date(2022, 7, 26)),
-        (props[2], 1, 8, 14, Decimal("4800"), Decimal("860000"), Decimal("200000"),
-         Decimal("90000"), Decimal("50000"), Decimal("10.00"), Decimal("4.50"),
-         Decimal("250.00"), Decimal("1440000"), date(2023, 11, 1), 365, date(2024, 11, 1)),
-        (props[3], 1, 6, 10, Decimal("3200"), Decimal("580000"), Decimal("140000"),
-         Decimal("70000"), Decimal("40000"), Decimal("10.00"), Decimal("4.50"),
-         Decimal("259.38"), Decimal("960000"), date(2024, 6, 1), 300, date(2025, 3, 28)),
-    ]
-    for (prop, ver, units, beds, sqft, hard, soft, site, fin,
-         cont_pct, esc_pct, cpsf, total, start, days, completion) in plan_specs:
-        if not prop:
-            continue
-        if not db.query(DevelopmentPlan).filter(DevelopmentPlan.property_id == prop.property_id).first():
-            _try_add(db, DevelopmentPlan(
-                property_id=prop.property_id,
-                version=ver,
-                planned_units=units,
-                planned_beds=beds,
-                planned_sqft=sqft,
-                hard_costs=hard,
-                soft_costs=soft,
-                site_costs=site,
-                financing_costs=fin,
-                contingency_percent=cont_pct,
-                cost_escalation_percent_per_year=esc_pct,
-                cost_per_sqft=cpsf,
-                estimated_construction_cost=total,
-                development_start_date=start,
-                construction_duration_days=days,
-                estimated_completion_date=completion,
-            ))
-    print("  development plans ready")
-
-    # ── Communities ────────────────────────────────────────────────────
-    print("Seeding communities ...")
-    communities = []
-    community_specs = [
-        (props[0], CommunityType.recover, "RecoverWell Whyte Ave", True, Decimal("350.00")),
-        (props[1], CommunityType.retire,  "RetireWell Bow Trail", True, Decimal("500.00")),
-        (props[1], CommunityType.study,   "StudyWell Bow Trail", False, None),
-        (props[3], CommunityType.study,   "StudyWell University", False, None),
-    ]
-    for prop, ctype, name, meal, meal_cost in community_specs:
-        if not prop:
-            communities.append(None)
-            continue
-        existing = db.query(Community).filter(Community.name == name).first()
-        if existing:
-            communities.append(existing)
-            continue
-        c = Community(
-            property_id=prop.property_id, community_type=ctype, name=name,
-            has_meal_plan=meal, meal_plan_monthly_cost=meal_cost,
+            kitchen_capacity_meals_per_day=200,
+            notes="Serves 5 properties in NE Calgary.",
         )
-        result = _try_add(db, c)
-        communities.append(result or db.query(Community).filter(Community.name == name).first())
-    print(f"  {len([c for c in communities if c])} communities ready")
-
-    # ── Units & Beds ───────────────────────────────────────────────────
-    print("Seeding units and beds ...")
-    unit_map = {}  # community_id -> list of units
-    # (community_idx, unit_number, type, bed_count, sqft, bed_rents)
-    # bed_rents is a list of (label, monthly_rent, rent_type)
-    unit_specs = [
-        # RecoverWell Whyte Ave -- shared rooms common in recovery housing
-        (0, "101", UnitType.shared, 2, Decimal("400"),
-         [("A", Decimal("1100"), RentType.private_pay),
-          ("B", Decimal("1100"), RentType.government_supported)]),
-        (0, "102", UnitType.shared, 2, Decimal("400"),
-         [("A", Decimal("1100"), RentType.private_pay),
-          ("B", Decimal("1100"), RentType.shared_room)]),
-        (0, "103", UnitType.one_bed, 1, Decimal("480"),
-         [("A", Decimal("1800"), RentType.private_pay)]),
-        (0, "104", UnitType.one_bed, 1, Decimal("480"),
-         [("A", Decimal("1800"), RentType.transitional)]),
-        (0, "201", UnitType.two_bed, 2, Decimal("720"),
-         [("A", Decimal("1400"), RentType.private_pay),
-          ("B", Decimal("1400"), RentType.private_pay)]),
-        (0, "202", UnitType.two_bed, 2, Decimal("720"),
-         [("A", Decimal("1400"), RentType.government_supported),
-          ("B", Decimal("1400"), RentType.government_supported)]),
-        # RetireWell Bow Trail -- suites for seniors
-        (1, "101", UnitType.suite, 1, Decimal("550"),
-         [("A", Decimal("2600"), RentType.private_pay)]),
-        (1, "102", UnitType.suite, 1, Decimal("550"),
-         [("A", Decimal("2600"), RentType.private_pay)]),
-        (1, "103", UnitType.two_bed, 2, Decimal("750"),
-         [("A", Decimal("1800"), RentType.private_pay),
-          ("B", Decimal("1800"), RentType.private_pay)]),
-        (1, "104", UnitType.two_bed, 2, Decimal("750"),
-         [("A", Decimal("1800"), RentType.government_supported),
-          ("B", Decimal("1800"), RentType.government_supported)]),
-        # StudyWell Bow Trail -- student rooms
-        (2, "101", UnitType.shared, 2, Decimal("310"),
-         [("A", Decimal("850"), RentType.private_pay),
-          ("B", Decimal("850"), RentType.private_pay)]),
-        (2, "102", UnitType.studio, 1, Decimal("310"),
-         [("A", Decimal("1200"), RentType.private_pay)]),
-        (2, "103", UnitType.one_bed, 1, Decimal("460"),
-         [("A", Decimal("1500"), RentType.private_pay)]),
-    ]
-
-    bed_map = {}  # unit_id -> list of beds
-
-    for ci, unit_number, utype, beds, sqft, bed_rents in unit_specs:
-        comm = communities[ci]
-        if not comm:
-            continue
-        existing = db.query(Unit).filter(
-            Unit.community_id == comm.community_id,
-            Unit.unit_number == unit_number,
-        ).first()
-        if existing:
-            unit_map.setdefault(comm.community_id, []).append(existing)
-            # Load existing beds
-            existing_beds = db.query(Bed).filter(Bed.unit_id == existing.unit_id).all()
-            bed_map[existing.unit_id] = existing_beds
-            continue
-        u = Unit(
-            community_id=comm.community_id,
-            unit_number=unit_number,
-            unit_type=utype,
-            bed_count=beds,
-            sqft=sqft,
-            is_occupied=False,
+        cluster_south = m.PropertyCluster(
+            name="Calgary South Cluster",
+            city="Calgary",
+            has_commercial_kitchen=False,
+            notes="Planned cluster — kitchen pending.",
         )
-        result = _try_add(db, u)
-        if result:
-            unit_map.setdefault(comm.community_id, []).append(result)
-            # Create beds for this unit
-            unit_beds = []
-            for label, rent, rtype in bed_rents:
-                bed = _try_add(db, Bed(
-                    unit_id=result.unit_id,
-                    bed_label=label,
-                    monthly_rent=rent,
-                    rent_type=rtype,
-                    status=BedStatus.available,
-                ))
-                if bed:
-                    unit_beds.append(bed)
-            bed_map[result.unit_id] = unit_beds
+        db.add_all([cluster_ne, cluster_south])
+        db.flush()
 
-    total_units = sum(len(v) for v in unit_map.values())
-    total_beds = sum(len(v) for v in bed_map.values())
-    print(f"  {total_units} units, {total_beds} beds ready")
-
-    # ── Residents ──────────────────────────────────────────────────────
-    print("Seeding residents ...")
-    resident_specs = [
-        # (community_idx, unit_idx, bed_idx_in_unit, name, email, rent_type, move_in, meal_plan)
-        (0, 0, 0, "Tom Clarke",    "resident1@example.ca", RentType.private_pay,          date(2022, 3, 1), True),
-        (0, 0, 1, "Linda Park",    "linda@example.ca",     RentType.government_supported, date(2022, 5, 1), True),
-        (0, 2, 0, "Michael Brown", "michael@example.ca",   RentType.private_pay,          date(2022, 7, 1), False),
-        (1, 0, 0, "Grace Kim",     "grace@example.ca",     RentType.private_pay,          date(2022, 9, 1), True),
-        (1, 1, 0, "Robert Davis",  "robert@example.ca",    RentType.private_pay,          date(2023, 1, 1), True),
-        (2, 0, 0, "Emma Wilson",   "emma@example.ca",      RentType.private_pay,          date(2023, 3, 1), False),
-        (2, 0, 1, "Noah Taylor",   "noah@example.ca",      RentType.private_pay,          date(2023, 5, 1), False),
-    ]
-    residents = []
-    for ci, ui, bi, name, email, rtype, move_in, meal in resident_specs:
-        comm = communities[ci]
-        if not comm:
-            residents.append(None)
-            continue
-        comm_units = unit_map.get(comm.community_id, [])
-        if ui >= len(comm_units) or not comm_units[ui]:
-            residents.append(None)
-            continue
-        unit = comm_units[ui]
-        unit_beds = bed_map.get(unit.unit_id, [])
-        bed = unit_beds[bi] if bi < len(unit_beds) else None
-
-        existing = db.query(Resident).filter(Resident.email == email).first()
-        if existing:
-            residents.append(existing)
-            continue
-        r = Resident(
-            community_id=comm.community_id,
-            unit_id=unit.unit_id,
-            bed_id=bed.bed_id if bed else None,
-            full_name=name,
-            email=email,
-            bed_number=bed.bed_label if bed else "1",
-            rent_type=rtype,
-            move_in_date=move_in,
-            enrolled_meal_plan=meal,
+        # =================================================================
+        # 10. PROPERTIES (5 properties across 2 LPs)
+        # =================================================================
+        prop1 = m.Property(
+            lp_id=lp1.lp_id,
+            cluster_id=cluster_ne.cluster_id,
+            address="123 Recovery Road NE",
+            city="Calgary",
+            province="Alberta",
+            purchase_date=date(2024, 9, 15),
+            purchase_price=Decimal("650000.00"),
+            assessed_value=Decimal("620000.00"),
+            current_market_value=Decimal("700000.00"),
+            lot_size=Decimal("5500.00"),
+            zoning="R-CG",
+            max_buildable_area=Decimal("4400.00"),
+            floor_area_ratio=Decimal("0.80"),
+            development_stage=m.DevelopmentStage.stabilized,
         )
-        result = _try_add(db, r)
-        if result:
-            unit.is_occupied = True
-            if bed:
-                bed.status = BedStatus.occupied
-            db.commit()
-        residents.append(result or db.query(Resident).filter(Resident.email == email).first())
-    print(f"  {len([r for r in residents if r])} residents ready")
+        prop2 = m.Property(
+            lp_id=lp1.lp_id,
+            cluster_id=cluster_ne.cluster_id,
+            address="456 Healing Avenue NE",
+            city="Calgary",
+            province="Alberta",
+            purchase_date=date(2024, 10, 1),
+            purchase_price=Decimal("580000.00"),
+            assessed_value=Decimal("560000.00"),
+            current_market_value=Decimal("610000.00"),
+            lot_size=Decimal("5000.00"),
+            zoning="R-CG",
+            max_buildable_area=Decimal("4000.00"),
+            floor_area_ratio=Decimal("0.80"),
+            development_stage=m.DevelopmentStage.construction,
+        )
+        prop3 = m.Property(
+            lp_id=lp1.lp_id,
+            address="789 Campus Drive",
+            city="Edmonton",
+            province="Alberta",
+            purchase_date=date(2024, 11, 15),
+            purchase_price=Decimal("720000.00"),
+            assessed_value=Decimal("700000.00"),
+            current_market_value=Decimal("750000.00"),
+            lot_size=Decimal("6200.00"),
+            zoning="DC",
+            max_buildable_area=Decimal("5580.00"),
+            floor_area_ratio=Decimal("0.90"),
+            development_stage=m.DevelopmentStage.lease_up,
+        )
+        prop4 = m.Property(
+            lp_id=lp2.lp_id,
+            address="321 Sunset Boulevard",
+            city="Red Deer",
+            province="Alberta",
+            purchase_date=date(2025, 3, 1),
+            purchase_price=Decimal("480000.00"),
+            assessed_value=Decimal("460000.00"),
+            current_market_value=Decimal("490000.00"),
+            lot_size=Decimal("7000.00"),
+            zoning="R-2",
+            max_buildable_area=Decimal("4900.00"),
+            floor_area_ratio=Decimal("0.70"),
+            development_stage=m.DevelopmentStage.acquisition,
+        )
+        prop5 = m.Property(
+            lp_id=lp2.lp_id,
+            address="555 Prairie View Lane",
+            city="Lethbridge",
+            province="Alberta",
+            lot_size=Decimal("8000.00"),
+            zoning="R-2",
+            development_stage=m.DevelopmentStage.prospect,
+        )
+        db.add_all([prop1, prop2, prop3, prop4, prop5])
+        db.flush()
 
-    # ── Rent Payments ──────────────────────────────────────────────────
-    print("Seeding rent payments ...")
-    now = datetime.utcnow()
-    payment_count = 0
-    for resident in residents:
-        if not resident:
-            continue
-        existing = db.query(RentPayment).filter(
-            RentPayment.resident_id == resident.resident_id
-        ).count()
-        if existing > 0:
-            continue
-        # Get the bed rent amount
-        bed = db.query(Bed).filter(Bed.bed_id == resident.bed_id).first() if resident.bed_id else None
-        amount = bed.monthly_rent if bed else Decimal("1500")
-        # Add meal plan cost if enrolled
-        meal_included = False
-        if resident.enrolled_meal_plan:
-            comm = db.query(Community).filter(
-                Community.community_id == resident.community_id
-            ).first()
-            if comm and comm.meal_plan_monthly_cost:
-                amount += comm.meal_plan_monthly_cost
-                meal_included = True
+        # =================================================================
+        # 11. DEVELOPMENT PLANS
+        # =================================================================
+        plan1 = m.DevelopmentPlan(
+            property_id=prop1.property_id,
+            version=1,
+            status=m.DevelopmentPlanStatus.active,
+            planned_units=8,
+            planned_beds=16,
+            planned_sqft=Decimal("4200.00"),
+            hard_costs=Decimal("1260000.00"),
+            soft_costs=Decimal("252000.00"),
+            site_costs=Decimal("75000.00"),
+            financing_costs=Decimal("79350.00"),
+            contingency_percent=Decimal("10.00"),
+            cost_per_sqft=Decimal("300.00"),
+            estimated_construction_cost=Decimal("1830885.00"),
+            projected_annual_revenue=Decimal("230400.00"),
+            projected_annual_noi=Decimal("161280.00"),
+            development_start_date=date(2024, 10, 1),
+            construction_duration_days=270,
+            estimated_completion_date=date(2025, 6, 28),
+            estimated_stabilization_date=date(2025, 9, 28),
+        )
+        plan2 = m.DevelopmentPlan(
+            property_id=prop2.property_id,
+            version=1,
+            status=m.DevelopmentPlanStatus.approved,
+            planned_units=6,
+            planned_beds=12,
+            planned_sqft=Decimal("3600.00"),
+            hard_costs=Decimal("1080000.00"),
+            soft_costs=Decimal("216000.00"),
+            site_costs=Decimal("75000.00"),
+            financing_costs=Decimal("68550.00"),
+            contingency_percent=Decimal("10.00"),
+            cost_per_sqft=Decimal("300.00"),
+            estimated_construction_cost=Decimal("1583505.00"),
+            projected_annual_revenue=Decimal("172800.00"),
+            projected_annual_noi=Decimal("120960.00"),
+            development_start_date=date(2025, 1, 15),
+            construction_duration_days=300,
+            estimated_completion_date=date(2025, 11, 11),
+            estimated_stabilization_date=date(2026, 2, 11),
+        )
+        plan3 = m.DevelopmentPlan(
+            property_id=prop3.property_id,
+            version=1,
+            status=m.DevelopmentPlanStatus.active,
+            planned_units=10,
+            planned_beds=20,
+            planned_sqft=Decimal("5400.00"),
+            hard_costs=Decimal("1620000.00"),
+            soft_costs=Decimal("324000.00"),
+            site_costs=Decimal("85000.00"),
+            financing_costs=Decimal("101450.00"),
+            contingency_percent=Decimal("10.00"),
+            cost_per_sqft=Decimal("300.00"),
+            estimated_construction_cost=Decimal("2343495.00"),
+            projected_annual_revenue=Decimal("288000.00"),
+            projected_annual_noi=Decimal("201600.00"),
+            development_start_date=date(2025, 2, 1),
+            construction_duration_days=240,
+            estimated_completion_date=date(2025, 9, 29),
+            estimated_stabilization_date=date(2025, 12, 29),
+        )
+        db.add_all([plan1, plan2, plan3])
+        db.flush()
 
-        for months_ago in range(3, 0, -1):
-            pay_date = now - timedelta(days=months_ago * 30)
-            rp = RentPayment(
-                resident_id=resident.resident_id,
-                bed_id=resident.bed_id,
-                amount=amount,
-                payment_date=pay_date,
-                period_month=pay_date.month,
-                period_year=pay_date.year,
-                status=PaymentStatus.paid,
-                includes_meal_plan=meal_included,
+        # =================================================================
+        # 12. COMMUNITIES
+        # =================================================================
+        comm1 = m.Community(
+            property_id=prop1.property_id,
+            operator_id=op_recover.operator_id,
+            community_type=m.CommunityType.recover,
+            name="RecoverWell Calgary NE",
+            has_meal_plan=True,
+            meal_plan_monthly_cost=Decimal("350.00"),
+            target_occupancy_percent=Decimal("95.00"),
+        )
+        comm2 = m.Community(
+            property_id=prop2.property_id,
+            operator_id=op_recover.operator_id,
+            community_type=m.CommunityType.recover,
+            name="RecoverWell Calgary Healing",
+            has_meal_plan=True,
+            meal_plan_monthly_cost=Decimal("350.00"),
+            target_occupancy_percent=Decimal("95.00"),
+        )
+        comm3 = m.Community(
+            property_id=prop3.property_id,
+            operator_id=op_study.operator_id,
+            community_type=m.CommunityType.study,
+            name="StudyWell Edmonton Campus",
+            has_meal_plan=False,
+            target_occupancy_percent=Decimal("90.00"),
+        )
+        comm4 = m.Community(
+            property_id=prop4.property_id,
+            operator_id=op_retire.operator_id,
+            community_type=m.CommunityType.retire,
+            name="RetireWell Red Deer",
+            has_meal_plan=True,
+            meal_plan_monthly_cost=Decimal("500.00"),
+            target_occupancy_percent=Decimal("92.00"),
+        )
+        db.add_all([comm1, comm2, comm3, comm4])
+        db.flush()
+
+        # =================================================================
+        # 13. UNITS & BEDS (for stabilized property prop1)
+        # =================================================================
+        units_data = [
+            ("101", m.UnitType.shared, 2, 450),
+            ("102", m.UnitType.shared, 2, 450),
+            ("103", m.UnitType.one_bed, 1, 500),
+            ("104", m.UnitType.shared, 2, 450),
+            ("201", m.UnitType.shared, 2, 450),
+            ("202", m.UnitType.shared, 2, 450),
+            ("203", m.UnitType.one_bed, 1, 500),
+            ("204", m.UnitType.suite, 2, 600),
+        ]
+        units = []
+        for unit_num, utype, beds, sqft in units_data:
+            u = m.Unit(
+                community_id=comm1.community_id,
+                unit_number=unit_num,
+                unit_type=utype,
+                bed_count=beds,
+                sqft=Decimal(str(sqft)),
+                is_occupied=True,
             )
-            p = _try_add(db, rp)
-            if p:
-                payment_count += 1
-    print(f"  {payment_count} payments seeded")
+            db.add(u)
+            db.flush()
+            units.append(u)
 
-    # ── Maintenance Requests ───────────────────────────────────────────
-    print("Seeding maintenance requests ...")
-    maint_specs = [
-        (props[0], None, "HVAC unit in room 101 making loud noise", MaintenanceStatus.resolved,
-         datetime.utcnow() - timedelta(days=45), datetime.utcnow() - timedelta(days=40)),
-        (props[0], None, "Leaking faucet in unit 202 bathroom", MaintenanceStatus.resolved,
-         datetime.utcnow() - timedelta(days=20), datetime.utcnow() - timedelta(days=18)),
-        (props[1], None, "Elevator requires annual inspection", MaintenanceStatus.in_progress,
-         datetime.utcnow() - timedelta(days=10), None),
-        (props[0], None, "Common area carpet cleaning needed", MaintenanceStatus.open,
-         datetime.utcnow() - timedelta(days=3), None),
-        (props[1], None, "Parking lot lighting replacement", MaintenanceStatus.open,
-         datetime.utcnow() - timedelta(days=1), None),
-    ]
-    for prop, res, desc, mstatus, created, resolved in maint_specs:
-        if not prop:
-            continue
-        existing = db.query(MaintenanceRequest).filter(
-            MaintenanceRequest.property_id == prop.property_id,
-            MaintenanceRequest.description == desc,
-        ).first()
-        if existing:
-            continue
-        _try_add(db, MaintenanceRequest(
-            property_id=prop.property_id,
-            resident_id=None,
-            description=desc,
-            status=mstatus,
-            created_at=created,
-            resolved_at=resolved,
-        ))
-    print("  maintenance requests ready")
+            # Create beds for each unit
+            for b in range(1, beds + 1):
+                rent = Decimal("1200.00") if utype == m.UnitType.shared else Decimal("1500.00")
+                if utype == m.UnitType.suite:
+                    rent = Decimal("1800.00")
+                bed = m.Bed(
+                    unit_id=u.unit_id,
+                    bed_label=f"{unit_num}-B{b}",
+                    monthly_rent=rent,
+                    rent_type=m.RentType.private_pay,
+                    status=m.BedStatus.occupied,
+                )
+                db.add(bed)
+            db.flush()
 
-    # ── Investors ──────────────────────────────────────────────────────
-    print("Seeding investors ...")
-    investor_map = {}
-    for email, user_email, name, accredited, pref_return in [
-        ("sarah.mitchell@investors.ca", "investor1@example.ca", "Sarah Mitchell", "accredited", Decimal("8.00")),
-        ("david.nguyen@investors.ca",   "investor2@example.ca", "David Nguyen",   "accredited", Decimal("8.00")),
-        ("wei.zhang@investors.ca",      None,                   "Wei Zhang",       "accredited", Decimal("10.00")),
-    ]:
-        existing = db.query(Investor).filter(Investor.email == email).first()
-        if existing:
-            investor_map[email] = existing
-            continue
-        linked_user = users.get(user_email) if user_email else None
-        inv = Investor(
-            user_id=linked_user.user_id if linked_user else None,
-            name=name,
-            email=email,
-            accredited_status=accredited,
-            preferred_return_rate=pref_return,
+        # =================================================================
+        # 14. RESIDENTS (7 residents in comm1)
+        # =================================================================
+        resident_data = [
+            ("Michael Torres", "101", "B1", m.RentType.private_pay),
+            ("David Kim", "101", "B2", m.RentType.private_pay),
+            ("Rachel Green", "102", "B1", m.RentType.government_supported),
+            ("Tom Wilson", "102", "B2", m.RentType.government_supported),
+            ("Emma Davis", "103", "B1", m.RentType.private_pay),
+            ("Chris Brown", "201", "B1", m.RentType.private_pay),
+            ("Lisa Anderson", "201", "B2", m.RentType.transitional),
+        ]
+        residents = []
+        for name, unit_num, bed_num, rent_type in resident_data:
+            unit = next(u for u in units if u.unit_number == unit_num)
+            bed = db.query(m.Bed).filter(
+                m.Bed.unit_id == unit.unit_id,
+                m.Bed.bed_label == f"{unit_num}-{bed_num}",
+            ).first()
+            res = m.Resident(
+                community_id=comm1.community_id,
+                unit_id=unit.unit_id,
+                bed_id=bed.bed_id if bed else None,
+                full_name=name,
+                bed_number=f"{unit_num}-{bed_num}",
+                rent_type=rent_type,
+                move_in_date=date(2025, 7, 1),
+                enrolled_meal_plan=True,
+            )
+            db.add(res)
+            db.flush()
+            residents.append(res)
+
+        # =================================================================
+        # 15. RENT PAYMENTS (last 3 months for all residents)
+        # =================================================================
+        for res in residents:
+            for month_offset in range(3):
+                month = 10 + month_offset  # Oct, Nov, Dec 2025
+                payment = m.RentPayment(
+                    resident_id=res.resident_id,
+                    bed_id=res.bed_id,
+                    amount=Decimal("1200.00") if res.rent_type != m.RentType.transitional else Decimal("800.00"),
+                    payment_date=datetime(2025, month, 1),
+                    period_month=month,
+                    period_year=2025,
+                    status=m.PaymentStatus.paid,
+                    includes_meal_plan=res.enrolled_meal_plan,
+                )
+                db.add(payment)
+        db.flush()
+
+        # =================================================================
+        # 16. MAINTENANCE REQUESTS
+        # =================================================================
+        maint1 = m.MaintenanceRequest(
+            property_id=prop1.property_id,
+            resident_id=residents[0].resident_id,
+            description="Leaking faucet in bathroom",
+            status=m.MaintenanceStatus.resolved,
+            priority="medium",
+            category="plumbing",
+            created_at=datetime(2025, 11, 5),
+            resolved_at=datetime(2025, 11, 7),
         )
-        result = _try_add(db, inv)
-        investor_map[email] = result or db.query(Investor).filter(Investor.email == email).first()
-    print(f"  {len(investor_map)} investors ready")
+        maint2 = m.MaintenanceRequest(
+            property_id=prop1.property_id,
+            resident_id=residents[2].resident_id,
+            description="Heating not working in unit 102",
+            status=m.MaintenanceStatus.in_progress,
+            priority="high",
+            category="hvac",
+            created_at=datetime(2025, 12, 10),
+        )
+        maint3 = m.MaintenanceRequest(
+            property_id=prop1.property_id,
+            description="Exterior light out — parking lot",
+            status=m.MaintenanceStatus.open,
+            priority="low",
+            category="electrical",
+            created_at=datetime(2025, 12, 20),
+        )
+        db.add_all([maint1, maint2, maint3])
+        db.flush()
 
-    # ── Capital Contributions ──────────────────────────────────────────
-    print("Seeding capital contributions ...")
-    contrib_count = 0
-    contrib_specs = [
-        ("sarah.mitchell@investors.ca", Decimal("500000"), datetime(2021, 7, 1),  "Initial capital raise"),
-        ("sarah.mitchell@investors.ca", Decimal("250000"), datetime(2022, 3, 15), "Second tranche"),
-        ("david.nguyen@investors.ca",   Decimal("350000"), datetime(2021, 8, 1),  "Initial capital raise"),
-        ("david.nguyen@investors.ca",   Decimal("150000"), datetime(2022, 6, 1),  "Top-up"),
-        ("wei.zhang@investors.ca",      Decimal("600000"), datetime(2021, 7, 15), "Initial capital raise"),
-    ]
-    for inv_email, amount, dt, notes in contrib_specs:
-        inv = investor_map.get(inv_email)
-        if not inv:
-            continue
-        existing = db.query(CapitalContribution).filter(
-            CapitalContribution.investor_id == inv.investor_id,
-            CapitalContribution.amount == amount,
-            CapitalContribution.notes == notes,
-        ).first()
-        if existing:
-            continue
-        result = _try_add(db, CapitalContribution(
-            investor_id=inv.investor_id,
-            amount=amount,
-            date=dt,
-            notes=notes,
-        ))
-        if result:
-            contrib_count += 1
-    print(f"  {contrib_count} contributions seeded")
+        # =================================================================
+        # 17. INVESTOR DOCUMENTS & MESSAGES
+        # =================================================================
+        doc1 = m.InvestorDocument(
+            investor_id=inv1.investor_id,
+            title="Fund I Subscription Agreement — Sarah Mitchell",
+            document_type=m.DocumentType.subscription_agreement,
+            file_url="/docs/fund1_sub_sarah.pdf",
+            upload_date=datetime(2024, 7, 15),
+            is_viewed=True,
+        )
+        doc2 = m.InvestorDocument(
+            investor_id=inv1.investor_id,
+            title="Q4 2025 Quarterly Report",
+            document_type=m.DocumentType.quarterly_report,
+            file_url="/docs/fund1_q4_2025_report.pdf",
+            upload_date=datetime(2025, 12, 28),
+            is_viewed=False,
+        )
+        doc3 = m.InvestorDocument(
+            investor_id=inv2.investor_id,
+            title="Fund I Subscription Agreement — James Chen",
+            document_type=m.DocumentType.subscription_agreement,
+            file_url="/docs/fund1_sub_james.pdf",
+            upload_date=datetime(2024, 7, 20),
+            is_viewed=True,
+        )
+        db.add_all([doc1, doc2, doc3])
 
-    # ── Ownership ──────────────────────────────────────────────────────
-    print("Seeding ownership ...")
-    ownership_specs = [
-        # GP ownership
-        ("sarah.mitchell@investors.ca", props[0], Decimal("5.00"), True),   # GP carry
-        # LP ownership
-        ("sarah.mitchell@investors.ca", props[0], Decimal("25.00"), False),
-        ("sarah.mitchell@investors.ca", props[1], Decimal("20.00"), False),
-        ("david.nguyen@investors.ca",   props[0], Decimal("15.00"), False),
-        ("david.nguyen@investors.ca",   props[1], Decimal("10.00"), False),
-        ("wei.zhang@investors.ca",      props[0], Decimal("30.00"), False),
-        ("wei.zhang@investors.ca",      props[1], Decimal("25.00"), False),
-    ]
-    for inv_email, prop, pct, is_gp in ownership_specs:
-        inv = investor_map.get(inv_email)
-        if not inv or not prop:
-            continue
-        existing = db.query(Ownership).filter(
-            Ownership.investor_id == inv.investor_id,
-            Ownership.property_id == prop.property_id,
-            Ownership.is_gp == is_gp,
-        ).first()
-        if not existing:
-            _try_add(db, Ownership(
-                investor_id=inv.investor_id,
-                property_id=prop.property_id,
-                ownership_percent=pct,
-                is_gp=is_gp,
-            ))
-    print("  ownership records ready")
+        msg1 = m.InvestorMessage(
+            investor_id=inv1.investor_id,
+            sender_id=users["admin"].user_id,
+            subject="Welcome to Living Well Fund I",
+            body="Thank you for your investment. Your subscription has been processed and units have been issued.",
+            sent_at=datetime(2024, 8, 5),
+            is_read=True,
+        )
+        msg2 = m.InvestorMessage(
+            investor_id=inv1.investor_id,
+            sender_id=users["admin"].user_id,
+            subject="Q4 2025 Distribution Notice",
+            body="Your Q4 2025 distribution of $13,157.89 has been sent via eTransfer.",
+            sent_at=datetime(2025, 12, 28),
+            is_read=False,
+        )
+        db.add_all([msg1, msg2])
+        db.flush()
 
-    # ── Distributions ──────────────────────────────────────────────────
-    print("Seeding distributions ...")
-    dist_count = 0
-    dist_specs = [
-        ("sarah.mitchell@investors.ca", Decimal("18750"), datetime(2022, 12, 31),
-         DistributionMethod.etransfer, DistributionType.preferred_return, "Q4 2022 preferred return"),
-        ("sarah.mitchell@investors.ca", Decimal("18750"), datetime(2023, 6, 30),
-         DistributionMethod.etransfer, DistributionType.preferred_return, "Q2 2023 preferred return"),
-        ("sarah.mitchell@investors.ca", Decimal("8000"), datetime(2023, 12, 31),
-         DistributionMethod.etransfer, DistributionType.profit_share, "Q4 2023 profit share"),
-        ("david.nguyen@investors.ca",   Decimal("12500"), datetime(2022, 12, 31),
-         DistributionMethod.wire, DistributionType.preferred_return, "Q4 2022 preferred return"),
-        ("david.nguyen@investors.ca",   Decimal("12500"), datetime(2023, 6, 30),
-         DistributionMethod.wire, DistributionType.preferred_return, "Q2 2023 preferred return"),
-        ("wei.zhang@investors.ca",      Decimal("22500"), datetime(2022, 12, 31),
-         DistributionMethod.ach, DistributionType.preferred_return, "Q4 2022 preferred return"),
-        ("wei.zhang@investors.ca",      Decimal("22500"), datetime(2023, 12, 31),
-         DistributionMethod.ach, DistributionType.preferred_return, "Q4 2023 preferred return"),
-    ]
-    for inv_email, amount, dt, method, dtype, notes in dist_specs:
-        inv = investor_map.get(inv_email)
-        if not inv:
-            continue
-        existing = db.query(Distribution).filter(
-            Distribution.investor_id == inv.investor_id,
-            Distribution.amount == amount,
-            Distribution.notes == notes,
-        ).first()
-        if existing:
-            continue
-        result = _try_add(db, Distribution(
-            investor_id=inv.investor_id,
-            amount=amount,
-            payment_date=dt,
-            method=method,
-            distribution_type=dtype,
-            notes=notes,
-        ))
-        if result:
-            dist_count += 1
-    print(f"  {dist_count} distributions seeded")
+        # =================================================================
+        # 18. SCOPE ASSIGNMENTS
+        # =================================================================
+        # GP Admin gets implicit full access via role, no scope needed
+        # Ops manager gets access to LP1 and LP2
+        scope1 = m.ScopeAssignment(
+            user_id=users["ops"].user_id,
+            entity_type=m.ScopeEntityType.lp,
+            entity_id=lp1.lp_id,
+            permission_level=m.ScopePermissionLevel.manage,
+        )
+        scope2 = m.ScopeAssignment(
+            user_id=users["ops"].user_id,
+            entity_type=m.ScopeEntityType.lp,
+            entity_id=lp2.lp_id,
+            permission_level=m.ScopePermissionLevel.manage,
+        )
+        # Property manager gets access to prop1 and prop2 only
+        scope3 = m.ScopeAssignment(
+            user_id=users["pm"].user_id,
+            entity_type=m.ScopeEntityType.property,
+            entity_id=prop1.property_id,
+            permission_level=m.ScopePermissionLevel.manage,
+        )
+        scope4 = m.ScopeAssignment(
+            user_id=users["pm"].user_id,
+            entity_type=m.ScopeEntityType.property,
+            entity_id=prop2.property_id,
+            permission_level=m.ScopePermissionLevel.manage,
+        )
+        # Investor1 gets scope to LP1 and LP2
+        scope5 = m.ScopeAssignment(
+            user_id=users["investor1"].user_id,
+            entity_type=m.ScopeEntityType.lp,
+            entity_id=lp1.lp_id,
+            permission_level=m.ScopePermissionLevel.view,
+        )
+        scope6 = m.ScopeAssignment(
+            user_id=users["investor1"].user_id,
+            entity_type=m.ScopeEntityType.lp,
+            entity_id=lp2.lp_id,
+            permission_level=m.ScopePermissionLevel.view,
+        )
+        # Investor2 gets scope to LP1 only
+        scope7 = m.ScopeAssignment(
+            user_id=users["investor2"].user_id,
+            entity_type=m.ScopeEntityType.lp,
+            entity_id=lp1.lp_id,
+            permission_level=m.ScopePermissionLevel.view,
+        )
+        db.add_all([scope1, scope2, scope3, scope4, scope5, scope6, scope7])
+        db.flush()
 
-    db.close()
-    print("\nSeed complete.")
-    print("\nDemo accounts (all passwords: Password1!)")
-    print("  admin@livingwell.ca       -- GP Admin (full access)")
-    print("  ops@livingwell.ca         -- Operations Manager")
-    print("  pm@livingwell.ca          -- Property Manager")
-    print("  investor1@example.ca      -- Investor (Sarah Mitchell)")
-    print("  investor2@example.ca      -- Investor (David Nguyen)")
-    print("  resident1@example.ca      -- Resident (Tom Clarke)")
+        # =================================================================
+        # 19. AUDIT LOG (sample entries)
+        # =================================================================
+        audit1 = m.AuditLog(
+            user_id=users["admin"].user_id,
+            action="distribution.approved",
+            entity_type="DistributionEvent",
+            entity_id=dist_event.event_id,
+            details='{"period": "Q4 2025", "total": 50000.00}',
+            timestamp=datetime(2025, 12, 20),
+        )
+        audit2 = m.AuditLog(
+            user_id=users["admin"].user_id,
+            action="subscription.issued",
+            entity_type="Subscription",
+            entity_id=sub1.subscription_id,
+            details='{"investor": "Sarah Mitchell", "amount": 250000.00}',
+            timestamp=datetime(2024, 8, 5),
+        )
+        db.add_all([audit1, audit2])
+
+        db.commit()
+        print("=" * 60)
+        print("  SEED COMPLETE — Phase 1 Foundation")
+        print("=" * 60)
+        print()
+        print("  GP Entity:           1 (Alberta Multiplex GP Inc.)")
+        print("  LP Entities:         2 (Fund I — operating, Fund II — raising)")
+        print("  Investors:           3")
+        print("  Subscriptions:       5")
+        print("  Holdings:            5 (4 LP + 1 GP)")
+        print("  Distribution Events: 1 (Q4 2025, paid)")
+        print("  Allocations:         3")
+        print("  Operators:           3")
+        print("  Clusters:            2")
+        print("  Properties:          5 (3 in Fund I, 2 in Fund II)")
+        print("  Development Plans:   3")
+        print("  Communities:         4")
+        print("  Units:               8 (in RecoverWell Calgary NE)")
+        print("  Beds:                14")
+        print("  Residents:           7")
+        print("  Rent Payments:       21")
+        print("  Maintenance:         3")
+        print("  Documents:           3")
+        print("  Messages:            2")
+        print("  Scope Assignments:   7")
+        print("  Audit Log:           2")
+        print("  Users:               6")
+        print()
+        print("  Demo logins:")
+        print("    admin@livingwell.ca / Password1!     (GP_ADMIN)")
+        print("    ops@livingwell.ca / Password1!       (OPERATIONS_MANAGER)")
+        print("    pm@livingwell.ca / Password1!        (PROPERTY_MANAGER)")
+        print("    investor1@example.com / Password1!   (INVESTOR)")
+        print("    investor2@example.com / Password1!   (INVESTOR)")
+        print("    resident@example.com / Password1!    (RESIDENT)")
+        print()
+
+    except Exception as e:
+        db.rollback()
+        print(f"ERROR: {e}")
+        raise
+    finally:
+        db.close()
 
 
 if __name__ == "__main__":
-    run()
+    seed()

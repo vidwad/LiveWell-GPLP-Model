@@ -1,4 +1,11 @@
+"""
+Living Well Communities Platform — SQLAlchemy Models
+=====================================================
+Phase 1 Foundation Rebuild: LP-centric investment architecture,
+scope-based permissions, and corrected entity relationships.
+"""
 import enum
+from datetime import datetime
 from functools import partial
 
 from sqlalchemy import (
@@ -26,6 +33,21 @@ class UserRole(str, enum.Enum):
     RESIDENT = "RESIDENT"
 
 
+class ScopeEntityType(str, enum.Enum):
+    """What kind of entity a scope assignment grants access to."""
+    lp = "lp"
+    community = "community"
+    property = "property"
+    cluster = "cluster"
+
+
+class ScopePermissionLevel(str, enum.Enum):
+    """Level of access within the assigned scope."""
+    view = "view"
+    manage = "manage"
+    admin = "admin"
+
+
 class CommunityType(str, enum.Enum):
     recover = "RecoverWell"
     study = "StudyWell"
@@ -37,8 +59,8 @@ class UnitType(str, enum.Enum):
     one_bed = "1br"
     two_bed = "2br"
     three_bed = "3br"
-    suite = "suite"          # for RetireWell private suites
-    shared = "shared"        # shared room (2+ beds)
+    suite = "suite"
+    shared = "shared"
 
 
 class RentType(str, enum.Enum):
@@ -56,10 +78,12 @@ class BedStatus(str, enum.Enum):
 
 
 class DevelopmentStage(str, enum.Enum):
+    prospect = "prospect"
     acquisition = "acquisition"
     interim_operation = "interim_operation"
     planning = "planning"
     construction = "construction"
+    lease_up = "lease_up"
     stabilized = "stabilized"
     exit = "exit"
 
@@ -85,14 +109,9 @@ class DistributionMethod(str, enum.Enum):
 class DistributionType(str, enum.Enum):
     preferred_return = "preferred_return"
     profit_share = "profit_share"
+    return_of_capital = "return_of_capital"
     refinancing = "refinancing"
     sale_proceeds = "sale_proceeds"
-
-
-class EntityType(str, enum.Enum):
-    property_lp = "property_lp"
-    operating_company = "operating_company"
-    property_management = "property_management"
 
 
 class DocumentType(str, enum.Enum):
@@ -102,11 +121,52 @@ class DocumentType(str, enum.Enum):
     quarterly_report = "quarterly_report"
     capital_call = "capital_call"
     distribution_notice = "distribution_notice"
+    appraisal = "appraisal"
+    insurance = "insurance"
     other = "other"
 
 
+class LPStatus(str, enum.Enum):
+    """Lifecycle status of an LP fund."""
+    forming = "forming"
+    raising = "raising"
+    deployed = "deployed"
+    operating = "operating"
+    winding_down = "winding_down"
+    closed = "closed"
+
+
+class SubscriptionStatus(str, enum.Enum):
+    """Workflow state of an investor subscription to an LP."""
+    draft = "draft"
+    submitted = "submitted"
+    under_review = "under_review"
+    accepted = "accepted"
+    funded = "funded"
+    issued = "issued"
+    closed = "closed"
+    rejected = "rejected"
+
+
+class DistributionEventStatus(str, enum.Enum):
+    """Workflow state of a distribution event."""
+    draft = "draft"
+    calculated = "calculated"
+    approved = "approved"
+    paid = "paid"
+    published = "published"
+
+
+class DevelopmentPlanStatus(str, enum.Enum):
+    """Workflow state of a development plan."""
+    draft = "draft"
+    approved = "approved"
+    active = "active"
+    superseded = "superseded"
+
+
 # ---------------------------------------------------------------------------
-# Auth
+# Auth & Permissions
 # ---------------------------------------------------------------------------
 
 class User(Base):
@@ -119,43 +179,216 @@ class User(Base):
     role = Column(_enum(UserRole), nullable=False, default=UserRole.INVESTOR)
     is_active = Column(Boolean, default=True, nullable=False)
 
+    scope_assignments = relationship(
+        "ScopeAssignment", back_populates="user", cascade="all, delete-orphan"
+    )
+
+
+class ScopeAssignment(Base):
+    """Maps a user to a specific entity they are authorized to access."""
+    __tablename__ = "scope_assignments"
+
+    assignment_id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.user_id"), nullable=False)
+    entity_type = Column(_enum(ScopeEntityType), nullable=False)
+    entity_id = Column(Integer, nullable=False)  # polymorphic FK
+    permission_level = Column(
+        _enum(ScopePermissionLevel), nullable=False, default=ScopePermissionLevel.view
+    )
+
+    user = relationship("User", back_populates="scope_assignments")
+
+
+class AuditLog(Base):
+    """Tracks high-risk actions for governance and compliance."""
+    __tablename__ = "audit_log"
+
+    log_id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.user_id"), nullable=True)
+    action = Column(String(128), nullable=False)  # e.g. "distribution.approved"
+    entity_type = Column(String(64), nullable=False)  # e.g. "DistributionEvent"
+    entity_id = Column(Integer, nullable=True)
+    details = Column(Text, nullable=True)  # JSON-encoded extra info
+    timestamp = Column(DateTime, nullable=False, default=datetime.utcnow)
+
+    user = relationship("User")
+
 
 # ---------------------------------------------------------------------------
-# Portfolio — Property & Development
+# GP & LP — Investment Structure
 # ---------------------------------------------------------------------------
 
-class Property(Base):
-    __tablename__ = "properties"
+class GPEntity(Base):
+    """The General Partner managing entity."""
+    __tablename__ = "gp_entities"
 
-    property_id = Column(Integer, primary_key=True, index=True)
-    address = Column(String(256), nullable=False)
-    city = Column(String(128), nullable=False)
-    province = Column(String(64), nullable=False)
-    purchase_date = Column(Date, nullable=False)
-    purchase_price = Column(Numeric(14, 2), nullable=False)
-    lot_size = Column(Numeric(14, 2), nullable=True)
-    zoning = Column(String(128), nullable=True)
-    max_buildable_area = Column(Numeric(14, 2), nullable=True)
-    floor_area_ratio = Column(Numeric(5, 2), nullable=True)          # NEW
-    development_stage = Column(
-        _enum(DevelopmentStage), nullable=False, default=DevelopmentStage.acquisition
-    )
-    cluster_id = Column(Integer, ForeignKey("property_clusters.cluster_id"), nullable=True)  # NEW
+    gp_id = Column(Integer, primary_key=True, index=True)
+    legal_name = Column(String(256), nullable=False)
+    management_fee_percent = Column(Numeric(5, 2), nullable=True)  # e.g. 2.00 for 2%
+    address = Column(String(512), nullable=True)
+    contact_email = Column(String(256), nullable=True)
+    notes = Column(Text, nullable=True)
 
-    development_plans = relationship(
-        "DevelopmentPlan", back_populates="property", cascade="all, delete-orphan"
-    )
-    communities = relationship(
-        "Community", back_populates="property", cascade="all, delete-orphan"
-    )
-    maintenance_requests = relationship(
-        "MaintenanceRequest", back_populates="property", cascade="all, delete-orphan"
-    )
-    cluster = relationship("PropertyCluster", back_populates="properties")  # NEW
-    economic_entities = relationship(
-        "EconomicEntity", back_populates="property", cascade="all, delete-orphan"
-    )  # NEW
+    lps = relationship("LPEntity", back_populates="gp", cascade="all, delete-orphan")
 
+
+class LPEntity(Base):
+    """A Limited Partnership fund vehicle — the core economic boundary."""
+    __tablename__ = "lp_entities"
+
+    lp_id = Column(Integer, primary_key=True, index=True)
+    gp_id = Column(Integer, ForeignKey("gp_entities.gp_id"), nullable=False)
+    name = Column(String(256), nullable=False)
+    description = Column(Text, nullable=True)
+    status = Column(_enum(LPStatus), nullable=False, default=LPStatus.forming)
+
+    # Offering terms
+    target_raise = Column(Numeric(16, 2), nullable=True)
+    minimum_investment = Column(Numeric(14, 2), nullable=True)
+    offering_date = Column(Date, nullable=True)
+    closing_date = Column(Date, nullable=True)
+
+    # LP-specific waterfall rules
+    preferred_return_rate = Column(Numeric(5, 2), nullable=True)  # e.g. 8.00 for 8%
+    gp_promote_percent = Column(Numeric(5, 2), nullable=True)     # e.g. 20.00 for 20%
+    gp_catchup_percent = Column(Numeric(5, 2), nullable=True)     # e.g. 100.00 for 100% catch-up
+
+    # Fee structure
+    asset_management_fee_percent = Column(Numeric(5, 2), nullable=True)
+    acquisition_fee_percent = Column(Numeric(5, 2), nullable=True)
+
+    gp = relationship("GPEntity", back_populates="lps")
+    properties = relationship("Property", back_populates="lp", cascade="all, delete-orphan")
+    subscriptions = relationship(
+        "Subscription", back_populates="lp", cascade="all, delete-orphan"
+    )
+    holdings = relationship("Holding", back_populates="lp", cascade="all, delete-orphan")
+    distribution_events = relationship(
+        "DistributionEvent", back_populates="lp", cascade="all, delete-orphan"
+    )
+
+
+# ---------------------------------------------------------------------------
+# Investor — Subscription & Holding
+# ---------------------------------------------------------------------------
+
+class Investor(Base):
+    __tablename__ = "investors"
+
+    investor_id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.user_id"), nullable=True, unique=True)
+    name = Column(String(256), nullable=False)
+    email = Column(String(256), nullable=False, unique=True)
+    phone = Column(String(64), nullable=True)
+    address = Column(String(512), nullable=True)
+    entity_type = Column(String(64), nullable=True)  # individual, trust, corporation, etc.
+    accredited_status = Column(String(32), nullable=False)
+
+    subscriptions = relationship(
+        "Subscription", back_populates="investor", cascade="all, delete-orphan"
+    )
+    holdings = relationship(
+        "Holding", back_populates="investor", cascade="all, delete-orphan"
+    )
+    documents = relationship(
+        "InvestorDocument", back_populates="investor", cascade="all, delete-orphan"
+    )
+    messages = relationship(
+        "InvestorMessage", back_populates="investor", cascade="all, delete-orphan"
+    )
+
+
+class Subscription(Base):
+    """An investor's commitment to invest in a specific LP."""
+    __tablename__ = "subscriptions"
+
+    subscription_id = Column(Integer, primary_key=True, index=True)
+    investor_id = Column(Integer, ForeignKey("investors.investor_id"), nullable=False)
+    lp_id = Column(Integer, ForeignKey("lp_entities.lp_id"), nullable=False)
+    commitment_amount = Column(Numeric(14, 2), nullable=False)
+    funded_amount = Column(Numeric(14, 2), nullable=False, default=0)
+    status = Column(
+        _enum(SubscriptionStatus), nullable=False, default=SubscriptionStatus.draft
+    )
+    submitted_date = Column(Date, nullable=True)
+    accepted_date = Column(Date, nullable=True)
+    funded_date = Column(Date, nullable=True)
+    issued_date = Column(Date, nullable=True)
+    notes = Column(Text, nullable=True)
+
+    investor = relationship("Investor", back_populates="subscriptions")
+    lp = relationship("LPEntity", back_populates="subscriptions")
+    holding = relationship("Holding", back_populates="subscription", uselist=False)
+
+
+class Holding(Base):
+    """An investor's actual equity position in a specific LP."""
+    __tablename__ = "holdings"
+
+    holding_id = Column(Integer, primary_key=True, index=True)
+    investor_id = Column(Integer, ForeignKey("investors.investor_id"), nullable=False)
+    lp_id = Column(Integer, ForeignKey("lp_entities.lp_id"), nullable=False)
+    subscription_id = Column(Integer, ForeignKey("subscriptions.subscription_id"), nullable=True)
+    ownership_percent = Column(Numeric(7, 4), nullable=False)  # e.g. 12.5000
+    cost_basis = Column(Numeric(14, 2), nullable=False)
+    unreturned_capital = Column(Numeric(14, 2), nullable=False)
+    unpaid_preferred = Column(Numeric(14, 2), nullable=False, default=0)
+    is_gp = Column(Boolean, default=False, nullable=False)
+
+    investor = relationship("Investor", back_populates="holdings")
+    lp = relationship("LPEntity", back_populates="holdings")
+    subscription = relationship("Subscription", back_populates="holding")
+    allocations = relationship(
+        "DistributionAllocation", back_populates="holding", cascade="all, delete-orphan"
+    )
+
+
+# ---------------------------------------------------------------------------
+# Distribution Events & Allocations
+# ---------------------------------------------------------------------------
+
+class DistributionEvent(Base):
+    """A batch distribution record for a specific LP and period."""
+    __tablename__ = "distribution_events"
+
+    event_id = Column(Integer, primary_key=True, index=True)
+    lp_id = Column(Integer, ForeignKey("lp_entities.lp_id"), nullable=False)
+    period_label = Column(String(64), nullable=False)  # e.g. "Q1 2026"
+    total_distributable = Column(Numeric(16, 2), nullable=False)
+    status = Column(
+        _enum(DistributionEventStatus), nullable=False,
+        default=DistributionEventStatus.draft
+    )
+    created_date = Column(DateTime, nullable=False, default=datetime.utcnow)
+    approved_date = Column(DateTime, nullable=True)
+    paid_date = Column(DateTime, nullable=True)
+    notes = Column(Text, nullable=True)
+
+    lp = relationship("LPEntity", back_populates="distribution_events")
+    allocations = relationship(
+        "DistributionAllocation", back_populates="event", cascade="all, delete-orphan"
+    )
+
+
+class DistributionAllocation(Base):
+    """Per-holding allocation within a distribution event."""
+    __tablename__ = "distribution_allocations"
+
+    allocation_id = Column(Integer, primary_key=True, index=True)
+    event_id = Column(Integer, ForeignKey("distribution_events.event_id"), nullable=False)
+    holding_id = Column(Integer, ForeignKey("holdings.holding_id"), nullable=False)
+    amount = Column(Numeric(14, 2), nullable=False)
+    distribution_type = Column(_enum(DistributionType), nullable=False)
+    method = Column(_enum(DistributionMethod), nullable=True)
+    notes = Column(Text, nullable=True)
+
+    event = relationship("DistributionEvent", back_populates="allocations")
+    holding = relationship("Holding", back_populates="allocations")
+
+
+# ---------------------------------------------------------------------------
+# Portfolio — Property, Cluster, Development
+# ---------------------------------------------------------------------------
 
 class PropertyCluster(Base):
     """A group of nearby properties that share infrastructure (e.g. a commercial kitchen)."""
@@ -171,17 +404,55 @@ class PropertyCluster(Base):
     properties = relationship("Property", back_populates="cluster")
 
 
+class Property(Base):
+    __tablename__ = "properties"
+
+    property_id = Column(Integer, primary_key=True, index=True)
+    lp_id = Column(Integer, ForeignKey("lp_entities.lp_id"), nullable=True)  # LP ownership
+    cluster_id = Column(Integer, ForeignKey("property_clusters.cluster_id"), nullable=True)
+
+    address = Column(String(256), nullable=False)
+    city = Column(String(128), nullable=False)
+    province = Column(String(64), nullable=False)
+    purchase_date = Column(Date, nullable=True)
+    purchase_price = Column(Numeric(14, 2), nullable=True)
+    assessed_value = Column(Numeric(14, 2), nullable=True)
+    current_market_value = Column(Numeric(14, 2), nullable=True)
+    lot_size = Column(Numeric(14, 2), nullable=True)
+    zoning = Column(String(128), nullable=True)
+    max_buildable_area = Column(Numeric(14, 2), nullable=True)
+    floor_area_ratio = Column(Numeric(5, 2), nullable=True)
+    development_stage = Column(
+        _enum(DevelopmentStage), nullable=False, default=DevelopmentStage.prospect
+    )
+
+    lp = relationship("LPEntity", back_populates="properties")
+    cluster = relationship("PropertyCluster", back_populates="properties")
+    development_plans = relationship(
+        "DevelopmentPlan", back_populates="property", cascade="all, delete-orphan"
+    )
+    communities = relationship(
+        "Community", back_populates="property", cascade="all, delete-orphan"
+    )
+    maintenance_requests = relationship(
+        "MaintenanceRequest", back_populates="property", cascade="all, delete-orphan"
+    )
+
+
 class DevelopmentPlan(Base):
     __tablename__ = "development_plans"
 
     plan_id = Column(Integer, primary_key=True, index=True)
     property_id = Column(Integer, ForeignKey("properties.property_id"), nullable=False)
-    version = Column(Integer, nullable=False, default=1)                  # NEW
+    version = Column(Integer, nullable=False, default=1)
+    status = Column(
+        _enum(DevelopmentPlanStatus), nullable=False, default=DevelopmentPlanStatus.draft
+    )
     planned_units = Column(Integer, nullable=False)
     planned_beds = Column(Integer, nullable=False)
     planned_sqft = Column(Numeric(14, 2), nullable=False)
 
-    # Detailed cost breakdown (NEW)
+    # Detailed cost breakdown
     hard_costs = Column(Numeric(16, 2), nullable=True)
     soft_costs = Column(Numeric(16, 2), nullable=True)
     site_costs = Column(Numeric(16, 2), nullable=True)
@@ -189,33 +460,37 @@ class DevelopmentPlan(Base):
     contingency_percent = Column(Numeric(5, 2), nullable=True)
     cost_escalation_percent_per_year = Column(Numeric(5, 2), nullable=True)
     cost_per_sqft = Column(Numeric(10, 2), nullable=True)
-
-    # Kept for backward compat — now computed as sum of above
     estimated_construction_cost = Column(Numeric(16, 2), nullable=False)
 
-    development_start_date = Column(Date, nullable=False)
-    construction_duration_days = Column(Integer, nullable=False)
-    estimated_completion_date = Column(Date, nullable=True)              # NEW
+    # Projected revenue (stabilized)
+    projected_annual_revenue = Column(Numeric(16, 2), nullable=True)
+    projected_annual_noi = Column(Numeric(16, 2), nullable=True)
+
+    # Timeline
+    development_start_date = Column(Date, nullable=True)
+    construction_duration_days = Column(Integer, nullable=True)
+    estimated_completion_date = Column(Date, nullable=True)
+    estimated_stabilization_date = Column(Date, nullable=True)
 
     property = relationship("Property", back_populates="development_plans")
 
 
 # ---------------------------------------------------------------------------
-# Economic Entities (Three-Layer Model)
+# Operator Entity
 # ---------------------------------------------------------------------------
 
-class EconomicEntity(Base):
-    """Represents one of the three economic layers for a property."""
-    __tablename__ = "economic_entities"
+class OperatorEntity(Base):
+    """The business entity operating a community (e.g. RecoverWell Operations Inc)."""
+    __tablename__ = "operator_entities"
 
-    entity_id = Column(Integer, primary_key=True, index=True)
-    property_id = Column(Integer, ForeignKey("properties.property_id"), nullable=False)
-    entity_type = Column(_enum(EntityType), nullable=False)
-    legal_name = Column(String(256), nullable=False)
-    description = Column(Text, nullable=True)
-    revenue_share_percent = Column(Numeric(5, 2), nullable=True)
+    operator_id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(256), nullable=False)
+    contact_email = Column(String(256), nullable=True)
+    contact_phone = Column(String(64), nullable=True)
+    address = Column(String(512), nullable=True)
+    notes = Column(Text, nullable=True)
 
-    property = relationship("Property", back_populates="economic_entities")
+    communities = relationship("Community", back_populates="operator")
 
 
 # ---------------------------------------------------------------------------
@@ -227,12 +502,15 @@ class Community(Base):
 
     community_id = Column(Integer, primary_key=True, index=True)
     property_id = Column(Integer, ForeignKey("properties.property_id"), nullable=False)
+    operator_id = Column(Integer, ForeignKey("operator_entities.operator_id"), nullable=True)
     community_type = Column(_enum(CommunityType), nullable=False)
     name = Column(String(256), nullable=False)
-    has_meal_plan = Column(Boolean, default=False, nullable=False)       # NEW
-    meal_plan_monthly_cost = Column(Numeric(10, 2), nullable=True)      # NEW
+    has_meal_plan = Column(Boolean, default=False, nullable=False)
+    meal_plan_monthly_cost = Column(Numeric(10, 2), nullable=True)
+    target_occupancy_percent = Column(Numeric(5, 2), nullable=True)  # e.g. 95.00
 
     property = relationship("Property", back_populates="communities")
+    operator = relationship("OperatorEntity", back_populates="communities")
     units = relationship("Unit", back_populates="community", cascade="all, delete-orphan")
     residents = relationship(
         "Resident", back_populates="community", cascade="all, delete-orphan"
@@ -250,10 +528,8 @@ class Unit(Base):
     sqft = Column(Numeric(10, 2), nullable=False)
     is_occupied = Column(Boolean, default=False, nullable=False)
 
-    # REMOVED: monthly_rent (now tracked per bed)
-
     community = relationship("Community", back_populates="units")
-    beds = relationship("Bed", back_populates="unit", cascade="all, delete-orphan")  # NEW
+    beds = relationship("Bed", back_populates="unit", cascade="all, delete-orphan")
     residents = relationship(
         "Resident", back_populates="unit", cascade="all, delete-orphan"
     )
@@ -265,7 +541,7 @@ class Bed(Base):
 
     bed_id = Column(Integer, primary_key=True, index=True)
     unit_id = Column(Integer, ForeignKey("units.unit_id"), nullable=False)
-    bed_label = Column(String(16), nullable=False)          # e.g. "A", "B", "1", "2"
+    bed_label = Column(String(16), nullable=False)
     monthly_rent = Column(Numeric(10, 2), nullable=False)
     rent_type = Column(_enum(RentType), nullable=False, default=RentType.private_pay)
     status = Column(_enum(BedStatus), nullable=False, default=BedStatus.available)
@@ -280,7 +556,7 @@ class Resident(Base):
     resident_id = Column(Integer, primary_key=True, index=True)
     community_id = Column(Integer, ForeignKey("communities.community_id"), nullable=False)
     unit_id = Column(Integer, ForeignKey("units.unit_id"), nullable=False)
-    bed_id = Column(Integer, ForeignKey("beds.bed_id"), nullable=True)    # NEW (nullable for migration)
+    bed_id = Column(Integer, ForeignKey("beds.bed_id"), nullable=True)
     full_name = Column(String(256), nullable=False)
     email = Column(String(256), nullable=True)
     phone = Column(String(64), nullable=True)
@@ -288,11 +564,11 @@ class Resident(Base):
     rent_type = Column(_enum(RentType), nullable=False)
     move_in_date = Column(Date, nullable=False)
     move_out_date = Column(Date, nullable=True)
-    enrolled_meal_plan = Column(Boolean, default=False, nullable=False)    # NEW
+    enrolled_meal_plan = Column(Boolean, default=False, nullable=False)
 
     community = relationship("Community", back_populates="residents")
     unit = relationship("Unit", back_populates="residents")
-    bed = relationship("Bed", back_populates="resident")                  # NEW
+    bed = relationship("Bed", back_populates="resident")
     payments = relationship(
         "RentPayment", back_populates="resident", cascade="all, delete-orphan"
     )
@@ -306,13 +582,13 @@ class RentPayment(Base):
 
     payment_id = Column(Integer, primary_key=True, index=True)
     resident_id = Column(Integer, ForeignKey("residents.resident_id"), nullable=False)
-    bed_id = Column(Integer, ForeignKey("beds.bed_id"), nullable=True)    # NEW
+    bed_id = Column(Integer, ForeignKey("beds.bed_id"), nullable=True)
     amount = Column(Numeric(12, 2), nullable=False)
     payment_date = Column(DateTime, nullable=False)
     period_month = Column(Integer, nullable=False)
     period_year = Column(Integer, nullable=False)
     status = Column(_enum(PaymentStatus), nullable=False, default=PaymentStatus.pending)
-    includes_meal_plan = Column(Boolean, default=False, nullable=False)   # NEW
+    includes_meal_plan = Column(Boolean, default=False, nullable=False)
 
     resident = relationship("Resident", back_populates="payments")
 
@@ -327,6 +603,8 @@ class MaintenanceRequest(Base):
     status = Column(
         _enum(MaintenanceStatus), nullable=False, default=MaintenanceStatus.open
     )
+    priority = Column(String(32), nullable=True)  # low, medium, high, urgent
+    category = Column(String(64), nullable=True)  # plumbing, electrical, structural, etc.
     created_at = Column(DateTime, nullable=False)
     resolved_at = Column(DateTime, nullable=True)
 
@@ -335,76 +613,8 @@ class MaintenanceRequest(Base):
 
 
 # ---------------------------------------------------------------------------
-# Investor
+# Investor Documents & Messages (kept from Sprint 3)
 # ---------------------------------------------------------------------------
-
-class Investor(Base):
-    __tablename__ = "investors"
-
-    investor_id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, ForeignKey("users.user_id"), nullable=True, unique=True)
-    name = Column(String(256), nullable=False)
-    email = Column(String(256), nullable=False, unique=True)
-    accredited_status = Column(String(32), nullable=False)
-    phone = Column(String(64), nullable=True)
-    preferred_return_rate = Column(Numeric(5, 2), nullable=True)         # NEW — e.g. 8.00 for 8%
-
-    contributions = relationship(
-        "CapitalContribution", back_populates="investor", cascade="all, delete-orphan"
-    )
-    ownership_positions = relationship(
-        "Ownership", back_populates="investor", cascade="all, delete-orphan"
-    )
-    distributions = relationship(
-        "Distribution", back_populates="investor", cascade="all, delete-orphan"
-    )
-    documents = relationship(
-        "InvestorDocument", back_populates="investor", cascade="all, delete-orphan"
-    )
-    messages = relationship(
-        "InvestorMessage", back_populates="investor", cascade="all, delete-orphan"
-    )
-
-
-class CapitalContribution(Base):
-    __tablename__ = "capital_contributions"
-
-    contribution_id = Column(Integer, primary_key=True, index=True)
-    investor_id = Column(Integer, ForeignKey("investors.investor_id"), nullable=False)
-    amount = Column(Numeric(14, 2), nullable=False)
-    date = Column(DateTime, nullable=False)
-    notes = Column(Text, nullable=True)
-
-    investor = relationship("Investor", back_populates="contributions")
-
-
-class Ownership(Base):
-    __tablename__ = "ownership"
-
-    ownership_id = Column(Integer, primary_key=True, index=True)
-    investor_id = Column(Integer, ForeignKey("investors.investor_id"), nullable=False)
-    property_id = Column(Integer, ForeignKey("properties.property_id"), nullable=True)
-    ownership_percent = Column(Numeric(5, 2), nullable=False)
-    is_gp = Column(Boolean, default=False, nullable=False)               # NEW — distinguish GP vs LP
-
-    investor = relationship("Investor", back_populates="ownership_positions")
-
-
-class Distribution(Base):
-    __tablename__ = "distributions"
-
-    distribution_id = Column(Integer, primary_key=True, index=True)
-    investor_id = Column(Integer, ForeignKey("investors.investor_id"), nullable=False)
-    amount = Column(Numeric(14, 2), nullable=False)
-    payment_date = Column(DateTime, nullable=False)
-    method = Column(_enum(DistributionMethod), nullable=False)
-    distribution_type = Column(
-        _enum(DistributionType), nullable=True, default=DistributionType.preferred_return
-    )  # NEW
-    notes = Column(Text, nullable=True)
-
-    investor = relationship("Investor", back_populates="distributions")
-
 
 class InvestorDocument(Base):
     __tablename__ = "investor_documents"
