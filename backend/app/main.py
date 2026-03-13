@@ -5,6 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import RedirectResponse
 
 from app.routes import portfolio, community, investor, investment, ai, auth, reports
+from app.routes.calculations import router as calculations_router
 
 
 @asynccontextmanager
@@ -42,6 +43,7 @@ app.include_router(investor.router, prefix="/api/investor", tags=["investor"])
 app.include_router(investment.router, prefix="/api/investment", tags=["investment"])
 app.include_router(ai.router, prefix="/api/ai", tags=["ai"])
 app.include_router(reports.router, prefix="/api/reports", tags=["reports"])
+app.include_router(calculations_router, prefix="/api/calculations", tags=["Calculations"])
 
 
 @app.get("/", include_in_schema=False)

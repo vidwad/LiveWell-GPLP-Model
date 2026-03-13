@@ -144,3 +144,42 @@ export interface CostEstimateResult {
   total_escalated_cost: string;
   effective_cost_per_sqft: string;
 }
+
+export interface DebtFacility {
+  debt_id: number;
+  property_id: number;
+  lender_name: string;
+  debt_type: string;
+  status: string;
+  commitment_amount: number;
+  drawn_amount: number;
+  outstanding_balance: number;
+  interest_rate: number | null;
+  rate_type: string;
+  term_months: number | null;
+  amortization_months: number | null;
+  io_period_months: number;
+  origination_date: string | null;
+  maturity_date: string | null;
+  ltv_covenant: number | null;
+  dscr_covenant: number | null;
+  notes: string | null;
+  created_at: string | null;
+}
+
+export interface DebtFacilityCreate {
+  property_id: number;
+  lender_name: string;
+  debt_type: string;
+  commitment_amount: number;
+  interest_rate?: number;
+  rate_type?: string;
+  term_months?: number;
+  amortization_months?: number;
+  io_period_months?: number;
+  origination_date?: string;
+  maturity_date?: string;
+  ltv_covenant?: number;
+  dscr_covenant?: number;
+  notes?: string;
+}

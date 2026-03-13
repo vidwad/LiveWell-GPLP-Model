@@ -192,3 +192,48 @@ class CostEstimateResult(BaseModel):
     escalation_amount: Decimal
     total_escalated_cost: Decimal
     effective_cost_per_sqft: Decimal
+
+
+# ---------------------------------------------------------------------------
+# Debt Facility
+# ---------------------------------------------------------------------------
+
+class DebtFacilityCreate(BaseModel):
+    property_id: int
+    lender_name: str
+    debt_type: str
+    commitment_amount: float
+    interest_rate: float | None = None
+    rate_type: str = "fixed"
+    term_months: int | None = None
+    amortization_months: int | None = None
+    io_period_months: int = 0
+    origination_date: str | None = None
+    maturity_date: str | None = None
+    ltv_covenant: float | None = None
+    dscr_covenant: float | None = None
+    notes: str | None = None
+
+class DebtFacilityOut(BaseModel):
+    debt_id: int
+    property_id: int
+    lender_name: str
+    debt_type: str
+    status: str
+    commitment_amount: float
+    drawn_amount: float
+    outstanding_balance: float
+    interest_rate: float | None
+    rate_type: str
+    term_months: int | None
+    amortization_months: int | None
+    io_period_months: int
+    origination_date: datetime.date | None
+    maturity_date: datetime.date | None
+    ltv_covenant: float | None
+    dscr_covenant: float | None
+    notes: str | None
+    created_at: datetime.datetime | None
+
+    class Config:
+        from_attributes = True

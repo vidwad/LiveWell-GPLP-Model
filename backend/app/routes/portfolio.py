@@ -19,6 +19,7 @@ from app.db.models import (
 from app.db.session import get_db
 from app.schemas.portfolio import (
     CostEstimateInput, CostEstimateResult,
+    DebtFacilityCreate, DebtFacilityOut,
     DevelopmentPlanCreate, DevelopmentPlanOut,
     ModelingInput, ModelingResult,
     PropertyClusterCreate, PropertyClusterOut,
@@ -63,33 +64,38 @@ def list_properties(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    if current_user.role == UserRole.GP_ADMIN:
+    """
+    GP_ADMIN / OPERATIONS_MANAGER / PROPERTY_MANAGER: see all properties.
+    INVESTOR: see only properties belonging to LPs they have subscriptions in.
+    """
+    from app.db.models import Property, LPEntity, Subscription, Investor
+
+    if current_user.role in ("GP_ADMIN", "OPERATIONS_MANAGER", "PROPERTY_MANAGER"):
         props = db.query(Property).all()
-    elif current_user.role in (UserRole.OPERATIONS_MANAGER, UserRole.PROPERTY_MANAGER):
-        # Show properties they have scope access to
-        prop_ids = get_user_entity_ids(current_user, db, ScopeEntityType.property)
-        if not prop_ids:
-            # Also check LP-level scope and show all properties in those LPs
-            lp_ids = get_user_entity_ids(current_user, db, ScopeEntityType.lp)
-            if lp_ids:
-                props = db.query(Property).filter(Property.lp_id.in_(lp_ids)).all()
-            else:
-                props = []
-        else:
-            props = db.query(Property).filter(Property.property_id.in_(prop_ids)).all()
-    elif current_user.role == UserRole.INVESTOR:
-        # Investors see properties in LPs they have holdings in
-        from app.db.models import Holding, Investor
+    elif current_user.role == "INVESTOR":
+        # Find the Investor record linked to this user
         investor = db.query(Investor).filter(Investor.user_id == current_user.user_id).first()
-        if investor:
-            lp_ids = [h.lp_id for h in investor.holdings]
-            props = db.query(Property).filter(Property.lp_id.in_(lp_ids)).all() if lp_ids else []
-        else:
-            props = []
+        if not investor:
+            return []
+        # Find LP IDs this investor has subscriptions in
+        lp_ids = (
+            db.query(Subscription.lp_id)
+            .filter(Subscription.investor_id == investor.investor_id)
+            .distinct()
+            .all()
+        )
+        lp_id_list = [lp_id for (lp_id,) in lp_ids]
+        props = db.query(Property).filter(Property.lp_id.in_(lp_id_list)).all()
     else:
         props = []
 
-    return [_property_to_out(p) for p in props]
+    results = []
+    for p in props:
+        data = PropertyOut.model_validate(p)
+        if p.lp:
+            data.lp_name = p.lp.name
+        results.append(data)
+    return results
 
 
 @router.post("/properties", response_model=PropertyOut, status_code=status.HTTP_201_CREATED)
@@ -287,6 +293,54 @@ def get_cluster(
         notes=cluster.notes,
         property_count=len(cluster.properties) if cluster.properties else 0,
     )
+
+
+# ---------------------------------------------------------------------------
+# Cost Estimation Engine
+# ---------------------------------------------------------------------------
+
+# ---------------------------------------------------------------------------
+# Debt Facilities
+# ---------------------------------------------------------------------------
+
+from app.db.models import DebtFacility
+
+@router.post("/debt-facilities", response_model=DebtFacilityOut)
+def create_debt_facility(
+    payload: DebtFacilityCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_gp_or_ops),
+):
+    facility = DebtFacility(**payload.model_dump())
+    db.add(facility)
+    db.commit()
+    db.refresh(facility)
+    return facility
+
+@router.get("/properties/{property_id}/debt", response_model=list[DebtFacilityOut])
+def list_debt_facilities(
+    property_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    return db.query(DebtFacility).filter(DebtFacility.property_id == property_id).all()
+
+@router.patch("/debt-facilities/{debt_id}", response_model=DebtFacilityOut)
+def update_debt_facility(
+    debt_id: int,
+    payload: dict,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_gp_or_ops),
+):
+    facility = db.query(DebtFacility).filter(DebtFacility.debt_id == debt_id).first()
+    if not facility:
+        raise HTTPException(404, "Debt facility not found")
+    for k, v in payload.items():
+        if hasattr(facility, k):
+            setattr(facility, k, v)
+    db.commit()
+    db.refresh(facility)
+    return facility
 
 
 # ---------------------------------------------------------------------------

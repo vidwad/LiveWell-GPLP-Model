@@ -375,6 +375,7 @@ def seed():
             purchase_price=Decimal("650000.00"),
             assessed_value=Decimal("620000.00"),
             current_market_value=Decimal("700000.00"),
+            estimated_value=Decimal("4200000.00"),
             lot_size=Decimal("5500.00"),
             zoning="R-CG",
             max_buildable_area=Decimal("4400.00"),
@@ -438,6 +439,69 @@ def seed():
         )
         db.add_all([prop1, prop2, prop3, prop4, prop5])
         db.flush()
+
+        # =================================================================
+        # 10b. DEBT FACILITIES
+        # =================================================================
+        # ── Debt Facilities ──────────────────────────────────────
+        debt1 = m.DebtFacility(
+            property_id=prop1.property_id,
+            lender_name="ATB Financial",
+            debt_type=m.DebtType.permanent_mortgage,
+            status=m.DebtStatus.active,
+            commitment_amount=Decimal("2400000.00"),
+            drawn_amount=Decimal("2400000.00"),
+            outstanding_balance=Decimal("2350000.00"),
+            interest_rate=Decimal("5.2500"),
+            rate_type="fixed",
+            term_months=60,
+            amortization_months=300,
+            io_period_months=0,
+            origination_date=date(2024, 6, 1),
+            maturity_date=date(2029, 6, 1),
+            ltv_covenant=Decimal("75.00"),
+            dscr_covenant=Decimal("1.25"),
+        )
+        debt2 = m.DebtFacility(
+            property_id=prop2.property_id,
+            lender_name="First National Financial",
+            debt_type=m.DebtType.construction_loan,
+            status=m.DebtStatus.active,
+            commitment_amount=Decimal("3500000.00"),
+            drawn_amount=Decimal("1200000.00"),
+            outstanding_balance=Decimal("1200000.00"),
+            interest_rate=Decimal("6.7500"),
+            rate_type="variable",
+            term_months=24,
+            amortization_months=0,
+            io_period_months=24,
+            origination_date=date(2025, 1, 15),
+            maturity_date=date(2027, 1, 15),
+            ltv_covenant=Decimal("80.00"),
+            dscr_covenant=None,
+        )
+        debt3 = m.DebtFacility(
+            property_id=prop3.property_id,
+            lender_name="CMHC MLI Select",
+            debt_type=m.DebtType.permanent_mortgage,
+            status=m.DebtStatus.pending,
+            commitment_amount=Decimal("4000000.00"),
+            drawn_amount=Decimal("0.00"),
+            outstanding_balance=Decimal("0.00"),
+            interest_rate=Decimal("4.8500"),
+            rate_type="fixed",
+            term_months=120,
+            amortization_months=300,
+            io_period_months=0,
+            origination_date=None,
+            maturity_date=None,
+            ltv_covenant=Decimal("80.00"),
+            dscr_covenant=Decimal("1.10"),
+            notes="CMHC MLI Select program — pending approval",
+        )
+        db.add_all([debt1, debt2, debt3])
+        db.commit()
+        print("  [ok] Debt facilities")
 
         # =================================================================
         # 11. DEVELOPMENT PLANS
@@ -813,6 +877,7 @@ def seed():
         print("  Operators:           3")
         print("  Clusters:            2")
         print("  Properties:          5 (3 in Fund I, 2 in Fund II)")
+        print("  Debt Facilities:     3")
         print("  Development Plans:   3")
         print("  Communities:         4")
         print("  Units:               8 (in RecoverWell Calgary NE)")

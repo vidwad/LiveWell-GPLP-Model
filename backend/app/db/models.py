@@ -10,7 +10,7 @@ from functools import partial
 
 from sqlalchemy import (
     Boolean, Column, Date, DateTime, Enum as SAEnum,
-    ForeignKey, Integer, Numeric, String, Text,
+    ForeignKey, Integer, Numeric, String, Text, func,
 )
 from sqlalchemy.orm import relationship
 
@@ -344,6 +344,61 @@ class Holding(Base):
 
 
 # ---------------------------------------------------------------------------
+# Debt Facility
+# ---------------------------------------------------------------------------
+
+class DebtType(str, enum.Enum):
+    construction_loan = "construction_loan"
+    bridge_loan = "bridge_loan"
+    permanent_mortgage = "permanent_mortgage"
+    mezzanine = "mezzanine"
+    line_of_credit = "line_of_credit"
+
+class DebtStatus(str, enum.Enum):
+    pending = "pending"
+    active = "active"
+    matured = "matured"
+    refinanced = "refinanced"
+    paid_off = "paid_off"
+
+class DebtFacility(Base):
+    __tablename__ = "debt_facilities"
+
+    debt_id = Column(Integer, primary_key=True, index=True)
+    property_id = Column(Integer, ForeignKey("properties.property_id"), nullable=False)
+    lender_name = Column(String(200), nullable=False)
+    debt_type = Column(_enum(DebtType), nullable=False)
+    status = Column(_enum(DebtStatus), default=DebtStatus.pending)
+
+    # Amounts
+    commitment_amount = Column(Numeric(15, 2), nullable=False)  # Total facility size
+    drawn_amount = Column(Numeric(15, 2), default=0)            # Amount drawn to date
+    outstanding_balance = Column(Numeric(15, 2), default=0)     # Current balance
+
+    # Terms
+    interest_rate = Column(Numeric(6, 4))          # e.g. 5.2500 = 5.25%
+    rate_type = Column(String(20), default="fixed") # fixed, variable, hybrid
+    term_months = Column(Integer)                   # Loan term in months
+    amortization_months = Column(Integer)           # Amortization period
+    io_period_months = Column(Integer, default=0)   # Interest-only period
+
+    # Dates
+    origination_date = Column(Date)
+    maturity_date = Column(Date)
+
+    # Covenants
+    ltv_covenant = Column(Numeric(5, 2))   # Max LTV e.g. 75.00
+    dscr_covenant = Column(Numeric(5, 2))  # Min DSCR e.g. 1.25
+
+    notes = Column(Text)
+    created_at = Column(DateTime, default=func.now())
+    updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
+
+    # Relationships
+    property = relationship("Property", back_populates="debt_facilities")
+
+
+# ---------------------------------------------------------------------------
 # Distribution Events & Allocations
 # ---------------------------------------------------------------------------
 
@@ -418,6 +473,7 @@ class Property(Base):
     purchase_price = Column(Numeric(14, 2), nullable=True)
     assessed_value = Column(Numeric(14, 2), nullable=True)
     current_market_value = Column(Numeric(14, 2), nullable=True)
+    estimated_value = Column(Numeric(15, 2), nullable=True)
     lot_size = Column(Numeric(14, 2), nullable=True)
     zoning = Column(String(128), nullable=True)
     max_buildable_area = Column(Numeric(14, 2), nullable=True)
@@ -437,6 +493,7 @@ class Property(Base):
     maintenance_requests = relationship(
         "MaintenanceRequest", back_populates="property", cascade="all, delete-orphan"
     )
+    debt_facilities = relationship("DebtFacility", back_populates="property", cascade="all, delete-orphan")
 
 
 class DevelopmentPlan(Base):

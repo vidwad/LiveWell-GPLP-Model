@@ -107,10 +107,18 @@ def my_dashboard(
 def investor_dashboard(
     investor_id: int,
     db: Session = Depends(get_db),
-    _: User = Depends(require_gp_or_ops),
+    current_user: User = Depends(get_current_user),
 ):
-    inv = _get_investor_or_404(investor_id, db)
-    return _build_dashboard(inv, db)
+    investor = db.query(Investor).filter(Investor.investor_id == investor_id).first()
+    if not investor:
+        raise HTTPException(404, "Investor not found")
+
+    # INVESTOR role can only view their own dashboard
+    if current_user.role == "INVESTOR":
+        if investor.user_id != current_user.user_id:
+            raise HTTPException(403, "Access denied")
+
+    return _build_dashboard(investor, db)
 
 
 def _build_dashboard(inv: Investor, db: Session) -> InvestorDashboard:
