@@ -1,6 +1,7 @@
 "use client";
 
-import { ArrowLeft, FileText, Mail } from "lucide-react";
+import { useState } from "react";
+import { ArrowLeft, FileText, Mail, Upload } from "lucide-react";
 import { useInvestorDashboard } from "@/hooks/useInvestors";
 import { useAuth } from "@/providers/AuthProvider";
 import { LinkButton } from "@/components/ui/link-button";
@@ -9,6 +10,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { formatCurrency, formatDate } from "@/lib/utils";
+import { DocumentList } from "@/components/documents/DocumentList";
+import { UploadDocumentModal } from "@/components/documents/UploadDocumentModal";
 
 export default function InvestorDetailPage({
   params,
@@ -19,7 +22,10 @@ export default function InvestorDetailPage({
   const investorId = Number(id);
   const { user } = useAuth();
 
+  const [uploadOpen, setUploadOpen] = useState(false);
   const { data: dashboard, isLoading } = useInvestorDashboard(investorId);
+
+  const canUpload = user?.role === "GP_ADMIN" || user?.role === "OPERATIONS_MANAGER";
 
   if (isLoading) return <Skeleton className="h-64 w-full" />;
   if (!dashboard) return <p>Investor not found.</p>;
@@ -75,52 +81,30 @@ export default function InvestorDetailPage({
         ))}
       </div>
 
+      {canUpload && (
+        <UploadDocumentModal
+          investorId={investorId}
+          open={uploadOpen}
+          onClose={() => setUploadOpen(false)}
+        />
+      )}
+
       <div className="grid gap-6 lg:grid-cols-2">
         {/* Documents */}
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between">
-            <CardTitle className="flex items-center gap-2 text-base">
-              <FileText className="h-4 w-4" />
-              Documents
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {!documents || documents.length === 0 ? (
-              <p className="text-sm text-muted-foreground">No documents yet.</p>
-            ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Title</TableHead>
-                    <TableHead>Type</TableHead>
-                    <TableHead>Date</TableHead>
-                    <TableHead>Status</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {documents.map((doc) => (
-                    <TableRow key={doc.document_id}>
-                      <TableCell className="font-medium">{doc.title}</TableCell>
-                      <TableCell>
-                        <Badge variant="outline">
-                          {doc.document_type.replace(/_/g, " ")}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>{formatDate(doc.upload_date)}</TableCell>
-                      <TableCell>
-                        {doc.is_viewed ? (
-                          <Badge variant="secondary">Viewed</Badge>
-                        ) : (
-                          <Badge variant="default">New</Badge>
-                        )}
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            )}
-          </CardContent>
-        </Card>
+        <div>
+          {canUpload && (
+            <div className="mb-2 flex justify-end">
+              <button
+                onClick={() => setUploadOpen(true)}
+                className="flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-sm text-primary-foreground hover:bg-primary/90 transition-colors"
+              >
+                <Upload className="h-3.5 w-3.5" />
+                Upload Document
+              </button>
+            </div>
+          )}
+          <DocumentList investorId={investorId} />
+        </div>
 
         {/* Messages */}
         <Card>
@@ -160,3 +144,4 @@ export default function InvestorDetailPage({
     </div>
   );
 }
+

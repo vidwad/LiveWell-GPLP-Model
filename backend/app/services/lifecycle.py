@@ -16,7 +16,7 @@ from sqlalchemy.orm import Session
 from app.db.models import (
     Property, DevelopmentStage, DevelopmentPlan, DebtFacility,
     PropertyStageTransition, PropertyMilestone, MilestoneStatus,
-    Community, User,
+    Community, User, NotificationType,
 )
 
 
@@ -327,6 +327,30 @@ def transition_property_stage(
 
     # Auto-generate milestones for the new stage
     _create_stage_milestones(prop.property_id, to_stage, db)
+
+    # Notify GP admin users of stage change
+    try:
+        from app.services.notifications import create_notification
+        from app.db.models import UserRole
+        from app.db.session import Session as _S
+        gp_users = db.query(User).filter(
+            User.role.in_([UserRole.GP_ADMIN, UserRole.OPERATIONS_MANAGER]),
+            User.is_active == True,  # noqa: E712
+        ).all()
+        for gp_user in gp_users:
+            create_notification(
+                db=db,
+                user_id=gp_user.user_id,
+                title="Property Stage Transition",
+                message=(
+                    f"{prop.address} moved from {from_stage.value.replace('_', ' ').title()} "
+                    f"to {to_stage.value.replace('_', ' ').title()}."
+                ),
+                type=NotificationType.stage_transition,
+                action_url=f"/lifecycle",
+            )
+    except Exception:
+        pass  # Notifications must never block a transition
 
     db.flush()
     return transition, validation

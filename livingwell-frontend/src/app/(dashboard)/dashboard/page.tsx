@@ -1,12 +1,12 @@
 'use client';
 
-import { Building2, Users, Wrench, TrendingUp, DollarSign, Activity, PieChart as PieChartIcon } from "lucide-react";
+import { Building2, Users, Wrench, TrendingUp, DollarSign, Activity, PieChart as PieChartIcon, FileText, Home } from "lucide-react";
 import {
   BarChart, Bar, PieChart, Pie, Cell,
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
 } from "recharts";
 import { KpiCard } from "@/components/dashboard/KpiCard";
-import { useProperties } from "@/hooks/usePortfolio";
+import { useProperties, usePortfolioReturns } from "@/hooks/usePortfolio";
 import { useCommunities, useMaintenanceRequests } from "@/hooks/useCommunities";
 import { useInvestors, useInvestorDashboard } from "@/hooks/useInvestors";
 import { useFundPerformance } from "@/hooks/useReports";
@@ -15,6 +15,7 @@ import { formatCurrency } from "@/lib/utils";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { DocumentList } from "@/components/documents/DocumentList";
 
 const STAGE_COLORS: Record<string, string> = {
   prospect: "#9ca3af",
@@ -44,7 +45,11 @@ export default function DashboardPage() {
   const { data: investors, isLoading: invLoading } = useInvestors();
   const { data: report } = useFundPerformance();
   const isInvestor = user?.role === "INVESTOR";
+  const isPropertyManager = user?.role === "PROPERTY_MANAGER";
+  const isResident = user?.role === "RESIDENT";
+  const isGPLike = user?.role === "GP_ADMIN" || user?.role === "OPERATIONS_MANAGER";
   const { data: dashboard } = useInvestorDashboard(isInvestor ? undefined : undefined);
+  const { data: returnsData } = usePortfolioReturns();
 
   const openIssues = maintenance?.filter((m) => m.status === "open").length ?? 0;
   const isLoading = propsLoading || commsLoading || maintLoading;
@@ -104,6 +109,9 @@ export default function DashboardPage() {
   const showPortfolioCharts = user?.role !== "RESIDENT" && user?.role !== "INVESTOR";
   const isGPAdmin = user?.role === "GP_ADMIN" || user?.role === "OPERATIONS_MANAGER";
 
+  const portfolioXIRR = returnsData?.portfolio_xirr_percent;
+  const portfolioEM = returnsData?.portfolio_equity_multiple;
+
   return (
     <div>
       <div className="mb-6">
@@ -158,6 +166,55 @@ export default function DashboardPage() {
               <p className="text-xs text-muted-foreground">LP Entities under management</p>
             </CardContent>
           </Card>
+        </div>
+      )}
+
+      {/* GP Admin Returns KPIs (XIRR + Equity Multiple) */}
+      {isGPAdmin && returnsData && (
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4 mb-6">
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Portfolio XIRR</CardTitle>
+              <TrendingUp className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">
+                {portfolioXIRR != null ? `${portfolioXIRR.toFixed(1)}%` : "N/A"}
+              </div>
+              <p className="text-xs text-muted-foreground">Extended IRR across all funds</p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Equity Multiple</CardTitle>
+              <Activity className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">
+                {portfolioEM != null ? `${portfolioEM.toFixed(2)}x` : "N/A"}
+              </div>
+              <p className="text-xs text-muted-foreground">Total distributions / capital invested</p>
+            </CardContent>
+          </Card>
+          {returnsData.funds.slice(0, 2).map((fund: any) => (
+            <Card key={fund.lp_id}>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium truncate">
+                  {fund.lp_name.replace("Living Well ", "").replace(" LP", "")}
+                </CardTitle>
+                <DollarSign className="h-4 w-4 text-muted-foreground shrink-0" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">
+                  {fund.xirr_percent != null ? `${fund.xirr_percent.toFixed(1)}%` : "N/A"}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  EM: {fund.equity_multiple != null ? `${fund.equity_multiple.toFixed(2)}x` : "N/A"} ·{" "}
+                  {fund.investor_count} investors
+                </p>
+              </CardContent>
+            </Card>
+          ))}
         </div>
       )}
 
@@ -258,11 +315,46 @@ export default function DashboardPage() {
               icon={TrendingUp}
             />
             <KpiCard
+              label="Total Distributions"
+              value={formatCurrency(dashboard.total_distributions)}
+              icon={DollarSign}
+            />
+            <KpiCard
               label="Net Position"
               value={formatCurrency(dashboard.net_position)}
-              icon={TrendingUp}
+              icon={Activity}
             />
           </>
+        )}
+        {isPropertyManager && (
+          <>
+            <KpiCard
+              label="My Properties"
+              value={properties?.length ?? 0}
+              icon={Building2}
+              description="Assigned properties"
+            />
+            <KpiCard
+              label="Communities"
+              value={communities?.length ?? 0}
+              icon={Users}
+              description="Active communities"
+            />
+            <KpiCard
+              label="Open Issues"
+              value={openIssues}
+              icon={Wrench}
+              description="Maintenance requests"
+            />
+          </>
+        )}
+        {isResident && (
+          <KpiCard
+            label="Open Maintenance"
+            value={openIssues}
+            icon={Wrench}
+            description="Your open requests"
+          />
         )}
       </div>
 
@@ -414,6 +506,136 @@ export default function DashboardPage() {
               </div>
             </CardContent>
           </Card>
+        </div>
+      )}
+
+      {/* ── INVESTOR Dashboard ───────────────────────────────────── */}
+      {isInvestor && dashboard && (
+        <div className="mt-6 grid gap-6 lg:grid-cols-2">
+          {/* Investment summary */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base flex items-center gap-2">
+                <TrendingUp className="h-4 w-4" />
+                Investment Summary
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {[
+                { label: "Subscriptions", value: dashboard.subscription_count },
+                { label: "Holdings", value: dashboard.holding_count },
+                { label: "Capital Committed", value: formatCurrency(dashboard.total_committed) },
+                { label: "Capital Funded", value: formatCurrency(dashboard.total_funded) },
+                { label: "Distributions Received", value: formatCurrency(dashboard.total_distributions) },
+                { label: "Net Position", value: formatCurrency(dashboard.net_position) },
+              ].map(({ label, value }) => (
+                <div key={label} className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">{label}</span>
+                  <span className="font-medium">{value}</span>
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+
+          {/* Investor documents */}
+          {dashboard.investor.investor_id && (
+            <DocumentList investorId={dashboard.investor.investor_id} />
+          )}
+        </div>
+      )}
+
+      {/* ── PROPERTY MANAGER Dashboard ───────────────────────────── */}
+      {isPropertyManager && (
+        <div className="mt-6 space-y-4">
+          {properties && properties.length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base flex items-center gap-2">
+                  <Building2 className="h-4 w-4" />
+                  My Assigned Properties
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  {properties.map((p) => (
+                    <div key={p.property_id} className="flex items-center justify-between gap-4 rounded-md border p-3">
+                      <div>
+                        <p className="text-sm font-medium">{p.address}</p>
+                        <p className="text-xs text-muted-foreground">{p.city}, {p.province}</p>
+                      </div>
+                      <Badge variant="outline">{p.development_stage?.replace(/_/g, " ")}</Badge>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+          {maintenance && maintenance.filter(m => m.status !== "resolved").length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base flex items-center gap-2">
+                  <Wrench className="h-4 w-4" />
+                  Open Maintenance Requests
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-2">
+                  {maintenance.filter(m => m.status !== "resolved").slice(0, 10).map((req) => (
+                    <div key={req.request_id} className="flex items-start justify-between gap-4">
+                      <p className="text-sm flex-1 line-clamp-1">{req.description}</p>
+                      <Badge variant={req.status === "in_progress" ? "default" : "destructive"}>
+                        {req.status.replace("_", " ")}
+                      </Badge>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+        </div>
+      )}
+
+      {/* ── RESIDENT Dashboard ───────────────────────────────────── */}
+      {isResident && (
+        <div className="mt-6 space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base flex items-center gap-2">
+                <Home className="h-4 w-4" />
+                Your Community
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-sm text-muted-foreground">
+                Welcome to Living Well Communities. Use the Maintenance link in the sidebar to submit
+                or check on service requests.
+              </p>
+            </CardContent>
+          </Card>
+          {maintenance && maintenance.length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base flex items-center gap-2">
+                  <Wrench className="h-4 w-4" />
+                  Your Maintenance Requests
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-2">
+                  {maintenance.slice(0, 5).map((req) => (
+                    <div key={req.request_id} className="flex items-start justify-between gap-4">
+                      <p className="text-sm flex-1 line-clamp-1">{req.description}</p>
+                      <Badge
+                        variant={req.status === "resolved" ? "secondary" : req.status === "in_progress" ? "default" : "destructive"}
+                      >
+                        {req.status.replace("_", " ")}
+                      </Badge>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
         </div>
       )}
     </div>

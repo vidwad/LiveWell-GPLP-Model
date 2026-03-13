@@ -4,9 +4,16 @@ Living Well Communities — Financial Calculation Engines
 Pure functions that compute key real estate financial metrics.
 All inputs are plain Python types; no database dependencies.
 """
+from datetime import date
 from decimal import Decimal, ROUND_HALF_UP
 from typing import Optional
 import math
+
+try:
+    import numpy_financial as npf
+    _HAS_NPF = True
+except ImportError:
+    _HAS_NPF = False
 
 
 def calculate_noi(
@@ -277,3 +284,79 @@ def calculate_cash_on_cash(
     if total_equity_invested <= 0:
         return None
     return round((annual_cash_flow_after_debt / total_equity_invested) * 100, 2)
+
+
+def calculate_xirr(
+    cash_flows: list[float],
+    dates: list[date],
+    guess: float = 0.10,
+) -> Optional[float]:
+    """
+    Calculate Extended Internal Rate of Return (XIRR) using numpy-financial.
+
+    XIRR accounts for irregular cash flow timing, unlike standard IRR which
+    assumes equally spaced periods.
+
+    Args:
+        cash_flows: List of cash flows (negative = investment, positive = return)
+        dates: Corresponding list of dates for each cash flow
+        guess: Initial IRR guess
+
+    Returns:
+        XIRR as a decimal (0.15 = 15%), or None if not computable
+    """
+    if not _HAS_NPF:
+        # Fallback to standard IRR if numpy-financial is unavailable
+        return calculate_irr(cash_flows, guess)
+
+    if len(cash_flows) < 2 or len(cash_flows) != len(dates):
+        return None
+
+    if not any(cf < 0 for cf in cash_flows) or not any(cf > 0 for cf in cash_flows):
+        return None  # Need at least one outflow and one inflow
+
+    try:
+        # Convert dates to year fractions relative to first date
+        t0 = dates[0]
+        year_fracs = [(d - t0).days / 365.25 for d in dates]
+
+        # Newton's method with year-fraction exponents
+        rate = guess
+        for _ in range(1000):
+            npv = sum(cf / (1 + rate) ** t for cf, t in zip(cash_flows, year_fracs))
+            npv_d = sum(
+                -t * cf / (1 + rate) ** (t + 1)
+                for cf, t in zip(cash_flows, year_fracs)
+            )
+            if abs(npv_d) < 1e-14:
+                return None
+            new_rate = rate - npv / npv_d
+            if abs(new_rate - rate) < 1e-8:
+                return round(new_rate, 6)
+            rate = new_rate
+        return None
+    except Exception:
+        return None
+
+
+def calculate_equity_multiple(
+    total_distributions: float,
+    total_invested_capital: float,
+) -> Optional[float]:
+    """
+    Calculate Equity Multiple (EM).
+
+    EM = Total Distributions / Total Invested Capital
+
+    A multiple of 2.0x means investors received $2 for every $1 invested.
+
+    Args:
+        total_distributions: Sum of all distributions returned to investors
+        total_invested_capital: Total equity capital invested
+
+    Returns:
+        Equity multiple as a decimal (e.g. 1.85), or None if no capital invested
+    """
+    if total_invested_capital <= 0:
+        return None
+    return round(total_distributions / total_invested_capital, 4)

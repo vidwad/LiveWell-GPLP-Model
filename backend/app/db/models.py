@@ -936,3 +936,31 @@ class OperatingExpense(Base):
 
     community = relationship("Community", back_populates="expenses")
     budget = relationship("OperatorBudget")
+
+
+# ---------------------------------------------------------------------------
+# Phase 4: Notifications
+# ---------------------------------------------------------------------------
+
+class NotificationType(str, enum.Enum):
+    stage_transition = "stage_transition"
+    quarterly_report = "quarterly_report"
+    etransfer = "etransfer"
+    document_uploaded = "document_uploaded"
+    distribution = "distribution"
+    general = "general"
+
+
+class Notification(Base):
+    __tablename__ = "notifications"
+
+    notification_id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.user_id"), nullable=False)
+    title = Column(String(256), nullable=False)
+    message = Column(Text, nullable=False)
+    type = Column(_enum(NotificationType), nullable=False, default=NotificationType.general)
+    is_read = Column(Boolean, default=False, nullable=False)
+    action_url = Column(String(512), nullable=True)
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+
+    user = relationship("User")

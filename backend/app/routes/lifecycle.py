@@ -433,6 +433,26 @@ def create_etransfer(
         notes=payload.notes,
     )
     db.add(etransfer)
+
+    # Notify the recipient investor if they have a user account
+    try:
+        from app.services.notifications import create_notification
+        from app.db.models import Investor, NotificationType
+        investor = db.query(Investor).filter(
+            Investor.email == payload.recipient_email
+        ).first()
+        if investor and investor.user_id:
+            create_notification(
+                db=db,
+                user_id=investor.user_id,
+                title="Distribution eTransfer Initiated",
+                message=f"An eTransfer of ${payload.amount:,.2f} has been initiated to {payload.recipient_email}.",
+                type=NotificationType.etransfer,
+                action_url="/quarterly-reports",
+            )
+    except Exception:
+        pass
+
     db.commit()
     db.refresh(etransfer)
     return etransfer

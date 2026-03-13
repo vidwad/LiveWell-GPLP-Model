@@ -55,14 +55,14 @@ export function useDeleteProperty() {
   });
 }
 
-export function useDevelopmentPlans(propertyId: number) {
+export function useDevelopmentPlans(propertyId: number, options?: { enabled?: boolean }) {
   return useQuery({
     queryKey: ["plans", propertyId],
     queryFn: () =>
       apiClient
         .get<DevelopmentPlan[]>(`/api/portfolio/properties/${propertyId}/plans`)
         .then((r) => r.data),
-    enabled: !!propertyId,
+    enabled: (options?.enabled ?? true) && !!propertyId,
   });
 }
 
@@ -83,5 +83,13 @@ export function useRunModel() {
       apiClient
         .post<ModelingResult>("/api/portfolio/model", input)
         .then((r) => r.data),
+  });
+}
+
+export function usePortfolioReturns() {
+  return useQuery({
+    queryKey: ["portfolio-returns"],
+    queryFn: () =>
+      apiClient.get("/api/portfolio/metrics/returns").then((r) => r.data),
   });
 }

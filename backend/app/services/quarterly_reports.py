@@ -157,6 +157,25 @@ def generate_quarterly_report(
     )
     db.add(report)
     db.flush()
+
+    # Notify investors in this LP that a new quarterly report is available
+    try:
+        from app.services.notifications import notify_all_lp_investors
+        from app.db.models import NotificationType
+        notify_all_lp_investors(
+            db=db,
+            lp_id=lp_id,
+            title=f"{period_label} Quarterly Report Available",
+            message=(
+                f"Your {period_label} quarterly report for {lp.name} has been generated. "
+                f"Revenue: ${total_revenue:,.2f} | NOI: ${noi:,.2f}"
+            ),
+            type=NotificationType.quarterly_report,
+            action_url="/quarterly-reports",
+        )
+    except Exception:
+        pass  # Notifications must never block report generation
+
     return report
 
 

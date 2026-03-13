@@ -59,6 +59,7 @@ export const portfolio = {
   createDevelopmentPlan: (propertyId: number, data: DevelopmentPlanCreate) => apiClient.post<DevelopmentPlan>(`/api/portfolio/properties/${propertyId}/plans`, data).then(r => r.data),
   getClusters: () => apiClient.get<PropertyCluster[]>("/api/portfolio/clusters").then(r => r.data),
   estimateCosts: (data: CostEstimateInput) => apiClient.post<CostEstimateResult>("/api/portfolio/modeling/estimate-costs", data).then(r => r.data),
+  getReturnsMetrics: () => apiClient.get("/api/portfolio/metrics/returns").then(r => r.data),
 };
 
 // ── Investment (GP / LP / Subscription / Holding / Distribution) ─────
@@ -100,4 +101,28 @@ export const communities = {
 export const reports = {
   getSummary: () => apiClient.get("/api/reports/summary").then(r => r.data),
   getFundPerformance: () => apiClient.get("/api/reports/fund-performance").then(r => r.data),
+};
+
+// ── Documents ─────────────────────────────────────────────────────────
+export const documents = {
+  upload: (formData: FormData) =>
+    apiClient.post("/api/documents/upload", formData, {
+      headers: { "Content-Type": "multipart/form-data" },
+    }).then(r => r.data),
+  listByInvestor: (investorId: number) =>
+    apiClient.get(`/api/documents/investor/${investorId}`).then(r => r.data),
+  download: (documentId: number) =>
+    apiClient.get(`/api/documents/${documentId}/download`, { responseType: "blob" }).then(r => r.data),
+  markViewed: (documentId: number) =>
+    apiClient.patch(`/api/documents/${documentId}/viewed`).then(r => r.data),
+};
+
+// ── Notifications ─────────────────────────────────────────────────────
+export const notifications = {
+  list: (unreadOnly = false) =>
+    apiClient.get(`/api/notifications?unread_only=${unreadOnly}`).then(r => r.data),
+  markRead: (notificationId: number) =>
+    apiClient.patch(`/api/notifications/${notificationId}/read`).then(r => r.data),
+  markAllRead: () =>
+    apiClient.patch("/api/notifications/read-all").then(r => r.data),
 };

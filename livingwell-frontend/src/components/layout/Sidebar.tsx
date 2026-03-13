@@ -21,6 +21,7 @@ import {
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/providers/AuthProvider";
 import { UserRole } from "@/types/auth";
+import { NotificationBell } from "@/components/notifications/NotificationBell";
 
 const ALL_ROLES: UserRole[] = [
   "GP_ADMIN",
@@ -164,13 +165,16 @@ export function Sidebar() {
             <p className="text-sm font-medium truncate">{user.full_name ?? user.email}</p>
             <p className="text-xs text-muted-foreground truncate">{user.role.replace(/_/g, " ")}</p>
           </div>
-          <button
-            onClick={logout}
-            className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
-          >
-            <LogOut className="h-4 w-4" />
-            Sign out
-          </button>
+          <div className="flex items-center justify-between">
+            <button
+              onClick={logout}
+              className="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+            >
+              <LogOut className="h-4 w-4" />
+              Sign out
+            </button>
+            <NotificationBell />
+          </div>
         </div>
       )}
     </aside>
