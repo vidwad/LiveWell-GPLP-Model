@@ -435,9 +435,21 @@ def portfolio_returns_metrics(
         dates: list[datetime.date] = []
 
         for h in holdings:
-            if h.funded_amount and h.funded_date:
-                fd = h.funded_date.date() if hasattr(h.funded_date, "date") else h.funded_date
-                cash_flows.append(-float(h.funded_amount))
+            # funded_amount and funded_date live on the Subscription, not the Holding
+            sub = h.subscription
+            if sub and sub.funded_amount and sub.funded_date:
+                fd = sub.funded_date if isinstance(sub.funded_date, datetime.date) else sub.funded_date.date()
+                cash_flows.append(-float(sub.funded_amount))
+                dates.append(fd)
+            elif h.cost_basis:
+                # Fallback: use cost_basis as the invested amount with a synthetic date
+                cash_flows.append(-float(h.cost_basis))
+                # Use subscription accepted_date or a default
+                fallback_date = (sub.accepted_date or sub.submitted_date) if sub else None
+                if fallback_date:
+                    fd = fallback_date if isinstance(fallback_date, datetime.date) else fallback_date.date()
+                else:
+                    fd = datetime.date(2025, 1, 1)  # default for seed data
                 dates.append(fd)
 
         allocations = (
