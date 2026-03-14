@@ -361,6 +361,7 @@ function ExpensesTab({ communityId }: { communityId: number }) {
         {!expenses || expenses.length === 0 ? (
           <p className="text-sm text-muted-foreground">No expenses found.</p>
         ) : (
+          <div className="overflow-x-auto -mx-4 sm:mx-0">
           <Table>
             <TableHeader>
               <TableRow>
@@ -391,6 +392,7 @@ function ExpensesTab({ communityId }: { communityId: number }) {
               ))}
             </TableBody>
           </Table>
+          </div>
         )}
       </CardContent>
     </Card>

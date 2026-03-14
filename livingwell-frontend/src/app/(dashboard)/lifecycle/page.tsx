@@ -507,6 +507,7 @@ function TransitionHistory({
               No transitions recorded.
             </p>
           ) : (
+            <div className="overflow-x-auto -mx-4 sm:mx-0">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -547,6 +548,7 @@ function TransitionHistory({
                 ))}
               </TableBody>
             </Table>
+            </div>
           )}
         </CardContent>
       )}

@@ -218,7 +218,7 @@ function ReportsList({
               return (
                 <div
                   key={r.report_id}
-                  className="flex items-center justify-between rounded-lg border p-4 hover:bg-muted/50 transition-colors"
+                  className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-lg border p-4 hover:bg-muted/50 transition-colors"
                 >
                   <div className="flex items-center gap-3">
                     <div className={`rounded-full p-2 ${cfg.color}`}>

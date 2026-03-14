@@ -220,8 +220,8 @@ export default function DashboardPage() {
 
       {/* GP Admin Capital Stack Chart + Fund Performance */}
       {isGPAdmin && report && (
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7 mb-6">
-          <Card className="col-span-4">
+        <div className="grid gap-4 lg:grid-cols-7 mb-6">
+          <Card className="lg:col-span-4">
             <CardHeader>
               <CardTitle>Capital Stack by Fund</CardTitle>
             </CardHeader>
@@ -242,7 +242,7 @@ export default function DashboardPage() {
             </CardContent>
           </Card>
 
-          <Card className="col-span-3">
+          <Card className="lg:col-span-3">
             <CardHeader>
               <CardTitle>Fund Performance</CardTitle>
             </CardHeader>

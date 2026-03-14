@@ -132,7 +132,7 @@ export default function ETransfersPage() {
         </p>
       </div>
 
-      <div className="grid grid-cols-4 gap-4 mb-6">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
         <Card>
           <CardContent className="pt-6">
             <p className="text-sm text-muted-foreground">Total Transfers</p>
@@ -191,6 +191,7 @@ export default function ETransfersPage() {
           {!etransfers || etransfers.length === 0 ? (
             <p className="text-sm text-muted-foreground">No eTransfers found.</p>
           ) : (
+            <div className="overflow-x-auto -mx-4 sm:mx-0">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -257,6 +258,7 @@ export default function ETransfersPage() {
                 })}
               </TableBody>
             </Table>
+            </div>
           )}
         </CardContent>
       </Card>
