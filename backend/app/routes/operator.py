@@ -16,7 +16,8 @@ from app.core.deps import (
 )
 from app.db.models import (
     User, OperatorEntity, OperatorBudget, OperatingExpense,
-    Community, BudgetPeriodType,
+    Community, BudgetPeriodType, FundingOpportunity, FundingStatus,
+    UnitTurnover, ArrearsRecord, Unit, Resident, TurnoverStatus,
 )
 from app.db.session import get_db
 from app.schemas.lifecycle import (
@@ -338,3 +339,262 @@ def get_expense_summary(
         by_category=dict(by_category),
         expense_count=len(expenses),
     )
+
+
+# ---------------------------------------------------------------------------
+# Phase 5: Funding Opportunities (Grant Tracking)
+# ---------------------------------------------------------------------------
+
+import datetime as _dt
+from pydantic import BaseModel as _BaseModel
+
+
+class _FundingCreate(_BaseModel):
+    title: str
+    funding_source: str | None = None
+    operator_id: int | None = None
+    community_id: int | None = None
+    amount: float | None = None
+    status: str = "draft"
+    submission_deadline: _dt.date | None = None
+    reporting_deadline: _dt.date | None = None
+    awarded_amount: float | None = None
+    notes: str | None = None
+
+
+class _FundingOut(_FundingCreate):
+    funding_id: int
+    created_at: _dt.datetime | None = None
+    updated_at: _dt.datetime | None = None
+
+    model_config = {"from_attributes": True}
+
+
+@router.get("/funding", response_model=List[_FundingOut])
+def list_funding(
+    operator_id: int | None = None,
+    community_id: int | None = None,
+    status: str | None = None,
+    db: Session = Depends(get_db),
+    _: User = Depends(require_gp_or_ops),
+):
+    q = db.query(FundingOpportunity)
+    if operator_id:
+        q = q.filter(FundingOpportunity.operator_id == operator_id)
+    if community_id:
+        q = q.filter(FundingOpportunity.community_id == community_id)
+    if status:
+        q = q.filter(FundingOpportunity.status == status)
+    return q.order_by(FundingOpportunity.created_at.desc()).all()
+
+
+@router.post("/funding", response_model=_FundingOut, status_code=201)
+def create_funding(
+    payload: _FundingCreate,
+    db: Session = Depends(get_db),
+    _: User = Depends(require_gp_or_ops),
+):
+    opp = FundingOpportunity(**payload.model_dump())
+    db.add(opp)
+    db.commit()
+    db.refresh(opp)
+    return opp
+
+
+@router.patch("/funding/{funding_id}", response_model=_FundingOut)
+def update_funding(
+    funding_id: int,
+    payload: _FundingCreate,
+    db: Session = Depends(get_db),
+    _: User = Depends(require_gp_or_ops),
+):
+    opp = db.query(FundingOpportunity).filter(FundingOpportunity.funding_id == funding_id).first()
+    if not opp:
+        raise HTTPException(404, "Funding opportunity not found")
+    for k, v in payload.model_dump(exclude_unset=True).items():
+        if hasattr(opp, k):
+            setattr(opp, k, v)
+    db.commit()
+    db.refresh(opp)
+    return opp
+
+
+@router.delete("/funding/{funding_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_funding(
+    funding_id: int,
+    db: Session = Depends(get_db),
+    _: User = Depends(require_gp_or_ops),
+):
+    opp = db.query(FundingOpportunity).filter(FundingOpportunity.funding_id == funding_id).first()
+    if not opp:
+        raise HTTPException(404, "Funding opportunity not found")
+    db.delete(opp)
+    db.commit()
+
+
+# ---------------------------------------------------------------------------
+# Phase 5: Unit Turnovers
+# ---------------------------------------------------------------------------
+
+class _TurnoverCreate(_BaseModel):
+    unit_id: int
+    vacated_by_resident_id: int | None = None
+    move_out_date: _dt.date | None = None
+    target_ready_date: _dt.date | None = None
+    status: str = "scheduled"
+    inspection_notes: str | None = None
+    cleaning_complete: bool = False
+    repairs_complete: bool = False
+    painting_complete: bool = False
+    inspection_passed: bool | None = None
+    assigned_to: int | None = None
+
+
+class _TurnoverOut(_TurnoverCreate):
+    turnover_id: int
+    actual_ready_date: _dt.date | None = None
+    created_at: _dt.datetime | None = None
+
+    model_config = {"from_attributes": True}
+
+
+@router.get("/turnovers", response_model=List[_TurnoverOut])
+def list_turnovers(
+    unit_id: int | None = None,
+    status_filter: str | None = None,
+    db: Session = Depends(get_db),
+    _: User = Depends(require_gp_ops_pm),
+):
+    q = db.query(UnitTurnover)
+    if unit_id:
+        q = q.filter(UnitTurnover.unit_id == unit_id)
+    if status_filter:
+        q = q.filter(UnitTurnover.status == status_filter)
+    return q.order_by(UnitTurnover.created_at.desc()).all()
+
+
+@router.post("/turnovers", response_model=_TurnoverOut, status_code=201)
+def create_turnover(
+    payload: _TurnoverCreate,
+    db: Session = Depends(get_db),
+    _: User = Depends(require_gp_ops_pm),
+):
+    turnover = UnitTurnover(**payload.model_dump())
+    db.add(turnover)
+    db.commit()
+    db.refresh(turnover)
+    return turnover
+
+
+@router.patch("/turnovers/{turnover_id}", response_model=_TurnoverOut)
+def update_turnover(
+    turnover_id: int,
+    payload: _TurnoverCreate,
+    db: Session = Depends(get_db),
+    _: User = Depends(require_gp_ops_pm),
+):
+    t = db.query(UnitTurnover).filter(UnitTurnover.turnover_id == turnover_id).first()
+    if not t:
+        raise HTTPException(404, "Turnover not found")
+    for k, v in payload.model_dump(exclude_unset=True).items():
+        if hasattr(t, k):
+            setattr(t, k, v)
+    if all([t.cleaning_complete, t.repairs_complete, t.painting_complete]) and t.inspection_passed:
+        t.status = TurnoverStatus.ready
+        t.actual_ready_date = _dt.date.today()
+    db.commit()
+    db.refresh(t)
+    return t
+
+
+# ---------------------------------------------------------------------------
+# Phase 5: Arrears Records
+# ---------------------------------------------------------------------------
+
+class _ArrearsCreate(_BaseModel):
+    resident_id: int
+    rent_payment_id: int | None = None
+    amount_overdue: float
+    due_date: _dt.date
+    follow_up_action: str | None = None
+    follow_up_date: _dt.date | None = None
+    notes: str | None = None
+
+
+class _ArrearsOut(_ArrearsCreate):
+    arrears_id: int
+    days_overdue: int
+    aging_bucket: str
+    is_resolved: bool
+    resolved_date: _dt.date | None = None
+    created_at: _dt.datetime | None = None
+
+    model_config = {"from_attributes": True}
+
+
+def _calc_aging(days: int) -> str:
+    if days <= 30:
+        return "0-30"
+    elif days <= 60:
+        return "31-60"
+    elif days <= 90:
+        return "61-90"
+    else:
+        return "90+"
+
+
+@router.get("/arrears", response_model=List[_ArrearsOut])
+def list_arrears(
+    resident_id: int | None = None,
+    unresolved_only: bool = True,
+    db: Session = Depends(get_db),
+    _: User = Depends(require_gp_ops_pm),
+):
+    q = db.query(ArrearsRecord)
+    if resident_id:
+        q = q.filter(ArrearsRecord.resident_id == resident_id)
+    if unresolved_only:
+        q = q.filter(ArrearsRecord.is_resolved == False)
+    records = q.order_by(ArrearsRecord.due_date).all()
+    today = _dt.date.today()
+    for r in records:
+        r.days_overdue = (today - r.due_date).days if not r.is_resolved else r.days_overdue
+        r.aging_bucket = _calc_aging(r.days_overdue)
+    return records
+
+
+@router.post("/arrears", response_model=_ArrearsOut, status_code=201)
+def create_arrears(
+    payload: _ArrearsCreate,
+    db: Session = Depends(get_db),
+    _: User = Depends(require_gp_ops_pm),
+):
+    import datetime as dt_
+    today = dt_.date.today()
+    days = (today - payload.due_date).days
+    record = ArrearsRecord(
+        **payload.model_dump(),
+        days_overdue=days,
+        aging_bucket=_calc_aging(days),
+    )
+    db.add(record)
+    db.commit()
+    db.refresh(record)
+    return record
+
+
+@router.patch("/arrears/{arrears_id}/resolve", response_model=_ArrearsOut)
+def resolve_arrears(
+    arrears_id: int,
+    db: Session = Depends(get_db),
+    _: User = Depends(require_gp_ops_pm),
+):
+    import datetime as dt_
+    record = db.query(ArrearsRecord).filter(ArrearsRecord.arrears_id == arrears_id).first()
+    if not record:
+        raise HTTPException(404, "Arrears record not found")
+    record.is_resolved = True
+    record.resolved_date = dt_.date.today()
+    db.commit()
+    db.refresh(record)
+    return record

@@ -20,6 +20,7 @@ import {
   Send,
   Menu,
   X,
+  HandCoins,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/providers/AuthProvider";
@@ -108,6 +109,12 @@ const NAV_ITEMS = [
     href: "/etransfers",
     label: "eTransfers",
     icon: Send,
+    roles: ["GP_ADMIN", "OPERATIONS_MANAGER"] as UserRole[],
+  },
+  {
+    href: "/funding",
+    label: "Grants & Funding",
+    icon: HandCoins,
     roles: ["GP_ADMIN", "OPERATIONS_MANAGER"] as UserRole[],
   },
   {

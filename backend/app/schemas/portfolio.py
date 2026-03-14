@@ -237,3 +237,53 @@ class DebtFacilityOut(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+# ---------------------------------------------------------------------------
+# Refinance Scenario
+# ---------------------------------------------------------------------------
+
+class RefinanceScenarioCreate(BaseModel):
+    label: str = "Refinance Scenario"
+    assumed_new_valuation: float
+    new_ltv_percent: float
+    new_interest_rate: float | None = None
+    new_amortization_months: int | None = None
+    existing_debt_payout: float | None = None
+    closing_costs: float = 0.0
+    notes: str | None = None
+
+
+class RefinanceScenarioOut(RefinanceScenarioCreate):
+    scenario_id: int
+    property_id: int
+    # Computed fields
+    new_loan_amount: float
+    net_proceeds: float
+    created_at: datetime.datetime | None = None
+
+    model_config = {"from_attributes": True}
+
+
+# ---------------------------------------------------------------------------
+# Sale Scenario
+# ---------------------------------------------------------------------------
+
+class SaleScenarioCreate(BaseModel):
+    label: str = "Sale Scenario"
+    assumed_sale_price: float
+    selling_costs_percent: float = 5.0
+    debt_payout: float | None = None
+    capital_gains_reserve: float = 0.0
+    notes: str | None = None
+
+
+class SaleScenarioOut(SaleScenarioCreate):
+    scenario_id: int
+    property_id: int
+    # Computed fields
+    selling_costs: float
+    net_proceeds: float
+    created_at: datetime.datetime | None = None
+
+    model_config = {"from_attributes": True}

@@ -178,9 +178,10 @@ class ETransferStatus(str, enum.Enum):
 class QuarterlyReportStatus(str, enum.Enum):
     """Workflow state of a quarterly report."""
     draft = "draft"
-    review = "review"
+    reviewed = "reviewed"
     approved = "approved"
     published = "published"
+    archived = "archived"
 
 
 class ExpenseCategory(str, enum.Enum):
@@ -838,12 +839,19 @@ class QuarterlyReport(Base):
     property_updates = Column(Text, nullable=True)  # JSON array of per-property updates
     market_commentary = Column(Text, nullable=True)
 
+    # Versioning
+    version = Column(Integer, nullable=False, default=1)
+    superseded_by = Column(Integer, ForeignKey("quarterly_reports.report_id"), nullable=True)
+
     generated_at = Column(DateTime, nullable=False, default=datetime.utcnow)
     published_at = Column(DateTime, nullable=True)
     generated_by = Column(Integer, ForeignKey("users.user_id"), nullable=True)
 
     lp = relationship("LPEntity", back_populates="quarterly_reports")
     generator = relationship("User")
+    superseded_by_report = relationship(
+        "QuarterlyReport", remote_side="QuarterlyReport.report_id", foreign_keys=[superseded_by]
+    )
 
 
 class ETransferTracking(Base):
@@ -964,3 +972,136 @@ class Notification(Base):
     created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
 
     user = relationship("User")
+
+
+# ---------------------------------------------------------------------------
+# Phase 5: Refinance & Sale Scenarios
+# ---------------------------------------------------------------------------
+
+class RefinanceScenario(Base):
+    """Models a refinance event for a property — new loan pays out existing debt."""
+    __tablename__ = "refinance_scenarios"
+
+    scenario_id = Column(Integer, primary_key=True, index=True)
+    property_id = Column(Integer, ForeignKey("properties.property_id"), nullable=False)
+    label = Column(String(256), nullable=False, default="Refinance Scenario")
+    assumed_new_valuation = Column(Numeric(16, 2), nullable=False)
+    new_ltv_percent = Column(Numeric(5, 2), nullable=False)
+    new_interest_rate = Column(Numeric(6, 4), nullable=True)
+    new_amortization_months = Column(Integer, nullable=True)
+    existing_debt_payout = Column(Numeric(16, 2), nullable=True)
+    closing_costs = Column(Numeric(14, 2), nullable=True, default=0)
+    notes = Column(Text, nullable=True)
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+
+    property = relationship("Property")
+
+
+class SaleScenario(Base):
+    """Models a property sale — net proceeds after costs and debt payout."""
+    __tablename__ = "sale_scenarios"
+
+    scenario_id = Column(Integer, primary_key=True, index=True)
+    property_id = Column(Integer, ForeignKey("properties.property_id"), nullable=False)
+    label = Column(String(256), nullable=False, default="Sale Scenario")
+    assumed_sale_price = Column(Numeric(16, 2), nullable=False)
+    selling_costs_percent = Column(Numeric(5, 2), nullable=False, default=5)
+    debt_payout = Column(Numeric(16, 2), nullable=True)
+    capital_gains_reserve = Column(Numeric(14, 2), nullable=True, default=0)
+    notes = Column(Text, nullable=True)
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+
+    property = relationship("Property")
+
+
+# ---------------------------------------------------------------------------
+# Phase 5: Funding Opportunities (Grant Tracking)
+# ---------------------------------------------------------------------------
+
+class FundingStatus(str, enum.Enum):
+    draft = "draft"
+    submitted = "submitted"
+    awarded = "awarded"
+    denied = "denied"
+    withdrawn = "withdrawn"
+
+
+class FundingOpportunity(Base):
+    """Grant or external funding opportunity linked to an operator or community."""
+    __tablename__ = "funding_opportunities"
+
+    funding_id = Column(Integer, primary_key=True, index=True)
+    operator_id = Column(Integer, ForeignKey("operator_entities.operator_id"), nullable=True)
+    community_id = Column(Integer, ForeignKey("communities.community_id"), nullable=True)
+    title = Column(String(256), nullable=False)
+    funding_source = Column(String(256), nullable=True)
+    amount = Column(Numeric(14, 2), nullable=True)
+    status = Column(_enum(FundingStatus), nullable=False, default=FundingStatus.draft)
+    submission_deadline = Column(Date, nullable=True)
+    reporting_deadline = Column(Date, nullable=True)
+    awarded_amount = Column(Numeric(14, 2), nullable=True)
+    notes = Column(Text, nullable=True)
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    updated_at = Column(DateTime, nullable=True, onupdate=datetime.utcnow)
+
+    operator = relationship("OperatorEntity")
+    community = relationship("Community")
+
+
+# ---------------------------------------------------------------------------
+# Phase 5: Unit Turnover & Arrears
+# ---------------------------------------------------------------------------
+
+class TurnoverStatus(str, enum.Enum):
+    scheduled = "scheduled"
+    in_progress = "in_progress"
+    ready = "ready"
+    completed = "completed"
+
+
+class UnitTurnover(Base):
+    """Tracks inspection checklist and readiness between resident move-outs and move-ins."""
+    __tablename__ = "unit_turnovers"
+
+    turnover_id = Column(Integer, primary_key=True, index=True)
+    unit_id = Column(Integer, ForeignKey("units.unit_id"), nullable=False)
+    vacated_by_resident_id = Column(Integer, ForeignKey("residents.resident_id"), nullable=True)
+    move_out_date = Column(Date, nullable=True)
+    target_ready_date = Column(Date, nullable=True)
+    actual_ready_date = Column(Date, nullable=True)
+    status = Column(_enum(TurnoverStatus), nullable=False, default=TurnoverStatus.scheduled)
+    inspection_notes = Column(Text, nullable=True)
+    cleaning_complete = Column(Boolean, default=False, nullable=False)
+    repairs_complete = Column(Boolean, default=False, nullable=False)
+    painting_complete = Column(Boolean, default=False, nullable=False)
+    inspection_passed = Column(Boolean, nullable=True)
+    assigned_to = Column(Integer, ForeignKey("users.user_id"), nullable=True)
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    updated_at = Column(DateTime, nullable=True, onupdate=datetime.utcnow)
+
+    unit = relationship("Unit")
+    vacated_by = relationship("Resident", foreign_keys=[vacated_by_resident_id])
+    assignee = relationship("User", foreign_keys=[assigned_to])
+
+
+class ArrearsRecord(Base):
+    """Tracks overdue rent collection follow-up with aging buckets."""
+    __tablename__ = "arrears_records"
+
+    arrears_id = Column(Integer, primary_key=True, index=True)
+    resident_id = Column(Integer, ForeignKey("residents.resident_id"), nullable=False)
+    rent_payment_id = Column(Integer, ForeignKey("rent_payments.payment_id"), nullable=True)
+    amount_overdue = Column(Numeric(12, 2), nullable=False)
+    due_date = Column(Date, nullable=False)
+    days_overdue = Column(Integer, nullable=False, default=0)
+    aging_bucket = Column(String(16), nullable=False, default="0-30")
+    follow_up_action = Column(String(256), nullable=True)
+    follow_up_date = Column(Date, nullable=True)
+    is_resolved = Column(Boolean, default=False, nullable=False)
+    resolved_date = Column(Date, nullable=True)
+    notes = Column(Text, nullable=True)
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    updated_at = Column(DateTime, nullable=True, onupdate=datetime.utcnow)
+
+    resident = relationship("Resident")
+    rent_payment = relationship("RentPayment")

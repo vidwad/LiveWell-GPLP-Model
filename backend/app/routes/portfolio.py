@@ -24,6 +24,8 @@ from app.schemas.portfolio import (
     ModelingInput, ModelingResult,
     PropertyClusterCreate, PropertyClusterOut,
     PropertyCreate, PropertyOut, PropertyUpdate,
+    RefinanceScenarioCreate, RefinanceScenarioOut,
+    SaleScenarioCreate, SaleScenarioOut,
 )
 from app.services.modeling import (
     calculate_cap_rate, calculate_construction_costs, calculate_irr, calculate_noi,
@@ -344,6 +346,232 @@ def update_debt_facility(
 
 
 # ---------------------------------------------------------------------------
+# Mortgage Amortization Schedule
+# ---------------------------------------------------------------------------
+
+from typing import List as _List
+from pydantic import BaseModel as _BaseModel
+from app.services.debt import MortgageEngine
+
+
+class _AmortizationPeriodOut(_BaseModel):
+    period: int
+    payment: float
+    interest: float
+    principal: float
+    balance: float
+
+
+class _AnnualDebtSummaryOut(_BaseModel):
+    year: int
+    total_payment: float
+    total_interest: float
+    total_principal: float
+    closing_balance: float
+    is_io_year: bool
+
+
+class _AmortizationScheduleOut(_BaseModel):
+    debt_id: int
+    lender_name: str
+    outstanding_balance: float
+    annual_interest_rate: float
+    amortization_months: int
+    io_period_months: int
+    monthly_schedule: _List[_AmortizationPeriodOut]
+    annual_schedule: _List[_AnnualDebtSummaryOut]
+
+
+@router.get(
+    "/properties/{property_id}/debt/{debt_id}/amortization",
+    response_model=_AmortizationScheduleOut,
+)
+def get_amortization_schedule(
+    property_id: int,
+    debt_id: int,
+    years: int = 10,
+    db: Session = Depends(get_db),
+    _: User = Depends(get_current_user),
+):
+    """
+    Return a full amortization schedule (monthly + annual) for a debt facility.
+    Query param ?years= controls how many years to project (default 10, max 30).
+    """
+    facility = (
+        db.query(DebtFacility)
+        .filter(
+            DebtFacility.debt_id == debt_id,
+            DebtFacility.property_id == property_id,
+        )
+        .first()
+    )
+    if not facility:
+        raise HTTPException(404, "Debt facility not found")
+
+    years = min(max(years, 1), 30)
+    balance = float(facility.outstanding_balance or facility.commitment_amount or 0)
+    rate = float(facility.interest_rate or 0) / 100  # stored as percentage
+    amort_months = facility.amortization_months or 0
+    io_months = facility.io_period_months or 0
+
+    engine = MortgageEngine(
+        outstanding_balance=balance,
+        annual_interest_rate=rate,
+        amortization_months=amort_months,
+        io_period_months=io_months,
+    )
+
+    monthly = [
+        _AmortizationPeriodOut(
+            period=p.period,
+            payment=p.payment,
+            interest=p.interest,
+            principal=p.principal,
+            balance=p.balance,
+        )
+        for p in engine.monthly_schedule(periods=years * 12)
+    ]
+
+    annual = [
+        _AnnualDebtSummaryOut(
+            year=a.year,
+            total_payment=a.total_payment,
+            total_interest=a.total_interest,
+            total_principal=a.total_principal,
+            closing_balance=a.closing_balance,
+            is_io_year=a.is_io_year,
+        )
+        for a in engine.annual_schedule(years=years)
+    ]
+
+    return _AmortizationScheduleOut(
+        debt_id=facility.debt_id,
+        lender_name=facility.lender_name,
+        outstanding_balance=balance,
+        annual_interest_rate=float(facility.interest_rate or 0),
+        amortization_months=amort_months,
+        io_period_months=io_months,
+        monthly_schedule=monthly,
+        annual_schedule=annual,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Time-Phased Annual Projection
+# ---------------------------------------------------------------------------
+
+from app.services.projections import LifecycleProjectionEngine
+from app.services.debt import MortgageEngine as _MortgageEngine
+
+
+class _YearProjectionOut(_BaseModel):
+    year: int
+    phase: str
+    rentable_months: int
+    occupancy_rate: float
+    gross_revenue: float
+    vacancy_loss: float
+    effective_gross_income: float
+    operating_expenses: float
+    noi: float
+    annual_debt_service: float
+    cash_flow: float
+    cumulative_cash_flow: float
+
+
+class _ProjectionInput(_BaseModel):
+    stabilized_annual_revenue: float
+    stabilized_operating_expenses: float
+    construction_start_year: int | None = None
+    construction_duration_years: int = 1
+    lease_up_months: int = 12
+    lease_up_start_occupancy: float = 0.20
+    stabilized_occupancy: float = 0.93
+    interim_revenue: float = 0.0
+    interim_expenses: float = 0.0
+    carrying_cost_annual: float = 0.0
+    projection_years: int = 10
+    expense_growth_rate: float = 0.03
+    revenue_growth_rate: float = 0.025
+    # Debt params for embedded debt service calculation
+    debt_outstanding_balance: float = 0.0
+    debt_annual_rate: float = 0.0
+    debt_amortization_months: int = 0
+    debt_io_months: int = 0
+
+
+@router.post("/properties/{property_id}/projection", response_model=_List[_YearProjectionOut])
+def run_projection(
+    property_id: int,
+    payload: _ProjectionInput,
+    db: Session = Depends(get_db),
+    _: User = Depends(get_current_user),
+):
+    """
+    Run a time-phased annual projection for a property.
+    If debt params are provided they override any stored debt facility data.
+    """
+    if not db.query(Property).filter(Property.property_id == property_id).first():
+        raise HTTPException(404, "Property not found")
+
+    # Determine annual debt service
+    ads = 0.0
+    if payload.debt_outstanding_balance > 0 and payload.debt_annual_rate > 0:
+        engine = _MortgageEngine(
+            outstanding_balance=payload.debt_outstanding_balance,
+            annual_interest_rate=payload.debt_annual_rate / 100,
+            amortization_months=payload.debt_amortization_months,
+            io_period_months=payload.debt_io_months,
+        )
+        ads = engine.annual_debt_service(year=1)
+    else:
+        # Use active debt facilities from DB
+        from app.services.calculations import calculate_annual_debt_service
+        debts = (
+            db.query(DebtFacility)
+            .filter(DebtFacility.property_id == property_id, DebtFacility.status == "active")
+            .all()
+        )
+        for d in debts:
+            if d.outstanding_balance and d.interest_rate:
+                ads += calculate_annual_debt_service(
+                    float(d.outstanding_balance),
+                    float(d.interest_rate),
+                    d.amortization_months or 0,
+                    d.io_period_months or 0,
+                )
+
+    proj_engine = LifecycleProjectionEngine(
+        stabilized_annual_revenue=payload.stabilized_annual_revenue,
+        stabilized_operating_expenses=payload.stabilized_operating_expenses,
+        annual_debt_service=ads,
+        construction_start_year=payload.construction_start_year,
+        construction_duration_years=payload.construction_duration_years,
+        lease_up_months=payload.lease_up_months,
+        lease_up_start_occupancy=payload.lease_up_start_occupancy,
+        stabilized_occupancy=payload.stabilized_occupancy,
+        interim_revenue=payload.interim_revenue,
+        interim_expenses=payload.interim_expenses,
+        carrying_cost_annual=payload.carrying_cost_annual,
+        projection_years=payload.projection_years,
+        expense_growth_rate=payload.expense_growth_rate,
+        revenue_growth_rate=payload.revenue_growth_rate,
+    )
+
+    return [
+        _YearProjectionOut(
+            year=y.year, phase=y.phase, rentable_months=y.rentable_months,
+            occupancy_rate=y.occupancy_rate, gross_revenue=y.gross_revenue,
+            vacancy_loss=y.vacancy_loss, effective_gross_income=y.effective_gross_income,
+            operating_expenses=y.operating_expenses, noi=y.noi,
+            annual_debt_service=y.annual_debt_service, cash_flow=y.cash_flow,
+            cumulative_cash_flow=y.cumulative_cash_flow,
+        )
+        for y in proj_engine.project()
+    ]
+
+
+# ---------------------------------------------------------------------------
 # Cost Estimation Engine
 # ---------------------------------------------------------------------------
 
@@ -506,3 +734,214 @@ def portfolio_returns_metrics(
         portfolio_equity_multiple=portfolio_em,
         portfolio_xirr_percent=portfolio_xirr,
     )
+
+
+# ---------------------------------------------------------------------------
+# Phase 5: Refinance & Sale Scenarios
+# ---------------------------------------------------------------------------
+
+from app.db.models import RefinanceScenario, SaleScenario
+
+
+def _calc_refinance(scenario: RefinanceScenario) -> RefinanceScenarioOut:
+    new_loan = round(float(scenario.assumed_new_valuation) * float(scenario.new_ltv_percent) / 100, 2)
+    debt_payout = float(scenario.existing_debt_payout or 0)
+    closing = float(scenario.closing_costs or 0)
+    net_proceeds = round(new_loan - debt_payout - closing, 2)
+    return RefinanceScenarioOut(
+        scenario_id=scenario.scenario_id,
+        property_id=scenario.property_id,
+        label=scenario.label,
+        assumed_new_valuation=float(scenario.assumed_new_valuation),
+        new_ltv_percent=float(scenario.new_ltv_percent),
+        new_interest_rate=float(scenario.new_interest_rate) if scenario.new_interest_rate else None,
+        new_amortization_months=scenario.new_amortization_months,
+        existing_debt_payout=debt_payout,
+        closing_costs=closing,
+        notes=scenario.notes,
+        new_loan_amount=new_loan,
+        net_proceeds=net_proceeds,
+        created_at=scenario.created_at,
+    )
+
+
+def _calc_sale(scenario: SaleScenario) -> SaleScenarioOut:
+    price = float(scenario.assumed_sale_price)
+    selling_costs = round(price * float(scenario.selling_costs_percent) / 100, 2)
+    debt_payout = float(scenario.debt_payout or 0)
+    reserves = float(scenario.capital_gains_reserve or 0)
+    net_proceeds = round(price - selling_costs - debt_payout - reserves, 2)
+    return SaleScenarioOut(
+        scenario_id=scenario.scenario_id,
+        property_id=scenario.property_id,
+        label=scenario.label,
+        assumed_sale_price=price,
+        selling_costs_percent=float(scenario.selling_costs_percent),
+        debt_payout=debt_payout,
+        capital_gains_reserve=reserves,
+        notes=scenario.notes,
+        selling_costs=selling_costs,
+        net_proceeds=net_proceeds,
+        created_at=scenario.created_at,
+    )
+
+
+@router.get("/properties/{property_id}/refinance-scenarios", response_model=_List[RefinanceScenarioOut])
+def list_refinance_scenarios(
+    property_id: int,
+    db: Session = Depends(get_db),
+    _: User = Depends(get_current_user),
+):
+    return [_calc_refinance(s) for s in db.query(RefinanceScenario).filter(RefinanceScenario.property_id == property_id).all()]
+
+
+@router.post("/properties/{property_id}/refinance-scenarios", response_model=RefinanceScenarioOut, status_code=status.HTTP_201_CREATED)
+def create_refinance_scenario(
+    property_id: int,
+    payload: RefinanceScenarioCreate,
+    db: Session = Depends(get_db),
+    _: User = Depends(require_gp_or_ops),
+):
+    if not db.query(Property).filter(Property.property_id == property_id).first():
+        raise HTTPException(404, "Property not found")
+    scenario = RefinanceScenario(property_id=property_id, **payload.model_dump())
+    db.add(scenario)
+    db.commit()
+    db.refresh(scenario)
+    return _calc_refinance(scenario)
+
+
+@router.delete("/refinance-scenarios/{scenario_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_refinance_scenario(
+    scenario_id: int,
+    db: Session = Depends(get_db),
+    _: User = Depends(require_gp_or_ops),
+):
+    s = db.query(RefinanceScenario).filter(RefinanceScenario.scenario_id == scenario_id).first()
+    if not s:
+        raise HTTPException(404, "Scenario not found")
+    db.delete(s)
+    db.commit()
+
+
+@router.get("/properties/{property_id}/sale-scenarios", response_model=_List[SaleScenarioOut])
+def list_sale_scenarios(
+    property_id: int,
+    db: Session = Depends(get_db),
+    _: User = Depends(get_current_user),
+):
+    return [_calc_sale(s) for s in db.query(SaleScenario).filter(SaleScenario.property_id == property_id).all()]
+
+
+@router.post("/properties/{property_id}/sale-scenarios", response_model=SaleScenarioOut, status_code=status.HTTP_201_CREATED)
+def create_sale_scenario(
+    property_id: int,
+    payload: SaleScenarioCreate,
+    db: Session = Depends(get_db),
+    _: User = Depends(require_gp_or_ops),
+):
+    if not db.query(Property).filter(Property.property_id == property_id).first():
+        raise HTTPException(404, "Property not found")
+    scenario = SaleScenario(property_id=property_id, **payload.model_dump())
+    db.add(scenario)
+    db.commit()
+    db.refresh(scenario)
+    return _calc_sale(scenario)
+
+
+@router.delete("/sale-scenarios/{scenario_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_sale_scenario(
+    scenario_id: int,
+    db: Session = Depends(get_db),
+    _: User = Depends(require_gp_or_ops),
+):
+    s = db.query(SaleScenario).filter(SaleScenario.scenario_id == scenario_id).first()
+    if not s:
+        raise HTTPException(404, "Scenario not found")
+    db.delete(s)
+    db.commit()
+
+
+# ---------------------------------------------------------------------------
+# Phase 5: Redevelopment Scenario Comparison
+# ---------------------------------------------------------------------------
+
+@router.get("/properties/{property_id}/plans/compare")
+def compare_development_plans(
+    property_id: int,
+    plan_ids: str,   # comma-separated list of plan IDs e.g. "1,2,3"
+    db: Session = Depends(get_db),
+    _: User = Depends(get_current_user),
+):
+    """
+    Side-by-side comparison of multiple DevelopmentPlan versions for a property.
+    Pass ?plan_ids=1,2,3 (comma-separated).
+    Returns cost breakdown, NOI, debt impact, and projected valuation for each plan.
+    """
+    if not db.query(Property).filter(Property.property_id == property_id).first():
+        raise HTTPException(404, "Property not found")
+
+    try:
+        ids = [int(i.strip()) for i in plan_ids.split(",") if i.strip()]
+    except ValueError:
+        raise HTTPException(400, "plan_ids must be comma-separated integers")
+
+    plans = (
+        db.query(DevelopmentPlan)
+        .filter(
+            DevelopmentPlan.plan_id.in_(ids),
+            DevelopmentPlan.property_id == property_id,
+        )
+        .all()
+    )
+
+    if not plans:
+        raise HTTPException(404, "No plans found for this property with the given IDs")
+
+    comparison = []
+    for plan in plans:
+        total_cost = float(plan.estimated_construction_cost or 0)
+        noi = float(plan.projected_annual_noi or 0)
+        revenue = float(plan.projected_annual_revenue or 0)
+
+        # Implied cap rate valuation at 5.5% cap rate
+        implied_valuation = round(noi / 0.055, 2) if noi > 0 else None
+
+        # Debt impact: estimate 65% LTV on implied valuation
+        estimated_debt = round(implied_valuation * 0.65, 2) if implied_valuation else None
+        equity_required = round(total_cost - (estimated_debt or 0), 2) if total_cost > 0 else None
+
+        comparison.append({
+            "plan_id": plan.plan_id,
+            "version": plan.version,
+            "status": plan.status.value,
+            "planned_units": plan.planned_units,
+            "planned_beds": plan.planned_beds,
+            "planned_sqft": float(plan.planned_sqft or 0),
+            "cost_breakdown": {
+                "hard_costs": float(plan.hard_costs or 0),
+                "soft_costs": float(plan.soft_costs or 0),
+                "site_costs": float(plan.site_costs or 0),
+                "financing_costs": float(plan.financing_costs or 0),
+                "total_estimated_cost": total_cost,
+                "cost_per_sqft": float(plan.cost_per_sqft or 0),
+            },
+            "income": {
+                "projected_annual_revenue": revenue,
+                "projected_annual_noi": noi,
+                "noi_margin_percent": round(noi / revenue * 100, 1) if revenue > 0 else None,
+            },
+            "valuation": {
+                "implied_valuation_at_5_5_cap": implied_valuation,
+                "estimated_debt_at_65_ltv": estimated_debt,
+                "estimated_equity_required": equity_required,
+            },
+            "timeline": {
+                "development_start_date": str(plan.development_start_date) if plan.development_start_date else None,
+                "estimated_completion_date": str(plan.estimated_completion_date) if plan.estimated_completion_date else None,
+                "estimated_stabilization_date": str(plan.estimated_stabilization_date) if plan.estimated_stabilization_date else None,
+                "construction_duration_days": plan.construction_duration_days,
+            },
+        })
+
+    return {"property_id": property_id, "plans_compared": len(comparison), "comparison": comparison}
