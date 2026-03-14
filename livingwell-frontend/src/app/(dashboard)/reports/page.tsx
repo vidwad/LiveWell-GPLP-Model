@@ -82,7 +82,7 @@ export default function ReportsPage() {
         <SectionHeading>Capital Summary</SectionHeading>
         <div className="grid grid-cols-3 gap-4">
           {[
-            { label: "Total Contributed", value: formatCurrency(data.total_contributed) },
+            { label: "Total Contributed", value: formatCurrency(data.total_funded) },
             { label: "Total Distributed", value: formatCurrency(data.total_distributed) },
             { label: "Net Deployed", value: formatCurrency(data.net_invested) },
           ].map(({ label, value }) => (

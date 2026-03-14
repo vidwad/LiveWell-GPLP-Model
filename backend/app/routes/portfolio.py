@@ -217,17 +217,45 @@ def run_model(
     payload: ModelingInput,
     _: User = Depends(get_current_user),
 ):
-    construction_costs = calculate_construction_costs(
-        payload.unit_count, payload.avg_cost_per_unit
-    )
-    noi = calculate_noi(payload.rent_income, payload.other_income, payload.operating_expenses)
-    cap_rate = calculate_cap_rate(noi, payload.market_value)
-    irr = calculate_irr(payload.cash_flows)
+    from decimal import Decimal, ROUND_HALF_UP
+    # Total project cost = land + construction
+    construction_costs = payload.purchase_price + payload.construction_cost
+    # NOI = revenue - expenses
+    noi = payload.annual_revenue - payload.annual_expenses
+    # Cap rate = NOI / total cost
+    if construction_costs > 0:
+        cap_rate = (noi / construction_costs) * Decimal("100")
+    else:
+        cap_rate = Decimal("0")
+    # IRR via simplified cash flow: initial outlay + annual NOI + terminal sale
+    hold = payload.hold_period_years
+    exit_cap = payload.exit_cap_rate if payload.exit_cap_rate > 0 else Decimal("0.05")
+    terminal_value = noi / exit_cap  # sale price at exit cap rate
+    # Build cash flows: year 0 = -cost, years 1..N-1 = NOI, year N = NOI + terminal_value
+    cash_flows = [-float(construction_costs)]
+    for yr in range(1, hold + 1):
+        cf = float(noi)
+        if yr == hold:
+            cf += float(terminal_value)
+        cash_flows.append(cf)
+    # Newton-Raphson IRR
+    irr_val = Decimal("0")
+    try:
+        guess = 0.10
+        for _ in range(200):
+            npv = sum(cf / (1 + guess) ** t for t, cf in enumerate(cash_flows))
+            dnpv = sum(-t * cf / (1 + guess) ** (t + 1) for t, cf in enumerate(cash_flows))
+            if abs(dnpv) < 1e-12:
+                break
+            guess = guess - npv / dnpv
+        irr_val = Decimal(str(guess * 100)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+    except Exception:
+        irr_val = Decimal("0")
     return ModelingResult(
-        construction_costs=construction_costs,
-        noi=noi,
-        cap_rate=cap_rate,
-        irr=irr,
+        construction_costs=construction_costs.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP),
+        noi=noi.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP),
+        cap_rate=cap_rate.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP),
+        irr=irr_val,
     )
 
 

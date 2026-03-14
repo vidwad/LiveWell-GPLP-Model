@@ -150,13 +150,12 @@ class DevelopmentPlanOut(BaseModel):
 # ---------------------------------------------------------------------------
 
 class ModelingInput(BaseModel):
-    unit_count: int
-    avg_cost_per_unit: Decimal
-    rent_income: Decimal
-    other_income: Decimal
-    operating_expenses: Decimal
-    market_value: Decimal
-    cash_flows: list[Decimal]
+    purchase_price: Decimal
+    construction_cost: Decimal
+    annual_revenue: Decimal
+    annual_expenses: Decimal
+    hold_period_years: int = 5
+    exit_cap_rate: Decimal = Decimal("0.05")
 
 
 class ModelingResult(BaseModel):

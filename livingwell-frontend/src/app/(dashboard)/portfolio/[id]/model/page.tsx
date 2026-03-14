@@ -162,12 +162,12 @@ export default function ModelPage({
                   },
                   {
                     label: "Cap Rate",
-                    value: formatPercent(result.cap_rate),
+                    value: `${Number(result.cap_rate).toFixed(2)}%`,
                     desc: "NOI / total cost",
                   },
                   {
                     label: "IRR",
-                    value: formatPercent(result.irr),
+                    value: `${Number(result.irr).toFixed(2)}%`,
                     desc: `Over ${form.hold_period_years}-year hold`,
                   },
                 ].map(({ label, value, desc }) => (

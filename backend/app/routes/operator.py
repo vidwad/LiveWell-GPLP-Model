@@ -362,6 +362,19 @@ class _FundingCreate(_BaseModel):
     notes: str | None = None
 
 
+class _FundingUpdate(_BaseModel):
+    title: str | None = None
+    funding_source: str | None = None
+    operator_id: int | None = None
+    community_id: int | None = None
+    amount: float | None = None
+    status: str | None = None
+    submission_deadline: _dt.date | None = None
+    reporting_deadline: _dt.date | None = None
+    awarded_amount: float | None = None
+    notes: str | None = None
+
+
 class _FundingOut(_FundingCreate):
     funding_id: int
     created_at: _dt.datetime | None = None
@@ -404,7 +417,7 @@ def create_funding(
 @router.patch("/funding/{funding_id}", response_model=_FundingOut)
 def update_funding(
     funding_id: int,
-    payload: _FundingCreate,
+    payload: _FundingUpdate,
     db: Session = Depends(get_db),
     _: User = Depends(require_gp_or_ops),
 ):
