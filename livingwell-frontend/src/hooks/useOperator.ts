@@ -85,6 +85,36 @@ export function useUpdateExpense() {
   });
 }
 
+// ── Unit Turnovers ───────────────────────────────────────────────────
+
+export function useTurnovers(communityId?: number) {
+  return useQuery({
+    queryKey: ["turnovers", communityId],
+    queryFn: () => {
+      const qs = communityId ? `?community_id=${communityId}` : "";
+      return apiClient.get(`/api/operator/turnovers${qs}`).then((r) => r.data);
+    },
+  });
+}
+
+export function useCreateTurnover() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (data: object) =>
+      apiClient.post("/api/operator/turnovers", data).then((r) => r.data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["turnovers"] }),
+  });
+}
+
+export function useUpdateTurnover() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, data }: { id: number; data: object }) =>
+      apiClient.patch(`/api/operator/turnovers/${id}`, data).then((r) => r.data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["turnovers"] }),
+  });
+}
+
 // ── Expense Summary ─────────────────────────────────────────────────
 
 export function useExpenseSummary(communityId: number, year: number, quarter?: number) {

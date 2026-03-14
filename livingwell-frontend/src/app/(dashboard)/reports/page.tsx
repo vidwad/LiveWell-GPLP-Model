@@ -4,8 +4,8 @@ import {
   BarChart, Bar, LineChart, Line, PieChart, Pie, Cell,
   XAxis, YAxis, Tooltip, ResponsiveContainer, Legend, CartesianGrid,
 } from "recharts";
-import { BarChart2, Building2, DollarSign, Home, TrendingUp, Users, Wrench } from "lucide-react";
-import { useReportSummary } from "@/hooks/useReports";
+import { BarChart2, Building2, DollarSign, Home, TrendingUp, Users, Wrench, AlertTriangle } from "lucide-react";
+import { useReportSummary, useManagementPack } from "@/hooks/useReports";
 import { KpiCard } from "@/components/dashboard/KpiCard";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -32,6 +32,7 @@ function SectionHeading({ children }: { children: React.ReactNode }) {
 
 export default function ReportsPage() {
   const { data, isLoading } = useReportSummary();
+  const { data: pack } = useManagementPack();
 
   if (isLoading) {
     return (
@@ -226,6 +227,156 @@ export default function ReportsPage() {
           </Card>
         </div>
       </section>
+
+      {/* Management Pack */}
+      {pack && (
+        <section>
+          <SectionHeading>GP Management Pack</SectionHeading>
+          <div className="space-y-4">
+            {/* LP Summary */}
+            {pack.lp_summary && pack.lp_summary.length > 0 && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-sm font-medium">LP Fund Summary</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-xs">
+                      <thead>
+                        <tr className="border-b text-left">
+                          <th className="pb-2 font-semibold text-muted-foreground">Fund</th>
+                          <th className="pb-2 font-semibold text-muted-foreground text-right">Properties</th>
+                          <th className="pb-2 font-semibold text-muted-foreground text-right">Total Value</th>
+                          <th className="pb-2 font-semibold text-muted-foreground text-right">Total Debt</th>
+                          <th className="pb-2 font-semibold text-muted-foreground text-right">Equity</th>
+                          <th className="pb-2 font-semibold text-muted-foreground text-right">NOI</th>
+                          <th className="pb-2 font-semibold text-muted-foreground text-right">LTV</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y">
+                        {pack.lp_summary.map((lp: {
+                          lp_id: number;
+                          lp_name: string;
+                          property_count: number;
+                          total_value: number;
+                          total_debt: number;
+                          total_equity: number;
+                          total_noi: number;
+                          portfolio_ltv: number;
+                        }) => (
+                          <tr key={lp.lp_id}>
+                            <td className="py-2 font-medium">{lp.lp_name}</td>
+                            <td className="py-2 text-right">{lp.property_count}</td>
+                            <td className="py-2 text-right">{formatCurrency(lp.total_value)}</td>
+                            <td className="py-2 text-right">{formatCurrency(lp.total_debt)}</td>
+                            <td className="py-2 text-right">{formatCurrency(lp.total_equity)}</td>
+                            <td className="py-2 text-right">{formatCurrency(lp.total_noi)}</td>
+                            <td className="py-2 text-right">{Number(lp.portfolio_ltv).toFixed(1)}%</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Budget Issues */}
+            {pack.budget_issues && pack.budget_issues.length > 0 && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2 text-sm font-medium">
+                    <AlertTriangle className="h-4 w-4 text-yellow-500" />
+                    Budget Issues
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-xs">
+                      <thead>
+                        <tr className="border-b text-left">
+                          <th className="pb-2 font-semibold text-muted-foreground">Community</th>
+                          <th className="pb-2 font-semibold text-muted-foreground text-right">Year</th>
+                          <th className="pb-2 font-semibold text-muted-foreground text-right">Budget</th>
+                          <th className="pb-2 font-semibold text-muted-foreground text-right">Actual</th>
+                          <th className="pb-2 font-semibold text-muted-foreground text-right">Variance</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y">
+                        {pack.budget_issues.map((issue: {
+                          community_id: number;
+                          community_name: string;
+                          fiscal_year: number;
+                          total_budget: number;
+                          total_actual: number;
+                          variance: number;
+                        }, i: number) => (
+                          <tr key={i}>
+                            <td className="py-2 font-medium">{issue.community_name}</td>
+                            <td className="py-2 text-right">{issue.fiscal_year}</td>
+                            <td className="py-2 text-right">{formatCurrency(issue.total_budget)}</td>
+                            <td className="py-2 text-right">{formatCurrency(issue.total_actual)}</td>
+                            <td className="py-2 text-right text-red-600 font-semibold">
+                              {formatCurrency(issue.variance)}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Dev Update */}
+            {pack.dev_update && pack.dev_update.length > 0 && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-sm font-medium">Development Update</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-xs">
+                      <thead>
+                        <tr className="border-b text-left">
+                          <th className="pb-2 font-semibold text-muted-foreground">Property</th>
+                          <th className="pb-2 font-semibold text-muted-foreground">Stage</th>
+                          <th className="pb-2 font-semibold text-muted-foreground text-right">Purchase Price</th>
+                          <th className="pb-2 font-semibold text-muted-foreground text-right">Market Value</th>
+                          <th className="pb-2 font-semibold text-muted-foreground">Active Plan</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y">
+                        {pack.dev_update.map((prop: {
+                          property_id: number;
+                          address: string;
+                          city: string;
+                          development_stage: string;
+                          purchase_price: number | null;
+                          current_market_value: number | null;
+                          active_plan: string | null;
+                        }) => (
+                          <tr key={prop.property_id}>
+                            <td className="py-2 font-medium">{prop.address}, {prop.city}</td>
+                            <td className="py-2">
+                              <span className="px-1.5 py-0.5 rounded text-xs bg-blue-100 text-blue-800">
+                                {prop.development_stage}
+                              </span>
+                            </td>
+                            <td className="py-2 text-right">{prop.purchase_price ? formatCurrency(prop.purchase_price) : "—"}</td>
+                            <td className="py-2 text-right">{prop.current_market_value ? formatCurrency(prop.current_market_value) : "—"}</td>
+                            <td className="py-2 text-muted-foreground">{prop.active_plan ?? "—"}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+          </div>
+        </section>
+      )}
 
       {/* Charts row 3: Maintenance + Community types */}
       <section>

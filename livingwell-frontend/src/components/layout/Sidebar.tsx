@@ -21,6 +21,7 @@ import {
   Menu,
   X,
   HandCoins,
+  RefreshCw,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/providers/AuthProvider";
@@ -116,6 +117,12 @@ const NAV_ITEMS = [
     label: "Grants & Funding",
     icon: HandCoins,
     roles: ["GP_ADMIN", "OPERATIONS_MANAGER"] as UserRole[],
+  },
+  {
+    href: "/operator/turnovers",
+    label: "Unit Turnovers",
+    icon: RefreshCw,
+    roles: ["GP_ADMIN", "OPERATIONS_MANAGER", "PROPERTY_MANAGER"] as UserRole[],
   },
   {
     href: "/reports",

@@ -12,6 +12,7 @@ export interface ReportSummary {
   total_investors: number;
   total_land_value: number;
   total_rent_collected: number;
+  total_funded: number;
   total_contributed: number;
   total_distributed: number;
   net_invested: number;
@@ -64,5 +65,16 @@ export function useFundPerformance() {
     queryFn: async () => {
       return await reports.getFundPerformance();
     },
+  });
+}
+
+// ── Management Pack ───────────────────────────────────────────────────
+
+export function useManagementPack() {
+  return useQuery({
+    queryKey: ["reports", "management-pack"],
+    queryFn: () =>
+      apiClient.get("/api/reports/management-pack").then((r) => r.data),
+    staleTime: 60_000,
   });
 }

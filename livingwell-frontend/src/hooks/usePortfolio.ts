@@ -93,3 +93,117 @@ export function usePortfolioReturns() {
       apiClient.get("/api/portfolio/metrics/returns").then((r) => r.data),
   });
 }
+
+// ── Debt Facilities ───────────────────────────────────────────────────────
+
+export function useDebtFacilities(propertyId: number) {
+  return useQuery({
+    queryKey: ["debt", propertyId],
+    queryFn: () =>
+      apiClient
+        .get(`/api/portfolio/properties/${propertyId}/debt`)
+        .then((r) => r.data),
+    enabled: !!propertyId,
+  });
+}
+
+export function useAmortizationSchedule(
+  propertyId: number,
+  debtId: number | null,
+  years = 10
+) {
+  return useQuery({
+    queryKey: ["amortization", propertyId, debtId, years],
+    queryFn: () =>
+      apiClient
+        .get(
+          `/api/portfolio/properties/${propertyId}/debt/${debtId}/amortization?years=${years}`
+        )
+        .then((r) => r.data),
+    enabled: !!propertyId && !!debtId,
+  });
+}
+
+// ── Projections ───────────────────────────────────────────────────────────
+
+export function useRunProjection(propertyId: number) {
+  return useMutation({
+    mutationFn: (input: object) =>
+      apiClient
+        .post(`/api/portfolio/properties/${propertyId}/projection`, input)
+        .then((r) => r.data),
+  });
+}
+
+// ── Refinance Scenarios ───────────────────────────────────────────────────
+
+export function useRefinanceScenarios(propertyId: number) {
+  return useQuery({
+    queryKey: ["refinance-scenarios", propertyId],
+    queryFn: () =>
+      apiClient
+        .get(`/api/portfolio/properties/${propertyId}/refinance-scenarios`)
+        .then((r) => r.data),
+    enabled: !!propertyId,
+  });
+}
+
+export function useCreateRefinanceScenario(propertyId: number) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (data: object) =>
+      apiClient
+        .post(
+          `/api/portfolio/properties/${propertyId}/refinance-scenarios`,
+          data
+        )
+        .then((r) => r.data),
+    onSuccess: () =>
+      qc.invalidateQueries({ queryKey: ["refinance-scenarios", propertyId] }),
+  });
+}
+
+export function useDeleteRefinanceScenario(propertyId: number) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (scenarioId: number) =>
+      apiClient.delete(`/api/portfolio/refinance-scenarios/${scenarioId}`),
+    onSuccess: () =>
+      qc.invalidateQueries({ queryKey: ["refinance-scenarios", propertyId] }),
+  });
+}
+
+// ── Sale Scenarios ────────────────────────────────────────────────────────
+
+export function useSaleScenarios(propertyId: number) {
+  return useQuery({
+    queryKey: ["sale-scenarios", propertyId],
+    queryFn: () =>
+      apiClient
+        .get(`/api/portfolio/properties/${propertyId}/sale-scenarios`)
+        .then((r) => r.data),
+    enabled: !!propertyId,
+  });
+}
+
+export function useCreateSaleScenario(propertyId: number) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (data: object) =>
+      apiClient
+        .post(`/api/portfolio/properties/${propertyId}/sale-scenarios`, data)
+        .then((r) => r.data),
+    onSuccess: () =>
+      qc.invalidateQueries({ queryKey: ["sale-scenarios", propertyId] }),
+  });
+}
+
+export function useDeleteSaleScenario(propertyId: number) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (scenarioId: number) =>
+      apiClient.delete(`/api/portfolio/sale-scenarios/${scenarioId}`),
+    onSuccess: () =>
+      qc.invalidateQueries({ queryKey: ["sale-scenarios", propertyId] }),
+  });
+}
