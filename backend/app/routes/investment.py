@@ -283,7 +283,8 @@ def update_lp_entity(
     # Validate LP status transition if status is being changed
     if "status" in data and data["status"]:
         current = lp.status.value if lp.status else "draft"
-        validate_lp_status_transition(current, data["status"])
+        if data["status"] != current:
+            validate_lp_status_transition(current, data["status"])
 
     for key, val in data.items():
         if key == "status" and val:
