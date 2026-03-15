@@ -1,6 +1,13 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { investment } from "@/lib/api";
-import type { LPCreate, LPTrancheCreate, SubscriptionCreate } from "@/types/investment";
+import type {
+  LPCreate,
+  LPTrancheCreate,
+  SubscriptionCreate,
+  Holding,
+  TargetProperty,
+  Investor as InvInvestor,
+} from "@/types/investment";
 
 // ── GP ──────────────────────────────────────────────────────────────
 export function useGPs() {
@@ -60,8 +67,10 @@ export function useCreateTranche() {
   return useMutation({
     mutationFn: ({ lpId, data }: { lpId: number; data: LPTrancheCreate }) =>
       investment.createTranche(lpId, data),
-    onSuccess: (_d, v) =>
-      qc.invalidateQueries({ queryKey: ["tranches", v.lpId] }),
+    onSuccess: (_d, v) => {
+      qc.invalidateQueries({ queryKey: ["tranches", v.lpId] });
+      qc.invalidateQueries({ queryKey: ["lps", v.lpId] });
+    },
   });
 }
 
@@ -70,12 +79,17 @@ export function useUpdateTranche() {
   return useMutation({
     mutationFn: ({
       trancheId,
+      lpId,
       data,
     }: {
       trancheId: number;
+      lpId?: number;
       data: Partial<LPTrancheCreate>;
     }) => investment.updateTranche(trancheId, data),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["tranches"] }),
+    onSuccess: (_d, v) => {
+      qc.invalidateQueries({ queryKey: ["tranches"] });
+      if (v.lpId) qc.invalidateQueries({ queryKey: ["lps", v.lpId] });
+    },
   });
 }
 
@@ -84,6 +98,23 @@ export function useInvestors() {
   return useQuery({
     queryKey: ["inv-investors"],
     queryFn: () => investment.getInvestors(),
+  });
+}
+
+export function useCreateInvestor() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (data: Partial<InvInvestor>) => investment.createInvestor(data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["inv-investors"] }),
+  });
+}
+
+export function useUpdateInvestor() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, data }: { id: number; data: Partial<InvInvestor> }) =>
+      investment.updateInvestor(id, data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["inv-investors"] }),
   });
 }
 
@@ -114,15 +145,21 @@ export function useUpdateSubscription() {
   return useMutation({
     mutationFn: ({
       subId,
+      lpId,
       data,
     }: {
       subId: number;
+      lpId?: number;
       data: Partial<SubscriptionCreate>;
     }) => investment.updateSubscription(subId, data),
-    onSuccess: () => {
+    onSuccess: (_d, v) => {
       qc.invalidateQueries({ queryKey: ["subscriptions"] });
       qc.invalidateQueries({ queryKey: ["tranches"] });
       qc.invalidateQueries({ queryKey: ["lps"] });
+      if (v.lpId) {
+        qc.invalidateQueries({ queryKey: ["subscriptions", v.lpId] });
+        qc.invalidateQueries({ queryKey: ["lps", v.lpId] });
+      }
     },
   });
 }
@@ -133,6 +170,37 @@ export function useHoldings(lpId: number) {
     queryKey: ["holdings", lpId],
     queryFn: () => investment.getHoldings(lpId),
     enabled: !!lpId,
+  });
+}
+
+export function useCreateHolding() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ lpId, data }: { lpId: number; data: Partial<Holding> }) =>
+      investment.createHolding(lpId, data),
+    onSuccess: (_d, v) => {
+      qc.invalidateQueries({ queryKey: ["holdings", v.lpId] });
+      qc.invalidateQueries({ queryKey: ["lps", v.lpId] });
+    },
+  });
+}
+
+export function useUpdateHolding() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      holdingId,
+      lpId,
+      data,
+    }: {
+      holdingId: number;
+      lpId?: number;
+      data: Partial<Holding>;
+    }) => investment.updateHolding(holdingId, data),
+    onSuccess: (_d, v) => {
+      qc.invalidateQueries({ queryKey: ["holdings"] });
+      if (v.lpId) qc.invalidateQueries({ queryKey: ["lps", v.lpId] });
+    },
   });
 }
 
@@ -153,11 +221,69 @@ export function useCreateTargetProperty() {
       data,
     }: {
       lpId: number;
-      data: Partial<import("@/types/investment").TargetProperty>;
+      data: Partial<TargetProperty>;
     }) => investment.createTargetProperty(lpId, data),
     onSuccess: (_d, v) => {
       qc.invalidateQueries({ queryKey: ["target-properties", v.lpId] });
       qc.invalidateQueries({ queryKey: ["portfolio-rollup", v.lpId] });
+      qc.invalidateQueries({ queryKey: ["lps", v.lpId] });
+    },
+  });
+}
+
+export function useUpdateTargetProperty() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      tpId,
+      lpId,
+      data,
+    }: {
+      tpId: number;
+      lpId?: number;
+      data: Partial<TargetProperty>;
+    }) => investment.updateTargetProperty(tpId, data),
+    onSuccess: (_d, v) => {
+      qc.invalidateQueries({ queryKey: ["target-properties"] });
+      qc.invalidateQueries({ queryKey: ["portfolio-rollup"] });
+      if (v.lpId) {
+        qc.invalidateQueries({ queryKey: ["target-properties", v.lpId] });
+        qc.invalidateQueries({ queryKey: ["portfolio-rollup", v.lpId] });
+      }
+    },
+  });
+}
+
+export function useDeleteTargetProperty() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ tpId }: { tpId: number; lpId?: number }) =>
+      investment.deleteTargetProperty(tpId),
+    onSuccess: (_d, v) => {
+      qc.invalidateQueries({ queryKey: ["target-properties"] });
+      qc.invalidateQueries({ queryKey: ["portfolio-rollup"] });
+      if (v.lpId) {
+        qc.invalidateQueries({ queryKey: ["target-properties", v.lpId] });
+        qc.invalidateQueries({ queryKey: ["portfolio-rollup", v.lpId] });
+      }
+    },
+  });
+}
+
+export function useConvertTargetProperty() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ tpId }: { tpId: number; lpId?: number }) =>
+      investment.convertTargetProperty(tpId),
+    onSuccess: (_d, v) => {
+      qc.invalidateQueries({ queryKey: ["target-properties"] });
+      qc.invalidateQueries({ queryKey: ["portfolio-rollup"] });
+      qc.invalidateQueries({ queryKey: ["lps"] });
+      if (v.lpId) {
+        qc.invalidateQueries({ queryKey: ["target-properties", v.lpId] });
+        qc.invalidateQueries({ queryKey: ["portfolio-rollup", v.lpId] });
+        qc.invalidateQueries({ queryKey: ["lps", v.lpId] });
+      }
     },
   });
 }

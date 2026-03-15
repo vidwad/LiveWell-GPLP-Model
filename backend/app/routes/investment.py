@@ -740,6 +740,57 @@ def delete_target_property(
     db.commit()
 
 
+@router.post("/target-properties/{target_property_id}/convert")
+def convert_target_to_actual(
+    target_property_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_gp_admin),
+):
+    """Convert a target/pipeline property into an actual acquired Property record.
+
+    Pre-fills the Property from the target's underwriting assumptions.
+    The target property is marked as 'acquired' and linked to the new property.
+    """
+    from app.db.models import DevelopmentStage
+
+    tp = db.query(TargetProperty).filter(TargetProperty.target_property_id == target_property_id).first()
+    if not tp:
+        raise HTTPException(status_code=404, detail="Target property not found")
+    if tp.converted_property_id:
+        raise HTTPException(status_code=409, detail="Target property has already been converted")
+
+    # Create the actual Property record pre-filled from target assumptions
+    prop = Property(
+        lp_id=tp.lp_id,
+        address=tp.address or "TBD",
+        city=tp.city or "TBD",
+        province=tp.province or "AB",
+        purchase_price=tp.estimated_acquisition_price,
+        estimated_value=tp.stabilized_value,
+        lot_size=tp.lot_size,
+        zoning=tp.zoning,
+        development_stage=DevelopmentStage.acquired,
+    )
+    db.add(prop)
+    db.flush()  # get the property_id
+
+    # Link the target to the new property and mark as acquired
+    tp.converted_property_id = prop.property_id
+    tp.status = TargetPropertyStatus.acquired
+    db.commit()
+    db.refresh(prop)
+    db.refresh(tp)
+
+    return {
+        "message": "Target property converted to actual property",
+        "target_property_id": tp.target_property_id,
+        "property_id": prop.property_id,
+        "address": prop.address,
+        "city": prop.city,
+        "purchase_price": str(prop.purchase_price) if prop.purchase_price else None,
+    }
+
+
 # ===========================================================================
 # LP Portfolio Roll-up (Target + Actual)
 # ===========================================================================

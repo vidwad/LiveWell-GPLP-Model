@@ -92,12 +92,15 @@ export const investment = {
 
   // Holdings
   getHoldings: (lpId: number) => apiClient.get<Holding[]>(`/api/investment/lp/${lpId}/holdings`).then(r => r.data),
+  createHolding: (lpId: number, data: Partial<Holding>) => apiClient.post<Holding>(`/api/investment/lp/${lpId}/holdings`, data).then(r => r.data),
+  updateHolding: (holdingId: number, data: Partial<Holding>) => apiClient.patch<Holding>(`/api/investment/holdings/${holdingId}`, data).then(r => r.data),
 
   // Target Properties
   getTargetProperties: (lpId: number) => apiClient.get<TargetProperty[]>(`/api/investment/lp/${lpId}/target-properties`).then(r => r.data),
   createTargetProperty: (lpId: number, data: Partial<TargetProperty>) => apiClient.post<TargetProperty>(`/api/investment/lp/${lpId}/target-properties`, data).then(r => r.data),
   updateTargetProperty: (tpId: number, data: Partial<TargetProperty>) => apiClient.patch<TargetProperty>(`/api/investment/target-properties/${tpId}`, data).then(r => r.data),
   deleteTargetProperty: (tpId: number) => apiClient.delete(`/api/investment/target-properties/${tpId}`).then(r => r.data),
+  convertTargetProperty: (tpId: number) => apiClient.post(`/api/investment/target-properties/${tpId}/convert`).then(r => r.data),
 
   // Portfolio Roll-up
   getPortfolioRollup: (lpId: number) => apiClient.get<LPPortfolioRollup>(`/api/investment/lp/${lpId}/portfolio-rollup`).then(r => r.data),
