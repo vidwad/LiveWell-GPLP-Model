@@ -259,6 +259,14 @@ class RefinanceScenarioCreate(BaseModel):
     existing_debt_payout: float | None = None
     closing_costs: float = 0.0
     notes: str | None = None
+    # Date & event linkage
+    expected_date: datetime.date | None = None
+    linked_milestone_id: int | None = None
+    linked_event: str | None = None  # e.g. "construction_completion", "stabilization"
+    # ROI inputs
+    total_equity_invested: float | None = None
+    annual_noi_at_refi: float | None = None
+    hold_period_months: int | None = None
 
 
 class RefinanceScenarioOut(RefinanceScenarioCreate):
@@ -268,6 +276,11 @@ class RefinanceScenarioOut(RefinanceScenarioCreate):
     new_loan_amount: float
     net_proceeds: float
     created_at: datetime.datetime | None = None
+    # Computed ROI metrics
+    equity_multiple: float | None = None  # (net_proceeds + equity) / equity
+    cash_on_cash_return: float | None = None  # annual NOI / equity
+    annualized_roi: float | None = None  # annualized return over hold period
+    linked_milestone_title: str | None = None
 
     model_config = {"from_attributes": True}
 
@@ -283,6 +296,15 @@ class SaleScenarioCreate(BaseModel):
     debt_payout: float | None = None
     capital_gains_reserve: float = 0.0
     notes: str | None = None
+    # Date & event linkage
+    expected_date: datetime.date | None = None
+    linked_milestone_id: int | None = None
+    linked_event: str | None = None  # e.g. "stabilization", "lease_up_complete"
+    # ROI inputs
+    total_equity_invested: float | None = None
+    annual_noi_at_sale: float | None = None
+    hold_period_months: int | None = None
+    annual_cash_flow: float | None = None  # avg annual cash flow during hold
 
 
 class SaleScenarioOut(SaleScenarioCreate):
@@ -292,6 +314,13 @@ class SaleScenarioOut(SaleScenarioCreate):
     selling_costs: float
     net_proceeds: float
     created_at: datetime.datetime | None = None
+    # Computed ROI metrics
+    total_return: float | None = None  # net_proceeds + cumulative cash flow - equity
+    equity_multiple: float | None = None  # (net_proceeds + cumulative_cf) / equity
+    irr_estimate: float | None = None  # simplified annualized IRR
+    cash_on_cash_return: float | None = None  # annual cash flow / equity
+    cap_rate: float | None = None  # NOI / sale price
+    linked_milestone_title: str | None = None
 
     model_config = {"from_attributes": True}
 

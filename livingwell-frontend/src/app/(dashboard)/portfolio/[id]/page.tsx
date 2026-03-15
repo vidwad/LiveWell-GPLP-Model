@@ -310,7 +310,10 @@ export default function PropertyDetailPage({ params }: { params: { id: string } 
     label: "Refinance Scenario", assumed_new_valuation: "", new_ltv_percent: "75",
     new_interest_rate: "", new_amortization_months: "300", existing_debt_payout: "",
     closing_costs: "0", notes: "",
+    expected_date: "", linked_event: "", linked_milestone_id: "",
+    total_equity_invested: "", annual_noi_at_refi: "", hold_period_months: "",
   });
+  const [expandedRefi, setExpandedRefi] = useState<number | null>(null);
 
   // Sale Scenarios
   const { data: saleScenarios } = useSaleScenarios(propertyId);
@@ -319,7 +322,11 @@ export default function PropertyDetailPage({ params }: { params: { id: string } 
   const [saleForm, setSaleForm] = useState({
     label: "Sale Scenario", assumed_sale_price: "", selling_costs_percent: "5",
     debt_payout: "", capital_gains_reserve: "0", notes: "",
+    expected_date: "", linked_event: "", linked_milestone_id: "",
+    total_equity_invested: "", annual_noi_at_sale: "", hold_period_months: "",
+    annual_cash_flow: "",
   });
+  const [expandedSale, setExpandedSale] = useState<number | null>(null);
 
   // Plan form
   const [planOpen, setPlanOpen] = useState(false);
@@ -414,9 +421,15 @@ export default function PropertyDetailPage({ params }: { params: { id: string } 
         existing_debt_payout: refiForm.existing_debt_payout ? Number(refiForm.existing_debt_payout) : undefined,
         closing_costs: Number(refiForm.closing_costs),
         notes: refiForm.notes || undefined,
+        expected_date: refiForm.expected_date || undefined,
+        linked_event: refiForm.linked_event || undefined,
+        linked_milestone_id: refiForm.linked_milestone_id ? Number(refiForm.linked_milestone_id) : undefined,
+        total_equity_invested: refiForm.total_equity_invested ? Number(refiForm.total_equity_invested) : undefined,
+        annual_noi_at_refi: refiForm.annual_noi_at_refi ? Number(refiForm.annual_noi_at_refi) : undefined,
+        hold_period_months: refiForm.hold_period_months ? Number(refiForm.hold_period_months) : undefined,
       });
       toast.success("Refinance scenario saved");
-      setRefiForm({ label: "Refinance Scenario", assumed_new_valuation: "", new_ltv_percent: "75", new_interest_rate: "", new_amortization_months: "300", existing_debt_payout: "", closing_costs: "0", notes: "" });
+      setRefiForm({ label: "Refinance Scenario", assumed_new_valuation: "", new_ltv_percent: "75", new_interest_rate: "", new_amortization_months: "300", existing_debt_payout: "", closing_costs: "0", notes: "", expected_date: "", linked_event: "", linked_milestone_id: "", total_equity_invested: "", annual_noi_at_refi: "", hold_period_months: "" });
     } catch { toast.error("Failed to save refinance scenario"); }
   };
 
@@ -430,9 +443,16 @@ export default function PropertyDetailPage({ params }: { params: { id: string } 
         debt_payout: saleForm.debt_payout ? Number(saleForm.debt_payout) : undefined,
         capital_gains_reserve: Number(saleForm.capital_gains_reserve),
         notes: saleForm.notes || undefined,
+        expected_date: saleForm.expected_date || undefined,
+        linked_event: saleForm.linked_event || undefined,
+        linked_milestone_id: saleForm.linked_milestone_id ? Number(saleForm.linked_milestone_id) : undefined,
+        total_equity_invested: saleForm.total_equity_invested ? Number(saleForm.total_equity_invested) : undefined,
+        annual_noi_at_sale: saleForm.annual_noi_at_sale ? Number(saleForm.annual_noi_at_sale) : undefined,
+        hold_period_months: saleForm.hold_period_months ? Number(saleForm.hold_period_months) : undefined,
+        annual_cash_flow: saleForm.annual_cash_flow ? Number(saleForm.annual_cash_flow) : undefined,
       });
       toast.success("Sale scenario saved");
-      setSaleForm({ label: "Sale Scenario", assumed_sale_price: "", selling_costs_percent: "5", debt_payout: "", capital_gains_reserve: "0", notes: "" });
+      setSaleForm({ label: "Sale Scenario", assumed_sale_price: "", selling_costs_percent: "5", debt_payout: "", capital_gains_reserve: "0", notes: "", expected_date: "", linked_event: "", linked_milestone_id: "", total_equity_invested: "", annual_noi_at_sale: "", hold_period_months: "", annual_cash_flow: "" });
     } catch { toast.error("Failed to save sale scenario"); }
   };
 
@@ -1686,13 +1706,16 @@ export default function PropertyDetailPage({ params }: { params: { id: string } 
         {/* ── Exit Scenarios ── */}
         <TabsContent value="exit" className="mt-6 space-y-8">
 
-          {/* Refinance Scenarios */}
+          {/* ══════════════════════════════════════════════════════════════ */}
+          {/* Refinance Scenarios                                          */}
+          {/* ══════════════════════════════════════════════════════════════ */}
           <section>
             <h3 className="text-base font-semibold mb-4 flex items-center gap-2">
               <Landmark className="h-4 w-4 text-muted-foreground" />
               Refinance Scenarios
             </h3>
-            <div className="grid gap-6 lg:grid-cols-[360px_1fr]">
+            <div className="grid gap-6 xl:grid-cols-[420px_1fr]">
+              {/* ── Create Form ── */}
               <Card>
                 <CardHeader className="pb-3">
                   <CardTitle className="text-sm">New Refinance Scenario</CardTitle>
@@ -1703,6 +1726,51 @@ export default function PropertyDetailPage({ params }: { params: { id: string } 
                       <Label className="text-xs">Label</Label>
                       <Input value={refiForm.label} onChange={(e) => setRefiForm((f) => ({ ...f, label: e.target.value }))} />
                     </div>
+
+                    {/* Timing & Event Linkage */}
+                    <div className="rounded-lg border border-blue-200 bg-blue-50/50 p-3 space-y-3">
+                      <p className="text-xs font-semibold text-blue-700 flex items-center gap-1.5">
+                        <Calendar className="h-3.5 w-3.5" /> Timing & Event Linkage
+                      </p>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="space-y-1">
+                          <Label className="text-xs">Expected Date</Label>
+                          <Input type="date" value={refiForm.expected_date} onChange={(e) => setRefiForm((f) => ({ ...f, expected_date: e.target.value }))} />
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-xs">Hold Period (mo)</Label>
+                          <Input type="number" value={refiForm.hold_period_months} onChange={(e) => setRefiForm((f) => ({ ...f, hold_period_months: e.target.value }))} placeholder="e.g. 24" />
+                        </div>
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs">Linked Event</Label>
+                        <Select value={refiForm.linked_event} onValueChange={(v) => setRefiForm((f) => ({ ...f, linked_event: v }))}>
+                          <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Select trigger event" /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="construction_completion">Construction Completion</SelectItem>
+                            <SelectItem value="lease_up_complete">Lease-Up Complete</SelectItem>
+                            <SelectItem value="stabilization">Stabilization</SelectItem>
+                            <SelectItem value="interim_operation_end">Interim Operation End</SelectItem>
+                            <SelectItem value="planning_approval">Planning Approval</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      {(milestones ?? []).length > 0 && (
+                        <div className="space-y-1">
+                          <Label className="text-xs">Link to Milestone</Label>
+                          <Select value={refiForm.linked_milestone_id} onValueChange={(v) => setRefiForm((f) => ({ ...f, linked_milestone_id: v }))}>
+                            <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Optional milestone" /></SelectTrigger>
+                            <SelectContent>
+                              {(milestones as Array<{ milestone_id: number; title: string; stage: string }>).map((m) => (
+                                <SelectItem key={m.milestone_id} value={String(m.milestone_id)}>{m.title} ({STAGE_CONFIG[m.stage]?.label ?? m.stage})</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Deal Terms */}
                     <div className="grid grid-cols-2 gap-3">
                       <div className="space-y-1">
                         <Label className="text-xs">Valuation ($)</Label>
@@ -1733,72 +1801,182 @@ export default function PropertyDetailPage({ params }: { params: { id: string } 
                         <Input type="number" value={refiForm.closing_costs} onChange={(e) => setRefiForm((f) => ({ ...f, closing_costs: e.target.value }))} />
                       </div>
                     </div>
+
+                    {/* ROI Inputs */}
+                    <div className="rounded-lg border border-emerald-200 bg-emerald-50/50 p-3 space-y-3">
+                      <p className="text-xs font-semibold text-emerald-700 flex items-center gap-1.5">
+                        <TrendingUp className="h-3.5 w-3.5" /> ROI Projection Inputs
+                      </p>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="space-y-1">
+                          <Label className="text-xs">Total Equity ($)</Label>
+                          <Input type="number" value={refiForm.total_equity_invested} onChange={(e) => setRefiForm((f) => ({ ...f, total_equity_invested: e.target.value }))} placeholder="e.g. 200000" />
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-xs">Annual NOI at Refi ($)</Label>
+                          <Input type="number" value={refiForm.annual_noi_at_refi} onChange={(e) => setRefiForm((f) => ({ ...f, annual_noi_at_refi: e.target.value }))} placeholder="e.g. 72000" />
+                        </div>
+                      </div>
+                    </div>
+
                     <div className="space-y-1">
                       <Label className="text-xs">Notes</Label>
                       <Input value={refiForm.notes} onChange={(e) => setRefiForm((f) => ({ ...f, notes: e.target.value }))} placeholder="optional" />
                     </div>
                     <Button type="submit" className="w-full" disabled={refiPending}>
-                      {refiPending ? "Saving…" : "Save Scenario"}
+                      {refiPending ? "Saving\u2026" : "Save Scenario"}
                     </Button>
                   </form>
                 </CardContent>
               </Card>
 
-              <Card>
-                <CardHeader className="pb-3">
-                  <CardTitle className="text-sm">Saved Refinance Scenarios</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  {!refiScenarios || refiScenarios.length === 0 ? (
-                    <div className="text-center py-8">
-                      <p className="text-sm text-muted-foreground">No refinance scenarios yet.</p>
-                    </div>
-                  ) : (
-                    <div className="overflow-x-auto rounded-lg border">
-                      <Table>
-                        <TableHeader>
-                          <TableRow className="bg-muted/50">
-                            <TableHead>Label</TableHead>
-                            <TableHead className="text-right">Valuation</TableHead>
-                            <TableHead className="text-right">LTV</TableHead>
-                            <TableHead className="text-right">New Loan</TableHead>
-                            <TableHead className="text-right">Net Proceeds</TableHead>
-                            <TableHead></TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {refiScenarios.map((s: { scenario_id: number; label: string; assumed_new_valuation: number; new_ltv_percent: number; new_loan_amount: number; net_proceeds: number; }) => (
-                            <TableRow key={s.scenario_id}>
-                              <TableCell className="font-medium">{s.label}</TableCell>
-                              <TableCell className="text-right">{formatCurrency(s.assumed_new_valuation)}</TableCell>
-                              <TableCell className="text-right">{s.new_ltv_percent}%</TableCell>
-                              <TableCell className="text-right">{formatCurrency(s.new_loan_amount)}</TableCell>
-                              <TableCell className={cn("text-right font-semibold", s.net_proceeds >= 0 ? "text-green-600" : "text-red-600")}>
-                                {formatCurrency(s.net_proceeds)}
-                              </TableCell>
-                              <TableCell>
-                                <button onClick={() => deleteRefi(s.scenario_id)} className="text-red-500 hover:text-red-700 text-xs font-medium">
-                                  Delete
-                                </button>
-                              </TableCell>
-                            </TableRow>
-                          ))}
-                        </TableBody>
-                      </Table>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
+              {/* ── Saved Refinance Scenarios ── */}
+              <div className="space-y-4">
+                {!refiScenarios || refiScenarios.length === 0 ? (
+                  <Card>
+                    <CardContent className="py-8">
+                      <p className="text-sm text-muted-foreground text-center">No refinance scenarios yet. Create one to see projected ROI metrics.</p>
+                    </CardContent>
+                  </Card>
+                ) : (
+                  (refiScenarios as Array<{ scenario_id: number; label: string; assumed_new_valuation: number; new_ltv_percent: number; new_loan_amount: number; net_proceeds: number; expected_date?: string; linked_event?: string; linked_milestone_title?: string; hold_period_months?: number; total_equity_invested?: number; annual_noi_at_refi?: number; equity_multiple?: number; cash_on_cash_return?: number; annualized_roi?: number; existing_debt_payout?: number; closing_costs?: number; new_interest_rate?: number; new_amortization_months?: number; notes?: string }>).map((s) => (
+                    <Card key={s.scenario_id} className="overflow-hidden">
+                      <div className="flex items-center justify-between px-4 py-3 bg-muted/30 cursor-pointer" onClick={() => setExpandedRefi(expandedRefi === s.scenario_id ? null : s.scenario_id)}>
+                        <div className="flex items-center gap-3">
+                          <Landmark className="h-4 w-4 text-muted-foreground" />
+                          <span className="font-semibold text-sm">{s.label}</span>
+                          {s.expected_date && (
+                            <Badge variant="outline" className="text-xs gap-1">
+                              <Calendar className="h-3 w-3" />
+                              {new Date(s.expected_date + "T00:00:00").toLocaleDateString("en-CA", { year: "numeric", month: "short", day: "numeric" })}
+                            </Badge>
+                          )}
+                          {s.linked_event && (
+                            <Badge variant="secondary" className="text-xs">
+                              {s.linked_event.replace(/_/g, " ")}
+                            </Badge>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <span className={cn("text-sm font-bold", s.net_proceeds >= 0 ? "text-green-600" : "text-red-600")}>
+                            {formatCurrency(s.net_proceeds)} net
+                          </span>
+                          {expandedRefi === s.scenario_id ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                        </div>
+                      </div>
+
+                      {expandedRefi === s.scenario_id && (
+                        <CardContent className="pt-4 space-y-4">
+                          {/* Deal Summary */}
+                          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                            <div className="text-center p-3 rounded-lg bg-muted/30">
+                              <p className="text-xs text-muted-foreground">Valuation</p>
+                              <p className="text-sm font-bold">{formatCurrency(s.assumed_new_valuation)}</p>
+                            </div>
+                            <div className="text-center p-3 rounded-lg bg-muted/30">
+                              <p className="text-xs text-muted-foreground">New Loan ({s.new_ltv_percent}% LTV)</p>
+                              <p className="text-sm font-bold">{formatCurrency(s.new_loan_amount)}</p>
+                            </div>
+                            <div className="text-center p-3 rounded-lg bg-muted/30">
+                              <p className="text-xs text-muted-foreground">Debt Payout</p>
+                              <p className="text-sm font-bold">{formatCurrency(s.existing_debt_payout ?? 0)}</p>
+                            </div>
+                            <div className={cn("text-center p-3 rounded-lg", s.net_proceeds >= 0 ? "bg-green-50" : "bg-red-50")}>
+                              <p className="text-xs text-muted-foreground">Net Proceeds</p>
+                              <p className={cn("text-sm font-bold", s.net_proceeds >= 0 ? "text-green-700" : "text-red-700")}>{formatCurrency(s.net_proceeds)}</p>
+                            </div>
+                          </div>
+
+                          {/* ROI Metrics */}
+                          {(s.equity_multiple || s.cash_on_cash_return || s.annualized_roi) && (
+                            <div className="rounded-lg border border-emerald-200 bg-emerald-50/30 p-4">
+                              <p className="text-xs font-semibold text-emerald-700 mb-3 flex items-center gap-1.5">
+                                <TrendingUp className="h-3.5 w-3.5" /> Projected ROI Metrics
+                              </p>
+                              <div className="grid grid-cols-3 gap-4">
+                                {s.equity_multiple != null && (
+                                  <div className="text-center">
+                                    <p className="text-2xl font-bold text-emerald-700">{s.equity_multiple}x</p>
+                                    <p className="text-xs text-muted-foreground">Equity Multiple</p>
+                                  </div>
+                                )}
+                                {s.cash_on_cash_return != null && (
+                                  <div className="text-center">
+                                    <p className="text-2xl font-bold text-emerald-700">{s.cash_on_cash_return}%</p>
+                                    <p className="text-xs text-muted-foreground">Cash-on-Cash</p>
+                                  </div>
+                                )}
+                                {s.annualized_roi != null && (
+                                  <div className="text-center">
+                                    <p className="text-2xl font-bold text-emerald-700">{s.annualized_roi}%</p>
+                                    <p className="text-xs text-muted-foreground">Annualized ROI</p>
+                                  </div>
+                                )}
+                              </div>
+                              {s.hold_period_months && (
+                                <p className="text-xs text-muted-foreground text-center mt-2">
+                                  Based on {s.hold_period_months} month hold period
+                                  {s.total_equity_invested ? ` with ${formatCurrency(s.total_equity_invested)} equity invested` : ""}
+                                </p>
+                              )}
+                            </div>
+                          )}
+
+                          {/* Timeline */}
+                          {(s.expected_date || s.linked_event || s.linked_milestone_title) && (
+                            <div className="rounded-lg border border-blue-200 bg-blue-50/30 p-4">
+                              <p className="text-xs font-semibold text-blue-700 mb-2 flex items-center gap-1.5">
+                                <Calendar className="h-3.5 w-3.5" /> Timeline & Event Linkage
+                              </p>
+                              <div className="flex flex-wrap gap-4 text-sm">
+                                {s.expected_date && (
+                                  <div>
+                                    <span className="text-xs text-muted-foreground">Expected Date: </span>
+                                    <span className="font-medium">{new Date(s.expected_date + "T00:00:00").toLocaleDateString("en-CA", { year: "numeric", month: "long", day: "numeric" })}</span>
+                                  </div>
+                                )}
+                                {s.linked_event && (
+                                  <div>
+                                    <span className="text-xs text-muted-foreground">Trigger Event: </span>
+                                    <span className="font-medium capitalize">{s.linked_event.replace(/_/g, " ")}</span>
+                                  </div>
+                                )}
+                                {s.linked_milestone_title && (
+                                  <div>
+                                    <span className="text-xs text-muted-foreground">Linked Milestone: </span>
+                                    <span className="font-medium">{s.linked_milestone_title}</span>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          )}
+
+                          {s.notes && <p className="text-xs text-muted-foreground italic">{s.notes}</p>}
+
+                          <div className="flex justify-end">
+                            <button onClick={() => deleteRefi(s.scenario_id)} className="text-red-500 hover:text-red-700 text-xs font-medium flex items-center gap-1">
+                              <Trash2 className="h-3 w-3" /> Delete Scenario
+                            </button>
+                          </div>
+                        </CardContent>
+                      )}
+                    </Card>
+                  ))
+                )}
+              </div>
             </div>
           </section>
 
-          {/* Sale Scenarios */}
+          {/* ══════════════════════════════════════════════════════════════ */}
+          {/* Sale Scenarios                                               */}
+          {/* ══════════════════════════════════════════════════════════════ */}
           <section>
             <h3 className="text-base font-semibold mb-4 flex items-center gap-2">
               <TrendingUp className="h-4 w-4 text-muted-foreground" />
               Sale Scenarios
             </h3>
-            <div className="grid gap-6 lg:grid-cols-[360px_1fr]">
+            <div className="grid gap-6 xl:grid-cols-[420px_1fr]">
+              {/* ── Create Form ── */}
               <Card>
                 <CardHeader className="pb-3">
                   <CardTitle className="text-sm">New Sale Scenario</CardTitle>
@@ -1809,6 +1987,51 @@ export default function PropertyDetailPage({ params }: { params: { id: string } 
                       <Label className="text-xs">Label</Label>
                       <Input value={saleForm.label} onChange={(e) => setSaleForm((f) => ({ ...f, label: e.target.value }))} />
                     </div>
+
+                    {/* Timing & Event Linkage */}
+                    <div className="rounded-lg border border-blue-200 bg-blue-50/50 p-3 space-y-3">
+                      <p className="text-xs font-semibold text-blue-700 flex items-center gap-1.5">
+                        <Calendar className="h-3.5 w-3.5" /> Timing & Event Linkage
+                      </p>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="space-y-1">
+                          <Label className="text-xs">Expected Date</Label>
+                          <Input type="date" value={saleForm.expected_date} onChange={(e) => setSaleForm((f) => ({ ...f, expected_date: e.target.value }))} />
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-xs">Hold Period (mo)</Label>
+                          <Input type="number" value={saleForm.hold_period_months} onChange={(e) => setSaleForm((f) => ({ ...f, hold_period_months: e.target.value }))} placeholder="e.g. 60" />
+                        </div>
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs">Linked Event</Label>
+                        <Select value={saleForm.linked_event} onValueChange={(v) => setSaleForm((f) => ({ ...f, linked_event: v }))}>
+                          <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Select trigger event" /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="construction_completion">Construction Completion</SelectItem>
+                            <SelectItem value="lease_up_complete">Lease-Up Complete</SelectItem>
+                            <SelectItem value="stabilization">Stabilization</SelectItem>
+                            <SelectItem value="interim_operation_end">Interim Operation End</SelectItem>
+                            <SelectItem value="planning_approval">Planning Approval</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      {(milestones ?? []).length > 0 && (
+                        <div className="space-y-1">
+                          <Label className="text-xs">Link to Milestone</Label>
+                          <Select value={saleForm.linked_milestone_id} onValueChange={(v) => setSaleForm((f) => ({ ...f, linked_milestone_id: v }))}>
+                            <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Optional milestone" /></SelectTrigger>
+                            <SelectContent>
+                              {(milestones as Array<{ milestone_id: number; title: string; stage: string }>).map((m) => (
+                                <SelectItem key={m.milestone_id} value={String(m.milestone_id)}>{m.title} ({STAGE_CONFIG[m.stage]?.label ?? m.stage})</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Deal Terms */}
                     <div className="grid grid-cols-2 gap-3">
                       <div className="space-y-1">
                         <Label className="text-xs">Sale Price ($)</Label>
@@ -1829,60 +2052,186 @@ export default function PropertyDetailPage({ params }: { params: { id: string } 
                         <Input type="number" value={saleForm.capital_gains_reserve} onChange={(e) => setSaleForm((f) => ({ ...f, capital_gains_reserve: e.target.value }))} />
                       </div>
                     </div>
+
+                    {/* ROI Inputs */}
+                    <div className="rounded-lg border border-emerald-200 bg-emerald-50/50 p-3 space-y-3">
+                      <p className="text-xs font-semibold text-emerald-700 flex items-center gap-1.5">
+                        <TrendingUp className="h-3.5 w-3.5" /> ROI Projection Inputs
+                      </p>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="space-y-1">
+                          <Label className="text-xs">Total Equity ($)</Label>
+                          <Input type="number" value={saleForm.total_equity_invested} onChange={(e) => setSaleForm((f) => ({ ...f, total_equity_invested: e.target.value }))} placeholder="e.g. 200000" />
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-xs">Annual NOI at Sale ($)</Label>
+                          <Input type="number" value={saleForm.annual_noi_at_sale} onChange={(e) => setSaleForm((f) => ({ ...f, annual_noi_at_sale: e.target.value }))} placeholder="e.g. 78000" />
+                        </div>
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs">Avg Annual Cash Flow ($)</Label>
+                        <Input type="number" value={saleForm.annual_cash_flow} onChange={(e) => setSaleForm((f) => ({ ...f, annual_cash_flow: e.target.value }))} placeholder="e.g. 28000" />
+                      </div>
+                    </div>
+
                     <div className="space-y-1">
                       <Label className="text-xs">Notes</Label>
                       <Input value={saleForm.notes} onChange={(e) => setSaleForm((f) => ({ ...f, notes: e.target.value }))} placeholder="optional" />
                     </div>
                     <Button type="submit" className="w-full" disabled={salePending}>
-                      {salePending ? "Saving…" : "Save Scenario"}
+                      {salePending ? "Saving\u2026" : "Save Scenario"}
                     </Button>
                   </form>
                 </CardContent>
               </Card>
 
-              <Card>
-                <CardHeader className="pb-3">
-                  <CardTitle className="text-sm">Saved Sale Scenarios</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  {!saleScenarios || saleScenarios.length === 0 ? (
-                    <div className="text-center py-8">
-                      <p className="text-sm text-muted-foreground">No sale scenarios yet.</p>
-                    </div>
-                  ) : (
-                    <div className="overflow-x-auto rounded-lg border">
-                      <Table>
-                        <TableHeader>
-                          <TableRow className="bg-muted/50">
-                            <TableHead>Label</TableHead>
-                            <TableHead className="text-right">Sale Price</TableHead>
-                            <TableHead className="text-right">Selling Costs</TableHead>
-                            <TableHead className="text-right">Net Proceeds</TableHead>
-                            <TableHead></TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {saleScenarios.map((s: { scenario_id: number; label: string; assumed_sale_price: number; selling_costs: number; net_proceeds: number; }) => (
-                            <TableRow key={s.scenario_id}>
-                              <TableCell className="font-medium">{s.label}</TableCell>
-                              <TableCell className="text-right">{formatCurrency(s.assumed_sale_price)}</TableCell>
-                              <TableCell className="text-right">{formatCurrency(s.selling_costs)}</TableCell>
-                              <TableCell className={cn("text-right font-semibold", s.net_proceeds >= 0 ? "text-green-600" : "text-red-600")}>
-                                {formatCurrency(s.net_proceeds)}
-                              </TableCell>
-                              <TableCell>
-                                <button onClick={() => deleteSale(s.scenario_id)} className="text-red-500 hover:text-red-700 text-xs font-medium">
-                                  Delete
-                                </button>
-                              </TableCell>
-                            </TableRow>
-                          ))}
-                        </TableBody>
-                      </Table>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
+              {/* ── Saved Sale Scenarios ── */}
+              <div className="space-y-4">
+                {!saleScenarios || saleScenarios.length === 0 ? (
+                  <Card>
+                    <CardContent className="py-8">
+                      <p className="text-sm text-muted-foreground text-center">No sale scenarios yet. Create one to see projected ROI and cash flow metrics.</p>
+                    </CardContent>
+                  </Card>
+                ) : (
+                  (saleScenarios as Array<{ scenario_id: number; label: string; assumed_sale_price: number; selling_costs_percent: number; selling_costs: number; debt_payout?: number; capital_gains_reserve?: number; net_proceeds: number; expected_date?: string; linked_event?: string; linked_milestone_title?: string; hold_period_months?: number; total_equity_invested?: number; annual_noi_at_sale?: number; annual_cash_flow?: number; total_return?: number; equity_multiple?: number; irr_estimate?: number; cash_on_cash_return?: number; cap_rate?: number; notes?: string }>).map((s) => (
+                    <Card key={s.scenario_id} className="overflow-hidden">
+                      <div className="flex items-center justify-between px-4 py-3 bg-muted/30 cursor-pointer" onClick={() => setExpandedSale(expandedSale === s.scenario_id ? null : s.scenario_id)}>
+                        <div className="flex items-center gap-3">
+                          <TrendingUp className="h-4 w-4 text-muted-foreground" />
+                          <span className="font-semibold text-sm">{s.label}</span>
+                          {s.expected_date && (
+                            <Badge variant="outline" className="text-xs gap-1">
+                              <Calendar className="h-3 w-3" />
+                              {new Date(s.expected_date + "T00:00:00").toLocaleDateString("en-CA", { year: "numeric", month: "short", day: "numeric" })}
+                            </Badge>
+                          )}
+                          {s.linked_event && (
+                            <Badge variant="secondary" className="text-xs">
+                              {s.linked_event.replace(/_/g, " ")}
+                            </Badge>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <span className={cn("text-sm font-bold", s.net_proceeds >= 0 ? "text-green-600" : "text-red-600")}>
+                            {formatCurrency(s.net_proceeds)} net
+                          </span>
+                          {expandedSale === s.scenario_id ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                        </div>
+                      </div>
+
+                      {expandedSale === s.scenario_id && (
+                        <CardContent className="pt-4 space-y-4">
+                          {/* Deal Summary */}
+                          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                            <div className="text-center p-3 rounded-lg bg-muted/30">
+                              <p className="text-xs text-muted-foreground">Sale Price</p>
+                              <p className="text-sm font-bold">{formatCurrency(s.assumed_sale_price)}</p>
+                            </div>
+                            <div className="text-center p-3 rounded-lg bg-muted/30">
+                              <p className="text-xs text-muted-foreground">Selling Costs ({s.selling_costs_percent}%)</p>
+                              <p className="text-sm font-bold">{formatCurrency(s.selling_costs)}</p>
+                            </div>
+                            <div className="text-center p-3 rounded-lg bg-muted/30">
+                              <p className="text-xs text-muted-foreground">Debt Payout</p>
+                              <p className="text-sm font-bold">{formatCurrency(s.debt_payout ?? 0)}</p>
+                            </div>
+                            <div className={cn("text-center p-3 rounded-lg", s.net_proceeds >= 0 ? "bg-green-50" : "bg-red-50")}>
+                              <p className="text-xs text-muted-foreground">Net Proceeds</p>
+                              <p className={cn("text-sm font-bold", s.net_proceeds >= 0 ? "text-green-700" : "text-red-700")}>{formatCurrency(s.net_proceeds)}</p>
+                            </div>
+                          </div>
+
+                          {/* ROI Metrics */}
+                          {(s.total_return != null || s.equity_multiple != null || s.irr_estimate != null || s.cap_rate != null) && (
+                            <div className="rounded-lg border border-emerald-200 bg-emerald-50/30 p-4">
+                              <p className="text-xs font-semibold text-emerald-700 mb-3 flex items-center gap-1.5">
+                                <TrendingUp className="h-3.5 w-3.5" /> Projected ROI & Cash Flow
+                              </p>
+                              <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+                                {s.total_return != null && (
+                                  <div className="text-center">
+                                    <p className={cn("text-xl font-bold", s.total_return >= 0 ? "text-emerald-700" : "text-red-600")}>{formatCurrency(s.total_return)}</p>
+                                    <p className="text-xs text-muted-foreground">Total Return</p>
+                                  </div>
+                                )}
+                                {s.equity_multiple != null && (
+                                  <div className="text-center">
+                                    <p className="text-xl font-bold text-emerald-700">{s.equity_multiple}x</p>
+                                    <p className="text-xs text-muted-foreground">Equity Multiple</p>
+                                  </div>
+                                )}
+                                {s.irr_estimate != null && (
+                                  <div className="text-center">
+                                    <p className="text-xl font-bold text-emerald-700">{s.irr_estimate}%</p>
+                                    <p className="text-xs text-muted-foreground">Est. IRR</p>
+                                  </div>
+                                )}
+                                {s.cash_on_cash_return != null && (
+                                  <div className="text-center">
+                                    <p className="text-xl font-bold text-emerald-700">{s.cash_on_cash_return}%</p>
+                                    <p className="text-xs text-muted-foreground">Cash-on-Cash</p>
+                                  </div>
+                                )}
+                                {s.cap_rate != null && (
+                                  <div className="text-center">
+                                    <p className="text-xl font-bold text-emerald-700">{s.cap_rate}%</p>
+                                    <p className="text-xs text-muted-foreground">Cap Rate</p>
+                                  </div>
+                                )}
+                              </div>
+                              {s.hold_period_months && (
+                                <p className="text-xs text-muted-foreground text-center mt-2">
+                                  Based on {s.hold_period_months} month hold ({(s.hold_period_months / 12).toFixed(1)} yr)
+                                  {s.total_equity_invested ? ` | ${formatCurrency(s.total_equity_invested)} equity` : ""}
+                                  {s.annual_cash_flow ? ` | ${formatCurrency(s.annual_cash_flow)}/yr cash flow` : ""}
+                                </p>
+                              )}
+                            </div>
+                          )}
+
+                          {/* Timeline */}
+                          {(s.expected_date || s.linked_event || s.linked_milestone_title) && (
+                            <div className="rounded-lg border border-blue-200 bg-blue-50/30 p-4">
+                              <p className="text-xs font-semibold text-blue-700 mb-2 flex items-center gap-1.5">
+                                <Calendar className="h-3.5 w-3.5" /> Timeline & Event Linkage
+                              </p>
+                              <div className="flex flex-wrap gap-4 text-sm">
+                                {s.expected_date && (
+                                  <div>
+                                    <span className="text-xs text-muted-foreground">Expected Date: </span>
+                                    <span className="font-medium">{new Date(s.expected_date + "T00:00:00").toLocaleDateString("en-CA", { year: "numeric", month: "long", day: "numeric" })}</span>
+                                  </div>
+                                )}
+                                {s.linked_event && (
+                                  <div>
+                                    <span className="text-xs text-muted-foreground">Trigger Event: </span>
+                                    <span className="font-medium capitalize">{s.linked_event.replace(/_/g, " ")}</span>
+                                  </div>
+                                )}
+                                {s.linked_milestone_title && (
+                                  <div>
+                                    <span className="text-xs text-muted-foreground">Linked Milestone: </span>
+                                    <span className="font-medium">{s.linked_milestone_title}</span>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          )}
+
+                          {s.notes && <p className="text-xs text-muted-foreground italic">{s.notes}</p>}
+
+                          <div className="flex justify-end">
+                            <button onClick={() => deleteSale(s.scenario_id)} className="text-red-500 hover:text-red-700 text-xs font-medium flex items-center gap-1">
+                              <Trash2 className="h-3 w-3" /> Delete Scenario
+                            </button>
+                          </div>
+                        </CardContent>
+                      )}
+                    </Card>
+                  ))
+                )}
+              </div>
             </div>
           </section>
         </TabsContent>

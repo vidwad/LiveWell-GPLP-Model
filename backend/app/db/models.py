@@ -1223,8 +1223,17 @@ class RefinanceScenario(Base):
     closing_costs = Column(Numeric(14, 2), nullable=True, default=0)
     notes = Column(Text, nullable=True)
     created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    # ── Date & event linkage ──
+    expected_date = Column(Date, nullable=True)  # when the refinance is expected
+    linked_milestone_id = Column(Integer, ForeignKey("property_milestones.milestone_id"), nullable=True)
+    linked_event = Column(String(128), nullable=True)  # e.g. "construction_completion", "stabilization"
+    # ── ROI inputs ──
+    total_equity_invested = Column(Numeric(16, 2), nullable=True)  # total equity in the deal
+    annual_noi_at_refi = Column(Numeric(14, 2), nullable=True)  # projected NOI at refi date
+    hold_period_months = Column(Integer, nullable=True)  # months from purchase to refi
 
     property = relationship("Property")
+    linked_milestone = relationship("PropertyMilestone", foreign_keys=[linked_milestone_id])
 
 
 class SaleScenario(Base):
@@ -1240,8 +1249,18 @@ class SaleScenario(Base):
     capital_gains_reserve = Column(Numeric(14, 2), nullable=True, default=0)
     notes = Column(Text, nullable=True)
     created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    # ── Date & event linkage ──
+    expected_date = Column(Date, nullable=True)  # when the sale is expected
+    linked_milestone_id = Column(Integer, ForeignKey("property_milestones.milestone_id"), nullable=True)
+    linked_event = Column(String(128), nullable=True)  # e.g. "stabilization", "lease_up_complete"
+    # ── ROI inputs ──
+    total_equity_invested = Column(Numeric(16, 2), nullable=True)  # total equity in the deal
+    annual_noi_at_sale = Column(Numeric(14, 2), nullable=True)  # projected NOI at sale date
+    hold_period_months = Column(Integer, nullable=True)  # months from purchase to sale
+    annual_cash_flow = Column(Numeric(14, 2), nullable=True)  # avg annual cash flow during hold
 
     property = relationship("Property")
+    linked_milestone = relationship("PropertyMilestone", foreign_keys=[linked_milestone_id])
 
 
 # ---------------------------------------------------------------------------

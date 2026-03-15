@@ -812,6 +812,7 @@ def portfolio_returns_metrics(
 # ---------------------------------------------------------------------------
 
 from app.db.models import RefinanceScenario, SaleScenario
+from sqlalchemy.orm import joinedload as _joinedload
 
 
 def _calc_refinance(scenario: RefinanceScenario) -> RefinanceScenarioOut:
@@ -819,6 +820,30 @@ def _calc_refinance(scenario: RefinanceScenario) -> RefinanceScenarioOut:
     debt_payout = float(scenario.existing_debt_payout or 0)
     closing = float(scenario.closing_costs or 0)
     net_proceeds = round(new_loan - debt_payout - closing, 2)
+
+    # ROI calculations
+    equity = float(scenario.total_equity_invested or 0)
+    noi = float(scenario.annual_noi_at_refi or 0)
+    hold_months = scenario.hold_period_months
+
+    equity_multiple = None
+    cash_on_cash = None
+    annualized_roi = None
+
+    if equity > 0:
+        equity_multiple = round((net_proceeds + equity) / equity, 2)
+        if noi > 0:
+            cash_on_cash = round(noi / equity * 100, 2)
+        if hold_months and hold_months > 0:
+            hold_years = hold_months / 12
+            total_gain = net_proceeds  # cash freed from refi
+            annualized_roi = round(((1 + total_gain / equity) ** (1 / hold_years) - 1) * 100, 2) if total_gain > -equity else None
+
+    # Linked milestone title
+    milestone_title = None
+    if scenario.linked_milestone:
+        milestone_title = scenario.linked_milestone.title
+
     return RefinanceScenarioOut(
         scenario_id=scenario.scenario_id,
         property_id=scenario.property_id,
@@ -833,6 +858,16 @@ def _calc_refinance(scenario: RefinanceScenario) -> RefinanceScenarioOut:
         new_loan_amount=new_loan,
         net_proceeds=net_proceeds,
         created_at=scenario.created_at,
+        expected_date=scenario.expected_date,
+        linked_milestone_id=scenario.linked_milestone_id,
+        linked_event=scenario.linked_event,
+        total_equity_invested=equity if equity else None,
+        annual_noi_at_refi=noi if noi else None,
+        hold_period_months=hold_months,
+        equity_multiple=equity_multiple,
+        cash_on_cash_return=cash_on_cash,
+        annualized_roi=annualized_roi,
+        linked_milestone_title=milestone_title,
     )
 
 
@@ -842,6 +877,37 @@ def _calc_sale(scenario: SaleScenario) -> SaleScenarioOut:
     debt_payout = float(scenario.debt_payout or 0)
     reserves = float(scenario.capital_gains_reserve or 0)
     net_proceeds = round(price - selling_costs - debt_payout - reserves, 2)
+
+    # ROI calculations
+    equity = float(scenario.total_equity_invested or 0)
+    noi = float(scenario.annual_noi_at_sale or 0)
+    hold_months = scenario.hold_period_months
+    annual_cf = float(scenario.annual_cash_flow or 0)
+
+    total_return = None
+    equity_multiple = None
+    irr_estimate = None
+    cash_on_cash = None
+    cap_rate_val = None
+
+    if equity > 0:
+        hold_years = (hold_months / 12) if hold_months and hold_months > 0 else 0
+        cumulative_cf = annual_cf * hold_years if hold_years > 0 else 0
+        total_return = round(net_proceeds + cumulative_cf - equity, 2)
+        equity_multiple = round((net_proceeds + cumulative_cf) / equity, 2)
+        if annual_cf > 0:
+            cash_on_cash = round(annual_cf / equity * 100, 2)
+        if hold_years > 0 and total_return > -equity:
+            irr_estimate = round(((1 + (net_proceeds + cumulative_cf - equity) / equity) ** (1 / hold_years) - 1) * 100, 2)
+
+    if price > 0 and noi > 0:
+        cap_rate_val = round(noi / price * 100, 2)
+
+    # Linked milestone title
+    milestone_title = None
+    if scenario.linked_milestone:
+        milestone_title = scenario.linked_milestone.title
+
     return SaleScenarioOut(
         scenario_id=scenario.scenario_id,
         property_id=scenario.property_id,
@@ -854,6 +920,19 @@ def _calc_sale(scenario: SaleScenario) -> SaleScenarioOut:
         selling_costs=selling_costs,
         net_proceeds=net_proceeds,
         created_at=scenario.created_at,
+        expected_date=scenario.expected_date,
+        linked_milestone_id=scenario.linked_milestone_id,
+        linked_event=scenario.linked_event,
+        total_equity_invested=equity if equity else None,
+        annual_noi_at_sale=noi if noi else None,
+        hold_period_months=hold_months,
+        annual_cash_flow=annual_cf if annual_cf else None,
+        total_return=total_return,
+        equity_multiple=equity_multiple,
+        irr_estimate=irr_estimate,
+        cash_on_cash_return=cash_on_cash,
+        cap_rate=cap_rate_val,
+        linked_milestone_title=milestone_title,
     )
 
 
@@ -863,7 +942,7 @@ def list_refinance_scenarios(
     db: Session = Depends(get_db),
     _: User = Depends(require_investor_or_above),
 ):
-    return [_calc_refinance(s) for s in db.query(RefinanceScenario).filter(RefinanceScenario.property_id == property_id).all()]
+    return [_calc_refinance(s) for s in db.query(RefinanceScenario).options(_joinedload(RefinanceScenario.linked_milestone)).filter(RefinanceScenario.property_id == property_id).all()]
 
 
 @router.post("/properties/{property_id}/refinance-scenarios", response_model=RefinanceScenarioOut, status_code=status.HTTP_201_CREATED)
@@ -901,7 +980,7 @@ def list_sale_scenarios(
     db: Session = Depends(get_db),
     _: User = Depends(require_investor_or_above),
 ):
-    return [_calc_sale(s) for s in db.query(SaleScenario).filter(SaleScenario.property_id == property_id).all()]
+    return [_calc_sale(s) for s in db.query(SaleScenario).options(_joinedload(SaleScenario.linked_milestone)).filter(SaleScenario.property_id == property_id).all()]
 
 
 @router.post("/properties/{property_id}/sale-scenarios", response_model=SaleScenarioOut, status_code=status.HTTP_201_CREATED)
