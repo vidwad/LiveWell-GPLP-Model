@@ -17,6 +17,15 @@ export function useProperties() {
   });
 }
 
+export function usePropertiesByLp(lpId: number) {
+  return useQuery({
+    queryKey: ["properties", "lp", lpId],
+    queryFn: () =>
+      apiClient.get<Property[]>("/api/portfolio/properties", { params: { lp_id: lpId } }).then((r) => r.data),
+    enabled: !!lpId,
+  });
+}
+
 export function useProperty(id: number) {
   return useQuery({
     queryKey: ["properties", id],

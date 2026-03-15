@@ -45,6 +45,7 @@ import {
   useUpdateLP,
   useComputeWaterfall,
 } from "@/hooks/useInvestment";
+import { usePropertiesByLp } from "@/hooks/usePortfolio";
 import type { WaterfallResult } from "@/types/investment";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -779,7 +780,11 @@ export default function LPDetailPage() {
         </TabsContent>
 
         {/* ── Pipeline (Target Properties) Tab ──────────────────── */}
-        <TabsContent value="pipeline" className="mt-4 space-y-4">
+        <TabsContent value="pipeline" className="mt-4 space-y-6">
+          {/* ── Owned Properties ── */}
+          <OwnedPropertiesSection lpId={lpId} />
+
+          {/* ── Target Properties ── */}
           <div className="flex justify-between items-center">
             <h3 className="text-sm font-semibold">Target Properties (Pipeline)</h3>
             {canEdit && <Button size="sm" onClick={tpForm.openCreate}><Plus className="h-3.5 w-3.5 mr-1" /> Add Target Property</Button>}
@@ -1430,6 +1435,83 @@ export default function LPDetailPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+    </div>
+  );
+}
+
+/* ── Owned Properties Section (used in Pipeline tab) ─────────────── */
+const STAGE_BADGE: Record<string, { label: string; color: string }> = {
+  prospect:          { label: "Prospect",          color: "bg-slate-100 text-slate-700 border-slate-200" },
+  acquisition:       { label: "Acquisition",       color: "bg-purple-50 text-purple-700 border-purple-200" },
+  interim_operation: { label: "Interim Operation", color: "bg-yellow-50 text-yellow-700 border-yellow-200" },
+  planning:          { label: "Planning",          color: "bg-indigo-50 text-indigo-700 border-indigo-200" },
+  construction:      { label: "Construction",      color: "bg-orange-50 text-orange-700 border-orange-200" },
+  lease_up:          { label: "Lease-Up",          color: "bg-blue-50 text-blue-700 border-blue-200" },
+  stabilized:        { label: "Stabilized",        color: "bg-green-50 text-green-700 border-green-200" },
+  exit:              { label: "Exit",              color: "bg-red-50 text-red-700 border-red-200" },
+};
+
+function OwnedPropertiesSection({ lpId }: { lpId: number }) {
+  const { data: properties, isLoading } = usePropertiesByLp(lpId);
+
+  return (
+    <div className="space-y-3">
+      <h3 className="text-sm font-semibold flex items-center gap-2">
+        <Building2 className="h-4 w-4 text-muted-foreground" />
+        Owned Properties
+        {properties && <Badge variant="secondary" className="text-xs">{properties.length}</Badge>}
+      </h3>
+      {isLoading ? (
+        <div className="space-y-3">
+          <Skeleton className="h-24 w-full" />
+          <Skeleton className="h-24 w-full" />
+        </div>
+      ) : !properties || properties.length === 0 ? (
+        <Card>
+          <CardContent className="pt-6">
+            <p className="text-sm text-muted-foreground">No properties are currently linked to this LP fund.</p>
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="grid gap-3 sm:grid-cols-2">
+          {properties.map((p) => {
+            const stageCfg = STAGE_BADGE[p.development_stage] ?? { label: p.development_stage, color: "bg-gray-100 text-gray-700 border-gray-200" };
+            return (
+              <Link key={p.property_id} href={`/portfolio/${p.property_id}`}>
+                <Card className="hover:shadow-md transition-shadow cursor-pointer h-full">
+                  <CardContent className="pt-4 pb-4">
+                    <div className="flex items-start justify-between gap-2 mb-2">
+                      <div className="min-w-0">
+                        <p className="text-sm font-semibold truncate">{p.address}</p>
+                        <p className="text-xs text-muted-foreground">{p.city}, {p.province}</p>
+                      </div>
+                      <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-medium shrink-0 ${stageCfg.color}`}>
+                        {stageCfg.label}
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
+                      <div>
+                        <span className="text-muted-foreground">Purchase Price</span>
+                        <p className="font-medium tabular-nums">{p.purchase_price ? formatCurrencyCompact(Number(p.purchase_price)) : "—"}</p>
+                      </div>
+                      <div>
+                        <span className="text-muted-foreground">Market Value</span>
+                        <p className="font-medium tabular-nums">{p.current_market_value ? formatCurrencyCompact(Number(p.current_market_value)) : "—"}</p>
+                      </div>
+                      {p.community_name && (
+                        <div className="col-span-2">
+                          <span className="text-muted-foreground">Community</span>
+                          <p className="font-medium">{p.community_name}</p>
+                        </div>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              </Link>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }

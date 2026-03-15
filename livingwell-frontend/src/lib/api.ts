@@ -52,7 +52,7 @@ apiClient.interceptors.response.use(
 
 // ── Portfolio ────────────────────────────────────────────────────────
 export const portfolio = {
-  getProperties: () => apiClient.get<Property[]>("/api/portfolio/properties").then(r => r.data),
+  getProperties: (lpId?: number) => apiClient.get<Property[]>("/api/portfolio/properties", { params: lpId ? { lp_id: lpId } : {} }).then(r => r.data),
   getProperty: (id: number) => apiClient.get<Property>(`/api/portfolio/properties/${id}`).then(r => r.data),
   createProperty: (data: PropertyCreate) => apiClient.post<Property>("/api/portfolio/properties", data).then(r => r.data),
   getDevelopmentPlans: (propertyId: number) => apiClient.get<DevelopmentPlan[]>(`/api/portfolio/properties/${propertyId}/plans`).then(r => r.data),
@@ -232,4 +232,35 @@ export const notifications = {
     apiClient.patch(`/api/notifications/${notificationId}/read`).then(r => r.data),
   markAllRead: () =>
     apiClient.patch("/api/notifications/read-all").then(r => r.data),
+};
+
+// ── Lifecycle ──────────────────────────────────────────────────────────
+export const lifecycle = {
+  getTransitions: (propertyId: number) =>
+    apiClient.get(`/api/lifecycle/properties/${propertyId}/transitions`).then(r => r.data),
+  getAllowedTransitions: (propertyId: number) =>
+    apiClient.get(`/api/lifecycle/properties/${propertyId}/allowed-transitions`).then(r => r.data),
+  transitionStage: (propertyId: number, data: { to_stage: string; notes?: string; force?: boolean }) =>
+    apiClient.post(`/api/lifecycle/properties/${propertyId}/transition`, data).then(r => r.data),
+  getMilestones: (propertyId: number, stage?: string) => {
+    const params = stage ? `?stage=${stage}` : "";
+    return apiClient.get(`/api/lifecycle/properties/${propertyId}/milestones${params}`).then(r => r.data);
+  },
+  createMilestone: (propertyId: number, data: object) =>
+    apiClient.post(`/api/lifecycle/properties/${propertyId}/milestones`, data).then(r => r.data),
+  updateMilestone: (milestoneId: number, data: object) =>
+    apiClient.patch(`/api/lifecycle/milestones/${milestoneId}`, data).then(r => r.data),
+};
+
+// ── Convenience namespace ──────────────────────────────────────────────
+export const api = {
+  portfolio,
+  investment,
+  investors,
+  communities,
+  reports,
+  documents,
+  propertyManagers,
+  notifications,
+  lifecycle,
 };

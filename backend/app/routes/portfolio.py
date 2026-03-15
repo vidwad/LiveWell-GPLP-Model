@@ -68,12 +68,15 @@ def _property_to_out(prop: Property) -> PropertyOut:
 
 @router.get("/properties", response_model=list[PropertyOut])
 def list_properties(
+    lp_id: int | None = None,
     db: Session = Depends(get_db),
     current_user: User = Depends(require_investor_or_above),
 ):
-    """List properties filtered by the user's scope."""
+    """List properties filtered by the user's scope. Optionally filter by lp_id."""
     query = db.query(Property)
     query = filter_by_lp_scope(query, current_user, db, Property.lp_id)
+    if lp_id is not None:
+        query = query.filter(Property.lp_id == lp_id)
     props = query.all()
     return [_property_to_out(p) for p in props]
 

@@ -10,8 +10,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { ArrowLeft } from "lucide-react";
+import { api } from "@/lib/api";
 
 export default function NewPropertyPage() {
   const router = useRouter();
@@ -26,6 +27,14 @@ export default function NewPropertyPage() {
     development_stage: "acquisition",
   });
 
+  const [lpOptions, setLpOptions] = useState<{ lp_id: number; name: string }[]>([]);
+  const [communityOptions, setCommunityOptions] = useState<{ community_id: number; name: string }[]>([]);
+
+  useEffect(() => {
+    api.investment.getLPs().then((lps: any[]) => setLpOptions(lps.map(l => ({ lp_id: l.lp_id, name: l.name }))));
+    api.communities.getAll().then((cs: any[]) => setCommunityOptions(cs.map(c => ({ community_id: c.community_id, name: c.name }))));
+  }, []);
+
   const set = (k: keyof PropertyCreate, v: string | number) =>
     setForm((f) => ({ ...f, [k]: v }));
 
@@ -35,10 +44,14 @@ export default function NewPropertyPage() {
       const prop = await mutateAsync({
         ...form,
         purchase_price: Number(form.purchase_price),
+        assessed_value: form.assessed_value ? Number(form.assessed_value) : undefined,
+        current_market_value: form.current_market_value ? Number(form.current_market_value) : undefined,
         lot_size: form.lot_size ? Number(form.lot_size) : undefined,
         max_buildable_area: form.max_buildable_area
           ? Number(form.max_buildable_area)
           : undefined,
+        lp_id: form.lp_id || undefined,
+        community_id: form.community_id || undefined,
       });
       toast.success("Property created");
       router.push(`/portfolio/${prop.property_id}`);
@@ -94,6 +107,44 @@ export default function NewPropertyPage() {
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
+                <Label>LP Fund</Label>
+                <Select
+                  value={form.lp_id ? String(form.lp_id) : ""}
+                  onValueChange={(v) => set("lp_id", Number(v))}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select LP Fund" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {lpOptions.map((lp) => (
+                      <SelectItem key={lp.lp_id} value={String(lp.lp_id)}>
+                        {lp.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Community</Label>
+                <Select
+                  value={form.community_id ? String(form.community_id) : ""}
+                  onValueChange={(v) => set("community_id", Number(v))}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select Community" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {communityOptions.map((c) => (
+                      <SelectItem key={c.community_id} value={String(c.community_id)}>
+                        {c.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
                 <Label>Purchase Date</Label>
                 <Input
                   type="date"
@@ -111,6 +162,28 @@ export default function NewPropertyPage() {
                   placeholder="1000000"
                   min={0}
                   required
+                />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Assessed Value (CAD)</Label>
+                <Input
+                  type="number"
+                  value={form.assessed_value || ""}
+                  onChange={(e) => set("assessed_value", e.target.value)}
+                  placeholder="600000"
+                  min={0}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Current Market Value (CAD)</Label>
+                <Input
+                  type="number"
+                  value={form.current_market_value || ""}
+                  onChange={(e) => set("current_market_value", e.target.value)}
+                  placeholder="700000"
+                  min={0}
                 />
               </div>
             </div>
@@ -153,11 +226,18 @@ export default function NewPropertyPage() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {(["acquisition", "interim_operation", "planning", "construction", "stabilized", "exit"] as DevelopmentStage[]).map((s) => (
-                      <SelectItem key={s} value={s}>
-                        {s.charAt(0).toUpperCase() + s.slice(1)}
-                      </SelectItem>
-                    ))}
+                    {(["prospect", "acquisition", "interim_operation", "planning", "construction", "lease_up", "stabilized", "exit"] as DevelopmentStage[]).map((s) => {
+                      const labels: Record<string, string> = {
+                        prospect: "Prospect", acquisition: "Acquisition", interim_operation: "Interim Operation",
+                        planning: "Planning", construction: "Construction", lease_up: "Lease-Up",
+                        stabilized: "Stabilized", exit: "Exit",
+                      };
+                      return (
+                        <SelectItem key={s} value={s}>
+                          {labels[s] ?? s}
+                        </SelectItem>
+                      );
+                    })}
                   </SelectContent>
                 </Select>
               </div>
