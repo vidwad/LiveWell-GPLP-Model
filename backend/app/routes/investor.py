@@ -19,14 +19,38 @@ from app.db.models import (
 from app.db.session import get_db
 from app.schemas.investor import (
     DocumentCreate, DocumentOut,
-    InvestorCreate, InvestorUpdate, InvestorDashboard, InvestorOut,
+    InvestorCreate, InvestorUpdate, InvestorDashboard, InvestorOut, InvestorSummary,
     InvestorDistributionHistory, InvestorDistributionItem,
     MessageCreate, MessageOut,
     WaterfallInput, WaterfallResultSchema,
 )
+from app.schemas.investment import SubscriptionOut
 from app.services.waterfall import WaterfallEngine
+from sqlalchemy.orm import joinedload
 
 router = APIRouter()
+
+
+def _sub_out(s: Subscription) -> SubscriptionOut:
+    return SubscriptionOut(
+        subscription_id=s.subscription_id,
+        investor_id=s.investor_id,
+        lp_id=s.lp_id,
+        tranche_id=s.tranche_id,
+        commitment_amount=s.commitment_amount,
+        funded_amount=s.funded_amount,
+        issue_price=s.issue_price,
+        unit_quantity=s.unit_quantity,
+        status=s.status.value if s.status else "draft",
+        submitted_date=s.submitted_date,
+        accepted_date=s.accepted_date,
+        funded_date=s.funded_date,
+        issued_date=s.issued_date,
+        notes=s.notes,
+        investor_name=s.investor.name if s.investor else None,
+        lp_name=s.lp.name if s.lp else None,
+        tranche_name=s.tranche.tranche_name if s.tranche else None,
+    )
 
 
 def _get_investor_or_404(investor_id: int, db: Session) -> Investor:
@@ -46,6 +70,47 @@ def list_investors(
     _: User = Depends(require_gp_or_ops),
 ):
     return db.query(Investor).all()
+
+
+@router.get("/investors-summary", response_model=list[InvestorSummary])
+def list_investors_summary(
+    db: Session = Depends(get_db),
+    _: User = Depends(require_gp_or_ops),
+):
+    """Return all investors with subscription summary data for the list view."""
+    from decimal import Decimal as D
+    investors = db.query(Investor).all()
+    terminal = {"issued", "closed", "rejected", "withdrawn", "cancelled"}
+    result = []
+    for inv in investors:
+        subs = (
+            db.query(Subscription)
+            .options(joinedload(Subscription.lp))
+            .filter(Subscription.investor_id == inv.investor_id)
+            .order_by(Subscription.created_at.desc())
+            .all()
+        )
+        total_committed = sum((s.commitment_amount or D(0) for s in subs), D(0))
+        total_funded = sum((s.funded_amount or D(0) for s in subs), D(0))
+        active = [s for s in subs if (s.status.value if s.status else "draft") not in terminal]
+        lp_names = list({s.lp.name for s in subs if s.lp})
+        latest_status = subs[0].status.value if subs and subs[0].status else None
+        result.append(InvestorSummary(
+            investor_id=inv.investor_id,
+            name=inv.name,
+            email=inv.email,
+            phone=inv.phone,
+            entity_type=inv.entity_type,
+            accredited_status=inv.accredited_status,
+            total_committed=total_committed,
+            total_funded=total_funded,
+            subscription_count=len(subs),
+            active_subscriptions=len(active),
+            lp_names=lp_names,
+            latest_status=latest_status,
+            created_at=inv.created_at,
+        ))
+    return result
 
 
 @router.post("/investors", response_model=InvestorOut, status_code=status.HTTP_201_CREATED)
@@ -88,6 +153,29 @@ def update_investor(
     db.commit()
     db.refresh(inv)
     return inv
+
+
+# ---------------------------------------------------------------------------
+# Subscriptions by Investor
+# ---------------------------------------------------------------------------
+
+@router.get("/investors/{investor_id}/subscriptions", response_model=list[SubscriptionOut])
+def list_investor_subscriptions(
+    investor_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_investor_or_above),
+):
+    inv = _get_investor_or_404(investor_id, db)
+    if current_user.role == UserRole.INVESTOR and inv.user_id != current_user.user_id:
+        raise HTTPException(status_code=403, detail="Access denied")
+    subs = (
+        db.query(Subscription)
+        .options(joinedload(Subscription.investor), joinedload(Subscription.lp), joinedload(Subscription.tranche))
+        .filter(Subscription.investor_id == investor_id)
+        .order_by(Subscription.created_at.desc())
+        .all()
+    )
+    return [_sub_out(s) for s in subs]
 
 
 # ---------------------------------------------------------------------------

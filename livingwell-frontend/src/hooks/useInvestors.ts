@@ -9,6 +9,13 @@ export function useInvestors() {
   });
 }
 
+export function useInvestorSummaries() {
+  return useQuery({
+    queryKey: ["investor-summaries"],
+    queryFn: () => investors.getSummaries(),
+  });
+}
+
 export function useInvestor(id: number) {
   return useQuery({
     queryKey: ["investors", id],
@@ -29,6 +36,14 @@ export function useCreateInvestor() {
   return useMutation({
     mutationFn: (data: InvestorCreate) => investors.create(data),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["investors"] }),
+  });
+}
+
+export function useInvestorSubscriptions(investorId: number) {
+  return useQuery({
+    queryKey: ["investor-subscriptions", investorId],
+    queryFn: () => investors.getSubscriptions(investorId),
+    enabled: !!investorId,
   });
 }
 

@@ -1,7 +1,7 @@
 import axios from "axios";
 import type { CostEstimateInput, CostEstimateResult, Property, PropertyCreate, DevelopmentPlan, DevelopmentPlanCreate, PropertyCluster, PropertyManager, PropertyManagerCreate } from "@/types/portfolio";
 import type { GPEntity, LPEntity, LPDetail, LPCreate, LPTranche, LPTrancheCreate, Subscription, SubscriptionCreate, Holding, TargetProperty, LPPortfolioRollup, DistributionEvent, Investor as InvInvestor, WaterfallResult as InvWaterfallResult } from "@/types/investment";
-import type { Investor, InvestorCreate, InvestorDashboard, InvestorDistributionHistory, Document, Message, WaterfallInput, WaterfallResult } from "@/types/investor";
+import type { Investor, InvestorCreate, InvestorSummary, InvestorDashboard, InvestorDistributionHistory, Document, Message, WaterfallInput, WaterfallResult } from "@/types/investor";
 
 const BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
@@ -170,12 +170,14 @@ export const investment = {
 // ── Investors ────────────────────────────────────────────────────────
 export const investors = {
   getAll: () => apiClient.get<Investor[]>("/api/investor/investors").then(r => r.data),
+  getSummaries: () => apiClient.get<InvestorSummary[]>("/api/investor/investors-summary").then(r => r.data),
   get: (id: number) => apiClient.get<Investor>(`/api/investor/investors/${id}`).then(r => r.data),
   create: (data: InvestorCreate) => apiClient.post<Investor>("/api/investor/investors", data).then(r => r.data),
   getDashboard: (id?: number) => {
     const url = id ? `/api/investor/investors/${id}/dashboard` : "/api/investor/dashboard";
     return apiClient.get<InvestorDashboard>(url).then(r => r.data);
   },
+  getSubscriptions: (id: number) => apiClient.get<Subscription[]>(`/api/investor/investors/${id}/subscriptions`).then(r => r.data),
   getDocuments: (id: number) => apiClient.get<Document[]>(`/api/investor/investors/${id}/documents`).then(r => r.data),
   getMessages: (id: number) => apiClient.get<Message[]>(`/api/investor/investors/${id}/messages`).then(r => r.data),
   getDistributions: (id: number) => apiClient.get<InvestorDistributionHistory>(`/api/investor/investors/${id}/distributions`).then(r => r.data),

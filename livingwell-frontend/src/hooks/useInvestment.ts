@@ -136,6 +136,8 @@ export function useCreateSubscription() {
       qc.invalidateQueries({ queryKey: ["subscriptions", v.lpId] });
       qc.invalidateQueries({ queryKey: ["tranches", v.lpId] });
       qc.invalidateQueries({ queryKey: ["lps", v.lpId] });
+      qc.invalidateQueries({ queryKey: ["investor-subscriptions"] });
+      qc.invalidateQueries({ queryKey: ["investor-dashboard"] });
     },
   });
 }
@@ -156,6 +158,8 @@ export function useUpdateSubscription() {
       qc.invalidateQueries({ queryKey: ["subscriptions"] });
       qc.invalidateQueries({ queryKey: ["tranches"] });
       qc.invalidateQueries({ queryKey: ["lps"] });
+      qc.invalidateQueries({ queryKey: ["investor-subscriptions"] });
+      qc.invalidateQueries({ queryKey: ["investor-dashboard"] });
       if (v.lpId) {
         qc.invalidateQueries({ queryKey: ["subscriptions", v.lpId] });
         qc.invalidateQueries({ queryKey: ["lps", v.lpId] });

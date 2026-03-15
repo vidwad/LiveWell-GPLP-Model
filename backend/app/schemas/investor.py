@@ -47,6 +47,23 @@ class InvestorOut(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class InvestorSummary(BaseModel):
+    """Investor summary for the list view with subscription & action data."""
+    investor_id: int
+    name: str
+    email: str
+    phone: str | None = None
+    entity_type: str | None = None
+    accredited_status: str = "accredited"
+    total_committed: Decimal = Decimal("0")
+    total_funded: Decimal = Decimal("0")
+    subscription_count: int = 0
+    active_subscriptions: int = 0  # subscriptions needing action
+    lp_names: list[str] = []  # LP funds this investor is in
+    latest_status: str | None = None  # most recent subscription status
+    created_at: Optional[datetime.datetime] = None
+
+
 class InvestorDashboard(BaseModel):
     """Investor detail with aggregated investment data."""
     investor: InvestorOut

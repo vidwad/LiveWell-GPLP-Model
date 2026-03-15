@@ -22,6 +22,22 @@ export interface InvestorCreate {
   user_id?: number;
 }
 
+export interface InvestorSummary {
+  investor_id: number;
+  name: string;
+  email: string;
+  phone: string | null;
+  entity_type: string | null;
+  accredited_status: string;
+  total_committed: string;
+  total_funded: string;
+  subscription_count: number;
+  active_subscriptions: number;
+  lp_names: string[];
+  latest_status: string | null;
+  created_at: string | null;
+}
+
 export type DocumentType =
   | "subscription_agreement"
   | "partnership_agreement"
