@@ -117,8 +117,8 @@ function KPI({ label, value, sub, icon: Icon }: { label: string; value: string; 
 /* ── Detail Row ──────────────────────────────────────────────────── */
 function DRow({ label, value }: { label: string; value: React.ReactNode }) {
   return (
-    <div className="flex justify-between py-1.5 border-b border-border/50 last:border-0">
-      <span className="text-sm text-muted-foreground">{label}</span>
+    <div className="flex justify-between gap-4 py-1.5 border-b border-border/50 last:border-0">
+      <span className="text-sm text-muted-foreground shrink-0">{label}</span>
       <span className="text-sm font-medium text-right">{value ?? "—"}</span>
     </div>
   );
@@ -502,48 +502,85 @@ export default function LPDetailPage() {
 
         {/* ── Overview Tab ──────────────────────────────────────── */}
         <TabsContent value="overview" className="mt-4">
-          <div className="grid gap-4 md:grid-cols-2">
+          <div className="space-y-4">
+            {/* Fund Details + Fee & Return Structure side by side on large screens */}
+            <div className="grid gap-4 2xl:grid-cols-2">
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm flex items-center gap-2">
+                    <FileText className="h-4 w-4" /> Fund Details
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-0">
+                  <DRow label="Purpose / Community" value={lp.community_focus} />
+                  <DRow label="City Focus" value={lp.city_focus} />
+                  <DRow label="Unit Price" value={lp.unit_price ? formatCurrency(lp.unit_price) : "—"} />
+                  <DRow label="Min Subscription" value={lp.minimum_subscription ? formatCurrency(lp.minimum_subscription) : "—"} />
+                  <DRow label="Min Raise" value={lp.minimum_raise ? formatCurrency(lp.minimum_raise) : "—"} />
+                  <DRow label="Max Raise" value={lp.maximum_raise ? formatCurrency(lp.maximum_raise) : "—"} />
+                  <DRow label="Offering Date" value={fmtDate(lp.offering_date)} />
+                  <DRow label="Closing Date" value={fmtDate(lp.closing_date)} />
+                </CardContent>
+              </Card>
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm flex items-center gap-2">
+                    <Percent className="h-4 w-4" /> Fee & Return Structure
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-0">
+                  <DRow label="Preferred Return" value={fmtPct(lp.preferred_return_rate)} />
+                  <DRow label="GP Promote" value={fmtPct(lp.gp_promote_percent)} />
+                  <DRow label="GP Catch-up" value={fmtPct(lp.gp_catchup_percent)} />
+                  <DRow label="Asset Mgmt Fee" value={fmtPct(lp.asset_management_fee_percent)} />
+                  <DRow label="Acquisition Fee" value={fmtPct(lp.acquisition_fee_percent)} />
+                  <DRow label="Formation Costs" value={lp.formation_costs ? formatCurrency(lp.formation_costs) : "—"} />
+                  <DRow label="Offering Costs" value={lp.offering_costs ? formatCurrency(lp.offering_costs) : "—"} />
+                  <DRow label="Reserve %" value={fmtPct(lp.reserve_percent)} />
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Capital Summary — full width, 2x3 grid */}
             <Card>
-              <CardHeader className="pb-2"><CardTitle className="text-sm flex items-center gap-2"><FileText className="h-4 w-4" /> Fund Details</CardTitle></CardHeader>
-              <CardContent className="space-y-0">
-                <DRow label="Purpose / Community" value={lp.community_focus} />
-                <DRow label="City Focus" value={lp.city_focus} />
-                <DRow label="Unit Price" value={lp.unit_price ? formatCurrency(lp.unit_price) : "—"} />
-                <DRow label="Min Subscription" value={lp.minimum_subscription ? formatCurrency(lp.minimum_subscription) : "—"} />
-                <DRow label="Min Raise" value={lp.minimum_raise ? formatCurrency(lp.minimum_raise) : "—"} />
-                <DRow label="Max Raise" value={lp.maximum_raise ? formatCurrency(lp.maximum_raise) : "—"} />
-                <DRow label="Offering Date" value={fmtDate(lp.offering_date)} />
-                <DRow label="Closing Date" value={fmtDate(lp.closing_date)} />
-              </CardContent>
-            </Card>
-            <Card>
-              <CardHeader className="pb-2"><CardTitle className="text-sm flex items-center gap-2"><Percent className="h-4 w-4" /> Fee & Return Structure</CardTitle></CardHeader>
-              <CardContent className="space-y-0">
-                <DRow label="Preferred Return" value={fmtPct(lp.preferred_return_rate)} />
-                <DRow label="GP Promote" value={fmtPct(lp.gp_promote_percent)} />
-                <DRow label="GP Catch-up" value={fmtPct(lp.gp_catchup_percent)} />
-                <DRow label="Asset Mgmt Fee" value={fmtPct(lp.asset_management_fee_percent)} />
-                <DRow label="Acquisition Fee" value={fmtPct(lp.acquisition_fee_percent)} />
-                <DRow label="Formation Costs" value={lp.formation_costs ? formatCurrency(lp.formation_costs) : "—"} />
-                <DRow label="Offering Costs" value={lp.offering_costs ? formatCurrency(lp.offering_costs) : "—"} />
-                <DRow label="Reserve %" value={fmtPct(lp.reserve_percent)} />
-              </CardContent>
-            </Card>
-            <Card className="md:col-span-2">
-              <CardHeader className="pb-2"><CardTitle className="text-sm flex items-center gap-2"><DollarSign className="h-4 w-4" /> Capital Summary</CardTitle></CardHeader>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm flex items-center gap-2">
+                  <DollarSign className="h-4 w-4" /> Capital Summary
+                </CardTitle>
+              </CardHeader>
               <CardContent>
-                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
-                  <div><p className="text-xs text-muted-foreground">Gross Subscriptions</p><p className="text-sm font-semibold tabular-nums">{lp.gross_subscriptions ? formatCurrency(lp.gross_subscriptions) : "$0"}</p></div>
-                  <div><p className="text-xs text-muted-foreground">Formation Costs</p><p className="text-sm font-semibold tabular-nums">{lp.total_formation_costs ? formatCurrency(lp.total_formation_costs) : "$0"}</p></div>
-                  <div><p className="text-xs text-muted-foreground">Reserve Allocations</p><p className="text-sm font-semibold tabular-nums">{lp.total_reserve_allocations ? formatCurrency(lp.total_reserve_allocations) : "$0"}</p></div>
-                  <div><p className="text-xs text-muted-foreground">Net Deployable</p><p className="text-sm font-semibold tabular-nums">{lp.net_deployable_capital ? formatCurrency(lp.net_deployable_capital) : "$0"}</p></div>
-                  <div><p className="text-xs text-muted-foreground">Capital Deployed</p><p className="text-sm font-semibold tabular-nums">{lp.capital_deployed ? formatCurrency(lp.capital_deployed) : "$0"}</p></div>
-                  <div><p className="text-xs text-muted-foreground">Capital Available</p><p className="text-sm font-semibold tabular-nums text-green-600">{lp.capital_available ? formatCurrency(lp.capital_available) : "$0"}</p></div>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+                  <div>
+                    <p className="text-xs text-muted-foreground">Gross Subscriptions</p>
+                    <p className="text-sm font-semibold tabular-nums">{lp.gross_subscriptions ? formatCurrency(lp.gross_subscriptions) : "$0"}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">Formation Costs</p>
+                    <p className="text-sm font-semibold tabular-nums">{lp.total_formation_costs ? formatCurrency(lp.total_formation_costs) : "$0"}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">Reserve Allocations</p>
+                    <p className="text-sm font-semibold tabular-nums">{lp.total_reserve_allocations ? formatCurrency(lp.total_reserve_allocations) : "$0"}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">Net Deployable</p>
+                    <p className="text-sm font-semibold tabular-nums">{lp.net_deployable_capital ? formatCurrency(lp.net_deployable_capital) : "$0"}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">Capital Deployed</p>
+                    <p className="text-sm font-semibold tabular-nums">{lp.capital_deployed ? formatCurrency(lp.capital_deployed) : "$0"}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">Capital Available</p>
+                    <p className="text-sm font-semibold tabular-nums text-green-600">{lp.capital_available ? formatCurrency(lp.capital_available) : "$0"}</p>
+                  </div>
                 </div>
               </CardContent>
             </Card>
+
+            {/* Notes */}
             {lp.notes && (
-              <Card className="md:col-span-2">
+              <Card>
                 <CardHeader className="pb-2"><CardTitle className="text-sm">Notes</CardTitle></CardHeader>
                 <CardContent><p className="text-sm text-muted-foreground whitespace-pre-wrap">{lp.notes}</p></CardContent>
               </Card>
