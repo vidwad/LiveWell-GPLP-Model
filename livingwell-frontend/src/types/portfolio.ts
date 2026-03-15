@@ -44,6 +44,8 @@ export interface Property {
   cluster_id: number | null;
   community_id: number | null;
   community_name: string | null;
+  pm_id: number | null;
+  pm_name: string | null;
 }
 
 export interface PropertyCreate {
@@ -62,6 +64,32 @@ export interface PropertyCreate {
   development_stage: DevelopmentStage;
   cluster_id?: number;
   community_id?: number;
+  pm_id?: number;
+}
+
+// ── Property Manager ─────────────────────────────────────────────
+export interface PropertyManager {
+  pm_id: number;
+  name: string;
+  contact_email: string | null;
+  contact_phone: string | null;
+  address: string | null;
+  management_fee_percent: string | null;
+  contract_start_date: string | null;
+  contract_end_date: string | null;
+  notes: string | null;
+  property_count: number;
+}
+
+export interface PropertyManagerCreate {
+  name: string;
+  contact_email?: string;
+  contact_phone?: string;
+  address?: string;
+  management_fee_percent?: number;
+  contract_start_date?: string;
+  contract_end_date?: string;
+  notes?: string;
 }
 
 export interface DevelopmentPlan {

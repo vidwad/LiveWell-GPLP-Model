@@ -570,6 +570,30 @@ def seed():
         db.flush()
 
         # =================================================================
+        # 8b. PROPERTY MANAGERS
+        # =================================================================
+        pm_calgary = m.PropertyManagerEntity(
+            name="Prairie Property Management Ltd.",
+            contact_email="info@prairiepm.ca",
+            contact_phone="403-555-4000",
+            address="Suite 400, 100 Centre St S, Calgary, AB",
+            management_fee_percent=Decimal("8.00"),
+            contract_start_date=date(2024, 9, 1),
+            notes="Manages all Calgary properties. Full-service: maintenance, inspections, rent collection.",
+        )
+        pm_edmonton = m.PropertyManagerEntity(
+            name="Northern Realty Services Inc.",
+            contact_email="info@northernrealty.ca",
+            contact_phone="780-555-5000",
+            address="Suite 200, 10123 99 St, Edmonton, AB",
+            management_fee_percent=Decimal("7.50"),
+            contract_start_date=date(2024, 11, 1),
+            notes="Manages Edmonton-area properties.",
+        )
+        db.add_all([pm_calgary, pm_edmonton])
+        db.flush()
+
+        # =================================================================
         # 9. PROPERTY CLUSTERS
         # =================================================================
         cluster_ne = m.PropertyCluster(
@@ -594,6 +618,7 @@ def seed():
         prop1 = m.Property(
             lp_id=lp1.lp_id,
             cluster_id=cluster_ne.cluster_id,
+            pm_id=pm_calgary.pm_id,
             address="123 Recovery Road NE",
             city="Calgary",
             province="Alberta",
@@ -611,6 +636,7 @@ def seed():
         prop2 = m.Property(
             lp_id=lp1.lp_id,
             cluster_id=cluster_ne.cluster_id,
+            pm_id=pm_calgary.pm_id,
             address="456 Healing Avenue NE",
             city="Calgary",
             province="Alberta",
@@ -626,6 +652,7 @@ def seed():
         )
         prop3 = m.Property(
             lp_id=lp1.lp_id,
+            pm_id=pm_edmonton.pm_id,
             address="789 Campus Drive",
             city="Edmonton",
             province="Alberta",
@@ -641,6 +668,7 @@ def seed():
         )
         prop4 = m.Property(
             lp_id=lp2.lp_id,
+            pm_id=pm_calgary.pm_id,
             address="321 Sunset Boulevard",
             city="Red Deer",
             province="Alberta",

@@ -731,6 +731,8 @@ class Property(Base):
     )
     community_id = Column(Integer, ForeignKey("communities.community_id"), nullable=True)
     community = relationship("Community", back_populates="properties")
+    pm_id = Column(Integer, ForeignKey("property_managers.pm_id"), nullable=True)
+    property_manager = relationship("PropertyManagerEntity", back_populates="properties")
     maintenance_requests = relationship(
         "MaintenanceRequest", back_populates="property", cascade="all, delete-orphan"
     )
@@ -796,6 +798,27 @@ class OperatorEntity(Base):
 
     communities = relationship("Community", back_populates="operator")
     budgets = relationship("OperatorBudget", back_populates="operator", cascade="all, delete-orphan")
+
+
+class PropertyManagerEntity(Base):
+    """Third-party property management company responsible for the physical
+    building: maintenance, rent collection, inspections, turnovers.
+    Distinct from the community Operator (who runs the program) and the
+    LP (who owns the asset)."""
+    __tablename__ = "property_managers"
+
+    pm_id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(256), nullable=False)
+    contact_email = Column(String(256), nullable=True)
+    contact_phone = Column(String(64), nullable=True)
+    address = Column(String(512), nullable=True)
+    management_fee_percent = Column(Numeric(5, 2), nullable=True)  # e.g. 8.00 = 8%
+    contract_start_date = Column(Date, nullable=True)
+    contract_end_date = Column(Date, nullable=True)
+    notes = Column(Text, nullable=True)
+
+    # A PM can manage many properties
+    properties = relationship("Property", back_populates="property_manager")
 
 
 # ---------------------------------------------------------------------------

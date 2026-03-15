@@ -1,5 +1,5 @@
 import axios from "axios";
-import type { CostEstimateInput, CostEstimateResult, Property, PropertyCreate, DevelopmentPlan, DevelopmentPlanCreate, PropertyCluster } from "@/types/portfolio";
+import type { CostEstimateInput, CostEstimateResult, Property, PropertyCreate, DevelopmentPlan, DevelopmentPlanCreate, PropertyCluster, PropertyManager, PropertyManagerCreate } from "@/types/portfolio";
 import type { GPEntity, LPEntity, LPDetail, LPCreate, LPTranche, LPTrancheCreate, Subscription, SubscriptionCreate, Holding, TargetProperty, LPPortfolioRollup, DistributionEvent, Investor as InvInvestor, WaterfallResult as InvWaterfallResult } from "@/types/investment";
 import type { Investor, InvestorCreate, InvestorDashboard, Document, Message, WaterfallInput, WaterfallResult } from "@/types/investor";
 
@@ -155,6 +155,15 @@ export const documents = {
     apiClient.get(`/api/documents/${documentId}/download`, { responseType: "blob" }).then(r => r.data),
   markViewed: (documentId: number) =>
     apiClient.patch(`/api/documents/${documentId}/viewed`).then(r => r.data),
+};
+
+// ── Property Managers ──────────────────────────────────────────────────
+export const propertyManagers = {
+  getAll: () => apiClient.get<PropertyManager[]>("/api/property-managers").then(r => r.data),
+  get: (id: number) => apiClient.get<PropertyManager>(`/api/property-managers/${id}`).then(r => r.data),
+  create: (data: PropertyManagerCreate) => apiClient.post<PropertyManager>("/api/property-managers", data).then(r => r.data),
+  update: (id: number, data: Partial<PropertyManagerCreate>) => apiClient.patch<PropertyManager>(`/api/property-managers/${id}`, data).then(r => r.data),
+  delete: (id: number) => apiClient.delete(`/api/property-managers/${id}`).then(r => r.data),
 };
 
 // ── Notifications ─────────────────────────────────────────────────────

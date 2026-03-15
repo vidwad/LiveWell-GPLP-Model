@@ -45,6 +45,7 @@ class PropertyCreate(BaseModel):
     lp_id: int | None = None
     cluster_id: int | None = None
     community_id: int | None = None
+    pm_id: int | None = None
     purchase_date: datetime.date | None = None
     purchase_price: Decimal | None = None
     assessed_value: Decimal | None = None
@@ -63,6 +64,7 @@ class PropertyUpdate(BaseModel):
     lp_id: int | None = None
     cluster_id: int | None = None
     community_id: int | None = None
+    pm_id: int | None = None
     purchase_date: datetime.date | None = None
     purchase_price: Decimal | None = None
     assessed_value: Decimal | None = None
@@ -84,6 +86,8 @@ class PropertyOut(BaseModel):
     cluster_id: int | None
     community_id: int | None = None
     community_name: str | None = None
+    pm_id: int | None = None
+    pm_name: str | None = None
     purchase_date: datetime.date | None
     purchase_price: Decimal | None
     assessed_value: Decimal | None

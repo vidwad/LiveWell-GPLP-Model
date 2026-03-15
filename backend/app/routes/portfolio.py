@@ -47,6 +47,8 @@ def _property_to_out(prop: Property) -> PropertyOut:
         cluster_id=prop.cluster_id,
         community_id=prop.community_id,
         community_name=prop.community.name if prop.community else None,
+        pm_id=prop.pm_id,
+        pm_name=prop.property_manager.name if prop.property_manager else None,
         purchase_date=prop.purchase_date,
         purchase_price=prop.purchase_price,
         assessed_value=prop.assessed_value,
@@ -100,6 +102,8 @@ def list_properties(
             data.lp_name = p.lp.name
         if p.community:
             data.community_name = p.community.name
+        if p.property_manager:
+            data.pm_name = p.property_manager.name
         results.append(data)
     return results
 

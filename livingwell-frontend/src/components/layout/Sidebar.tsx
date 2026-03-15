@@ -95,6 +95,12 @@ const NAV_ITEMS = [
     roles: ["GP_ADMIN", "OPERATIONS_MANAGER", "PROPERTY_MANAGER"] as UserRole[],
   },
   {
+    href: "/property-managers",
+    label: "Property Mgrs",
+    icon: Building2,
+    roles: ["GP_ADMIN", "OPERATIONS_MANAGER", "PROPERTY_MANAGER"] as UserRole[],
+  },
+  {
     href: "/operator",
     label: "Operator",
     icon: DollarSign,
