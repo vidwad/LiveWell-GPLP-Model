@@ -127,13 +127,44 @@ class DocumentType(str, enum.Enum):
 
 
 class LPStatus(str, enum.Enum):
-    """Lifecycle status of an LP fund."""
-    forming = "forming"
-    raising = "raising"
-    deployed = "deployed"
+    """Lifecycle / offering status of an LP fund."""
+    draft = "draft"
+    under_review = "under_review"
+    approved = "approved"
+    open_for_subscription = "open_for_subscription"
+    partially_funded = "partially_funded"
+    tranche_closed = "tranche_closed"
+    fully_funded = "fully_funded"
+    closed = "closed"
     operating = "operating"
     winding_down = "winding_down"
+
+
+class LPPurposeType(str, enum.Enum):
+    """Purpose / community focus of the LP."""
+    recover_well = "RecoverWell"
+    study_well = "StudyWell"
+    retire_well = "RetireWell"
+    mixed = "Mixed"
+
+
+class TrancheStatus(str, enum.Enum):
+    """Status of an LP tranche / closing."""
+    draft = "draft"
+    open = "open"
     closed = "closed"
+    cancelled = "cancelled"
+
+
+class TargetPropertyStatus(str, enum.Enum):
+    """Status of a target / pipeline property."""
+    identified = "identified"
+    underwriting = "underwriting"
+    approved_target = "approved_target"
+    under_offer = "under_offer"
+    acquired = "acquired"
+    rejected = "rejected"
+    dropped = "dropped"
 
 
 class SubscriptionStatus(str, enum.Enum):
@@ -146,6 +177,8 @@ class SubscriptionStatus(str, enum.Enum):
     issued = "issued"
     closed = "closed"
     rejected = "rejected"
+    withdrawn = "withdrawn"
+    cancelled = "cancelled"
 
 
 class DistributionEventStatus(str, enum.Enum):
@@ -289,15 +322,36 @@ class LPEntity(Base):
 
     lp_id = Column(Integer, primary_key=True, index=True)
     gp_id = Column(Integer, ForeignKey("gp_entities.gp_id"), nullable=False)
-    name = Column(String(256), nullable=False)
+
+    # Identity
+    name = Column(String(256), nullable=False)              # display name
+    legal_name = Column(String(256), nullable=True)         # legal name
+    lp_number = Column(String(32), nullable=True)           # sequence / reference number
     description = Column(Text, nullable=True)
-    status = Column(_enum(LPStatus), nullable=False, default=LPStatus.forming)
+
+    # Focus
+    city_focus = Column(String(256), nullable=True)         # e.g. "Calgary, Edmonton"
+    community_focus = Column(String(256), nullable=True)    # e.g. "RecoverWell, StudyWell"
+    purpose_type = Column(_enum(LPPurposeType), nullable=True)
+
+    # Status
+    status = Column(_enum(LPStatus), nullable=False, default=LPStatus.draft)
 
     # Offering terms
+    unit_price = Column(Numeric(14, 2), nullable=True)      # price per LP unit
+    minimum_subscription = Column(Numeric(14, 2), nullable=True)  # min subscription amount
+    minimum_investment = Column(Numeric(14, 2), nullable=True)    # kept for backward compat
     target_raise = Column(Numeric(16, 2), nullable=True)
-    minimum_investment = Column(Numeric(14, 2), nullable=True)
+    minimum_raise = Column(Numeric(16, 2), nullable=True)
+    maximum_raise = Column(Numeric(16, 2), nullable=True)
     offering_date = Column(Date, nullable=True)
     closing_date = Column(Date, nullable=True)
+
+    # Financing / offering costs
+    formation_costs = Column(Numeric(14, 2), nullable=True)       # legal, accounting, etc.
+    offering_costs = Column(Numeric(14, 2), nullable=True)        # placement fees, etc.
+    reserve_percent = Column(Numeric(5, 2), nullable=True)        # operating reserve %
+    reserve_amount = Column(Numeric(14, 2), nullable=True)        # fixed reserve amount
 
     # LP-specific waterfall rules
     preferred_return_rate = Column(Numeric(5, 2), nullable=True)  # e.g. 8.00 for 8%
@@ -308,12 +362,20 @@ class LPEntity(Base):
     asset_management_fee_percent = Column(Numeric(5, 2), nullable=True)
     acquisition_fee_percent = Column(Numeric(5, 2), nullable=True)
 
+    notes = Column(Text, nullable=True)
+    created_at = Column(DateTime, nullable=True, default=func.now())
+    updated_at = Column(DateTime, nullable=True, default=func.now(), onupdate=func.now())
+
     gp = relationship("GPEntity", back_populates="lps")
     properties = relationship("Property", back_populates="lp", cascade="all, delete-orphan")
+    tranches = relationship("LPTranche", back_populates="lp", cascade="all, delete-orphan")
     subscriptions = relationship(
         "Subscription", back_populates="lp", cascade="all, delete-orphan"
     )
     holdings = relationship("Holding", back_populates="lp", cascade="all, delete-orphan")
+    target_properties = relationship(
+        "TargetProperty", back_populates="lp", cascade="all, delete-orphan"
+    )
     distribution_events = relationship(
         "DistributionEvent", back_populates="lp", cascade="all, delete-orphan"
     )
@@ -331,12 +393,19 @@ class Investor(Base):
 
     investor_id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.user_id"), nullable=True, unique=True)
-    name = Column(String(256), nullable=False)
+    name = Column(String(256), nullable=False)         # legal name
     email = Column(String(256), nullable=False, unique=True)
     phone = Column(String(64), nullable=True)
     address = Column(String(512), nullable=True)
-    entity_type = Column(String(64), nullable=True)  # individual, trust, corporation, etc.
+    entity_type = Column(String(64), nullable=True)    # individual, trust, corporation, etc.
+    jurisdiction = Column(String(128), nullable=True)   # province / state / country
     accredited_status = Column(String(32), nullable=False)
+    exemption_type = Column(String(128), nullable=True) # accreditation exemption type
+    tax_id = Column(String(64), nullable=True)          # SIN, BN, or other tax ID
+    banking_info = Column(Text, nullable=True)          # encrypted or reference
+    notes = Column(Text, nullable=True)
+    created_at = Column(DateTime, nullable=True, default=func.now())
+    updated_at = Column(DateTime, nullable=True, default=func.now(), onupdate=func.now())
 
     subscriptions = relationship(
         "Subscription", back_populates="investor", cascade="all, delete-orphan"
@@ -359,8 +428,13 @@ class Subscription(Base):
     subscription_id = Column(Integer, primary_key=True, index=True)
     investor_id = Column(Integer, ForeignKey("investors.investor_id"), nullable=False)
     lp_id = Column(Integer, ForeignKey("lp_entities.lp_id"), nullable=False)
-    commitment_amount = Column(Numeric(14, 2), nullable=False)
+    tranche_id = Column(Integer, ForeignKey("lp_tranches.tranche_id"), nullable=True)
+
+    commitment_amount = Column(Numeric(14, 2), nullable=False)  # subscription amount
     funded_amount = Column(Numeric(14, 2), nullable=False, default=0)
+    issue_price = Column(Numeric(14, 2), nullable=True)         # price per unit at subscription
+    unit_quantity = Column(Numeric(14, 4), nullable=True)       # number of units
+
     status = Column(
         _enum(SubscriptionStatus), nullable=False, default=SubscriptionStatus.draft
     )
@@ -369,9 +443,11 @@ class Subscription(Base):
     funded_date = Column(Date, nullable=True)
     issued_date = Column(Date, nullable=True)
     notes = Column(Text, nullable=True)
+    created_at = Column(DateTime, nullable=True, default=func.now())
 
     investor = relationship("Investor", back_populates="subscriptions")
     lp = relationship("LPEntity", back_populates="subscriptions")
+    tranche = relationship("LPTranche", back_populates="subscriptions")
     holding = relationship("Holding", back_populates="subscription", uselist=False)
 
 
@@ -383,11 +459,20 @@ class Holding(Base):
     investor_id = Column(Integer, ForeignKey("investors.investor_id"), nullable=False)
     lp_id = Column(Integer, ForeignKey("lp_entities.lp_id"), nullable=False)
     subscription_id = Column(Integer, ForeignKey("subscriptions.subscription_id"), nullable=True)
-    ownership_percent = Column(Numeric(7, 4), nullable=False)  # e.g. 12.5000
+
+    # Unit-based position
+    units_held = Column(Numeric(14, 4), nullable=True)          # total LP units
+    average_issue_price = Column(Numeric(14, 2), nullable=True) # weighted avg price
+    total_capital_contributed = Column(Numeric(14, 2), nullable=True)
+    initial_issue_date = Column(Date, nullable=True)
+
+    # Legacy / percentage-based
+    ownership_percent = Column(Numeric(7, 4), nullable=False)   # e.g. 12.5000
     cost_basis = Column(Numeric(14, 2), nullable=False)
     unreturned_capital = Column(Numeric(14, 2), nullable=False)
     unpaid_preferred = Column(Numeric(14, 2), nullable=False, default=0)
     is_gp = Column(Boolean, default=False, nullable=False)
+    status = Column(String(32), nullable=True, default="active") # active, redeemed, transferred
 
     investor = relationship("Investor", back_populates="holdings")
     lp = relationship("LPEntity", back_populates="holdings")
@@ -494,6 +579,107 @@ class DistributionAllocation(Base):
     event = relationship("DistributionEvent", back_populates="allocations")
     holding = relationship("Holding", back_populates="allocations")
     etransfer = relationship("ETransferTracking", back_populates="allocation", uselist=False)
+
+
+# ---------------------------------------------------------------------------
+# LP Tranche / Closing
+# ---------------------------------------------------------------------------
+
+class LPTranche(Base):
+    """A funding tranche / closing within an LP offering."""
+    __tablename__ = "lp_tranches"
+
+    tranche_id = Column(Integer, primary_key=True, index=True)
+    lp_id = Column(Integer, ForeignKey("lp_entities.lp_id"), nullable=False)
+    tranche_number = Column(Integer, nullable=False, default=1)
+    tranche_name = Column(String(128), nullable=True)       # e.g. "First Close"
+    opening_date = Column(Date, nullable=True)
+    closing_date = Column(Date, nullable=True)
+    status = Column(_enum(TrancheStatus), nullable=False, default=TrancheStatus.draft)
+    issue_price = Column(Numeric(14, 2), nullable=True)     # price per unit for this tranche
+    target_amount = Column(Numeric(16, 2), nullable=True)   # target raise for this tranche
+    target_units = Column(Numeric(14, 4), nullable=True)    # target units for this tranche
+    notes = Column(Text, nullable=True)
+    created_at = Column(DateTime, nullable=True, default=func.now())
+
+    lp = relationship("LPEntity", back_populates="tranches")
+    subscriptions = relationship("Subscription", back_populates="tranche")
+
+
+# ---------------------------------------------------------------------------
+# Target / Pipeline Property
+# ---------------------------------------------------------------------------
+
+class TargetProperty(Base):
+    """A hypothetical or planned property assigned to an LP for portfolio modeling."""
+    __tablename__ = "target_properties"
+
+    target_property_id = Column(Integer, primary_key=True, index=True)
+    lp_id = Column(Integer, ForeignKey("lp_entities.lp_id"), nullable=False)
+
+    # Identity
+    address = Column(String(256), nullable=True)            # address or target identifier
+    city = Column(String(128), nullable=True)
+    province = Column(String(64), nullable=True, default="AB")
+    intended_community = Column(String(128), nullable=True) # e.g. "RecoverWell"
+    status = Column(_enum(TargetPropertyStatus), nullable=False, default=TargetPropertyStatus.identified)
+
+    # Acquisition assumptions
+    estimated_acquisition_price = Column(Numeric(16, 2), nullable=True)
+    lot_size = Column(Numeric(14, 2), nullable=True)
+    zoning = Column(String(128), nullable=True)
+
+    # Current house characteristics
+    current_sqft = Column(Numeric(10, 2), nullable=True)
+    current_bedrooms = Column(Integer, nullable=True)
+    current_bathrooms = Column(Integer, nullable=True)
+    current_condition = Column(String(64), nullable=True)   # good, fair, poor
+    current_assessed_value = Column(Numeric(14, 2), nullable=True)
+
+    # Interim operating assumptions
+    interim_monthly_revenue = Column(Numeric(12, 2), nullable=True)
+    interim_monthly_expenses = Column(Numeric(12, 2), nullable=True)
+    interim_occupancy_percent = Column(Numeric(5, 2), nullable=True)
+    interim_hold_months = Column(Integer, nullable=True)    # months before redevelopment
+
+    # Redevelopment scenario
+    planned_units = Column(Integer, nullable=True)
+    planned_beds = Column(Integer, nullable=True)
+    planned_sqft = Column(Numeric(10, 2), nullable=True)
+    construction_budget = Column(Numeric(16, 2), nullable=True)
+    hard_costs = Column(Numeric(16, 2), nullable=True)
+    soft_costs = Column(Numeric(16, 2), nullable=True)
+    contingency_percent = Column(Numeric(5, 2), nullable=True)
+    construction_duration_months = Column(Integer, nullable=True)
+
+    # Stabilized pro forma
+    stabilized_monthly_revenue = Column(Numeric(12, 2), nullable=True)
+    stabilized_monthly_expenses = Column(Numeric(12, 2), nullable=True)
+    stabilized_occupancy_percent = Column(Numeric(5, 2), nullable=True)
+    stabilized_annual_noi = Column(Numeric(14, 2), nullable=True)
+    stabilized_cap_rate = Column(Numeric(5, 2), nullable=True)
+    stabilized_value = Column(Numeric(16, 2), nullable=True)
+
+    # Debt assumptions
+    assumed_ltv_percent = Column(Numeric(5, 2), nullable=True)
+    assumed_interest_rate = Column(Numeric(6, 4), nullable=True)
+    assumed_amortization_months = Column(Integer, nullable=True)
+    assumed_debt_amount = Column(Numeric(16, 2), nullable=True)
+
+    # Timing
+    target_acquisition_date = Column(Date, nullable=True)
+    target_completion_date = Column(Date, nullable=True)
+    target_stabilization_date = Column(Date, nullable=True)
+
+    # Converted property reference
+    converted_property_id = Column(Integer, ForeignKey("properties.property_id"), nullable=True)
+
+    notes = Column(Text, nullable=True)
+    created_at = Column(DateTime, nullable=True, default=func.now())
+    updated_at = Column(DateTime, nullable=True, default=func.now(), onupdate=func.now())
+
+    lp = relationship("LPEntity", back_populates="target_properties")
+    converted_property = relationship("Property", foreign_keys=[converted_property_id])
 
 
 # ---------------------------------------------------------------------------

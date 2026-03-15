@@ -1,6 +1,6 @@
 import axios from "axios";
 import type { CostEstimateInput, CostEstimateResult, Property, PropertyCreate, DevelopmentPlan, DevelopmentPlanCreate, PropertyCluster } from "@/types/portfolio";
-import type { GPEntity, LPEntity, LPCreate, Subscription, Holding, DistributionEvent } from "@/types/investment";
+import type { GPEntity, LPEntity, LPDetail, LPCreate, LPTranche, LPTrancheCreate, Subscription, SubscriptionCreate, Holding, TargetProperty, LPPortfolioRollup, DistributionEvent, Investor as InvInvestor } from "@/types/investment";
 import type { Investor, InvestorCreate, InvestorDashboard, Document, Message, WaterfallInput, WaterfallResult } from "@/types/investor";
 
 const BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
@@ -62,14 +62,47 @@ export const portfolio = {
   getReturnsMetrics: () => apiClient.get("/api/portfolio/metrics/returns").then(r => r.data),
 };
 
-// ── Investment (GP / LP / Subscription / Holding / Distribution) ─────
+// ── Investment (GP / LP / Tranche / Subscription / Holding / Target / Distribution) ─────
 export const investment = {
+  // GP
   getGPs: () => apiClient.get<GPEntity[]>("/api/investment/gp").then(r => r.data),
+  createGP: (data: Partial<GPEntity>) => apiClient.post<GPEntity>("/api/investment/gp", data).then(r => r.data),
+  updateGP: (id: number, data: Partial<GPEntity>) => apiClient.patch<GPEntity>(`/api/investment/gp/${id}`, data).then(r => r.data),
+
+  // LP
   getLPs: () => apiClient.get<LPEntity[]>("/api/investment/lp").then(r => r.data),
-  getLP: (id: number) => apiClient.get<LPEntity>(`/api/investment/lp/${id}`).then(r => r.data),
+  getLP: (id: number) => apiClient.get<LPDetail>(`/api/investment/lp/${id}`).then(r => r.data),
   createLP: (data: LPCreate) => apiClient.post<LPEntity>("/api/investment/lp", data).then(r => r.data),
+  updateLP: (id: number, data: Partial<LPCreate>) => apiClient.patch<LPEntity>(`/api/investment/lp/${id}`, data).then(r => r.data),
+
+  // Tranches
+  getTranches: (lpId: number) => apiClient.get<LPTranche[]>(`/api/investment/lp/${lpId}/tranches`).then(r => r.data),
+  createTranche: (lpId: number, data: LPTrancheCreate) => apiClient.post<LPTranche>(`/api/investment/lp/${lpId}/tranches`, data).then(r => r.data),
+  updateTranche: (trancheId: number, data: Partial<LPTrancheCreate>) => apiClient.patch<LPTranche>(`/api/investment/tranches/${trancheId}`, data).then(r => r.data),
+
+  // Investors
+  getInvestors: () => apiClient.get<InvInvestor[]>("/api/investment/investors").then(r => r.data),
+  createInvestor: (data: Partial<InvInvestor>) => apiClient.post<InvInvestor>("/api/investment/investors", data).then(r => r.data),
+  updateInvestor: (id: number, data: Partial<InvInvestor>) => apiClient.patch<InvInvestor>(`/api/investment/investors/${id}`, data).then(r => r.data),
+
+  // Subscriptions
   getSubscriptions: (lpId: number) => apiClient.get<Subscription[]>(`/api/investment/lp/${lpId}/subscriptions`).then(r => r.data),
+  createSubscription: (lpId: number, data: SubscriptionCreate) => apiClient.post<Subscription>(`/api/investment/lp/${lpId}/subscriptions`, data).then(r => r.data),
+  updateSubscription: (subId: number, data: Partial<SubscriptionCreate>) => apiClient.patch<Subscription>(`/api/investment/subscriptions/${subId}`, data).then(r => r.data),
+
+  // Holdings
   getHoldings: (lpId: number) => apiClient.get<Holding[]>(`/api/investment/lp/${lpId}/holdings`).then(r => r.data),
+
+  // Target Properties
+  getTargetProperties: (lpId: number) => apiClient.get<TargetProperty[]>(`/api/investment/lp/${lpId}/target-properties`).then(r => r.data),
+  createTargetProperty: (lpId: number, data: Partial<TargetProperty>) => apiClient.post<TargetProperty>(`/api/investment/lp/${lpId}/target-properties`, data).then(r => r.data),
+  updateTargetProperty: (tpId: number, data: Partial<TargetProperty>) => apiClient.patch<TargetProperty>(`/api/investment/target-properties/${tpId}`, data).then(r => r.data),
+  deleteTargetProperty: (tpId: number) => apiClient.delete(`/api/investment/target-properties/${tpId}`).then(r => r.data),
+
+  // Portfolio Roll-up
+  getPortfolioRollup: (lpId: number) => apiClient.get<LPPortfolioRollup>(`/api/investment/lp/${lpId}/portfolio-rollup`).then(r => r.data),
+
+  // Distributions
   getDistributions: (lpId: number) => apiClient.get<DistributionEvent[]>(`/api/investment/lp/${lpId}/distributions`).then(r => r.data),
 };
 
