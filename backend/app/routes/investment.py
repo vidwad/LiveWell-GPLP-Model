@@ -27,6 +27,8 @@ from app.services.investment_service import (
     compute_holdings_with_ownership,
     compute_portfolio_rollup,
     compute_waterfall,
+    compute_lp_pnl,
+    compute_lp_nav,
 )
 from app.services.validation_service import (
     validate_subscription_amount,
@@ -863,6 +865,54 @@ def get_lp_portfolio_rollup(
     # Use service layer for all rollup computations
     rollup = compute_portfolio_rollup(db, lp_id)
     return LPPortfolioRollup(**rollup)
+
+
+# ===========================================================================
+# LP P&L Summary
+# ===========================================================================
+
+@router.get("/lp/{lp_id}/pnl")
+def get_lp_pnl(
+    lp_id: int,
+    year: int = Query(default=2026, ge=2020, le=2040),
+    month: Optional[int] = Query(default=None, ge=1, le=12),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_investor_or_above),
+):
+    """LP-level P&L: aggregated revenue, expenses, debt service, management fees across all LP properties."""
+    if current_user.role not in (UserRole.GP_ADMIN, UserRole.OPERATIONS_MANAGER):
+        if not check_entity_access(current_user, db, ScopeEntityType.lp, lp_id):
+            raise HTTPException(status_code=403, detail="Access denied")
+    lp = db.query(LPEntity).filter(LPEntity.lp_id == lp_id).first()
+    if not lp:
+        raise HTTPException(status_code=404, detail="LP entity not found")
+    result = compute_lp_pnl(db, lp_id, year, month)
+    if "error" in result:
+        raise HTTPException(status_code=404, detail=result["error"])
+    return result
+
+
+# ===========================================================================
+# LP NAV Calculation
+# ===========================================================================
+
+@router.get("/lp/{lp_id}/nav")
+def get_lp_nav(
+    lp_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_investor_or_above),
+):
+    """Compute Net Asset Value for an LP fund."""
+    if current_user.role not in (UserRole.GP_ADMIN, UserRole.OPERATIONS_MANAGER):
+        if not check_entity_access(current_user, db, ScopeEntityType.lp, lp_id):
+            raise HTTPException(status_code=403, detail="Access denied")
+    lp = db.query(LPEntity).filter(LPEntity.lp_id == lp_id).first()
+    if not lp:
+        raise HTTPException(status_code=404, detail="LP entity not found")
+    result = compute_lp_nav(db, lp_id)
+    if "error" in result:
+        raise HTTPException(status_code=404, detail=result["error"])
+    return result
 
 
 # ===========================================================================

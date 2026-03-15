@@ -101,7 +101,7 @@
 
 | # | Item | Status | Notes |
 |---|------|--------|-------|
-| 2.1.1 | Property development_stage enum includes interim/as-is states | PARTIAL | Stages: prospect, pre_development, construction, lease_up, stabilized. Missing an explicit "interim_operations" or "as_is_operating" stage. |
+| 2.1.1 | Property development_stage enum includes interim/as-is states | DONE | DevelopmentStage enum: prospect, acquisition, interim_operation, planning, construction, lease_up, stabilized, exit. |
 | 2.1.2 | Bed-level revenue tracking (monthly_rent per bed, rent_type) | DONE | Bed model with monthly_rent and rent_type (private_pay, subsidized, grant_funded) |
 | 2.1.3 | Unit/bed occupancy tracking (is_occupied, bed status) | DONE | Unit.is_occupied, Bed.status (available, occupied, reserved, maintenance) |
 | 2.1.4 | Resident model (move_in/out dates, rent_amount, payment_status) | DONE | |
@@ -119,7 +119,7 @@
 | 2.2.3 | DevelopmentPlan status lifecycle (draft → approved → in_progress → completed → archived) | DONE | |
 | 2.2.4 | DevelopmentPlan CRUD endpoints | DONE | In portfolio routes |
 | 2.2.5 | DevelopmentPlan UI (property detail page Dev Plans tab) | DONE | |
-| 2.2.6 | Multiple scenario comparison (side-by-side plan versions) | NOT DONE | Versioning exists but no comparison UI |
+| 2.2.6 | Multiple scenario comparison (side-by-side plan versions) | DONE | Compare button on Dev Plans tab (appears when 2+ plans exist). Side-by-side table with Plan A/B selectors showing version, status, units, beds, sqft, costs, NOI, dates. Difference column with color-coded deltas. |
 
 ### 2.3 Construction Budget
 
@@ -166,7 +166,7 @@
 | # | Item | Status | Notes |
 |---|------|--------|-------|
 | 2.7.1 | Property valuation fields (purchase_price, assessed_value, current_market_value, estimated_value) | DONE | On Property model |
-| 2.7.2 | Valuation history tracking | NOT DONE | No ValuationHistory model to track changes over time |
+| 2.7.2 | Valuation history tracking | DONE | ValuationHistory model with method enum (appraisal, assessment, broker_opinion, market_comp, internal, purchase_price). CRUD endpoints at /portfolio/properties/{id}/valuations. Tracks value, method, appraiser, date, notes, document_url. |
 | 2.7.3 | Cap rate / income approach valuation calculator | NOT DONE | No automated valuation method |
 | 2.7.4 | Appraisal document storage | PARTIAL | Document model exists with "appraisal" type but no structured appraisal record |
 
@@ -180,7 +180,7 @@
 | 2.8.4 | Rollup includes: projected equity multiple, cash-on-cash | DONE | |
 | 2.8.5 | Rollup UI (Projections tab in LP detail) | DONE | With ESTIMATED/ACTUAL/BLENDED badges |
 | 2.8.6 | Combined Expected Portfolio view (actual + target) | DONE | Blended card in Projections tab |
-| 2.8.7 | LP-level financial summary (total capital raised, deployed, remaining) | PARTIAL | Capital summary card exists but "deployed" is not tracked as a separate field |
+| 2.8.7 | LP-level financial summary (total capital raised, deployed, remaining) | DONE | compute_lp_summary returns capital_deployed (sum of purchase_prices) and capital_available (net_deployable - capital_deployed). Displayed in LP detail Capital Summary card. |
 
 ---
 
@@ -213,7 +213,7 @@
 | 3.3.1 | Investor detail page with holdings across LPs | DONE | /investors/[id] |
 | 3.3.2 | Investor subscription history | PARTIAL | Subscriptions shown but not as a dedicated timeline |
 | 3.3.3 | Per-investor distribution history view | DONE | GET /investors/{id}/distributions endpoint returns full history across all LPs. Frontend investor detail page shows Distribution History table with period, LP fund, type, amount, status, paid date. |
-| 3.3.4 | Investor statement generation (PDF) | NOT DONE | |
+| 3.3.4 | Investor statement generation (PDF) | DONE | GET /investor/investors/{id}/statement?as_of_date= returns PDF. InvestorStatementPDF service generates professional statement with account info, holdings summary with NAV/unit, distribution history, subscription history, and legal disclaimer. Frontend Download Statement button on investor detail page. |
 | 3.3.5 | Investor K-1 / tax document support | NOT DONE | Future phase |
 
 ### 3.4 LP Financial Summaries
@@ -223,8 +223,8 @@
 | 3.4.1 | QuarterlyReport model (lp_id, quarter, year, status, financials) | DONE | Full model with narrative, financials, approval workflow |
 | 3.4.2 | QuarterlyReport CRUD endpoints | DONE | |
 | 3.4.3 | QuarterlyReport UI | DONE | /quarterly-reports page |
-| 3.4.4 | LP-level P&L summary | NOT DONE | No aggregated income/expense view at LP level |
-| 3.4.5 | LP NAV calculation | NOT DONE | No net asset value computation |
+| 3.4.4 | LP-level P&L summary | DONE | GET /investment/lp/{id}/pnl?year=&month= endpoint. compute_lp_pnl aggregates community-level revenue/expenses weighted by LP property share, plus debt service and management fees. Frontend P&L tab on LP detail page with Revenue, Expenses, Debt Service, Bottom Line cards + Community Breakdown table. |
+| 3.4.5 | LP NAV calculation | DONE | GET /investment/lp/{id}/nav endpoint. compute_lp_nav uses latest valuation (or market_value/purchase_price fallback), subtracts outstanding debt, adds cash reserves, deducts accrued fees. Returns NAV, NAV/unit, premium/discount %, per-property breakdown. Frontend NAV tab on LP detail page. |
 
 ### 3.5 Target Portfolio Roll-up
 
@@ -349,7 +349,7 @@
 | T.5 | Strengthen validations across all endpoints | PARTIAL | validation_service.py covers investment routes. Other routes lack validation. |
 | T.6 | Enforce workflow state transitions consistently | PARTIAL | LP and subscription transitions validated. Other entities (maintenance, milestones) are not. |
 | T.7 | Backend/frontend separation of concern | PARTIAL | Some computed fields done in service layer, some still inline in routes |
-| T.8 | Report generation structure (PDF export) | PARTIAL | quarterly_reports.py service exists. No investor statement PDF. |
+| T.8 | Report generation structure (PDF export) | DONE | quarterly_reports.py + statement_service.py (investor PDF statements with holdings, distributions, subscriptions). |
 | T.9 | Waterfall engine: make LP-specific and configurable | PARTIAL | European-style waterfall built with 4 tiers. Needs to support LP-specific rule sets, special class/founding LP, refinance/sale proceeds. |
 | T.10 | Seed data consistency | DONE | Holdings no longer store ownership_percent or cost_basis. Seed data is clean and consistent. |
 | T.11 | Community model architectural redesign | DONE | Community is now city+purpose-level. Properties have community_id FK. |
@@ -362,27 +362,27 @@
 | Category | Done | Partial | Not Done | Total |
 |----------|------|---------|----------|-------|
 | Priority 1 — Foundation | 30 | 3 | 2 | 35 |
-| Priority 2 — Core Modeling | 22 | 5 | 10 | 37 |
-| Priority 3 — Funding & Reporting | 11 | 2 | 6 | 19 |
+| Priority 2 — Core Modeling | 25 | 4 | 8 | 37 |
+| Priority 3 — Funding & Reporting | 14 | 2 | 3 | 19 |
 | Priority 4 — Operations | 16 | 2 | 5 | 23 |
 | Priority 5 — Advanced | 5 | 0 | 5 | 10 |
-| Technical Debt | 3 | 6 | 3 | 12 |
-| **Total** | **87** | **18** | **31** | **136** |
+| Technical Debt | 4 | 5 | 3 | 12 |
+| **Total** | **94** | **16** | **26** | **136** |
 
 ---
 
 ## Recommended Next Items to Address
 
-1. **Scope-based data filtering (1.1.5)** — Extend scope filtering to all list endpoints so investors only see their LP's data, PMs only see their properties, etc.
+1. **Cap rate / income approach valuation calculator (2.7.3)** — Automated valuation using NOI and cap rate.
 
-2. **Frontend role-aware UI (1.1.6)** — Hide create/edit/delete buttons for users who don't have permission. Show investor-appropriate views vs admin views.
+2. **Construction budget vs actual tracking (2.3.4)** — Track actual spend against development plan budget.
 
-3. **Capital deployed tracking (3.2.3, 3.2.4)** — Track how much raised capital has been spent on acquisitions. Calculate remaining investable capital.
+3. **Construction draw schedule (2.3.5)** — Draw/disbursement model for construction financing.
 
-4. **LP-level P&L summary (3.4.4)** — Aggregate income and expenses at the LP level across all properties owned by that LP.
+4. **Timeline visualization (2.6.5)** — Gantt-style or milestone chart for property lifecycle.
 
-5. **Investor distribution history (3.3.3)** — Per-investor view of all distributions received, with waterfall tier breakdown.
+5. **Waterfall engine LP-specific configurability (T.9)** — Support LP-specific rule sets, special class/founding LP, refinance/sale proceeds.
 
-6. **Amortization schedule generation (2.5.7)** — Month-by-month amortization table for each debt facility.
+6. **Vacancy tracking and alerts (4.1.5)** — Proactive vacancy monitoring.
 
-7. **Development plan comparison UI (2.2.6)** — Side-by-side comparison of different plan versions for the same property.
+7. **Portfolio-level analytics dashboard (5.3.1)** — Cross-LP analytics and trend analysis.

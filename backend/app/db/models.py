@@ -743,6 +743,10 @@ class Property(Base):
     milestones = relationship(
         "PropertyMilestone", back_populates="property", cascade="all, delete-orphan"
     )
+    valuations = relationship(
+        "ValuationHistory", back_populates="property", cascade="all, delete-orphan",
+        order_by="ValuationHistory.valuation_date.desc()"
+    )
 
 
 class DevelopmentPlan(Base):
@@ -1318,3 +1322,36 @@ class ArrearsRecord(Base):
 
     resident = relationship("Resident")
     rent_payment = relationship("RentPayment")
+
+
+# ---------------------------------------------------------------------------
+# Phase 6: Valuation History
+# ---------------------------------------------------------------------------
+
+class ValuationMethod(str, enum.Enum):
+    purchase = "purchase"
+    appraisal = "appraisal"
+    broker_opinion = "broker_opinion"
+    cap_rate = "cap_rate"
+    comparable_sales = "comparable_sales"
+    internal_estimate = "internal_estimate"
+    assessment = "assessment"
+
+
+class ValuationHistory(Base):
+    """Tracks property valuation changes over time for NAV and reporting."""
+    __tablename__ = "valuation_history"
+
+    valuation_id = Column(Integer, primary_key=True, index=True)
+    property_id = Column(Integer, ForeignKey("properties.property_id"), nullable=False)
+    valuation_date = Column(Date, nullable=False)
+    value = Column(Numeric(16, 2), nullable=False)
+    method = Column(_enum(ValuationMethod), nullable=False, default=ValuationMethod.internal_estimate)
+    appraiser = Column(String(256), nullable=True)
+    notes = Column(Text, nullable=True)
+    document_url = Column(String(1024), nullable=True)  # link to appraisal PDF
+    created_by = Column(Integer, ForeignKey("users.user_id"), nullable=True)
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+
+    property = relationship("Property", back_populates="valuations")
+    creator = relationship("User")

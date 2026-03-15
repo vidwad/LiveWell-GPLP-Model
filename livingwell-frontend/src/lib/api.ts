@@ -108,6 +108,14 @@ export const investment = {
   // Distributions
   getDistributions: (lpId: number) => apiClient.get<DistributionEvent[]>(`/api/investment/lp/${lpId}/distributions`).then(r => r.data),
 
+  // P&L
+  getLpPnl: (lpId: number, year: number, month?: number) =>
+    apiClient.get(`/api/investment/lp/${lpId}/pnl`, { params: { year, ...(month ? { month } : {}) } }).then(r => r.data),
+
+  // NAV
+  getLpNav: (lpId: number) =>
+    apiClient.get(`/api/investment/lp/${lpId}/nav`).then(r => r.data),
+
   // Waterfall
   computeWaterfall: (lpId: number, distributableAmount: number) =>
     apiClient.post<InvWaterfallResult>(`/api/investment/lp/${lpId}/waterfall`, { distributable_amount: distributableAmount }).then(r => r.data),

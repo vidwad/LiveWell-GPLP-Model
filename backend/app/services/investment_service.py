@@ -399,3 +399,259 @@ def compute_waterfall(
         },
         "allocations": list(alloc.values()),
     }
+
+
+# ── LP-Level P&L Summary ─────────────────────────────────────────────────
+
+def compute_lp_pnl(
+    db: Session,
+    lp_id: int,
+    year: int,
+    month: Optional[int] = None,
+) -> Dict[str, Any]:
+    """
+    Aggregate P&L across all properties owned by an LP.
+
+    Revenue comes from community-level rent collections for properties in the LP.
+    Expenses come from community-level operating expenses allocated to the LP's properties.
+    Debt service is computed from the LP's property debt facilities.
+    Management fees are computed from LP terms.
+    """
+    lp = db.query(m.LPEntity).get(lp_id)
+    if not lp:
+        return {"error": "LP not found"}
+
+    # Get all properties belonging to this LP
+    properties = db.query(m.Property).filter(m.Property.lp_id == lp_id).all()
+    if not properties:
+        return {
+            "lp_id": lp_id,
+            "lp_name": lp.name,
+            "year": year,
+            "month": month,
+            "property_count": 0,
+            "revenue": {"total_billed": ZERO, "collected": ZERO},
+            "expenses": {"total_expenses": ZERO},
+            "debt_service": {"annual_debt_service": ZERO},
+            "management_fees": ZERO,
+            "noi": ZERO,
+            "cash_flow_after_debt": ZERO,
+            "cash_flow_after_fees": ZERO,
+            "properties": [],
+        }
+
+    # Group properties by community for revenue/expense aggregation
+    community_ids = set()
+    property_community_map: Dict[int, Optional[int]] = {}
+    for p in properties:
+        property_community_map[p.property_id] = p.community_id
+        if p.community_id:
+            community_ids.add(p.community_id)
+
+    # Import operations service for community P&L
+    from app.services.operations_service import (
+        compute_revenue, compute_expenses,
+    )
+
+    total_revenue_billed = ZERO
+    total_revenue_collected = ZERO
+    total_expenses = ZERO
+    community_details = []
+
+    for cid in community_ids:
+        # Count how many of THIS LP's properties are in this community
+        lp_props_in_community = [p for p in properties if p.community_id == cid]
+        # Count total properties in community (for pro-rata allocation)
+        total_props_in_community = db.query(func.count(m.Property.property_id)).filter(
+            m.Property.community_id == cid
+        ).scalar() or 1
+
+        # LP's share of community revenue/expenses (pro-rata by property count)
+        lp_share = Decimal(str(len(lp_props_in_community))) / Decimal(str(total_props_in_community))
+
+        rev = compute_revenue(db, cid, year, month)
+        exp = compute_expenses(db, cid, year, month)
+
+        lp_billed = _d(rev["total_billed"]) * lp_share
+        lp_collected = _d(rev["collected"]) * lp_share
+        lp_expenses = _d(exp["total_expenses"]) * lp_share
+
+        total_revenue_billed += lp_billed
+        total_revenue_collected += lp_collected
+        total_expenses += lp_expenses
+
+        comm = db.query(m.Community).get(cid)
+        community_details.append({
+            "community_id": cid,
+            "community_name": comm.name if comm else f"Community #{cid}",
+            "lp_property_count": len(lp_props_in_community),
+            "total_property_count": total_props_in_community,
+            "lp_share_percent": float(lp_share * Decimal("100")),
+            "revenue_billed": float(lp_billed),
+            "revenue_collected": float(lp_collected),
+            "expenses": float(lp_expenses),
+            "noi": float(lp_collected - lp_expenses),
+        })
+
+    # Debt service from all properties
+    total_annual_debt_service = ZERO
+    for p in properties:
+        debts = db.query(m.DebtFacility).filter(
+            m.DebtFacility.property_id == p.property_id,
+            m.DebtFacility.status == "active",
+        ).all()
+        for d in debts:
+            if d.outstanding_balance and d.interest_rate:
+                from app.services.calculations import calculate_annual_debt_service
+                ads = calculate_annual_debt_service(
+                    float(d.outstanding_balance),
+                    float(d.interest_rate),
+                    d.amortization_months or 0,
+                    d.io_period_months or 0,
+                )
+                total_annual_debt_service += _d(ads)
+
+    # Management fees
+    mgmt_fee_pct = _d(lp.management_fee_percent) / Decimal("100") if lp.management_fee_percent else ZERO
+    lp_summary = compute_lp_summary(db, lp_id)
+    total_funded = _d(lp_summary.get("total_funded", 0))
+    annual_mgmt_fee = total_funded * mgmt_fee_pct
+
+    # If month is specified, prorate debt service and management fees
+    if month:
+        period_debt_service = total_annual_debt_service / Decimal("12")
+        period_mgmt_fee = annual_mgmt_fee / Decimal("12")
+    else:
+        period_debt_service = total_annual_debt_service
+        period_mgmt_fee = annual_mgmt_fee
+
+    noi = total_revenue_collected - total_expenses
+    cash_flow_after_debt = noi - period_debt_service
+    cash_flow_after_fees = cash_flow_after_debt - period_mgmt_fee
+
+    return {
+        "lp_id": lp_id,
+        "lp_name": lp.name,
+        "year": year,
+        "month": month,
+        "property_count": len(properties),
+        "revenue": {
+            "total_billed": float(total_revenue_billed),
+            "collected": float(total_revenue_collected),
+        },
+        "expenses": {
+            "total_expenses": float(total_expenses),
+        },
+        "debt_service": {
+            "annual_debt_service": float(total_annual_debt_service),
+            "period_debt_service": float(period_debt_service),
+        },
+        "management_fees": {
+            "annual_fee": float(annual_mgmt_fee),
+            "period_fee": float(period_mgmt_fee),
+            "fee_percent": float(mgmt_fee_pct * Decimal("100")),
+        },
+        "summary": {
+            "noi": float(noi),
+            "cash_flow_after_debt": float(cash_flow_after_debt),
+            "cash_flow_after_fees": float(cash_flow_after_fees),
+            "expense_ratio": float(
+                (total_expenses / total_revenue_collected * Decimal("100"))
+                if total_revenue_collected > ZERO else ZERO
+            ),
+        },
+        "communities": community_details,
+    }
+
+
+# ── LP NAV Calculation ───────────────────────────────────────────────────
+
+def compute_lp_nav(db: Session, lp_id: int) -> Dict[str, Any]:
+    """
+    Compute Net Asset Value for an LP fund.
+
+    NAV = Total Property Values - Total Outstanding Debt - Accrued Fees + Cash Reserves
+    NAV per Unit = NAV / Total Units Outstanding
+    """
+    lp = db.query(m.LPEntity).get(lp_id)
+    if not lp:
+        return {"error": "LP not found"}
+
+    # Property values (use latest valuation or current_market_value or purchase_price)
+    properties = db.query(m.Property).filter(m.Property.lp_id == lp_id).all()
+    property_values = []
+    total_property_value = ZERO
+
+    for p in properties:
+        # Prefer current_market_value (updated by latest valuation), then estimated_value, then purchase_price
+        val = _d(p.current_market_value or p.estimated_value or p.purchase_price)
+        total_property_value += val
+        property_values.append({
+            "property_id": p.property_id,
+            "address": p.address,
+            "value": float(val),
+            "value_source": (
+                "market_value" if p.current_market_value
+                else "estimated_value" if p.estimated_value
+                else "purchase_price"
+            ),
+        })
+
+    # Outstanding debt
+    total_debt = ZERO
+    for p in properties:
+        debts = db.query(m.DebtFacility).filter(
+            m.DebtFacility.property_id == p.property_id,
+            m.DebtFacility.status == "active",
+        ).all()
+        for d in debts:
+            total_debt += _d(d.outstanding_balance or d.commitment_amount)
+
+    # LP-level data
+    lp_summary = compute_lp_summary(db, lp_id)
+    total_funded = _d(lp_summary.get("total_funded", 0))
+    capital_deployed = _d(lp_summary.get("capital_deployed", 0))
+    capital_available = _d(lp_summary.get("capital_available", 0))
+    reserve_alloc = _d(lp_summary.get("total_reserve_allocations", 0))
+    formation_costs = _d(lp_summary.get("total_formation_costs", 0))
+
+    # Accrued management fees (simplified: 1 year of fees as accrual)
+    mgmt_fee_pct = _d(lp.management_fee_percent) / Decimal("100") if lp.management_fee_percent else ZERO
+    accrued_fees = total_funded * mgmt_fee_pct  # annual accrual
+
+    # NAV = property values + cash (undeployed capital) - debt - accrued fees
+    cash_and_reserves = capital_available + reserve_alloc
+    nav = total_property_value + cash_and_reserves - total_debt - accrued_fees
+
+    # Units outstanding
+    total_units = db.query(func.coalesce(func.sum(m.Holding.units_held), 0)).filter(
+        m.Holding.lp_id == lp_id,
+        m.Holding.status == "active",
+    ).scalar()
+    total_units = _d(total_units)
+
+    nav_per_unit = (nav / total_units).quantize(TWO) if total_units > ZERO else ZERO
+
+    # Original unit price for comparison
+    unit_price = _d(lp.unit_price)
+    nav_premium_discount = (
+        ((nav_per_unit - unit_price) / unit_price * Decimal("100")).quantize(TWO)
+        if unit_price > ZERO else ZERO
+    )
+
+    return {
+        "lp_id": lp_id,
+        "lp_name": lp.name,
+        "nav": float(nav),
+        "nav_per_unit": float(nav_per_unit),
+        "original_unit_price": float(unit_price),
+        "nav_premium_discount_percent": float(nav_premium_discount),
+        "total_units_outstanding": float(total_units),
+        "components": {
+            "total_property_value": float(total_property_value),
+            "cash_and_reserves": float(cash_and_reserves),
+            "total_outstanding_debt": float(total_debt),
+            "accrued_management_fees": float(accrued_fees),
+        },
+        "properties": property_values,
+    }

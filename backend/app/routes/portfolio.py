@@ -1013,3 +1013,71 @@ def compare_development_plans(
         })
 
     return {"property_id": property_id, "plans_compared": len(comparison), "comparison": comparison}
+
+
+# ---------------------------------------------------------------------------
+# Phase 6: Valuation History
+# ---------------------------------------------------------------------------
+
+from app.db.models import ValuationHistory
+from app.schemas.portfolio import ValuationCreate, ValuationOut
+
+
+@router.get("/properties/{property_id}/valuations", response_model=_List[ValuationOut])
+def list_valuations(
+    property_id: int,
+    db: Session = Depends(get_db),
+    _: User = Depends(require_investor_or_above),
+):
+    """List all valuation records for a property, newest first."""
+    if not db.query(Property).filter(Property.property_id == property_id).first():
+        raise HTTPException(404, "Property not found")
+    return (
+        db.query(ValuationHistory)
+        .filter(ValuationHistory.property_id == property_id)
+        .order_by(ValuationHistory.valuation_date.desc())
+        .all()
+    )
+
+
+@router.post(
+    "/properties/{property_id}/valuations",
+    response_model=ValuationOut,
+    status_code=status.HTTP_201_CREATED,
+)
+def create_valuation(
+    property_id: int,
+    payload: ValuationCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_gp_or_ops),
+):
+    """Record a new valuation for a property and optionally update current_market_value."""
+    prop = db.query(Property).filter(Property.property_id == property_id).first()
+    if not prop:
+        raise HTTPException(404, "Property not found")
+
+    val = ValuationHistory(
+        property_id=property_id,
+        created_by=current_user.user_id,
+        **payload.model_dump(),
+    )
+    db.add(val)
+
+    # Also update the property's current_market_value to the latest valuation
+    prop.current_market_value = payload.value
+    db.commit()
+    db.refresh(val)
+    return val
+
+
+@router.delete("/valuations/{valuation_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_valuation(
+    valuation_id: int,
+    db: Session = Depends(get_db),
+    _: User = Depends(require_gp_or_ops),
+):
+    v = db.query(ValuationHistory).filter(ValuationHistory.valuation_id == valuation_id).first()
+    if not v:
+        raise HTTPException(404, "Valuation not found")
+    db.delete(v)
+    db.commit()

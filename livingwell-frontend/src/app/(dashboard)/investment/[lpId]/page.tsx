@@ -2,7 +2,7 @@
 
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useEffect } from "react";
 import {
   ArrowLeft,
   Landmark,
@@ -197,6 +197,32 @@ export default function LPDetailPage() {
   /* ── waterfall state ────────────────────────────────────────── */
   const [waterfallAmount, setWaterfallAmount] = useState("");
   const [waterfallResult, setWaterfallResult] = useState<WaterfallResult | null>(null);
+
+  /* ── P&L and NAV state ─────────────────────────────────────── */
+  const [pnlYear, setPnlYear] = useState(new Date().getFullYear());
+  const [pnlData, setPnlData] = useState<any>(null);
+  const [pnlLoading, setPnlLoading] = useState(false);
+  const [navData, setNavData] = useState<any>(null);
+  const [navLoading, setNavLoading] = useState(false);
+
+  useEffect(() => {
+    if (!lpId) return;
+    setNavLoading(true);
+    import("@/lib/api").then(({ investment }) => {
+      investment.getLpNav(lpId).then(setNavData).finally(() => setNavLoading(false));
+    });
+  }, [lpId]);
+
+  function fetchPnl() {
+    setPnlLoading(true);
+    import("@/lib/api").then(({ investment }) => {
+      investment.getLpPnl(lpId, pnlYear).then(setPnlData).finally(() => setPnlLoading(false));
+    });
+  }
+
+  useEffect(() => {
+    if (lpId) fetchPnl();
+  }, [lpId, pnlYear]);
 
   function handleRunWaterfall() {
     const amt = Number(waterfallAmount);
@@ -469,6 +495,8 @@ export default function LPDetailPage() {
             <TabsTrigger value="holdings" className="text-xs sm:text-sm">Holdings</TabsTrigger>
             <TabsTrigger value="pipeline" className="text-xs sm:text-sm">Pipeline</TabsTrigger>
             <TabsTrigger value="projections" className="text-xs sm:text-sm">Projections</TabsTrigger>
+            <TabsTrigger value="pnl" className="text-xs sm:text-sm">P&L</TabsTrigger>
+            <TabsTrigger value="nav" className="text-xs sm:text-sm">NAV</TabsTrigger>
           </TabsList>
         </div>
 
@@ -952,6 +980,179 @@ export default function LPDetailPage() {
                   })()}
                 </CardContent>
               </Card>
+            </div>
+          )}
+        </TabsContent>
+
+        {/* ── P&L Tab ──────────────────────────────────────────── */}
+        <TabsContent value="pnl" className="mt-4">
+          <div className="flex items-center gap-3 mb-4">
+            <Label className="text-sm">Year:</Label>
+            <select
+              className="h-8 rounded-lg border border-input bg-transparent px-2.5 text-sm"
+              value={pnlYear}
+              onChange={(e) => setPnlYear(Number(e.target.value))}
+            >
+              {[2024, 2025, 2026, 2027, 2028].map(y => <option key={y} value={y}>{y}</option>)}
+            </select>
+          </div>
+          {pnlLoading ? (
+            <div className="space-y-3"><Skeleton className="h-32 w-full" /><Skeleton className="h-32 w-full" /></div>
+          ) : !pnlData ? (
+            <Card><CardContent className="pt-6"><p className="text-sm text-muted-foreground">No P&L data available.</p></CardContent></Card>
+          ) : (
+            <div className="grid gap-4 md:grid-cols-2">
+              <Card>
+                <CardHeader className="pb-2"><CardTitle className="text-sm flex items-center gap-2"><TrendingUp className="h-4 w-4" /> Revenue Summary</CardTitle></CardHeader>
+                <CardContent className="space-y-0">
+                  <DRow label="Total Billed" value={formatCurrency(pnlData.revenue?.total_billed)} />
+                  <DRow label="Collected" value={formatCurrency(pnlData.revenue?.collected)} />
+                </CardContent>
+              </Card>
+              <Card>
+                <CardHeader className="pb-2"><CardTitle className="text-sm flex items-center gap-2"><DollarSign className="h-4 w-4" /> Expense Summary</CardTitle></CardHeader>
+                <CardContent className="space-y-0">
+                  <DRow label="Total Expenses" value={formatCurrency(pnlData.expenses?.total_expenses)} />
+                  <DRow label="Expense Ratio" value={pnlData.summary?.expense_ratio ? `${Number(pnlData.summary.expense_ratio).toFixed(1)}%` : "—"} />
+                </CardContent>
+              </Card>
+              <Card>
+                <CardHeader className="pb-2"><CardTitle className="text-sm flex items-center gap-2"><Landmark className="h-4 w-4" /> Debt Service & Fees</CardTitle></CardHeader>
+                <CardContent className="space-y-0">
+                  <DRow label="Annual Debt Service" value={formatCurrency(pnlData.debt_service?.annual_debt_service)} />
+                  <DRow label="Annual Mgmt Fee" value={formatCurrency(pnlData.management_fees?.annual_fee)} />
+                  <DRow label="Mgmt Fee Rate" value={pnlData.management_fees?.fee_percent ? `${Number(pnlData.management_fees.fee_percent).toFixed(1)}%` : "—"} />
+                </CardContent>
+              </Card>
+              <Card>
+                <CardHeader className="pb-2"><CardTitle className="text-sm flex items-center gap-2"><BarChart3 className="h-4 w-4" /> Bottom Line</CardTitle></CardHeader>
+                <CardContent className="space-y-0">
+                  <DRow label="NOI" value={formatCurrency(pnlData.summary?.noi)} />
+                  <DRow label="Cash Flow After Debt" value={formatCurrency(pnlData.summary?.cash_flow_after_debt)} />
+                  <DRow label="Cash Flow After Fees" value={formatCurrency(pnlData.summary?.cash_flow_after_fees)} />
+                </CardContent>
+              </Card>
+              {pnlData.communities?.length > 0 && (
+                <Card className="md:col-span-2">
+                  <CardHeader className="pb-2"><CardTitle className="text-sm">Community Breakdown</CardTitle></CardHeader>
+                  <CardContent>
+                    <div className="overflow-x-auto">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Community</TableHead>
+                            <TableHead className="text-right">LP Properties</TableHead>
+                            <TableHead className="text-right">LP Share</TableHead>
+                            <TableHead className="text-right">Revenue</TableHead>
+                            <TableHead className="text-right">Expenses</TableHead>
+                            <TableHead className="text-right">NOI</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {pnlData.communities.map((c: any) => (
+                            <TableRow key={c.community_id}>
+                              <TableCell className="text-sm font-medium">{c.community_name}</TableCell>
+                              <TableCell className="text-right text-sm">{c.lp_property_count}/{c.total_property_count}</TableCell>
+                              <TableCell className="text-right text-sm">{Number(c.lp_share_percent).toFixed(0)}%</TableCell>
+                              <TableCell className="text-right tabular-nums text-sm">{formatCurrency(c.revenue_collected)}</TableCell>
+                              <TableCell className="text-right tabular-nums text-sm">{formatCurrency(c.expenses)}</TableCell>
+                              <TableCell className="text-right tabular-nums text-sm font-medium">{formatCurrency(c.noi)}</TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+            </div>
+          )}
+        </TabsContent>
+
+        {/* ── NAV Tab ──────────────────────────────────────────── */}
+        <TabsContent value="nav" className="mt-4">
+          {navLoading ? (
+            <div className="space-y-3"><Skeleton className="h-32 w-full" /><Skeleton className="h-32 w-full" /></div>
+          ) : !navData ? (
+            <Card><CardContent className="pt-6"><p className="text-sm text-muted-foreground">No NAV data available.</p></CardContent></Card>
+          ) : (
+            <div className="grid gap-4 md:grid-cols-2">
+              <Card className="md:col-span-2">
+                <CardHeader className="pb-2"><CardTitle className="text-sm flex items-center gap-2"><Landmark className="h-4 w-4" /> Net Asset Value</CardTitle></CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                    <div>
+                      <p className="text-xs text-muted-foreground">Fund NAV</p>
+                      <p className="text-2xl font-bold tabular-nums">{formatCurrencyCompact(navData.nav)}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-muted-foreground">NAV per Unit</p>
+                      <p className="text-2xl font-bold tabular-nums">{formatCurrency(navData.nav_per_unit)}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-muted-foreground">Original Unit Price</p>
+                      <p className="text-2xl font-bold tabular-nums">{formatCurrency(navData.original_unit_price)}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-muted-foreground">Premium / Discount</p>
+                      <p className={`text-2xl font-bold tabular-nums ${Number(navData.nav_premium_discount_percent) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                        {Number(navData.nav_premium_discount_percent) >= 0 ? '+' : ''}{Number(navData.nav_premium_discount_percent).toFixed(1)}%
+                      </p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardHeader className="pb-2"><CardTitle className="text-sm flex items-center gap-2"><Building2 className="h-4 w-4" /> NAV Components</CardTitle></CardHeader>
+                <CardContent className="space-y-0">
+                  <DRow label="Total Property Value" value={formatCurrency(navData.components?.total_property_value)} />
+                  <DRow label="Cash & Reserves" value={formatCurrency(navData.components?.cash_and_reserves)} />
+                  <DRow label="Outstanding Debt" value={`(${formatCurrency(navData.components?.total_outstanding_debt)})`} />
+                  <DRow label="Accrued Mgmt Fees" value={`(${formatCurrency(navData.components?.accrued_management_fees)})`} />
+                  <div className="flex justify-between py-1.5 border-t-2 border-border mt-1">
+                    <span className="text-sm font-semibold">Net Asset Value</span>
+                    <span className="text-sm font-bold">{formatCurrency(navData.nav)}</span>
+                  </div>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardHeader className="pb-2"><CardTitle className="text-sm flex items-center gap-2"><Hash className="h-4 w-4" /> Unit Summary</CardTitle></CardHeader>
+                <CardContent className="space-y-0">
+                  <DRow label="Units Outstanding" value={fmtNum(navData.total_units_outstanding)} />
+                  <DRow label="NAV per Unit" value={formatCurrency(navData.nav_per_unit)} />
+                  <DRow label="Original Unit Price" value={formatCurrency(navData.original_unit_price)} />
+                  <DRow label="Premium/Discount" value={`${Number(navData.nav_premium_discount_percent) >= 0 ? '+' : ''}${Number(navData.nav_premium_discount_percent).toFixed(1)}%`} />
+                </CardContent>
+              </Card>
+              {navData.properties?.length > 0 && (
+                <Card className="md:col-span-2">
+                  <CardHeader className="pb-2"><CardTitle className="text-sm">Property Valuations</CardTitle></CardHeader>
+                  <CardContent>
+                    <div className="overflow-x-auto">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Property</TableHead>
+                            <TableHead className="text-right">Value</TableHead>
+                            <TableHead>Source</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {navData.properties.map((p: any) => (
+                            <TableRow key={p.property_id}>
+                              <TableCell className="text-sm font-medium">{p.address}</TableCell>
+                              <TableCell className="text-right tabular-nums text-sm">{formatCurrency(p.value)}</TableCell>
+                              <TableCell className="text-sm">
+                                <Badge variant="outline" className="text-[10px]">{p.value_source?.replace(/_/g, ' ').toUpperCase()}</Badge>
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
             </div>
           )}
         </TabsContent>

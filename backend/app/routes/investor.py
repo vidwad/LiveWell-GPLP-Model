@@ -7,7 +7,8 @@ This file retains: Investor CRUD, Dashboard, Documents, Messages, Waterfall.
 import datetime
 from decimal import Decimal
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi.responses import Response
 from sqlalchemy.orm import Session
 
 from app.core.deps import get_current_user, require_gp_admin, require_gp_or_ops, require_investor_or_above
@@ -313,3 +314,38 @@ def calculate_waterfall(
         gp_promote_share=payload.gp_promote_share,
     )
     return result
+
+
+# ---------------------------------------------------------------------------
+# Investor Statement PDF
+# ---------------------------------------------------------------------------
+
+@router.get("/investors/{investor_id}/statement")
+def investor_statement_pdf(
+    investor_id: int,
+    as_of_date: str | None = Query(None, description="YYYY-MM-DD"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_investor_or_above),
+):
+    """Generate and return a PDF investor account statement."""
+    inv = _get_investor_or_404(investor_id, db)
+    if current_user.role == UserRole.INVESTOR and inv.user_id != current_user.user_id:
+        raise HTTPException(status_code=403, detail="Access denied")
+
+    from app.services.statement_service import generate_investor_statement
+
+    parsed_date = None
+    if as_of_date:
+        try:
+            parsed_date = datetime.date.fromisoformat(as_of_date)
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Invalid date format. Use YYYY-MM-DD.")
+
+    pdf_bytes = generate_investor_statement(db, investor_id, as_of_date=parsed_date)
+
+    filename = f"statement_{inv.name.replace(' ', '_')}_{as_of_date or datetime.date.today().isoformat()}.pdf"
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )

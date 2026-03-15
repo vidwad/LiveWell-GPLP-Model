@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { ArrowLeft, DollarSign, FileText, Mail, Upload } from "lucide-react";
+import { ArrowLeft, DollarSign, Download, FileText, Mail, Upload } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { useInvestorDashboard, useInvestorDistributions } from "@/hooks/useInvestors";
 import { useAuth } from "@/providers/AuthProvider";
 import { LinkButton } from "@/components/ui/link-button";
@@ -62,7 +63,29 @@ export default function InvestorDetailPage({
           <ArrowLeft className="mr-2 h-4 w-4" />
           Back
         </LinkButton>
-        <h1 className="text-2xl font-bold">{investor.name}</h1>
+        <div className="flex items-center justify-between">
+          <h1 className="text-2xl font-bold">{investor.name}</h1>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              const url = `${process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000"}/api/investor/investors/${investorId}/statement`;
+              const token = localStorage.getItem("lwc_access_token");
+              fetch(url, { headers: { Authorization: `Bearer ${token}` } })
+                .then(r => r.blob())
+                .then(blob => {
+                  const a = document.createElement("a");
+                  a.href = URL.createObjectURL(blob);
+                  a.download = `statement_${investor.name.replace(/ /g, "_")}_${new Date().toISOString().slice(0, 10)}.pdf`;
+                  a.click();
+                  URL.revokeObjectURL(a.href);
+                });
+            }}
+          >
+            <Download className="mr-2 h-4 w-4" />
+            Download Statement
+          </Button>
+        </div>
         <div className="flex items-center gap-3 text-muted-foreground">
           <span>{investor.email}</span>
           {investor.entity_type && (

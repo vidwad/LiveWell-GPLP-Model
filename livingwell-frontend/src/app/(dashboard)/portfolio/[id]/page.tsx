@@ -19,6 +19,7 @@ import {
   Calendar,
   Layers,
   BarChart3,
+  GitCompare,
 } from "lucide-react";
 import {
   useProperty,
@@ -301,6 +302,10 @@ export default function PropertyDetailPage({ params }: { params: { id: string } 
     planned_units: 0, planned_beds: 0, planned_sqft: 0,
     estimated_construction_cost: 0, development_start_date: "", construction_duration_days: 0,
   });
+
+  // Plan comparison
+  const [compareMode, setCompareMode] = useState(false);
+  const [comparePlanIds, setComparePlanIds] = useState<[number | null, number | null]>([null, null]);
 
   const canEdit = user?.role === "GP_ADMIN" || user?.role === "OPERATIONS_MANAGER";
 
@@ -653,7 +658,23 @@ export default function PropertyDetailPage({ params }: { params: { id: string } 
           <Card>
             <CardHeader className="flex flex-row items-center justify-between">
               <CardTitle className="text-base">Development Plans</CardTitle>
-              {canEdit && (
+              <div className="flex items-center gap-2">
+                {plans && plans.length >= 2 && (
+                  <Button
+                    variant={compareMode ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => {
+                      setCompareMode(!compareMode);
+                      if (!compareMode && plans.length >= 2) {
+                        setComparePlanIds([plans[0].plan_id, plans[1].plan_id]);
+                      }
+                    }}
+                  >
+                    <GitCompare className="mr-1.5 h-4 w-4" />
+                    {compareMode ? "Exit Compare" : "Compare"}
+                  </Button>
+                )}
+                {canEdit && (
                 <Dialog open={planOpen} onOpenChange={setPlanOpen}>
                   <DialogTrigger className={cn(buttonVariants({ size: "sm" }))}>
                     <Plus className="mr-1.5 h-4 w-4" />
@@ -697,6 +718,7 @@ export default function PropertyDetailPage({ params }: { params: { id: string } 
                   </DialogContent>
                 </Dialog>
               )}
+              </div>
             </CardHeader>
             <CardContent>
               {!plans || plans.length === 0 ? (
@@ -743,6 +765,131 @@ export default function PropertyDetailPage({ params }: { params: { id: string } 
                   </Table>
                 </div>
               )}
+
+              {/* ── Comparison View ── */}
+              {compareMode && plans && plans.length >= 2 && (() => {
+                const planA = plans.find((p: DevelopmentPlan) => p.plan_id === comparePlanIds[0]);
+                const planB = plans.find((p: DevelopmentPlan) => p.plan_id === comparePlanIds[1]);
+                if (!planA || !planB) return null;
+
+                const rows: { label: string; a: string; b: string; diff?: string; diffColor?: string }[] = [
+                  { label: "Version", a: `v${planA.version ?? planA.plan_id}`, b: `v${planB.version ?? planB.plan_id}` },
+                  { label: "Status", a: planA.status, b: planB.status },
+                  {
+                    label: "Planned Units", a: String(planA.planned_units), b: String(planB.planned_units),
+                    diff: String(planB.planned_units - planA.planned_units),
+                    diffColor: planB.planned_units >= planA.planned_units ? "text-green-600" : "text-red-600",
+                  },
+                  {
+                    label: "Planned Beds", a: String(planA.planned_beds), b: String(planB.planned_beds),
+                    diff: String(planB.planned_beds - planA.planned_beds),
+                    diffColor: planB.planned_beds >= planA.planned_beds ? "text-green-600" : "text-red-600",
+                  },
+                  {
+                    label: "Planned Sqft", a: Number(planA.planned_sqft).toLocaleString(), b: Number(planB.planned_sqft).toLocaleString(),
+                    diff: (Number(planB.planned_sqft) - Number(planA.planned_sqft)).toLocaleString(),
+                    diffColor: Number(planB.planned_sqft) >= Number(planA.planned_sqft) ? "text-green-600" : "text-red-600",
+                  },
+                  {
+                    label: "Est. Construction Cost",
+                    a: planA.estimated_construction_cost ? formatCurrency(Number(planA.estimated_construction_cost)) : "—",
+                    b: planB.estimated_construction_cost ? formatCurrency(Number(planB.estimated_construction_cost)) : "—",
+                    diff: planA.estimated_construction_cost && planB.estimated_construction_cost
+                      ? formatCurrency(Number(planB.estimated_construction_cost) - Number(planA.estimated_construction_cost))
+                      : undefined,
+                    diffColor: Number(planB.estimated_construction_cost || 0) <= Number(planA.estimated_construction_cost || 0) ? "text-green-600" : "text-red-600",
+                  },
+                  {
+                    label: "Cost per Sqft",
+                    a: planA.cost_per_sqft ? `$${Number(planA.cost_per_sqft).toFixed(0)}` : "—",
+                    b: planB.cost_per_sqft ? `$${Number(planB.cost_per_sqft).toFixed(0)}` : "—",
+                  },
+                  {
+                    label: "Hard Costs",
+                    a: planA.hard_costs ? formatCurrency(Number(planA.hard_costs)) : "—",
+                    b: planB.hard_costs ? formatCurrency(Number(planB.hard_costs)) : "—",
+                  },
+                  {
+                    label: "Soft Costs",
+                    a: planA.soft_costs ? formatCurrency(Number(planA.soft_costs)) : "—",
+                    b: planB.soft_costs ? formatCurrency(Number(planB.soft_costs)) : "—",
+                  },
+                  {
+                    label: "Projected Annual NOI",
+                    a: planA.projected_annual_noi ? formatCurrency(Number(planA.projected_annual_noi)) : "—",
+                    b: planB.projected_annual_noi ? formatCurrency(Number(planB.projected_annual_noi)) : "—",
+                    diff: planA.projected_annual_noi && planB.projected_annual_noi
+                      ? formatCurrency(Number(planB.projected_annual_noi) - Number(planA.projected_annual_noi))
+                      : undefined,
+                    diffColor: Number(planB.projected_annual_noi || 0) >= Number(planA.projected_annual_noi || 0) ? "text-green-600" : "text-red-600",
+                  },
+                  {
+                    label: "Start Date",
+                    a: planA.development_start_date ? formatDate(planA.development_start_date) : "—",
+                    b: planB.development_start_date ? formatDate(planB.development_start_date) : "—",
+                  },
+                  {
+                    label: "Est. Completion",
+                    a: planA.estimated_completion_date ? formatDate(planA.estimated_completion_date) : "—",
+                    b: planB.estimated_completion_date ? formatDate(planB.estimated_completion_date) : "—",
+                  },
+                ];
+
+                return (
+                  <div className="mt-4 space-y-3">
+                    <div className="flex items-center gap-3">
+                      <Label className="text-xs">Plan A:</Label>
+                      <select
+                        className="h-8 rounded-lg border border-input bg-transparent px-2.5 text-sm"
+                        value={comparePlanIds[0] ?? ""}
+                        onChange={(e) => setComparePlanIds([Number(e.target.value), comparePlanIds[1]])}
+                      >
+                        {plans.map((p: DevelopmentPlan) => (
+                          <option key={p.plan_id} value={p.plan_id}>
+                            v{p.version ?? p.plan_id} — {p.status} ({p.planned_units} units)
+                          </option>
+                        ))}
+                      </select>
+                      <Label className="text-xs">Plan B:</Label>
+                      <select
+                        className="h-8 rounded-lg border border-input bg-transparent px-2.5 text-sm"
+                        value={comparePlanIds[1] ?? ""}
+                        onChange={(e) => setComparePlanIds([comparePlanIds[0], Number(e.target.value)])}
+                      >
+                        {plans.map((p: DevelopmentPlan) => (
+                          <option key={p.plan_id} value={p.plan_id}>
+                            v{p.version ?? p.plan_id} — {p.status} ({p.planned_units} units)
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="overflow-x-auto rounded-lg border">
+                      <Table>
+                        <TableHeader>
+                          <TableRow className="bg-muted/50">
+                            <TableHead className="w-[180px]">Metric</TableHead>
+                            <TableHead className="text-right">Plan A</TableHead>
+                            <TableHead className="text-right">Plan B</TableHead>
+                            <TableHead className="text-right">Difference</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {rows.map((row) => (
+                            <TableRow key={row.label}>
+                              <TableCell className="text-sm font-medium">{row.label}</TableCell>
+                              <TableCell className="text-right text-sm tabular-nums">{row.a}</TableCell>
+                              <TableCell className="text-right text-sm tabular-nums">{row.b}</TableCell>
+                              <TableCell className={cn("text-right text-sm tabular-nums font-medium", row.diffColor)}>
+                                {row.diff !== undefined ? (Number(row.diff.replace(/[^\d.-]/g, "")) > 0 ? "+" : "") + row.diff : "—"}
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  </div>
+                );
+              })()}
             </CardContent>
           </Card>
         </TabsContent>

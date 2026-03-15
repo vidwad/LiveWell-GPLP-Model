@@ -294,3 +294,31 @@ class SaleScenarioOut(SaleScenarioCreate):
     created_at: datetime.datetime | None = None
 
     model_config = {"from_attributes": True}
+
+
+# ---------------------------------------------------------------------------
+# Valuation History
+# ---------------------------------------------------------------------------
+
+class ValuationCreate(BaseModel):
+    valuation_date: datetime.date
+    value: Decimal
+    method: str = "internal_estimate"
+    appraiser: str | None = None
+    notes: str | None = None
+    document_url: str | None = None
+
+
+class ValuationOut(BaseModel):
+    valuation_id: int
+    property_id: int
+    valuation_date: datetime.date
+    value: Decimal
+    method: str
+    appraiser: str | None
+    notes: str | None
+    document_url: str | None
+    created_by: int | None
+    created_at: datetime.datetime
+
+    model_config = {"from_attributes": True}
