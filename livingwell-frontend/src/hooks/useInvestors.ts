@@ -48,6 +48,14 @@ export function useInvestorMessages(investorId: number) {
   });
 }
 
+export function useInvestorDistributions(investorId: number) {
+  return useQuery({
+    queryKey: ["investor-distributions", investorId],
+    queryFn: () => investors.getDistributions(investorId),
+    enabled: !!investorId,
+  });
+}
+
 export function useCalculateWaterfall() {
   return useMutation({
     mutationFn: (data: WaterfallInput) => investors.calculateWaterfall(data),

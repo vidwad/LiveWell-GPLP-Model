@@ -29,8 +29,8 @@
 | 1.1.2 | ScopeAssignment model (user → entity_type + entity_id + permission_level) | DONE | Polymorphic FK pattern with view/manage/admin levels |
 | 1.1.3 | ScopeAssignment CRUD endpoints | DONE | POST/GET in investment routes |
 | 1.1.4 | Role-based route guards on all endpoints | DONE | 135 of 156 endpoints have explicit role guards. Remaining 11 are correctly auth-only (notifications, auth, user-scoped reads). |
-| 1.1.5 | Scope-based data filtering on all list endpoints | PARTIAL | LP list filters by scope for non-GP_ADMIN users. Portfolio list_properties has inline role filtering. Other routes need scope filtering. |
-| 1.1.6 | Frontend role-aware UI (hide/show actions based on user role) | NOT DONE | All UI shows all actions regardless of role. |
+| 1.1.5 | Scope-based data filtering on all list endpoints | DONE | All list endpoints filtered by scope: LP list, properties, target properties, subscriptions, holdings, distributions, budgets, expenses, funding, tranches, portfolio rollup. Uses filter_by_lp_scope, filter_by_community_scope, filter_by_property_scope helpers + check_entity_access for detail endpoints. |
+| 1.1.6 | Frontend role-aware UI (hide/show actions based on user role) | DONE | usePermissions hook created. LP detail page: Edit LP, Add/Edit Tranche, Add/Edit Subscription, Add/Edit Holding, Add/Edit/Convert Target Property buttons all gated by canEdit. Portfolio, Investors, Communities list pages already had canCreate guards. Sidebar already role-filters nav items. |
 | 1.1.7 | Capability-based permissions (e.g., "can_create_subscription", "can_approve_distribution") | NOT DONE | No fine-grained capability system exists. |
 
 ### 1.2 LP Model
@@ -149,7 +149,7 @@
 | 2.5.4 | RefinanceScenario model | DONE | With assumed_new_valuation, new_ltv, new_rate, etc. |
 | 2.5.5 | Refinance scenario UI | DONE | In property detail page Exit Scenarios tab |
 | 2.5.6 | Debt service calculations (DSCR, LTV) | DONE | In calculations service |
-| 2.5.7 | Amortization schedule generation | NOT DONE | No month-by-month amortization table |
+| 2.5.7 | Amortization schedule generation | DONE | GET /portfolio/properties/{id}/debt/{debt_id}/amortization endpoint with monthly + annual schedules. MortgageEngine in debt.py handles IO periods, P&I split, annual summaries. |
 
 ### 2.6 Lifecycle Timing Model
 
@@ -203,8 +203,8 @@
 |---|------|--------|-------|
 | 3.2.1 | Total capital raised vs target_raise | DONE | Computed in LP detail |
 | 3.2.2 | Funding progress visualization | DONE | KPI strip and progress bars |
-| 3.2.3 | Capital deployed tracking (how much of raised capital has been spent on acquisitions) | NOT DONE | No capital_deployed field or tracking |
-| 3.2.4 | Remaining investable capital calculation | NOT DONE | Depends on 3.2.3 |
+| 3.2.3 | Capital deployed tracking (how much of raised capital has been spent on acquisitions) | DONE | compute_lp_summary computes capital_deployed from sum of actual property purchase_prices. Displayed in LP detail Capital Summary card. |
+| 3.2.4 | Remaining investable capital calculation | DONE | capital_available = net_deployable - capital_deployed. Shown in LP detail Capital Summary card. |
 
 ### 3.3 Investor Outputs
 
@@ -212,7 +212,7 @@
 |---|------|--------|-------|
 | 3.3.1 | Investor detail page with holdings across LPs | DONE | /investors/[id] |
 | 3.3.2 | Investor subscription history | PARTIAL | Subscriptions shown but not as a dedicated timeline |
-| 3.3.3 | Investor distribution history | NOT DONE | No per-investor distribution view |
+| 3.3.3 | Per-investor distribution history view | DONE | GET /investors/{id}/distributions endpoint returns full history across all LPs. Frontend investor detail page shows Distribution History table with period, LP fund, type, amount, status, paid date. |
 | 3.3.4 | Investor statement generation (PDF) | NOT DONE | |
 | 3.3.5 | Investor K-1 / tax document support | NOT DONE | Future phase |
 

@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatCurrency } from "@/lib/utils";
+import { usePermissions } from "@/hooks/usePermissions";
 
 const STATUS_VARIANT: Record<string, "default" | "secondary" | "outline" | "destructive"> = {
   operating: "default",
@@ -30,6 +31,7 @@ function statusLabel(s: string) {
 export default function InvestmentPage() {
   const { data: gps, isLoading: gpsLoading } = useGPs();
   const { data: lps, isLoading: lpsLoading } = useLPs();
+  const { canManageInvestments } = usePermissions();
 
   if (gpsLoading || lpsLoading) {
     return (
@@ -52,12 +54,14 @@ export default function InvestmentPage() {
             GP/LP entities, fund structure, and capital commitments
           </p>
         </div>
-        <Link href="/investment/new">
-          <Button size="sm">
-            <Plus className="mr-2 h-4 w-4" />
-            New LP
-          </Button>
-        </Link>
+        {canManageInvestments && (
+          <Link href="/investment/new">
+            <Button size="sm">
+              <Plus className="mr-2 h-4 w-4" />
+              New LP
+            </Button>
+          </Link>
+        )}
       </div>
 
       {/* GP Entities */}

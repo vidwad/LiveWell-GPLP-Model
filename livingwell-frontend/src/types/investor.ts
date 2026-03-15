@@ -63,6 +63,26 @@ export interface InvestorDashboard {
   messages: Message[];
 }
 
+export interface InvestorDistributionItem {
+  allocation_id: number;
+  event_id: number;
+  lp_name: string;
+  period_label: string;
+  distribution_type: string;
+  amount: string;
+  event_status: string;
+  paid_date: string | null;
+  created_date: string;
+  notes: string | null;
+}
+
+export interface InvestorDistributionHistory {
+  investor_id: number;
+  investor_name: string;
+  total_distributions: string;
+  distributions: InvestorDistributionItem[];
+}
+
 export interface WaterfallInput {
   distributable_cash: number;
   unreturned_capital: number;

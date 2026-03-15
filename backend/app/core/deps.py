@@ -3,7 +3,7 @@ Dependency helpers for authentication, role guards, and scope-based access contr
 """
 from typing import List, Optional
 
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordBearer
 from jose import JWTError
 from sqlalchemy.orm import Session
@@ -132,32 +132,144 @@ def check_entity_access(
     return entity_id in allowed_ids
 
 
-def require_entity_access(
-    entity_type: ScopeEntityType,
-    min_level: ScopePermissionLevel = ScopePermissionLevel.view,
+def filter_by_lp_scope(
+    query,
+    user: User,
+    db: Session,
+    lp_id_column,
 ):
     """
-    FastAPI dependency factory that checks scope access for a given entity_type.
-    Expects the route to have a path parameter matching the entity type
-    (e.g. lp_id, property_id, community_id, cluster_id).
+    Apply LP-based scope filtering to a SQLAlchemy query.
+
+    - GP_ADMIN / OPERATIONS_MANAGER: no filtering (see everything)
+    - PROPERTY_MANAGER: filter to properties they manage → LP IDs from those properties
+    - INVESTOR: filter to LPs they have scope assignments for
+    - Others: return empty (filter to impossible ID)
+
+    Args:
+        query: The SQLAlchemy query to filter
+        user: The current user
+        db: The database session
+        lp_id_column: The SQLAlchemy column representing lp_id (e.g., Property.lp_id)
+
+    Returns:
+        The filtered query
     """
-    param_map = {
-        ScopeEntityType.lp: "lp_id",
-        ScopeEntityType.property: "property_id",
-        ScopeEntityType.community: "community_id",
-        ScopeEntityType.cluster: "cluster_id",
-    }
+    if user.role in (UserRole.GP_ADMIN, UserRole.OPERATIONS_MANAGER):
+        return query  # unrestricted
 
-    def checker(
-        current_user: User = Depends(get_current_user),
-        db: Session = Depends(get_db),
-        **kwargs,
-    ) -> User:
-        # GP_ADMIN bypasses all scope checks
-        if current_user.role == UserRole.GP_ADMIN:
-            return current_user
+    # For INVESTOR and PROPERTY_MANAGER, use scope assignments
+    allowed_lp_ids = get_user_entity_ids(user, db, ScopeEntityType.lp)
+    if allowed_lp_ids:
+        return query.filter(lp_id_column.in_(allowed_lp_ids))
 
-        # This is a factory — actual entity_id resolution happens in the route
-        return current_user
+    # If no LP scopes, check if they have property-level scopes
+    allowed_property_ids = get_user_entity_ids(user, db, ScopeEntityType.property)
+    if allowed_property_ids:
+        from app.db.models import Property
+        lp_ids = [
+            r[0] for r in
+            db.query(Property.lp_id)
+            .filter(Property.property_id.in_(allowed_property_ids))
+            .distinct()
+            .all()
+            if r[0] is not None
+        ]
+        if lp_ids:
+            return query.filter(lp_id_column.in_(lp_ids))
 
-    return checker
+    # No scopes at all — return nothing
+    return query.filter(lp_id_column == -1)
+
+
+def filter_by_community_scope(
+    query,
+    user: User,
+    db: Session,
+    community_id_column,
+):
+    """
+    Apply Community-based scope filtering to a SQLAlchemy query.
+
+    - GP_ADMIN / OPERATIONS_MANAGER: no filtering
+    - PROPERTY_MANAGER: filter to communities linked to properties they manage
+    - INVESTOR: filter to communities linked to properties in their LPs
+    - Others: empty
+    """
+    if user.role in (UserRole.GP_ADMIN, UserRole.OPERATIONS_MANAGER):
+        return query
+
+    # Check community-level scopes
+    allowed_community_ids = get_user_entity_ids(user, db, ScopeEntityType.community)
+    if allowed_community_ids:
+        return query.filter(community_id_column.in_(allowed_community_ids))
+
+    # Fall back to LP scopes → properties → community_ids
+    allowed_lp_ids = get_user_entity_ids(user, db, ScopeEntityType.lp)
+    if allowed_lp_ids:
+        from app.db.models import Property
+        comm_ids = [
+            r[0] for r in
+            db.query(Property.community_id)
+            .filter(Property.lp_id.in_(allowed_lp_ids))
+            .distinct()
+            .all()
+            if r[0] is not None
+        ]
+        if comm_ids:
+            return query.filter(community_id_column.in_(comm_ids))
+
+    # Fall back to property scopes → community_ids
+    allowed_property_ids = get_user_entity_ids(user, db, ScopeEntityType.property)
+    if allowed_property_ids:
+        from app.db.models import Property
+        comm_ids = [
+            r[0] for r in
+            db.query(Property.community_id)
+            .filter(Property.property_id.in_(allowed_property_ids))
+            .distinct()
+            .all()
+            if r[0] is not None
+        ]
+        if comm_ids:
+            return query.filter(community_id_column.in_(comm_ids))
+
+    return query.filter(community_id_column == -1)
+
+
+def filter_by_property_scope(
+    query,
+    user: User,
+    db: Session,
+    property_id_column,
+):
+    """
+    Apply Property-based scope filtering to a SQLAlchemy query.
+
+    - GP_ADMIN / OPERATIONS_MANAGER: no filtering
+    - PROPERTY_MANAGER: filter to properties they have scope for
+    - INVESTOR: filter to properties in LPs they have scope for
+    - Others: empty
+    """
+    if user.role in (UserRole.GP_ADMIN, UserRole.OPERATIONS_MANAGER):
+        return query
+
+    # Check property-level scopes first
+    allowed_property_ids = get_user_entity_ids(user, db, ScopeEntityType.property)
+    if allowed_property_ids:
+        return query.filter(property_id_column.in_(allowed_property_ids))
+
+    # Fall back to LP scopes → property_ids
+    allowed_lp_ids = get_user_entity_ids(user, db, ScopeEntityType.lp)
+    if allowed_lp_ids:
+        from app.db.models import Property
+        prop_ids = [
+            r[0] for r in
+            db.query(Property.property_id)
+            .filter(Property.lp_id.in_(allowed_lp_ids))
+            .all()
+        ]
+        if prop_ids:
+            return query.filter(property_id_column.in_(prop_ids))
+
+    return query.filter(property_id_column == -1)

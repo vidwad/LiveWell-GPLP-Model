@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 from app.core.deps import (
     get_current_user, require_gp_ops_pm, require_gp_or_ops,
     require_investor_or_above, get_user_entity_ids,
+    filter_by_lp_scope, filter_by_property_scope,
 )
 from app.db.models import (
     DevelopmentPlan, LPEntity, Property, PropertyCluster, User, UserRole,
@@ -68,44 +69,13 @@ def _property_to_out(prop: Property) -> PropertyOut:
 @router.get("/properties", response_model=list[PropertyOut])
 def list_properties(
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_investor_or_above),
 ):
-    """
-    GP_ADMIN / OPERATIONS_MANAGER / PROPERTY_MANAGER: see all properties.
-    INVESTOR: see only properties belonging to LPs they have subscriptions in.
-    """
-    from app.db.models import Property, LPEntity, Subscription, Investor
-
-    if current_user.role in ("GP_ADMIN", "OPERATIONS_MANAGER", "PROPERTY_MANAGER"):
-        props = db.query(Property).all()
-    elif current_user.role == "INVESTOR":
-        # Find the Investor record linked to this user
-        investor = db.query(Investor).filter(Investor.user_id == current_user.user_id).first()
-        if not investor:
-            return []
-        # Find LP IDs this investor has subscriptions in
-        lp_ids = (
-            db.query(Subscription.lp_id)
-            .filter(Subscription.investor_id == investor.investor_id)
-            .distinct()
-            .all()
-        )
-        lp_id_list = [lp_id for (lp_id,) in lp_ids]
-        props = db.query(Property).filter(Property.lp_id.in_(lp_id_list)).all()
-    else:
-        props = []
-
-    results = []
-    for p in props:
-        data = PropertyOut.model_validate(p)
-        if p.lp:
-            data.lp_name = p.lp.name
-        if p.community:
-            data.community_name = p.community.name
-        if p.property_manager:
-            data.pm_name = p.property_manager.name
-        results.append(data)
-    return results
+    """List properties filtered by the user's scope."""
+    query = db.query(Property)
+    query = filter_by_lp_scope(query, current_user, db, Property.lp_id)
+    props = query.all()
+    return [_property_to_out(p) for p in props]
 
 
 @router.post("/properties", response_model=PropertyOut, status_code=status.HTTP_201_CREATED)
@@ -129,11 +99,16 @@ def create_property(
 def get_property(
     property_id: int,
     db: Session = Depends(get_db),
-    _: User = Depends(require_investor_or_above),
+    current_user: User = Depends(require_investor_or_above),
 ):
     prop = db.query(Property).filter(Property.property_id == property_id).first()
     if not prop:
         raise HTTPException(status_code=404, detail="Property not found")
+    # Scope check: verify user has access to this property's LP
+    if prop.lp_id and current_user.role not in (UserRole.GP_ADMIN, UserRole.OPERATIONS_MANAGER):
+        from app.core.deps import check_entity_access
+        if not check_entity_access(current_user, db, ScopeEntityType.lp, prop.lp_id):
+            raise HTTPException(status_code=403, detail="Access denied")
     return _property_to_out(prop)
 
 

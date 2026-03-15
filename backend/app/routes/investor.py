@@ -13,12 +13,13 @@ from sqlalchemy.orm import Session
 from app.core.deps import get_current_user, require_gp_admin, require_gp_or_ops, require_investor_or_above
 from app.db.models import (
     Investor, InvestorDocument, InvestorMessage, User, UserRole,
-    Subscription, Holding, DistributionAllocation,
+    Subscription, Holding, DistributionAllocation, DistributionEvent, LPEntity,
 )
 from app.db.session import get_db
 from app.schemas.investor import (
     DocumentCreate, DocumentOut,
     InvestorCreate, InvestorUpdate, InvestorDashboard, InvestorOut,
+    InvestorDistributionHistory, InvestorDistributionItem,
     MessageCreate, MessageOut,
     WaterfallInput, WaterfallResultSchema,
 )
@@ -223,6 +224,76 @@ def list_messages(
     if current_user.role == UserRole.INVESTOR and inv.user_id != current_user.user_id:
         raise HTTPException(status_code=403, detail="Access denied")
     return sorted(inv.messages, key=lambda x: x.sent_at, reverse=True) if inv.messages else []
+
+
+# ---------------------------------------------------------------------------
+# Distribution History
+# ---------------------------------------------------------------------------
+
+@router.get("/investors/{investor_id}/distributions", response_model=InvestorDistributionHistory)
+def investor_distribution_history(
+    investor_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_investor_or_above),
+):
+    """Return per-investor distribution history across all LPs."""
+    inv = _get_investor_or_404(investor_id, db)
+    if current_user.role == UserRole.INVESTOR and inv.user_id != current_user.user_id:
+        raise HTTPException(status_code=403, detail="Access denied")
+
+    # Get all holdings for this investor
+    holdings = db.query(Holding).filter(Holding.investor_id == investor_id).all()
+    holding_ids = [h.holding_id for h in holdings]
+    # Map holding_id -> lp_id for LP name lookup
+    holding_lp_map = {h.holding_id: h.lp_id for h in holdings}
+
+    if not holding_ids:
+        return InvestorDistributionHistory(
+            investor_id=investor_id,
+            investor_name=inv.name,
+            total_distributions=Decimal(0),
+            distributions=[],
+        )
+
+    # Get all allocations for these holdings, joined with events
+    allocs = (
+        db.query(DistributionAllocation, DistributionEvent)
+        .join(DistributionEvent, DistributionAllocation.event_id == DistributionEvent.event_id)
+        .filter(DistributionAllocation.holding_id.in_(holding_ids))
+        .order_by(DistributionEvent.created_date.desc())
+        .all()
+    )
+
+    # Cache LP names
+    lp_name_cache: dict[int, str] = {}
+    total = Decimal(0)
+    items = []
+    for alloc, event in allocs:
+        lp_id = holding_lp_map.get(alloc.holding_id)
+        if lp_id and lp_id not in lp_name_cache:
+            lp = db.query(LPEntity).get(lp_id)
+            lp_name_cache[lp_id] = lp.name if lp else f"LP #{lp_id}"
+
+        total += alloc.amount or Decimal(0)
+        items.append(InvestorDistributionItem(
+            allocation_id=alloc.allocation_id,
+            event_id=alloc.event_id,
+            lp_name=lp_name_cache.get(lp_id, "Unknown"),
+            period_label=event.period_label,
+            distribution_type=alloc.distribution_type.value if alloc.distribution_type else "unknown",
+            amount=alloc.amount or Decimal(0),
+            event_status=event.status.value if event.status else "unknown",
+            paid_date=event.paid_date,
+            created_date=event.created_date,
+            notes=alloc.notes,
+        ))
+
+    return InvestorDistributionHistory(
+        investor_id=investor_id,
+        investor_name=inv.name,
+        total_distributions=total,
+        distributions=items,
+    )
 
 
 # ---------------------------------------------------------------------------

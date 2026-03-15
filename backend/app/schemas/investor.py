@@ -61,6 +61,32 @@ class InvestorDashboard(BaseModel):
 
 
 # ---------------------------------------------------------------------------
+# Investor Distribution History
+# ---------------------------------------------------------------------------
+
+class InvestorDistributionItem(BaseModel):
+    """A single distribution allocation for an investor."""
+    allocation_id: int
+    event_id: int
+    lp_name: str
+    period_label: str
+    distribution_type: str
+    amount: Decimal
+    event_status: str
+    paid_date: Optional[datetime.datetime] = None
+    created_date: datetime.datetime
+    notes: Optional[str] = None
+
+
+class InvestorDistributionHistory(BaseModel):
+    """Full distribution history for an investor across all LPs."""
+    investor_id: int
+    investor_name: str
+    total_distributions: Decimal = Decimal("0")
+    distributions: List[InvestorDistributionItem] = []
+
+
+# ---------------------------------------------------------------------------
 # Documents & Messages
 # ---------------------------------------------------------------------------
 

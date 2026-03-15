@@ -13,6 +13,8 @@ from sqlalchemy.orm import Session
 
 from app.core.deps import (
     get_current_user, require_gp_or_ops, require_gp_ops_pm,
+    require_investor_or_above,
+    filter_by_community_scope, filter_by_property_scope,
 )
 from app.db.models import (
     User, OperatorEntity, OperatorBudget, OperatingExpense,
@@ -39,10 +41,12 @@ def list_budgets(
     community_id: int | None = None,
     year: int | None = None,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_gp_ops_pm),
+    current_user: User = Depends(require_investor_or_above),
 ):
-    """List operator budgets with optional filters."""
+    """List operator budgets with optional filters, scoped by community access."""
     query = db.query(OperatorBudget)
+    # Apply community scope filtering
+    query = filter_by_community_scope(query, current_user, db, OperatorBudget.community_id)
     if operator_id:
         query = query.filter(OperatorBudget.operator_id == operator_id)
     if community_id:
@@ -207,10 +211,12 @@ def list_expenses(
     month: int | None = None,
     category: str | None = None,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_gp_ops_pm),
+    current_user: User = Depends(require_investor_or_above),
 ):
-    """List operating expenses with optional filters."""
+    """List operating expenses with optional filters, scoped by community access."""
     query = db.query(OperatingExpense)
+    # Apply community scope filtering
+    query = filter_by_community_scope(query, current_user, db, OperatingExpense.community_id)
     if community_id:
         query = query.filter(OperatingExpense.community_id == community_id)
     if year:
@@ -305,7 +311,7 @@ def get_expense_summary(
     year: int,
     quarter: int | None = None,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_gp_ops_pm),
+    current_user: User = Depends(require_investor_or_above),
 ):
     """Get aggregated expense summary by category for a community/period."""
     community = db.query(Community).filter(
@@ -389,9 +395,12 @@ def list_funding(
     community_id: int | None = None,
     status: str | None = None,
     db: Session = Depends(get_db),
-    _: User = Depends(require_gp_or_ops),
+    current_user: User = Depends(require_investor_or_above),
 ):
+    """List funding opportunities, scoped by community access."""
     q = db.query(FundingOpportunity)
+    # Apply community scope filtering
+    q = filter_by_community_scope(q, current_user, db, FundingOpportunity.community_id)
     if operator_id:
         q = q.filter(FundingOpportunity.operator_id == operator_id)
     if community_id:

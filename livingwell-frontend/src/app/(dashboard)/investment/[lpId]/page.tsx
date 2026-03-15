@@ -71,6 +71,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { formatCurrency, formatCurrencyCompact } from "@/lib/utils";
+import { usePermissions } from "@/hooks/usePermissions";
 
 /* ── helpers ─────────────────────────────────────────────────────── */
 function statusLabel(s: string) {
@@ -177,6 +178,7 @@ export default function LPDetailPage() {
   const { data: rollup } = usePortfolioRollup(lpId);
   const { data: distributions } = useDistributionEvents(lpId);
   const { data: investors } = useInvestors();
+  const { canEdit } = usePermissions();
 
   /* ── mutations ───────────────────────────────────────────────── */
   const updateLP = useUpdateLP();
@@ -400,7 +402,7 @@ export default function LPDetailPage() {
           </div>
           <div className="flex items-center gap-2 self-start sm:self-center">
             <Badge variant={LP_STATUS_VARIANT[lp.status] ?? "outline"} className="text-xs">{statusLabel(lp.status)}</Badge>
-            <Button variant="outline" size="sm" onClick={() => {
+            {canEdit && <Button variant="outline" size="sm" onClick={() => {
               lpForm.openEdit(lpId, {
                 name: lp.name || "", legal_name: lp.legal_name || "", lp_number: lp.lp_number || "",
                 city_focus: lp.city_focus || "", community_focus: lp.community_focus || "",
@@ -420,7 +422,7 @@ export default function LPDetailPage() {
               });
             }}>
               <Pencil className="h-3.5 w-3.5 mr-1" /> Edit LP
-            </Button>
+            </Button>}
           </div>
         </div>
       </div>
@@ -525,7 +527,7 @@ export default function LPDetailPage() {
         <TabsContent value="tranches" className="mt-4 space-y-4">
           <div className="flex justify-between items-center">
             <h3 className="text-sm font-semibold">Tranches / Closings</h3>
-            <Button size="sm" onClick={trancheForm.openCreate}><Plus className="h-3.5 w-3.5 mr-1" /> Add Tranche</Button>
+            {canEdit && <Button size="sm" onClick={trancheForm.openCreate}><Plus className="h-3.5 w-3.5 mr-1" /> Add Tranche</Button>}
           </div>
           {!tranches || tranches.length === 0 ? (
             <Card><CardContent className="pt-6"><p className="text-sm text-muted-foreground">No tranches defined yet.</p></CardContent></Card>
@@ -543,13 +545,13 @@ export default function LPDetailPage() {
                         </div>
                         <div className="flex items-center gap-2">
                           <Badge variant={t.status === "open" ? "secondary" : t.status === "closed" ? "default" : "outline"}>{statusLabel(t.status)}</Badge>
-                          <Button variant="ghost" size="sm" onClick={() => trancheForm.openEdit(t.tranche_id, {
+                          {canEdit && <Button variant="ghost" size="sm" onClick={() => trancheForm.openEdit(t.tranche_id, {
                             tranche_number: String(t.tranche_number), tranche_name: t.tranche_name || "",
                             opening_date: t.opening_date || "", closing_date: t.closing_date || "",
                             status: t.status, issue_price: t.issue_price || "",
                             target_amount: t.target_amount || "", target_units: t.target_units || "",
                             notes: t.notes || "",
-                          })}><Pencil className="h-3.5 w-3.5" /></Button>
+                          })}><Pencil className="h-3.5 w-3.5" /></Button>}
                         </div>
                       </div>
                       <div className="space-y-1">
@@ -576,7 +578,7 @@ export default function LPDetailPage() {
         <TabsContent value="subscriptions" className="mt-4 space-y-4">
           <div className="flex justify-between items-center">
             <h3 className="text-sm font-semibold">Subscriptions</h3>
-            <Button size="sm" onClick={subForm.openCreate}><Plus className="h-3.5 w-3.5 mr-1" /> Add Subscription</Button>
+            {canEdit && <Button size="sm" onClick={subForm.openCreate}><Plus className="h-3.5 w-3.5 mr-1" /> Add Subscription</Button>}
           </div>
           <Card>
             <CardContent className="pt-4">
@@ -608,12 +610,12 @@ export default function LPDetailPage() {
                           <TableCell><Badge variant={SUB_STATUS_VARIANT[s.status] ?? "outline"} className="text-xs">{statusLabel(s.status)}</Badge></TableCell>
                           <TableCell className="text-sm">{fmtDate(s.submitted_date)}</TableCell>
                           <TableCell>
-                            <Button variant="ghost" size="sm" onClick={() => subForm.openEdit(s.subscription_id, {
+                            {canEdit && <Button variant="ghost" size="sm" onClick={() => subForm.openEdit(s.subscription_id, {
                               investor_id: String(s.investor_id), tranche_id: s.tranche_id ? String(s.tranche_id) : "",
                               commitment_amount: s.commitment_amount, funded_amount: s.funded_amount,
                               issue_price: s.issue_price || "", unit_quantity: s.unit_quantity || "",
                               status: s.status, submitted_date: s.submitted_date || "", notes: s.notes || "",
-                            })}><Pencil className="h-3.5 w-3.5" /></Button>
+                            })}><Pencil className="h-3.5 w-3.5" /></Button>}
                           </TableCell>
                         </TableRow>
                       ))}
@@ -629,7 +631,7 @@ export default function LPDetailPage() {
         <TabsContent value="holdings" className="mt-4 space-y-4">
           <div className="flex justify-between items-center">
             <h3 className="text-sm font-semibold">Unit-Based Holdings</h3>
-            <Button size="sm" onClick={holdingForm.openCreate}><Plus className="h-3.5 w-3.5 mr-1" /> Add Holding</Button>
+            {canEdit && <Button size="sm" onClick={holdingForm.openCreate}><Plus className="h-3.5 w-3.5 mr-1" /> Add Holding</Button>}
           </div>
 
           {/* Unit Summary KPIs */}
@@ -680,7 +682,7 @@ export default function LPDetailPage() {
                           <TableCell><Badge variant={h.is_gp ? "secondary" : "outline"} className="text-xs">{h.is_gp ? "GP" : "LP"}</Badge></TableCell>
                           <TableCell className="text-sm">{fmtDate(h.initial_issue_date)}</TableCell>
                           <TableCell>
-                            <Button variant="ghost" size="sm" onClick={() => holdingForm.openEdit(h.holding_id, {
+                            {canEdit && <Button variant="ghost" size="sm" onClick={() => holdingForm.openEdit(h.holding_id, {
                               investor_id: String(h.investor_id), subscription_id: h.subscription_id ? String(h.subscription_id) : "",
                               units_held: h.units_held || "", average_issue_price: h.average_issue_price || "",
                               total_capital_contributed: h.total_capital_contributed || "",
@@ -688,7 +690,7 @@ export default function LPDetailPage() {
                               ownership_percent: h.ownership_percent, cost_basis: h.cost_basis,
                               unreturned_capital: h.unreturned_capital, unpaid_preferred: h.unpaid_preferred,
                               is_gp: String(h.is_gp),
-                            })}><Pencil className="h-3.5 w-3.5" /></Button>
+                            })}><Pencil className="h-3.5 w-3.5" /></Button>}
                           </TableCell>
                         </TableRow>
                       ))}
@@ -715,7 +717,7 @@ export default function LPDetailPage() {
         <TabsContent value="pipeline" className="mt-4 space-y-4">
           <div className="flex justify-between items-center">
             <h3 className="text-sm font-semibold">Target Properties (Pipeline)</h3>
-            <Button size="sm" onClick={tpForm.openCreate}><Plus className="h-3.5 w-3.5 mr-1" /> Add Target Property</Button>
+            {canEdit && <Button size="sm" onClick={tpForm.openCreate}><Plus className="h-3.5 w-3.5 mr-1" /> Add Target Property</Button>}
           </div>
           {!targetProperties || targetProperties.length === 0 ? (
             <Card><CardContent className="pt-6"><p className="text-sm text-muted-foreground">No target properties in the pipeline.</p></CardContent></Card>
@@ -732,7 +734,7 @@ export default function LPDetailPage() {
                     </div>
                     <div className="flex items-center gap-2 self-start">
                       <Badge variant={TP_STATUS_VARIANT[tp.status] ?? "outline"} className="text-xs">{statusLabel(tp.status)}</Badge>
-                      <Button variant="ghost" size="sm" onClick={() => tpForm.openEdit(tp.target_property_id, {
+                      {canEdit && <Button variant="ghost" size="sm" onClick={() => tpForm.openEdit(tp.target_property_id, {
                         address: tp.address || "", city: tp.city || "", province: tp.province || "AB",
                         intended_community: tp.intended_community || "", status: tp.status,
                         estimated_acquisition_price: tp.estimated_acquisition_price || "",
@@ -762,8 +764,8 @@ export default function LPDetailPage() {
                         target_completion_date: tp.target_completion_date || "",
                         target_stabilization_date: tp.target_stabilization_date || "",
                         notes: tp.notes || "",
-                      })}><Pencil className="h-3.5 w-3.5" /></Button>
-                      {!tp.converted_property_id && tp.status !== "acquired" && (
+                      })}><Pencil className="h-3.5 w-3.5" /></Button>}
+                      {canEdit && !tp.converted_property_id && tp.status !== "acquired" && (
                         <Button variant="outline" size="sm" onClick={() => {
                           if (confirm(`Convert "${tp.address}" to an actual property? This will create a new property record.`)) {
                             convertTargetProperty.mutate({ tpId: tp.target_property_id, lpId });

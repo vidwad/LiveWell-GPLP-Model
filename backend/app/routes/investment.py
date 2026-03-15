@@ -10,7 +10,10 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 from sqlalchemy import func as sa_func
 
-from app.core.deps import get_current_user, require_gp_admin, require_gp_or_ops, require_investor_or_above
+from app.core.deps import (
+    get_current_user, require_gp_admin, require_gp_or_ops, require_investor_or_above,
+    check_entity_access, filter_by_lp_scope,
+)
 from app.db.models import (
     User, UserRole, GPEntity, LPEntity, LPTranche, Investor, Subscription,
     Holding, TargetProperty, Property,
@@ -294,6 +297,10 @@ def list_tranches(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_investor_or_above),
 ):
+    # Scope check: verify user has access to this LP
+    if current_user.role not in (UserRole.GP_ADMIN, UserRole.OPERATIONS_MANAGER):
+        if not check_entity_access(current_user, db, ScopeEntityType.lp, lp_id):
+            raise HTTPException(status_code=403, detail="Access denied")
     tranches = db.query(LPTranche).filter(LPTranche.lp_id == lp_id).order_by(LPTranche.tranche_number).all()
     result = []
     for t in tranches:
@@ -466,6 +473,10 @@ def list_subscriptions(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_investor_or_above),
 ):
+    # Scope check: verify user has access to this LP
+    if current_user.role not in (UserRole.GP_ADMIN, UserRole.OPERATIONS_MANAGER):
+        if not check_entity_access(current_user, db, ScopeEntityType.lp, lp_id):
+            raise HTTPException(status_code=403, detail="Access denied")
     query = db.query(Subscription).filter(Subscription.lp_id == lp_id)
 
     if current_user.role == UserRole.INVESTOR:
@@ -603,6 +614,10 @@ def list_holdings(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_investor_or_above),
 ):
+    # Scope check: verify user has access to this LP
+    if current_user.role not in (UserRole.GP_ADMIN, UserRole.OPERATIONS_MANAGER):
+        if not check_entity_access(current_user, db, ScopeEntityType.lp, lp_id):
+            raise HTTPException(status_code=403, detail="Access denied")
     # Use service layer for computed ownership_percent and cost_basis
     holdings_data = compute_holdings_with_ownership(db, lp_id)
 
@@ -700,6 +715,10 @@ def list_target_properties(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_investor_or_above),
 ):
+    # Scope check: verify user has access to this LP
+    if current_user.role not in (UserRole.GP_ADMIN, UserRole.OPERATIONS_MANAGER):
+        if not check_entity_access(current_user, db, ScopeEntityType.lp, lp_id):
+            raise HTTPException(status_code=403, detail="Access denied")
     query = db.query(TargetProperty).filter(TargetProperty.lp_id == lp_id)
     if status_filter:
         query = query.filter(TargetProperty.status == TargetPropertyStatus(status_filter))
@@ -833,6 +852,10 @@ def get_lp_portfolio_rollup(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_investor_or_above),
 ):
+    # Scope check: verify user has access to this LP
+    if current_user.role not in (UserRole.GP_ADMIN, UserRole.OPERATIONS_MANAGER):
+        if not check_entity_access(current_user, db, ScopeEntityType.lp, lp_id):
+            raise HTTPException(status_code=403, detail="Access denied")
     lp = db.query(LPEntity).filter(LPEntity.lp_id == lp_id).first()
     if not lp:
         raise HTTPException(status_code=404, detail="LP entity not found")
@@ -885,6 +908,10 @@ def list_distribution_events(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_investor_or_above),
 ):
+    # Scope check: verify user has access to this LP
+    if current_user.role not in (UserRole.GP_ADMIN, UserRole.OPERATIONS_MANAGER):
+        if not check_entity_access(current_user, db, ScopeEntityType.lp, lp_id):
+            raise HTTPException(status_code=403, detail="Access denied")
     events = db.query(DistributionEvent).filter(DistributionEvent.lp_id == lp_id).all()
     return events
 

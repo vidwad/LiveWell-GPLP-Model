@@ -1,7 +1,7 @@
 import axios from "axios";
 import type { CostEstimateInput, CostEstimateResult, Property, PropertyCreate, DevelopmentPlan, DevelopmentPlanCreate, PropertyCluster, PropertyManager, PropertyManagerCreate } from "@/types/portfolio";
 import type { GPEntity, LPEntity, LPDetail, LPCreate, LPTranche, LPTrancheCreate, Subscription, SubscriptionCreate, Holding, TargetProperty, LPPortfolioRollup, DistributionEvent, Investor as InvInvestor, WaterfallResult as InvWaterfallResult } from "@/types/investment";
-import type { Investor, InvestorCreate, InvestorDashboard, Document, Message, WaterfallInput, WaterfallResult } from "@/types/investor";
+import type { Investor, InvestorCreate, InvestorDashboard, InvestorDistributionHistory, Document, Message, WaterfallInput, WaterfallResult } from "@/types/investor";
 
 const BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
@@ -124,6 +124,7 @@ export const investors = {
   },
   getDocuments: (id: number) => apiClient.get<Document[]>(`/api/investor/investors/${id}/documents`).then(r => r.data),
   getMessages: (id: number) => apiClient.get<Message[]>(`/api/investor/investors/${id}/messages`).then(r => r.data),
+  getDistributions: (id: number) => apiClient.get<InvestorDistributionHistory>(`/api/investor/investors/${id}/distributions`).then(r => r.data),
   calculateWaterfall: (data: WaterfallInput) => apiClient.post<WaterfallResult>("/api/investor/waterfall/calculate", data).then(r => r.data),
 };
 
