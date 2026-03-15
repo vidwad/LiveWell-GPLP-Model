@@ -621,7 +621,8 @@ def compute_lp_nav(db: Session, lp_id: int) -> Dict[str, Any]:
     formation_costs = _d(lp_summary.get("total_formation_costs", 0))
 
     # Accrued management fees (simplified: 1 year of fees as accrual)
-    mgmt_fee_pct = _d(lp.management_fee_percent) / Decimal("100") if lp.management_fee_percent else ZERO
+    fee_field = lp.asset_management_fee_percent or lp.management_fee_percent
+    mgmt_fee_pct = _d(fee_field) / Decimal("100") if fee_field else ZERO
     accrued_fees = total_funded * mgmt_fee_pct  # annual accrual
 
     # NAV = property values + cash (undeployed capital) - debt - accrued fees

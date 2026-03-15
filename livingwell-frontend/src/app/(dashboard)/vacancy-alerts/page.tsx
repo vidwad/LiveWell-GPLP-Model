@@ -23,14 +23,20 @@ interface BedAlert {
 interface CommunityAlerts {
   community_id: number;
   community_name: string;
-  alerts: BedAlert[];
+  city: string;
+  alert_count: number;
+  monthly_revenue_at_risk: number;
+  beds: BedAlert[];
 }
 
 interface VacancyAlertsResponse {
-  total_vacant_beds: number;
-  communities_affected: number;
-  total_monthly_revenue_at_risk: number;
-  alert_count: number;
+  threshold_days: number;
+  summary: {
+    total_vacant_beds: number;
+    communities_affected: number;
+    total_monthly_revenue_at_risk: number;
+    alerts_count: number;
+  };
   communities: CommunityAlerts[];
 }
 
@@ -127,7 +133,7 @@ export default function VacancyAlertsPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {isLoading ? "..." : (data?.total_vacant_beds ?? 0)}
+              {isLoading ? "..." : (data?.summary?.total_vacant_beds ?? 0)}
             </div>
           </CardContent>
         </Card>
@@ -141,7 +147,7 @@ export default function VacancyAlertsPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {isLoading ? "..." : (data?.communities_affected ?? 0)}
+              {isLoading ? "..." : (data?.summary?.communities_affected ?? 0)}
             </div>
           </CardContent>
         </Card>
@@ -157,7 +163,7 @@ export default function VacancyAlertsPage() {
             <div className="text-2xl font-bold">
               {isLoading
                 ? "..."
-                : cad.format(data?.total_monthly_revenue_at_risk ?? 0)}
+                : cad.format(data?.summary?.total_monthly_revenue_at_risk ?? 0)}
             </div>
           </CardContent>
         </Card>
@@ -169,7 +175,7 @@ export default function VacancyAlertsPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {isLoading ? "..." : (data?.alert_count ?? 0)}
+              {isLoading ? "..." : (data?.summary?.alerts_count ?? 0)}
             </div>
           </CardContent>
         </Card>
@@ -203,8 +209,8 @@ export default function VacancyAlertsPage() {
                 <Building2 className="h-5 w-5" />
                 {community.community_name}
                 <Badge variant="secondary" className="ml-auto">
-                  {community.alerts.length}{" "}
-                  {community.alerts.length === 1 ? "alert" : "alerts"}
+                  {community.beds.length}{" "}
+                  {community.beds.length === 1 ? "alert" : "alerts"}
                 </Badge>
               </CardTitle>
             </CardHeader>
@@ -221,7 +227,7 @@ export default function VacancyAlertsPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {community.alerts.map((alert) => {
+                    {community.beds.map((alert) => {
                       const sev = severityConfig[alert.severity];
                       return (
                         <tr

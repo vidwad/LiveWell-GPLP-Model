@@ -22,9 +22,9 @@ interface LPFundRow {
   lp_id: number;
   name: string;
   status: string;
-  total_committed: number;
-  total_funded: number;
-  total_deployed: number;
+  committed: number;
+  funded: number;
+  deployed: number;
   nav: number;
   nav_per_unit: number;
   property_count: number;
@@ -41,7 +41,7 @@ interface PortfolioAnalytics {
   total_properties: number;
   lp_count: number;
   blended_deployment_ratio: number;
-  nav_premium_discount: number;
+  blended_nav_premium: number;
   lp_funds: LPFundRow[];
 }
 
@@ -62,7 +62,7 @@ const fmtCompact = (n: number) => {
   return fmt(n);
 };
 
-const fmtPct = (n: number) => `${(n * 100).toFixed(1)}%`;
+const fmtPct = (n: number) => `${n.toFixed(1)}%`;
 
 /* ------------------------------------------------------------------ */
 /*  KPI Card                                                           */
@@ -135,9 +135,9 @@ function LPFundTable({ funds }: { funds: LPFundRow[] }) {
                   {f.status}
                 </span>
               </td>
-              <td className="px-4 py-3 text-right tabular-nums">{fmt(f.total_committed)}</td>
-              <td className="px-4 py-3 text-right tabular-nums">{fmt(f.total_funded)}</td>
-              <td className="px-4 py-3 text-right tabular-nums">{fmt(f.total_deployed)}</td>
+              <td className="px-4 py-3 text-right tabular-nums">{fmt(f.committed)}</td>
+              <td className="px-4 py-3 text-right tabular-nums">{fmt(f.funded)}</td>
+              <td className="px-4 py-3 text-right tabular-nums">{fmt(f.deployed)}</td>
               <td className="px-4 py-3 text-right tabular-nums">{fmt(f.nav)}</td>
               <td className="px-4 py-3 text-right tabular-nums">{fmt(f.nav_per_unit)}</td>
               <td className="px-4 py-3 text-right tabular-nums">{f.property_count}</td>
@@ -162,7 +162,7 @@ function LPFundTable({ funds }: { funds: LPFundRow[] }) {
 /* ------------------------------------------------------------------ */
 
 export default function AnalyticsPage() {
-  const { data, isLoading } = useQuery<PortfolioAnalytics>({
+  const { data: raw, isLoading } = useQuery<{ funds: LPFundRow[]; totals: Record<string, number> }>({
     queryKey: ["portfolio-analytics"],
     queryFn: () =>
       apiClient.get("/api/investment/portfolio-analytics").then((r) => r.data),
@@ -176,7 +176,8 @@ export default function AnalyticsPage() {
     );
   }
 
-  const funds = data?.lp_funds ?? [];
+  const funds = raw?.funds ?? [];
+  const data = raw ? { ...raw.totals, lp_funds: raw.funds } as PortfolioAnalytics : undefined;
 
   return (
     <div className="space-y-6">
@@ -215,7 +216,7 @@ export default function AnalyticsPage() {
           <KPI
             label="Total NAV"
             value={fmtCompact(data.total_nav)}
-            sub={`Premium/Discount: ${data.nav_premium_discount >= 0 ? "+" : ""}${fmtPct(data.nav_premium_discount)}`}
+            sub={`Premium/Discount: ${(data.blended_nav_premium ?? 0) >= 0 ? "+" : ""}${fmtPct(data.blended_nav_premium ?? 0)}`}
             icon={PieChart}
           />
           <KPI
