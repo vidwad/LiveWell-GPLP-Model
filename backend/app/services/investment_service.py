@@ -265,9 +265,12 @@ def compute_waterfall(
     if not lp:
         return {"error": "LP not found"}
 
+    # Read LP-specific waterfall configuration
+    waterfall_style = lp.waterfall_style or "european"
     pref_rate = _d(lp.preferred_return_rate) / Decimal("100") if lp.preferred_return_rate else ZERO
     gp_promote = _d(lp.gp_promote_percent) / Decimal("100") if lp.gp_promote_percent else Decimal("0.20")
     gp_catchup_pct = _d(lp.gp_catchup_percent) / Decimal("100") if lp.gp_catchup_percent else Decimal("1.00")
+    lp_split = _d(lp.lp_split_percent) / Decimal("100") if lp.lp_split_percent else (Decimal("1") - gp_promote)
 
     holdings = (
         db.query(m.Holding)
@@ -364,10 +367,10 @@ def compute_waterfall(
         remaining -= tier3_pool
 
     # ── Tier 4: Carried Interest Split ─────────────────────────────────
-    # Remaining split: LP gets (1 - gp_promote), GP gets gp_promote
+    # Remaining split: LP gets lp_split (configurable per LP), GP gets remainder
     tier4_pool = remaining
     if tier4_pool > ZERO:
-        lp_share = (tier4_pool * (Decimal("1") - gp_promote)).quantize(TWO)
+        lp_share = (tier4_pool * lp_split).quantize(TWO)
         gp_share = tier4_pool - lp_share
 
         total_lp_units = sum(a["units_held"] for a in lp_holdings)
@@ -392,10 +395,12 @@ def compute_waterfall(
         "tier3_total": tier3_pool,
         "tier4_total": tier4_pool,
         "waterfall_params": {
+            "waterfall_style": waterfall_style,
             "preferred_return_rate": str(lp.preferred_return_rate),
             "gp_promote_percent": str(lp.gp_promote_percent),
             "gp_catchup_percent": str(lp.gp_catchup_percent),
-            "style": "European (whole-fund)",
+            "lp_split_percent": str(lp_split * Decimal("100")),
+            "style": f"{waterfall_style.capitalize()} (whole-fund)",
         },
         "allocations": list(alloc.values()),
     }

@@ -138,6 +138,18 @@ const NAV_ITEMS = [
     roles: ["GP_ADMIN", "OPERATIONS_MANAGER", "PROPERTY_MANAGER"] as UserRole[],
   },
   {
+    href: "/analytics",
+    label: "Portfolio Analytics",
+    icon: BarChart2,
+    roles: ["GP_ADMIN", "OPERATIONS_MANAGER"] as UserRole[],
+  },
+  {
+    href: "/vacancy-alerts",
+    label: "Vacancy Alerts",
+    icon: Activity,
+    roles: ["GP_ADMIN", "OPERATIONS_MANAGER", "PROPERTY_MANAGER"] as UserRole[],
+  },
+  {
     href: "/reports",
     label: "Reports",
     icon: BarChart2,

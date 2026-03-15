@@ -73,10 +73,15 @@ class LPEntityBase(BaseModel):
     reserve_percent: Optional[Decimal] = None
     reserve_amount: Optional[Decimal] = None
 
-    # Waterfall rules
+    # Waterfall rules (fully configurable per LP)
+    waterfall_style: Optional[str] = "european"
     preferred_return_rate: Optional[Decimal] = None
     gp_promote_percent: Optional[Decimal] = None
     gp_catchup_percent: Optional[Decimal] = None
+    lp_split_percent: Optional[Decimal] = None
+    hurdle_rate_2: Optional[Decimal] = None
+    gp_promote_percent_2: Optional[Decimal] = None
+    management_fee_percent: Optional[Decimal] = None
 
     # Fee structure
     asset_management_fee_percent: Optional[Decimal] = None
@@ -110,9 +115,14 @@ class LPEntityUpdate(BaseModel):
     offering_costs: Optional[Decimal] = None
     reserve_percent: Optional[Decimal] = None
     reserve_amount: Optional[Decimal] = None
+    waterfall_style: Optional[str] = None
     preferred_return_rate: Optional[Decimal] = None
     gp_promote_percent: Optional[Decimal] = None
     gp_catchup_percent: Optional[Decimal] = None
+    lp_split_percent: Optional[Decimal] = None
+    hurdle_rate_2: Optional[Decimal] = None
+    gp_promote_percent_2: Optional[Decimal] = None
+    management_fee_percent: Optional[Decimal] = None
     asset_management_fee_percent: Optional[Decimal] = None
     acquisition_fee_percent: Optional[Decimal] = None
     total_units_authorized: Optional[Decimal] = None

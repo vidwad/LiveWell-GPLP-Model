@@ -60,6 +60,32 @@ export const portfolio = {
   getClusters: () => apiClient.get<PropertyCluster[]>("/api/portfolio/clusters").then(r => r.data),
   estimateCosts: (data: CostEstimateInput) => apiClient.post<CostEstimateResult>("/api/portfolio/modeling/estimate-costs", data).then(r => r.data),
   getReturnsMetrics: () => apiClient.get("/api/portfolio/metrics/returns").then(r => r.data),
+
+  // Cap Rate Valuation
+  calculateCapRateValuation: (propertyId: number, data: { noi: number; cap_rate: number }) =>
+    apiClient.post(`/api/portfolio/properties/${propertyId}/valuations/cap-rate`, data).then(r => r.data),
+  saveCapRateValuation: (propertyId: number, data: { noi: number; cap_rate: number }) =>
+    apiClient.post(`/api/portfolio/properties/${propertyId}/valuations/cap-rate/save`, data).then(r => r.data),
+
+  // Construction Budget
+  getConstructionExpenses: (propertyId: number, planId?: number) =>
+    apiClient.get(`/api/portfolio/properties/${propertyId}/construction-expenses`, { params: planId ? { plan_id: planId } : {} }).then(r => r.data),
+  createConstructionExpense: (propertyId: number, data: object) =>
+    apiClient.post(`/api/portfolio/properties/${propertyId}/construction-expenses`, data).then(r => r.data),
+  getConstructionBudgetSummary: (propertyId: number, planId: number) =>
+    apiClient.get(`/api/portfolio/properties/${propertyId}/construction-budget-summary`, { params: { plan_id: planId } }).then(r => r.data),
+
+  // Construction Draws
+  getConstructionDraws: (propertyId: number, debtId?: number) =>
+    apiClient.get(`/api/portfolio/properties/${propertyId}/construction-draws`, { params: debtId ? { debt_id: debtId } : {} }).then(r => r.data),
+  createConstructionDraw: (propertyId: number, data: object) =>
+    apiClient.post(`/api/portfolio/properties/${propertyId}/construction-draws`, data).then(r => r.data),
+  updateConstructionDraw: (drawId: number, data: object) =>
+    apiClient.patch(`/api/portfolio/construction-draws/${drawId}`, data).then(r => r.data),
+
+  // Valuations
+  getValuations: (propertyId: number) =>
+    apiClient.get(`/api/portfolio/properties/${propertyId}/valuations`).then(r => r.data),
 };
 
 // ── Investment (GP / LP / Tranche / Subscription / Holding / Target / Distribution) ─────
@@ -119,6 +145,10 @@ export const investment = {
   // Waterfall
   computeWaterfall: (lpId: number, distributableAmount: number) =>
     apiClient.post<InvWaterfallResult>(`/api/investment/lp/${lpId}/waterfall`, { distributable_amount: distributableAmount }).then(r => r.data),
+
+  // Portfolio Analytics
+  getPortfolioAnalytics: () =>
+    apiClient.get("/api/investment/portfolio-analytics").then(r => r.data),
 };
 
 // ── Investors ────────────────────────────────────────────────────────
@@ -144,6 +174,8 @@ export const communities = {
   getResidents: (communityId: number) => apiClient.get(`/api/community/communities/${communityId}/residents`).then(r => r.data),
   getBeds: (unitId: number) => apiClient.get(`/api/community/units/${unitId}/beds`).then(r => r.data),
   getMaintenance: () => apiClient.get("/api/community/maintenance").then(r => r.data),
+  getVacancyAlerts: (thresholdDays?: number) =>
+    apiClient.get("/api/community/operations/vacancy-alerts", { params: thresholdDays ? { threshold_days: thresholdDays } : {} }).then(r => r.data),
 };
 
 // ── Reports ──────────────────────────────────────────────────────────

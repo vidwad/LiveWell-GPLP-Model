@@ -322,3 +322,94 @@ class ValuationOut(BaseModel):
     created_at: datetime.datetime
 
     model_config = {"from_attributes": True}
+
+
+# ---------------------------------------------------------------------------
+# Cap Rate Valuation Calculator
+# ---------------------------------------------------------------------------
+
+class CapRateValuationInput(BaseModel):
+    noi: Decimal
+    cap_rate: Decimal  # as percentage, e.g. 5.5 = 5.5%
+
+
+class CapRateValuationResult(BaseModel):
+    noi: Decimal
+    cap_rate: Decimal
+    estimated_value: Decimal
+    value_per_unit: Decimal | None = None
+    value_per_sqft: Decimal | None = None
+
+
+# ---------------------------------------------------------------------------
+# Construction Budget vs Actual
+# ---------------------------------------------------------------------------
+
+class ConstructionExpenseCreate(BaseModel):
+    plan_id: int
+    category: str
+    description: str | None = None
+    budgeted_amount: Decimal = Decimal("0")
+    actual_amount: Decimal = Decimal("0")
+    vendor: str | None = None
+    invoice_ref: str | None = None
+    expense_date: datetime.date | None = None
+    notes: str | None = None
+
+
+class ConstructionExpenseOut(BaseModel):
+    expense_id: int
+    property_id: int
+    plan_id: int
+    category: str
+    description: str | None
+    budgeted_amount: Decimal
+    actual_amount: Decimal
+    vendor: str | None
+    invoice_ref: str | None
+    expense_date: datetime.date | None
+    notes: str | None
+    created_at: datetime.datetime | None
+
+    model_config = {"from_attributes": True}
+
+
+class ConstructionBudgetSummary(BaseModel):
+    property_id: int
+    plan_id: int
+    line_items: list[ConstructionExpenseOut]
+    total_budgeted: Decimal
+    total_actual: Decimal
+    total_variance: Decimal
+    by_category: dict[str, dict]
+
+
+# ---------------------------------------------------------------------------
+# Construction Draw Schedule
+# ---------------------------------------------------------------------------
+
+class ConstructionDrawCreate(BaseModel):
+    debt_id: int
+    draw_number: int
+    requested_amount: Decimal
+    description: str | None = None
+    requested_date: datetime.date | None = None
+    notes: str | None = None
+
+
+class ConstructionDrawOut(BaseModel):
+    draw_id: int
+    property_id: int
+    debt_id: int
+    draw_number: int
+    requested_amount: Decimal
+    approved_amount: Decimal | None
+    status: str
+    description: str | None
+    requested_date: datetime.date | None
+    approved_date: datetime.date | None
+    funded_date: datetime.date | None
+    notes: str | None
+    created_at: datetime.datetime | None
+
+    model_config = {"from_attributes": True}

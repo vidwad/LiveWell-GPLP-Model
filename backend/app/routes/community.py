@@ -368,3 +368,101 @@ def get_portfolio_operations_summary(
 ):
     """Aggregate P&L across all communities for the operations dashboard."""
     return compute_portfolio_operations_summary(db, year)
+
+
+# ---------------------------------------------------------------------------
+# Task 6: Vacancy Tracking and Alerts
+# ---------------------------------------------------------------------------
+
+@router.get("/operations/vacancy-alerts")
+def get_vacancy_alerts(
+    threshold_days: int = 14,
+    db: Session = Depends(get_db),
+    _: User = Depends(require_gp_ops_pm),
+):
+    """Identify beds/units that have been vacant beyond a threshold.
+
+    Returns vacancy alerts across all communities, grouped by community.
+    """
+    from datetime import date, timedelta
+
+    communities = db.query(Community).all()
+    alerts = []
+    summary = {"total_vacant_beds": 0, "alerts_count": 0, "communities_affected": 0}
+
+    for comm in communities:
+        community_alerts = []
+        units = db.query(Unit).filter(Unit.community_id == comm.community_id).all()
+
+        for unit in units:
+            beds = db.query(Bed).filter(Bed.unit_id == unit.unit_id).all()
+            for bed in beds:
+                if bed.status == BedStatus.available:
+                    # Check when this bed was last occupied by looking at move_out_date of last resident
+                    last_resident = (
+                        db.query(Resident)
+                        .filter(Resident.bed_id == bed.bed_id)
+                        .order_by(Resident.move_out_date.desc().nullslast())
+                        .first()
+                    )
+                    vacant_since = None
+                    days_vacant = 0
+                    if last_resident and last_resident.move_out_date:
+                        vacant_since = last_resident.move_out_date
+                        if isinstance(vacant_since, str):
+                            vacant_since = date.fromisoformat(vacant_since)
+                        days_vacant = (date.today() - vacant_since).days
+                    else:
+                        # Bed has never been occupied or no move_out recorded
+                        days_vacant = 999  # flag as long-term vacant
+
+                    if days_vacant >= threshold_days:
+                        lost_monthly = float(bed.monthly_rent or 0)
+                        community_alerts.append({
+                            "bed_id": bed.bed_id,
+                            "bed_label": bed.bed_label,
+                            "unit_id": unit.unit_id,
+                            "unit_number": unit.unit_number,
+                            "monthly_rent": lost_monthly,
+                            "vacant_since": str(vacant_since) if vacant_since else None,
+                            "days_vacant": days_vacant if days_vacant < 999 else None,
+                            "estimated_monthly_loss": lost_monthly,
+                            "severity": "critical" if days_vacant >= 60 else "warning" if days_vacant >= 30 else "info",
+                        })
+
+                elif bed.status == BedStatus.maintenance:
+                    community_alerts.append({
+                        "bed_id": bed.bed_id,
+                        "bed_label": bed.bed_label,
+                        "unit_id": unit.unit_id,
+                        "unit_number": unit.unit_number,
+                        "monthly_rent": float(bed.monthly_rent or 0),
+                        "vacant_since": None,
+                        "days_vacant": None,
+                        "estimated_monthly_loss": float(bed.monthly_rent or 0),
+                        "severity": "maintenance",
+                    })
+
+        if community_alerts:
+            summary["communities_affected"] += 1
+            summary["alerts_count"] += len(community_alerts)
+            summary["total_vacant_beds"] += len(community_alerts)
+            total_lost = sum(a["estimated_monthly_loss"] for a in community_alerts)
+            alerts.append({
+                "community_id": comm.community_id,
+                "community_name": comm.name,
+                "city": comm.city,
+                "alert_count": len(community_alerts),
+                "monthly_revenue_at_risk": round(total_lost, 2),
+                "beds": community_alerts,
+            })
+
+    summary["total_monthly_revenue_at_risk"] = round(
+        sum(a["monthly_revenue_at_risk"] for a in alerts), 2
+    )
+
+    return {
+        "threshold_days": threshold_days,
+        "summary": summary,
+        "communities": alerts,
+    }

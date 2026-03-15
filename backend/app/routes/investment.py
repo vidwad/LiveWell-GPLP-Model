@@ -189,6 +189,10 @@ def create_lp_entity(
     if not gp:
         raise HTTPException(status_code=404, detail="GP entity not found")
     data = payload.model_dump()
+    # Normalize empty strings to None for optional fields
+    for k, v in list(data.items()):
+        if v == "":
+            data[k] = None
     # Convert string status to enum
     if data.get("status"):
         data["status"] = LPStatus(data["status"])
@@ -271,6 +275,10 @@ def update_lp_entity(
         raise HTTPException(status_code=404, detail="LP entity not found")
 
     data = payload.model_dump(exclude_unset=True)
+    # Normalize empty strings to None for optional fields
+    for k, v in list(data.items()):
+        if v == "":
+            data[k] = None
 
     # Validate LP status transition if status is being changed
     if "status" in data and data["status"]:
@@ -1072,3 +1080,108 @@ def create_operator(
     db.commit()
     db.refresh(op)
     return op
+
+
+# ===========================================================================
+# Task 7: Portfolio-Level Analytics Dashboard
+# ===========================================================================
+
+@router.get("/portfolio-analytics")
+def get_portfolio_analytics(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_gp_or_ops),
+):
+    """Cross-LP analytics: total AUM, blended returns, portfolio-wide metrics.
+
+    Aggregates data across all LPs the user has access to.
+    """
+    from decimal import Decimal
+
+    lps = db.query(LPEntity).all()
+    if not lps:
+        return {"lp_count": 0, "funds": [], "totals": {}}
+
+    fund_summaries = []
+    totals = {
+        "total_aum": Decimal("0"),
+        "total_committed": Decimal("0"),
+        "total_funded": Decimal("0"),
+        "total_deployed": Decimal("0"),
+        "total_nav": Decimal("0"),
+        "total_properties": 0,
+        "total_target_properties": 0,
+        "total_investors": 0,
+        "total_units_outstanding": Decimal("0"),
+    }
+    all_investor_ids = set()
+
+    for lp in lps:
+        summary = compute_lp_summary(db, lp.lp_id)
+        nav_data = compute_lp_nav(db, lp.lp_id)
+
+        committed = Decimal(str(summary.get("total_committed", 0)))
+        funded = Decimal(str(summary.get("total_funded", 0)))
+        deployed = Decimal(str(summary.get("capital_deployed", 0)))
+        nav = Decimal(str(nav_data.get("nav", 0))) if "nav" in nav_data else Decimal("0")
+        nav_per_unit = nav_data.get("nav_per_unit", 0) if "nav_per_unit" in nav_data else 0
+        prop_count = summary.get("property_count", 0)
+        tp_count = summary.get("target_property_count", 0)
+        inv_count = summary.get("investor_count", 0)
+
+        # Collect unique investor IDs
+        subs = db.query(Subscription).filter(Subscription.lp_id == lp.lp_id).all()
+        for s in subs:
+            all_investor_ids.add(s.investor_id)
+
+        fund_summaries.append({
+            "lp_id": lp.lp_id,
+            "name": lp.name,
+            "status": lp.status.value if lp.status else "draft",
+            "committed": float(committed),
+            "funded": float(funded),
+            "deployed": float(deployed),
+            "nav": float(nav),
+            "nav_per_unit": float(nav_per_unit),
+            "original_unit_price": float(lp.unit_price) if lp.unit_price else None,
+            "property_count": prop_count,
+            "target_property_count": tp_count,
+            "investor_count": inv_count,
+            "subscription_count": summary.get("subscription_count", 0),
+            "holding_count": summary.get("holding_count", 0),
+            "preferred_return_rate": float(lp.preferred_return_rate) if lp.preferred_return_rate else None,
+            "gp_promote_percent": float(lp.gp_promote_percent) if lp.gp_promote_percent else None,
+        })
+
+        totals["total_aum"] += nav if nav > 0 else funded
+        totals["total_committed"] += committed
+        totals["total_funded"] += funded
+        totals["total_deployed"] += deployed
+        totals["total_nav"] += nav
+        totals["total_properties"] += prop_count
+        totals["total_target_properties"] += tp_count
+
+    totals["total_investors"] = len(all_investor_ids)
+    totals["lp_count"] = len(lps)
+
+    # Blended metrics
+    if totals["total_funded"] > 0:
+        totals["blended_deployment_ratio"] = float(
+            (totals["total_deployed"] / totals["total_funded"] * Decimal("100")).quantize(Decimal("0.01"))
+        )
+    else:
+        totals["blended_deployment_ratio"] = 0
+
+    if totals["total_funded"] > 0:
+        totals["blended_nav_premium"] = float(
+            ((totals["total_nav"] - totals["total_funded"]) / totals["total_funded"] * Decimal("100")).quantize(Decimal("0.01"))
+        )
+    else:
+        totals["blended_nav_premium"] = 0
+
+    # Convert Decimals to float for JSON
+    totals = {k: float(v) if isinstance(v, Decimal) else v for k, v in totals.items()}
+
+    return {
+        "funds": fund_summaries,
+        "totals": totals,
+    }

@@ -353,10 +353,15 @@ class LPEntity(Base):
     reserve_percent = Column(Numeric(5, 2), nullable=True)        # operating reserve %
     reserve_amount = Column(Numeric(14, 2), nullable=True)        # fixed reserve amount
 
-    # LP-specific waterfall rules
+    # LP-specific waterfall rules (fully configurable per LP)
+    waterfall_style = Column(String(64), nullable=True, default="european")  # european, american, custom
     preferred_return_rate = Column(Numeric(5, 2), nullable=True)  # e.g. 8.00 for 8%
     gp_promote_percent = Column(Numeric(5, 2), nullable=True)     # e.g. 20.00 for 20%
     gp_catchup_percent = Column(Numeric(5, 2), nullable=True)     # e.g. 100.00 for 100% catch-up
+    lp_split_percent = Column(Numeric(5, 2), nullable=True)       # Tier 4 LP split (default 80%)
+    hurdle_rate_2 = Column(Numeric(5, 2), nullable=True)          # Optional second hurdle rate
+    gp_promote_percent_2 = Column(Numeric(5, 2), nullable=True)   # GP promote above second hurdle
+    management_fee_percent = Column(Numeric(5, 2), nullable=True) # annual management fee on funded capital
 
     # Fee structure
     asset_management_fee_percent = Column(Numeric(5, 2), nullable=True)
@@ -1355,3 +1360,62 @@ class ValuationHistory(Base):
 
     property = relationship("Property", back_populates="valuations")
     creator = relationship("User")
+
+
+# ---------------------------------------------------------------------------
+# Construction Budget vs Actual Tracking
+# ---------------------------------------------------------------------------
+
+class ConstructionExpense(Base):
+    """Line-item tracking of construction expenses against a development plan budget."""
+    __tablename__ = "construction_expenses"
+
+    expense_id = Column(Integer, primary_key=True, index=True)
+    property_id = Column(Integer, ForeignKey("properties.property_id"), nullable=False)
+    plan_id = Column(Integer, ForeignKey("development_plans.plan_id"), nullable=False)
+    category = Column(String(100), nullable=False)  # hard_costs, soft_costs, site_costs, financing_costs, contingency
+    description = Column(String(512), nullable=True)
+    budgeted_amount = Column(Numeric(16, 2), nullable=False, default=0)
+    actual_amount = Column(Numeric(16, 2), nullable=False, default=0)
+    vendor = Column(String(256), nullable=True)
+    invoice_ref = Column(String(256), nullable=True)
+    expense_date = Column(Date, nullable=True)
+    notes = Column(Text, nullable=True)
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+
+    property = relationship("Property")
+    plan = relationship("DevelopmentPlan")
+
+
+# ---------------------------------------------------------------------------
+# Construction Draw Schedule
+# ---------------------------------------------------------------------------
+
+class ConstructionDrawStatus(str, enum.Enum):
+    requested = "requested"
+    approved = "approved"
+    funded = "funded"
+    rejected = "rejected"
+    cancelled = "cancelled"
+
+
+class ConstructionDraw(Base):
+    """Draw/disbursement schedule for construction financing."""
+    __tablename__ = "construction_draws"
+
+    draw_id = Column(Integer, primary_key=True, index=True)
+    property_id = Column(Integer, ForeignKey("properties.property_id"), nullable=False)
+    debt_id = Column(Integer, ForeignKey("debt_facilities.debt_id"), nullable=False)
+    draw_number = Column(Integer, nullable=False)
+    requested_amount = Column(Numeric(16, 2), nullable=False)
+    approved_amount = Column(Numeric(16, 2), nullable=True)
+    status = Column(_enum(ConstructionDrawStatus), nullable=False, default=ConstructionDrawStatus.requested)
+    description = Column(String(512), nullable=True)
+    requested_date = Column(Date, nullable=True)
+    approved_date = Column(Date, nullable=True)
+    funded_date = Column(Date, nullable=True)
+    notes = Column(Text, nullable=True)
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+
+    property = relationship("Property")
+    debt_facility = relationship("DebtFacility")
