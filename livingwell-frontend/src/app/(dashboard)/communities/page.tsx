@@ -27,7 +27,7 @@ export default function CommunitiesPage() {
     <div>
       <div className="mb-6 flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold">Community Portfolios</h1>
+          <h1 className="text-2xl font-bold">Communities</h1>
           <p className="text-muted-foreground">Manage community portfolios, properties, and residents</p>
         </div>
         {canCreate && (

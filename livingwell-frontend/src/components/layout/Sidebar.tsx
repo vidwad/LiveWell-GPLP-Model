@@ -58,7 +58,7 @@ const NAV_ITEMS = [
   },
   {
     href: "/communities",
-    label: "Community Portfolios",
+    label: "Communities",
     icon: Users,
     roles: ["GP_ADMIN", "OPERATIONS_MANAGER", "PROPERTY_MANAGER"] as UserRole[],
   },

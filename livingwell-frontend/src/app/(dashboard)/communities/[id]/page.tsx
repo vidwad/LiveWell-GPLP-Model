@@ -135,7 +135,7 @@ export default function CommunityDetailPage({
       <div className="mb-6">
         <LinkButton variant="ghost" size="sm" href="/communities" className="mb-2">
           <ArrowLeft className="mr-2 h-4 w-4" />
-          Community Portfolios
+          Communities
         </LinkButton>
         <h1 className="text-2xl font-bold">{community.name}</h1>
         <div className="flex items-center gap-2 mt-1">
