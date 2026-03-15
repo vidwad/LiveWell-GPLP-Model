@@ -13,3 +13,4 @@ python-multipart>=0.0.9
 openai>=1.30.0
 numpy-financial>=1.0.0
 python-dateutil==2.9.0.post0
+fpdf2>=2.7.0
