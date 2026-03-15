@@ -35,6 +35,10 @@ import {
   useSaleScenarios,
   useCreateSaleScenario,
   useDeleteSaleScenario,
+  usePropertyUnits,
+  usePropertyUnitSummary,
+  useCreatePropertyUnit,
+  useDeletePropertyUnit,
 } from "@/hooks/usePortfolio";
 import { useAuth } from "@/providers/AuthProvider";
 import { Button, buttonVariants } from "@/components/ui/button";
@@ -307,6 +311,14 @@ export default function PropertyDetailPage({ params }: { params: { id: string } 
   const [compareMode, setCompareMode] = useState(false);
   const [comparePlanIds, setComparePlanIds] = useState<[number | null, number | null]>([null, null]);
 
+  // Units & Beds
+  const { data: units } = usePropertyUnits(propertyId);
+  const { data: unitSummary } = usePropertyUnitSummary(propertyId);
+  const createUnit = useCreatePropertyUnit(propertyId);
+  const deleteUnit = useDeletePropertyUnit(propertyId);
+  const [showAddUnit, setShowAddUnit] = useState(false);
+  const [expandedUnit, setExpandedUnit] = useState<number | null>(null);
+
   const canEdit = user?.role === "GP_ADMIN" || user?.role === "OPERATIONS_MANAGER";
 
   /* ── Computed values ── */
@@ -415,7 +427,7 @@ export default function PropertyDetailPage({ params }: { params: { id: string } 
       <div>
         <LinkButton variant="ghost" size="sm" href="/portfolio" className="mb-2 -ml-2 text-muted-foreground hover:text-foreground">
           <ArrowLeft className="mr-1.5 h-4 w-4" />
-          Portfolio
+          Properties
         </LinkButton>
 
         <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
@@ -507,6 +519,7 @@ export default function PropertyDetailPage({ params }: { params: { id: string } 
         <div className="overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0">
           <TabsList variant="line" className="w-full sm:w-auto">
             <TabsTrigger value="overview"><Building2 className="h-4 w-4 sm:mr-1.5" /><span className="hidden sm:inline">Overview</span></TabsTrigger>
+            <TabsTrigger value="units"><Ruler className="h-4 w-4 sm:mr-1.5" /><span className="hidden sm:inline">Units & Beds</span></TabsTrigger>
             <TabsTrigger value="plans"><Layers className="h-4 w-4 sm:mr-1.5" /><span className="hidden sm:inline">Dev Plans</span></TabsTrigger>
             <TabsTrigger value="debt"><Landmark className="h-4 w-4 sm:mr-1.5" /><span className="hidden sm:inline">Debt</span></TabsTrigger>
             <TabsTrigger value="projections"><BarChart3 className="h-4 w-4 sm:mr-1.5" /><span className="hidden sm:inline">Projections</span></TabsTrigger>
@@ -651,6 +664,211 @@ export default function PropertyDetailPage({ params }: { params: { id: string } 
               </CardContent>
             </Card>
           )}
+        </TabsContent>
+
+        {/* ── Units & Beds ── */}
+        <TabsContent value="units" className="mt-6 space-y-6">
+          {/* Summary Cards */}
+          {unitSummary && (
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              <Card>
+                <CardContent className="pt-6">
+                  <div className="text-sm text-muted-foreground">Total Units</div>
+                  <div className="text-2xl font-bold">{unitSummary.total_units}</div>
+                  <div className="text-xs text-muted-foreground mt-1">
+                    {unitSummary.legal_suites} legal suite{unitSummary.legal_suites !== 1 ? "s" : ""}
+                  </div>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="pt-6">
+                  <div className="text-sm text-muted-foreground">Total Beds</div>
+                  <div className="text-2xl font-bold">{unitSummary.total_beds}</div>
+                  <div className="text-xs text-muted-foreground mt-1">
+                    {unitSummary.occupied_beds} occupied / {unitSummary.available_beds} available
+                  </div>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="pt-6">
+                  <div className="text-sm text-muted-foreground">Vacancy Rate</div>
+                  <div className={`text-2xl font-bold ${unitSummary.vacancy_rate > 10 ? "text-red-600" : "text-green-600"}`}>
+                    {unitSummary.vacancy_rate}%
+                  </div>
+                  <div className="text-xs text-muted-foreground mt-1">
+                    {unitSummary.total_sqft.toLocaleString()} total sqft
+                  </div>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="pt-6">
+                  <div className="text-sm text-muted-foreground">Monthly Rent</div>
+                  <div className="text-2xl font-bold">${unitSummary.potential_monthly_rent.toLocaleString()}</div>
+                  <div className="text-xs text-muted-foreground mt-1">
+                    ${unitSummary.actual_monthly_rent.toLocaleString()} actual
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          )}
+
+          {/* Unit Mix & Floor Breakdown */}
+          {unitSummary && (
+            <div className="grid gap-6 lg:grid-cols-2">
+              <Card>
+                <CardHeader><CardTitle className="text-base">Unit Mix</CardTitle></CardHeader>
+                <CardContent>
+                  <table className="w-full text-sm">
+                    <thead><tr className="border-b text-left text-muted-foreground">
+                      <th className="pb-2">Type</th><th className="pb-2 text-right">Units</th><th className="pb-2 text-right">Beds</th><th className="pb-2 text-right">Sqft</th>
+                    </tr></thead>
+                    <tbody>
+                      {Object.entries(unitSummary.unit_mix).map(([type, mix]: [string, any]) => (
+                        <tr key={type} className="border-b last:border-0">
+                          <td className="py-2 capitalize">{type.replace("_", " ")}</td>
+                          <td className="py-2 text-right">{mix.count}</td>
+                          <td className="py-2 text-right">{mix.beds}</td>
+                          <td className="py-2 text-right">{mix.sqft.toLocaleString()}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardHeader><CardTitle className="text-base">Floor Breakdown</CardTitle></CardHeader>
+                <CardContent>
+                  <table className="w-full text-sm">
+                    <thead><tr className="border-b text-left text-muted-foreground">
+                      <th className="pb-2">Floor</th><th className="pb-2 text-right">Units</th><th className="pb-2 text-right">Beds</th>
+                    </tr></thead>
+                    <tbody>
+                      {Object.entries(unitSummary.floor_breakdown).map(([floor, data]: [string, any]) => (
+                        <tr key={floor} className="border-b last:border-0">
+                          <td className="py-2">{floor}</td>
+                          <td className="py-2 text-right">{data.units}</td>
+                          <td className="py-2 text-right">{data.beds}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </CardContent>
+              </Card>
+            </div>
+          )}
+
+          {/* Unit List with Beds */}
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between">
+              <CardTitle className="text-base">Units</CardTitle>
+              {canEdit && (
+                <Dialog open={showAddUnit} onOpenChange={setShowAddUnit}>
+                  <DialogTrigger asChild>
+                    <Button size="sm"><Plus className="h-4 w-4 mr-1" />Add Unit</Button>
+                  </DialogTrigger>
+                  <DialogContent>
+                    <DialogHeader><DialogTitle>Add Unit</DialogTitle></DialogHeader>
+                    <form onSubmit={(e) => {
+                      e.preventDefault();
+                      const fd = new FormData(e.currentTarget);
+                      createUnit.mutate({
+                        unit_number: fd.get("unit_number") as string,
+                        unit_type: fd.get("unit_type") as string,
+                        bed_count: Number(fd.get("bed_count")),
+                        sqft: Number(fd.get("sqft")),
+                        floor: (fd.get("floor") as string) || null,
+                        is_legal_suite: fd.get("is_legal_suite") === "on",
+                        notes: (fd.get("notes") as string) || null,
+                      }, {
+                        onSuccess: () => { setShowAddUnit(false); toast.success("Unit added"); },
+                        onError: () => toast.error("Failed to add unit"),
+                      });
+                    }} className="space-y-4">
+                      <div className="grid grid-cols-2 gap-4">
+                        <div><label className="text-sm font-medium">Unit Number *</label><input name="unit_number" required className="mt-1 w-full rounded-md border px-3 py-2 text-sm" placeholder="e.g. 101" /></div>
+                        <div><label className="text-sm font-medium">Type *</label>
+                          <select name="unit_type" required className="mt-1 w-full rounded-md border px-3 py-2 text-sm">
+                            <option value="shared">Shared</option>
+                            <option value="1br">1 Bedroom</option>
+                            <option value="2br">2 Bedroom</option>
+                            <option value="3br">3 Bedroom</option>
+                            <option value="studio">Studio</option>
+                            <option value="suite">Suite</option>
+                          </select>
+                        </div>
+                        <div><label className="text-sm font-medium">Bed Count *</label><input name="bed_count" type="number" min="1" required className="mt-1 w-full rounded-md border px-3 py-2 text-sm" placeholder="2" /></div>
+                        <div><label className="text-sm font-medium">Sqft *</label><input name="sqft" type="number" min="1" required className="mt-1 w-full rounded-md border px-3 py-2 text-sm" placeholder="450" /></div>
+                        <div><label className="text-sm font-medium">Floor</label><input name="floor" className="mt-1 w-full rounded-md border px-3 py-2 text-sm" placeholder="Main, Upper, Basement" /></div>
+                        <div className="flex items-center gap-2 pt-6"><input name="is_legal_suite" type="checkbox" className="rounded" /><label className="text-sm">Legal Suite</label></div>
+                      </div>
+                      <div><label className="text-sm font-medium">Notes</label><textarea name="notes" className="mt-1 w-full rounded-md border px-3 py-2 text-sm" rows={2} /></div>
+                      <Button type="submit" className="w-full" disabled={createUnit.isPending}>{createUnit.isPending ? "Adding..." : "Add Unit"}</Button>
+                    </form>
+                  </DialogContent>
+                </Dialog>
+              )}
+            </CardHeader>
+            <CardContent>
+              {!units || units.length === 0 ? (
+                <p className="text-sm text-muted-foreground py-4 text-center">No units configured yet. Add units to define the bedroom and bed configuration for this property.</p>
+              ) : (
+                <div className="space-y-3">
+                  {units.map((unit: any) => (
+                    <div key={unit.unit_id} className="border rounded-lg">
+                      <div
+                        className="flex items-center justify-between px-4 py-3 cursor-pointer hover:bg-muted/50"
+                        onClick={() => setExpandedUnit(expandedUnit === unit.unit_id ? null : unit.unit_id)}
+                      >
+                        <div className="flex items-center gap-3">
+                          <span className="font-medium">Unit {unit.unit_number}</span>
+                          <Badge variant="outline" className="capitalize">{unit.unit_type.replace("_", " ")}</Badge>
+                          {unit.is_legal_suite && <Badge variant="secondary">Legal Suite</Badge>}
+                          {unit.floor && <span className="text-xs text-muted-foreground">{unit.floor}</span>}
+                        </div>
+                        <div className="flex items-center gap-4">
+                          <span className="text-sm text-muted-foreground">{unit.bed_count} bed{unit.bed_count !== 1 ? "s" : ""} &middot; {parseFloat(unit.sqft).toLocaleString()} sqft</span>
+                          <Badge variant={unit.is_occupied ? "default" : "secondary"}>{unit.is_occupied ? "Occupied" : "Available"}</Badge>
+                          {canEdit && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={(e) => { e.stopPropagation(); if (confirm("Delete this unit and all its beds?")) deleteUnit.mutate(unit.unit_id, { onSuccess: () => toast.success("Unit deleted") }); }}
+                            >
+                              <Trash2 className="h-4 w-4 text-destructive" />
+                            </Button>
+                          )}
+                          {expandedUnit === unit.unit_id ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                        </div>
+                      </div>
+                      {expandedUnit === unit.unit_id && unit.beds && unit.beds.length > 0 && (
+                        <div className="border-t px-4 py-3 bg-muted/30">
+                          <table className="w-full text-sm">
+                            <thead><tr className="text-left text-muted-foreground">
+                              <th className="pb-2">Bed</th><th className="pb-2 text-right">Monthly Rent</th><th className="pb-2">Rent Type</th><th className="pb-2">Status</th>
+                            </tr></thead>
+                            <tbody>
+                              {unit.beds.map((bed: any) => (
+                                <tr key={bed.bed_id} className="border-t">
+                                  <td className="py-2">{bed.bed_label}</td>
+                                  <td className="py-2 text-right">${parseFloat(bed.monthly_rent).toLocaleString()}</td>
+                                  <td className="py-2 capitalize">{bed.rent_type.replace("_", " ")}</td>
+                                  <td className="py-2">
+                                    <Badge variant={bed.status === "occupied" ? "default" : bed.status === "available" ? "secondary" : "destructive"} className="capitalize">
+                                      {bed.status}
+                                    </Badge>
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
         </TabsContent>
 
         {/* ── Development Plans ── */}

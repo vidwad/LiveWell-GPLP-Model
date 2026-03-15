@@ -207,3 +207,70 @@ export function useDeleteSaleScenario(propertyId: number) {
       qc.invalidateQueries({ queryKey: ["sale-scenarios", propertyId] }),
   });
 }
+
+
+// ---------------------------------------------------------------------------
+// Units & Beds
+// ---------------------------------------------------------------------------
+
+export function usePropertyUnits(propertyId: number) {
+  return useQuery({
+    queryKey: ["property-units", propertyId],
+    queryFn: () =>
+      apiClient
+        .get(`/api/portfolio/properties/${propertyId}/units`)
+        .then((r) => r.data),
+    enabled: !!propertyId,
+  });
+}
+
+export function usePropertyUnitSummary(propertyId: number) {
+  return useQuery({
+    queryKey: ["property-unit-summary", propertyId],
+    queryFn: () =>
+      apiClient
+        .get(`/api/portfolio/properties/${propertyId}/unit-summary`)
+        .then((r) => r.data),
+    enabled: !!propertyId,
+  });
+}
+
+export function useCreatePropertyUnit(propertyId: number) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (data: object) =>
+      apiClient
+        .post(`/api/portfolio/properties/${propertyId}/units`, data)
+        .then((r) => r.data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["property-units", propertyId] });
+      qc.invalidateQueries({ queryKey: ["property-unit-summary", propertyId] });
+    },
+  });
+}
+
+export function useUpdatePropertyUnit(propertyId: number) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ unitId, data }: { unitId: number; data: object }) =>
+      apiClient
+        .patch(`/api/portfolio/properties/${propertyId}/units/${unitId}`, data)
+        .then((r) => r.data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["property-units", propertyId] });
+      qc.invalidateQueries({ queryKey: ["property-unit-summary", propertyId] });
+    },
+  });
+}
+
+export function useDeletePropertyUnit(propertyId: number) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (unitId: number) =>
+      apiClient.delete(`/api/portfolio/properties/${propertyId}/units/${unitId}`),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["property-units", propertyId] });
+      qc.invalidateQueries({ queryKey: ["property-unit-summary", propertyId] });
+    },
+  });
+}

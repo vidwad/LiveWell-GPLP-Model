@@ -15,7 +15,7 @@ from app.core.deps import (
 )
 from app.db.models import (
     DevelopmentPlan, LPEntity, Property, PropertyCluster, User, UserRole,
-    ScopeEntityType,
+    ScopeEntityType, Unit, Bed,
 )
 from app.db.session import get_db
 from app.schemas.portfolio import (
@@ -1388,3 +1388,269 @@ def delete_construction_draw(
         raise HTTPException(404, "Construction draw not found")
     db.delete(draw)
     db.commit()
+
+
+# ===========================================================================
+# PROPERTY UNITS & BEDS
+# ===========================================================================
+
+from app.schemas.community import (
+    UnitCreate, UnitUpdate, UnitOut, UnitWithBedsOut,
+    BedCreate, BedOut,
+)
+from app.db.models import BedStatus
+
+
+@router.get(
+    "/properties/{property_id}/units",
+    response_model=list[UnitWithBedsOut],
+)
+def list_property_units(
+    property_id: int,
+    db: Session = Depends(get_db),
+    _: User = Depends(get_current_user),
+):
+    """List all units (with nested beds) for a property."""
+    prop = db.query(Property).filter(Property.property_id == property_id).first()
+    if not prop:
+        raise HTTPException(404, "Property not found")
+    return prop.units
+
+
+@router.post(
+    "/properties/{property_id}/units",
+    response_model=UnitOut,
+    status_code=status.HTTP_201_CREATED,
+)
+def create_property_unit(
+    property_id: int,
+    payload: UnitCreate,
+    db: Session = Depends(get_db),
+    _: User = Depends(require_gp_ops_pm),
+):
+    """Add a unit to a property."""
+    prop = db.query(Property).filter(Property.property_id == property_id).first()
+    if not prop:
+        raise HTTPException(404, "Property not found")
+    data = payload.model_dump()
+    # If community_id not provided, inherit from property
+    if data.get("community_id") is None and prop.community_id:
+        data["community_id"] = prop.community_id
+    unit = Unit(property_id=property_id, **data)
+    db.add(unit)
+    db.commit()
+    db.refresh(unit)
+
+    # Auto-create beds based on bed_count
+    for b in range(1, unit.bed_count + 1):
+        bed = Bed(
+            unit_id=unit.unit_id,
+            bed_label=f"{unit.unit_number}-B{b}",
+            monthly_rent=0,  # to be set later
+            rent_type="private_pay",
+            status=BedStatus.available,
+        )
+        db.add(bed)
+    db.commit()
+    db.refresh(unit)
+    return unit
+
+
+@router.patch(
+    "/properties/{property_id}/units/{unit_id}",
+    response_model=UnitOut,
+)
+def update_property_unit(
+    property_id: int,
+    unit_id: int,
+    payload: UnitUpdate,
+    db: Session = Depends(get_db),
+    _: User = Depends(require_gp_ops_pm),
+):
+    """Update a unit on a property."""
+    unit = db.query(Unit).filter(
+        Unit.unit_id == unit_id,
+        Unit.property_id == property_id,
+    ).first()
+    if not unit:
+        raise HTTPException(404, "Unit not found for this property")
+    for k, v in payload.model_dump(exclude_unset=True).items():
+        setattr(unit, k, v)
+    db.commit()
+    db.refresh(unit)
+    return unit
+
+
+@router.delete(
+    "/properties/{property_id}/units/{unit_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+def delete_property_unit(
+    property_id: int,
+    unit_id: int,
+    db: Session = Depends(get_db),
+    _: User = Depends(require_gp_or_ops),
+):
+    """Delete a unit and its beds from a property."""
+    unit = db.query(Unit).filter(
+        Unit.unit_id == unit_id,
+        Unit.property_id == property_id,
+    ).first()
+    if not unit:
+        raise HTTPException(404, "Unit not found for this property")
+    db.delete(unit)
+    db.commit()
+
+
+@router.get(
+    "/properties/{property_id}/units/{unit_id}/beds",
+    response_model=list[BedOut],
+)
+def list_unit_beds(
+    property_id: int,
+    unit_id: int,
+    db: Session = Depends(get_db),
+    _: User = Depends(get_current_user),
+):
+    """List beds within a unit."""
+    unit = db.query(Unit).filter(
+        Unit.unit_id == unit_id,
+        Unit.property_id == property_id,
+    ).first()
+    if not unit:
+        raise HTTPException(404, "Unit not found for this property")
+    return unit.beds
+
+
+@router.post(
+    "/properties/{property_id}/units/{unit_id}/beds",
+    response_model=BedOut,
+    status_code=status.HTTP_201_CREATED,
+)
+def create_bed(
+    property_id: int,
+    unit_id: int,
+    payload: BedCreate,
+    db: Session = Depends(get_db),
+    _: User = Depends(require_gp_ops_pm),
+):
+    """Add a bed to a unit."""
+    unit = db.query(Unit).filter(
+        Unit.unit_id == unit_id,
+        Unit.property_id == property_id,
+    ).first()
+    if not unit:
+        raise HTTPException(404, "Unit not found for this property")
+    bed = Bed(
+        unit_id=unit_id,
+        bed_label=payload.bed_label,
+        monthly_rent=payload.monthly_rent,
+        rent_type=payload.rent_type,
+    )
+    db.add(bed)
+    db.commit()
+    db.refresh(bed)
+    return bed
+
+
+@router.patch(
+    "/beds/{bed_id}",
+    response_model=BedOut,
+)
+def update_bed(
+    bed_id: int,
+    monthly_rent: float | None = None,
+    new_status: BedStatus | None = None,
+    rent_type: str | None = None,
+    db: Session = Depends(get_db),
+    _: User = Depends(require_gp_ops_pm),
+):
+    """Update a bed's rent, status, or rent type."""
+    bed = db.query(Bed).filter(Bed.bed_id == bed_id).first()
+    if not bed:
+        raise HTTPException(404, "Bed not found")
+    if monthly_rent is not None:
+        bed.monthly_rent = monthly_rent
+    if new_status is not None:
+        bed.status = new_status
+    if rent_type is not None:
+        bed.rent_type = rent_type
+    db.commit()
+    db.refresh(bed)
+    return bed
+
+
+@router.get(
+    "/properties/{property_id}/unit-summary",
+)
+def get_property_unit_summary(
+    property_id: int,
+    db: Session = Depends(get_db),
+    _: User = Depends(get_current_user),
+):
+    """
+    Summary of units and beds for a property:
+    total units, total beds, occupied beds, vacancy rate,
+    potential monthly rent, unit mix breakdown.
+    """
+    prop = db.query(Property).filter(Property.property_id == property_id).first()
+    if not prop:
+        raise HTTPException(404, "Property not found")
+
+    units = prop.units
+    total_units = len(units)
+    total_beds = sum(u.bed_count for u in units)
+    total_sqft = float(sum(u.sqft for u in units))
+    legal_suites = sum(1 for u in units if u.is_legal_suite)
+
+    # Aggregate bed-level data
+    all_beds = []
+    for u in units:
+        all_beds.extend(u.beds)
+
+    occupied_beds = sum(1 for b in all_beds if b.status == BedStatus.occupied)
+    available_beds = sum(1 for b in all_beds if b.status == BedStatus.available)
+    maintenance_beds = sum(1 for b in all_beds if b.status == BedStatus.maintenance)
+    potential_monthly_rent = float(sum(b.monthly_rent for b in all_beds))
+    actual_monthly_rent = float(
+        sum(b.monthly_rent for b in all_beds if b.status == BedStatus.occupied)
+    )
+    vacancy_rate = (
+        round((1 - occupied_beds / len(all_beds)) * 100, 1)
+        if all_beds else 0
+    )
+
+    # Unit mix breakdown
+    unit_mix = {}
+    for u in units:
+        key = u.unit_type.value if hasattr(u.unit_type, 'value') else str(u.unit_type)
+        if key not in unit_mix:
+            unit_mix[key] = {"count": 0, "beds": 0, "sqft": 0}
+        unit_mix[key]["count"] += 1
+        unit_mix[key]["beds"] += u.bed_count
+        unit_mix[key]["sqft"] += float(u.sqft)
+
+    # Floor breakdown
+    floor_breakdown = {}
+    for u in units:
+        floor = u.floor or "Unspecified"
+        if floor not in floor_breakdown:
+            floor_breakdown[floor] = {"units": 0, "beds": 0}
+        floor_breakdown[floor]["units"] += 1
+        floor_breakdown[floor]["beds"] += u.bed_count
+
+    return {
+        "property_id": property_id,
+        "total_units": total_units,
+        "total_beds": total_beds,
+        "total_sqft": total_sqft,
+        "legal_suites": legal_suites,
+        "occupied_beds": occupied_beds,
+        "available_beds": available_beds,
+        "maintenance_beds": maintenance_beds,
+        "vacancy_rate": vacancy_rate,
+        "potential_monthly_rent": potential_monthly_rent,
+        "actual_monthly_rent": actual_monthly_rent,
+        "unit_mix": unit_mix,
+        "floor_breakdown": floor_breakdown,
+    }

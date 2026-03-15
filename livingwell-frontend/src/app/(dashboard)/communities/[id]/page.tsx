@@ -2,10 +2,11 @@
 
 import { useState } from "react";
 import { toast } from "sonner";
-import { ArrowLeft, Plus, Trash2 } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, Building2, ChevronRight } from "lucide-react";
 import {
   useCommunity,
   useUnits,
+  useCommunityProperties,
   useCreateUnit,
   useResidents,
   useCreateResident,
@@ -26,6 +27,20 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatCurrency, formatDate, cn } from "@/lib/utils";
 import { UnitType, RentType } from "@/types/community";
+import Link from "next/link";
+
+interface CommunityProperty {
+  property_id: number;
+  address: string;
+  city: string;
+  development_stage: string | null;
+  total_units: number;
+  total_beds: number;
+  occupied_beds: number;
+  vacant_beds: number;
+  occupancy_rate: number;
+  monthly_rent: number;
+}
 
 export default function CommunityDetailPage({
   params,
@@ -38,6 +53,7 @@ export default function CommunityDetailPage({
 
   const { data: community, isLoading } = useCommunity(communityId);
   const { data: units } = useUnits(communityId);
+  const { data: communityProperties } = useCommunityProperties(communityId);
   const { data: residents } = useResidents(communityId);
   const { mutateAsync: createUnit, isPending: unitPending } = useCreateUnit(communityId);
   const { mutateAsync: createResident, isPending: resPending } = useCreateResident(communityId);
@@ -51,14 +67,6 @@ export default function CommunityDetailPage({
     user?.role === "GP_ADMIN" ||
     user?.role === "OPERATIONS_MANAGER" ||
     user?.role === "PROPERTY_MANAGER";
-
-  const [unitOpen, setUnitOpen] = useState(false);
-  const [unitForm, setUnitForm] = useState({
-    unit_number: "",
-    unit_type: "studio" as UnitType,
-    bed_count: 1,
-    sqft: 0,
-  });
 
   const [resOpen, setResOpen] = useState(false);
   const [resForm, setResForm] = useState({
@@ -83,16 +91,12 @@ export default function CommunityDetailPage({
   if (isLoading) return <Skeleton className="h-64 w-full" />;
   if (!community) return <p>Community not found.</p>;
 
-  const handleAddUnit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    try {
-      await createUnit(unitForm as any);
-      toast.success("Unit added");
-      setUnitOpen(false);
-    } catch {
-      toast.error("Failed to add unit");
-    }
-  };
+  const props = (communityProperties ?? []) as CommunityProperty[];
+  const totalUnits = props.reduce((s, p) => s + p.total_units, 0);
+  const totalBeds = props.reduce((s, p) => s + p.total_beds, 0);
+  const occupiedBeds = props.reduce((s, p) => s + p.occupied_beds, 0);
+  const totalRent = props.reduce((s, p) => s + p.monthly_rent, 0);
+  const occupancyRate = totalBeds > 0 ? Math.round((occupiedBeds / totalBeds) * 100 * 10) / 10 : 0;
 
   const handleAddResident = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -116,12 +120,22 @@ export default function CommunityDetailPage({
     }
   };
 
+  const stageBadgeColor = (stage: string | null) => {
+    switch (stage) {
+      case "stabilized": return "default";
+      case "construction": return "destructive";
+      case "lease_up": return "secondary";
+      case "interim_operation": return "outline";
+      default: return "outline";
+    }
+  };
+
   return (
-    <div className="max-w-5xl">
+    <div className="space-y-6">
       <div className="mb-6">
         <LinkButton variant="ghost" size="sm" href="/communities" className="mb-2">
           <ArrowLeft className="mr-2 h-4 w-4" />
-          Back
+          Community Portfolios
         </LinkButton>
         <h1 className="text-2xl font-bold">{community.name}</h1>
         <div className="flex items-center gap-2 mt-1">
@@ -132,124 +146,106 @@ export default function CommunityDetailPage({
         </div>
       </div>
 
-      <Tabs defaultValue="units">
+      {/* Summary KPIs */}
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+        <Card>
+          <CardContent className="pt-4 pb-3">
+            <p className="text-xs text-muted-foreground">Properties</p>
+            <p className="text-2xl font-bold">{props.length}</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-4 pb-3">
+            <p className="text-xs text-muted-foreground">Total Units</p>
+            <p className="text-2xl font-bold">{totalUnits}</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-4 pb-3">
+            <p className="text-xs text-muted-foreground">Total Beds</p>
+            <p className="text-2xl font-bold">{totalBeds}</p>
+            <p className="text-xs text-muted-foreground">{occupiedBeds} occupied / {totalBeds - occupiedBeds} available</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-4 pb-3">
+            <p className="text-xs text-muted-foreground">Occupancy Rate</p>
+            <p className={cn("text-2xl font-bold", occupancyRate >= 90 ? "text-green-600" : occupancyRate >= 70 ? "text-yellow-600" : "text-red-600")}>
+              {occupancyRate}%
+            </p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-4 pb-3">
+            <p className="text-xs text-muted-foreground">Monthly Rent</p>
+            <p className="text-2xl font-bold">{formatCurrency(totalRent)}</p>
+          </CardContent>
+        </Card>
+      </div>
+
+      <Tabs defaultValue="properties">
         <TabsList>
-          <TabsTrigger value="units">Units ({units?.length ?? 0})</TabsTrigger>
+          <TabsTrigger value="properties">Properties ({props.length})</TabsTrigger>
           <TabsTrigger value="residents">Residents ({residents?.length ?? 0})</TabsTrigger>
         </TabsList>
 
-        {/* Units Tab */}
-        <TabsContent value="units" className="mt-4">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between">
-              <CardTitle className="text-base">Units</CardTitle>
-              {canEdit && (
-                <Dialog open={unitOpen} onOpenChange={setUnitOpen}>
-                  <DialogTrigger className={cn(buttonVariants({ size: "sm" }))}>
-                    <Plus className="mr-2 h-4 w-4" />
-                    Add Unit
-                  </DialogTrigger>
-                  <DialogContent>
-                    <DialogHeader>
-                      <DialogTitle>Add Unit</DialogTitle>
-                    </DialogHeader>
-                    <form onSubmit={handleAddUnit} className="space-y-4">
-                      <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                          <Label>Unit Number</Label>
-                          <Input
-                            value={unitForm.unit_number}
-                            onChange={(e) =>
-                              setUnitForm((f) => ({ ...f, unit_number: e.target.value }))
-                            }
-                            placeholder="101"
-                            required
-                          />
+        {/* Properties Tab */}
+        <TabsContent value="properties" className="mt-4 space-y-3">
+          {props.length === 0 ? (
+            <Card>
+              <CardContent className="py-8 text-center text-muted-foreground">
+                <Building2 className="h-12 w-12 mx-auto mb-3 opacity-30" />
+                <p>No properties assigned to this community yet.</p>
+                <p className="text-sm mt-1">Assign properties from the Portfolio page.</p>
+              </CardContent>
+            </Card>
+          ) : (
+            props.map((p) => (
+              <Link key={p.property_id} href={`/portfolio/${p.property_id}`}>
+                <Card className="hover:bg-muted/50 transition-colors cursor-pointer">
+                  <CardContent className="py-4">
+                    <div className="flex items-center justify-between">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-3 mb-2">
+                          <h3 className="font-semibold">{p.address}</h3>
+                          {p.development_stage && (
+                            <Badge variant={stageBadgeColor(p.development_stage) as any}>
+                              {p.development_stage.replace(/_/g, " ")}
+                            </Badge>
+                          )}
                         </div>
-                        <div className="space-y-2">
-                          <Label>Type</Label>
-                          <Select
-                            value={unitForm.unit_type}
-                            onValueChange={(v) =>
-                              setUnitForm((f) => ({ ...f, unit_type: v as UnitType }))
-                            }
-                          >
-                            <SelectTrigger>
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {(["studio", "1br", "2br"] as UnitType[]).map((t) => (
-                                <SelectItem key={t} value={t}>{t}</SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
+                        <div className="grid grid-cols-2 md:grid-cols-5 gap-4 text-sm">
+                          <div>
+                            <span className="text-muted-foreground">Units</span>
+                            <p className="font-medium">{p.total_units}</p>
+                          </div>
+                          <div>
+                            <span className="text-muted-foreground">Beds</span>
+                            <p className="font-medium">{p.total_beds}</p>
+                          </div>
+                          <div>
+                            <span className="text-muted-foreground">Occupied</span>
+                            <p className="font-medium">{p.occupied_beds} / {p.total_beds}</p>
+                          </div>
+                          <div>
+                            <span className="text-muted-foreground">Occupancy</span>
+                            <p className={cn("font-medium", p.occupancy_rate >= 90 ? "text-green-600" : p.occupancy_rate >= 70 ? "text-yellow-600" : "text-red-600")}>
+                              {p.occupancy_rate}%
+                            </p>
+                          </div>
+                          <div>
+                            <span className="text-muted-foreground">Monthly Rent</span>
+                            <p className="font-medium">{formatCurrency(p.monthly_rent)}</p>
+                          </div>
                         </div>
-                        <div className="space-y-2">
-                          <Label>Beds</Label>
-                          <Input
-                            type="number"
-                            value={unitForm.bed_count}
-                            onChange={(e) =>
-                              setUnitForm((f) => ({ ...f, bed_count: Number(e.target.value) }))
-                            }
-                            min={1}
-                            required
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <Label>Sqft</Label>
-                          <Input
-                            type="number"
-                            value={unitForm.sqft || ""}
-                            onChange={(e) =>
-                              setUnitForm((f) => ({ ...f, sqft: Number(e.target.value) }))
-                            }
-                            required
-                          />
-                        </div>
-                        {/* TODO: fetch bed rents — rent is now tracked per bed, not per unit */}
                       </div>
-                      <Button type="submit" disabled={unitPending}>
-                        {unitPending ? "Adding…" : "Add Unit"}
-                      </Button>
-                    </form>
-                  </DialogContent>
-                </Dialog>
-              )}
-            </CardHeader>
-            <CardContent>
-              {!units || units.length === 0 ? (
-                <p className="text-sm text-muted-foreground">No units yet.</p>
-              ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Unit</TableHead>
-                      <TableHead>Type</TableHead>
-                      <TableHead>Beds</TableHead>
-                      <TableHead>Sqft</TableHead>
-                      <TableHead>Status</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {units.map((u) => (
-                      <TableRow key={u.unit_id}>
-                        <TableCell className="font-medium">{u.unit_number}</TableCell>
-                        <TableCell>{u.unit_type}</TableCell>
-                        <TableCell>{u.bed_count}</TableCell>
-                        <TableCell>{Number(u.sqft).toLocaleString()}</TableCell>
-                        <TableCell>
-                          <Badge variant={u.is_occupied ? "default" : "secondary"}>
-                            {u.is_occupied ? "Occupied" : "Vacant"}
-                          </Badge>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              )}
-            </CardContent>
-          </Card>
+                      <ChevronRight className="h-5 w-5 text-muted-foreground ml-4 shrink-0" />
+                    </div>
+                  </CardContent>
+                </Card>
+              </Link>
+            ))
+          )}
         </TabsContent>
 
         {/* Residents Tab */}
@@ -303,12 +299,12 @@ export default function CommunityDetailPage({
                             }
                           >
                             <SelectTrigger>
-                              <SelectValue placeholder="Select unit…" />
+                              <SelectValue placeholder="Select unit..." />
                             </SelectTrigger>
                             <SelectContent>
                               {units
-                                ?.filter((u) => !u.is_occupied)
-                                .map((u) => (
+                                ?.filter((u: any) => !u.is_occupied)
+                                .map((u: any) => (
                                   <SelectItem key={u.unit_id} value={String(u.unit_id)}>
                                     {u.unit_number} ({u.unit_type})
                                   </SelectItem>
@@ -358,7 +354,7 @@ export default function CommunityDetailPage({
                         </div>
                       </div>
                       <Button type="submit" disabled={resPending || !resForm.unit_id}>
-                        {resPending ? "Adding…" : "Add Resident"}
+                        {resPending ? "Adding..." : "Add Resident"}
                       </Button>
                     </form>
                   </DialogContent>
@@ -380,11 +376,11 @@ export default function CommunityDetailPage({
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {residents.map((r) => (
+                    {residents.map((r: any) => (
                       <TableRow key={r.resident_id}>
                         <TableCell className="font-medium">{r.full_name}</TableCell>
                         <TableCell>
-                          {units?.find((u) => u.unit_id === r.unit_id)?.unit_number ?? r.unit_id}
+                          {units?.find((u: any) => u.unit_id === r.unit_id)?.unit_number ?? r.unit_id}
                         </TableCell>
                         <TableCell>
                           <Badge variant="outline">
@@ -466,7 +462,7 @@ export default function CommunityDetailPage({
                                         </div>
                                       </div>
                                       <Button type="submit" disabled={payPending}>
-                                        {payPending ? "Recording…" : "Record Payment"}
+                                        {payPending ? "Recording..." : "Record Payment"}
                                       </Button>
                                     </form>
                                   </DialogContent>

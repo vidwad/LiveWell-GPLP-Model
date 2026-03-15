@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 
 from app.core.deps import get_current_user, require_gp_ops_pm, require_gp_or_ops
 from app.db.models import (
-    Bed, BedStatus, Community, MaintenanceRequest, MaintenanceStatus, Resident,
+    Bed, BedStatus, Community, MaintenanceRequest, MaintenanceStatus, Property, Resident,
     RentPayment, PaymentStatus, Unit, User,
 )
 from app.db.session import get_db
@@ -73,6 +73,46 @@ def update_community(
     db.commit()
     db.refresh(community)
     return community
+
+
+# ---------------------------------------------------------------------------
+# Community Properties (aggregated view)
+# ---------------------------------------------------------------------------
+
+@router.get("/communities/{community_id}/properties")
+def list_community_properties(
+    community_id: int,
+    db: Session = Depends(get_db),
+    _: User = Depends(get_current_user),
+):
+    community = db.query(Community).filter(Community.community_id == community_id).first()
+    if not community:
+        raise HTTPException(status_code=404, detail="Community not found")
+    results = []
+    for prop in community.properties:
+        units = prop.units
+        total_units = len(units)
+        total_beds = sum(u.bed_count for u in units)
+        occupied_beds = sum(
+            1 for u in units for b in u.beds if b.status == BedStatus.occupied
+        )
+        vacant_beds = total_beds - occupied_beds
+        monthly_rent = float(sum(
+            b.monthly_rent for u in units for b in u.beds if b.monthly_rent
+        ))
+        results.append({
+            "property_id": prop.property_id,
+            "address": prop.address,
+            "city": prop.city,
+            "development_stage": prop.development_stage.value if prop.development_stage else None,
+            "total_units": total_units,
+            "total_beds": total_beds,
+            "occupied_beds": occupied_beds,
+            "vacant_beds": vacant_beds,
+            "occupancy_rate": round(occupied_beds / total_beds * 100, 1) if total_beds > 0 else 0,
+            "monthly_rent": monthly_rent,
+        })
+    return results
 
 
 # ---------------------------------------------------------------------------

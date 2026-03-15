@@ -60,16 +60,43 @@ class UnitCreate(BaseModel):
     unit_type: UnitType
     bed_count: int
     sqft: Decimal
+    floor: Optional[str] = None
+    is_legal_suite: bool = False
+    notes: Optional[str] = None
+    community_id: Optional[int] = None  # optional operational grouping
+
+
+class UnitUpdate(BaseModel):
+    unit_number: Optional[str] = None
+    unit_type: Optional[UnitType] = None
+    bed_count: Optional[int] = None
+    sqft: Optional[Decimal] = None
+    floor: Optional[str] = None
+    is_legal_suite: Optional[bool] = None
+    is_occupied: Optional[bool] = None
+    notes: Optional[str] = None
+    community_id: Optional[int] = None
 
 
 class UnitOut(BaseModel):
     unit_id: int
-    community_id: int
+    property_id: int
+    community_id: Optional[int] = None
     unit_number: str
     unit_type: UnitType
     bed_count: int
     sqft: Decimal
+    floor: Optional[str] = None
+    is_legal_suite: bool
     is_occupied: bool
+    notes: Optional[str] = None
+
+    model_config = {"from_attributes": True}
+
+
+class UnitWithBedsOut(UnitOut):
+    """Unit with nested bed details."""
+    beds: list["BedOut"] = []
 
     model_config = {"from_attributes": True}
 

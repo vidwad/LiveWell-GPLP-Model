@@ -57,6 +57,17 @@ export function useCreateUnit(communityId: number) {
   });
 }
 
+export function useCommunityProperties(communityId: number) {
+  return useQuery({
+    queryKey: ["community-properties", communityId],
+    queryFn: () =>
+      apiClient
+        .get(`/api/community/communities/${communityId}/properties`)
+        .then((r) => r.data),
+    enabled: !!communityId,
+  });
+}
+
 export function useResidents(communityId: number) {
   return useQuery({
     queryKey: ["residents", communityId],

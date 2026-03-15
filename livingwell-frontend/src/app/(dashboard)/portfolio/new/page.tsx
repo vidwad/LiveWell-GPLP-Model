@@ -52,7 +52,7 @@ export default function NewPropertyPage() {
       <div className="mb-6">
         <LinkButton variant="ghost" size="sm" href="/portfolio" className="mb-4">
           <ArrowLeft className="mr-2 h-4 w-4" />
-          Back to Portfolio
+          Back to Properties
         </LinkButton>
         <h1 className="text-2xl font-bold">Add Property</h1>
       </div>

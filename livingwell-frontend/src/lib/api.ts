@@ -86,6 +86,22 @@ export const portfolio = {
   // Valuations
   getValuations: (propertyId: number) =>
     apiClient.get(`/api/portfolio/properties/${propertyId}/valuations`).then(r => r.data),
+
+  // Units & Beds
+  getPropertyUnits: (propertyId: number) =>
+    apiClient.get(`/api/portfolio/properties/${propertyId}/units`).then(r => r.data),
+  createPropertyUnit: (propertyId: number, data: object) =>
+    apiClient.post(`/api/portfolio/properties/${propertyId}/units`, data).then(r => r.data),
+  updatePropertyUnit: (propertyId: number, unitId: number, data: object) =>
+    apiClient.patch(`/api/portfolio/properties/${propertyId}/units/${unitId}`, data).then(r => r.data),
+  deletePropertyUnit: (propertyId: number, unitId: number) =>
+    apiClient.delete(`/api/portfolio/properties/${propertyId}/units/${unitId}`).then(r => r.data),
+  getPropertyUnitSummary: (propertyId: number) =>
+    apiClient.get(`/api/portfolio/properties/${propertyId}/unit-summary`).then(r => r.data),
+  createBed: (propertyId: number, unitId: number, data: object) =>
+    apiClient.post(`/api/portfolio/properties/${propertyId}/units/${unitId}/beds`, data).then(r => r.data),
+  updateBed: (bedId: number, data: object) =>
+    apiClient.patch(`/api/portfolio/beds/${bedId}`, data).then(r => r.data),
 };
 
 // ── Investment (GP / LP / Tranche / Subscription / Holding / Target / Distribution) ─────
@@ -172,6 +188,7 @@ export const communities = {
   get: (id: number) => apiClient.get(`/api/community/communities/${id}`).then(r => r.data),
   getUnits: (communityId: number) => apiClient.get(`/api/community/communities/${communityId}/units`).then(r => r.data),
   getResidents: (communityId: number) => apiClient.get(`/api/community/communities/${communityId}/residents`).then(r => r.data),
+  getProperties: (communityId: number) => apiClient.get(`/api/community/communities/${communityId}/properties`).then(r => r.data),
   getBeds: (unitId: number) => apiClient.get(`/api/community/units/${unitId}/beds`).then(r => r.data),
   getMaintenance: () => apiClient.get("/api/community/maintenance").then(r => r.data),
   getVacancyAlerts: (thresholdDays?: number) =>

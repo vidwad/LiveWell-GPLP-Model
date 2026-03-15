@@ -34,7 +34,7 @@ export default function PortfolioPage() {
     <div>
       <div className="mb-6 flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold">Portfolio</h1>
+          <h1 className="text-2xl font-bold">Properties</h1>
           <p className="text-muted-foreground">Manage properties and development plans</p>
         </div>
         {canCreate && (

@@ -45,20 +45,20 @@ const NAV_ITEMS = [
     roles: ALL_ROLES,
   },
   {
-    href: "/portfolio",
-    label: "Portfolio",
-    icon: Building2,
-    roles: ["GP_ADMIN", "OPERATIONS_MANAGER", "PROPERTY_MANAGER"] as UserRole[],
-  },
-  {
     href: "/investment",
     label: "Investment",
     icon: Landmark,
     roles: ["GP_ADMIN", "OPERATIONS_MANAGER"] as UserRole[],
   },
   {
+    href: "/portfolio",
+    label: "Properties",
+    icon: Building2,
+    roles: ["GP_ADMIN", "OPERATIONS_MANAGER", "PROPERTY_MANAGER"] as UserRole[],
+  },
+  {
     href: "/communities",
-    label: "Communities",
+    label: "Community Portfolios",
     icon: Users,
     roles: ["GP_ADMIN", "OPERATIONS_MANAGER", "PROPERTY_MANAGER"] as UserRole[],
   },

@@ -877,24 +877,30 @@ def seed():
         # =================================================================
         # 13. UNITS & BEDS (for stabilized property prop1)
         # =================================================================
-        units_data = [
-            ("101", m.UnitType.shared, 2, 450),
-            ("102", m.UnitType.shared, 2, 450),
-            ("103", m.UnitType.one_bed, 1, 500),
-            ("104", m.UnitType.shared, 2, 450),
-            ("201", m.UnitType.shared, 2, 450),
-            ("202", m.UnitType.shared, 2, 450),
-            ("203", m.UnitType.one_bed, 1, 500),
-            ("204", m.UnitType.suite, 2, 600),
+        # Units belong to properties (physical configuration of the house).
+        # community_id is set for operational grouping.
+        # prop1 = 123 Recovery Rd (stabilized, 8 units)
+        units_data_prop1 = [
+            ("101", m.UnitType.shared, 2, 450, "Main", False),
+            ("102", m.UnitType.shared, 2, 450, "Main", False),
+            ("103", m.UnitType.one_bed, 1, 500, "Main", False),
+            ("104", m.UnitType.shared, 2, 450, "Main", False),
+            ("201", m.UnitType.shared, 2, 450, "Upper", False),
+            ("202", m.UnitType.shared, 2, 450, "Upper", False),
+            ("203", m.UnitType.one_bed, 1, 500, "Upper", False),
+            ("204", m.UnitType.suite, 2, 600, "Basement", True),
         ]
         units = []
-        for unit_num, utype, beds, sqft in units_data:
+        for unit_num, utype, beds, sqft, floor, is_suite in units_data_prop1:
             u = m.Unit(
+                property_id=prop1.property_id,
                 community_id=comm1.community_id,
                 unit_number=unit_num,
                 unit_type=utype,
                 bed_count=beds,
                 sqft=Decimal(str(sqft)),
+                floor=floor,
+                is_legal_suite=is_suite,
                 is_occupied=True,
             )
             db.add(u)
@@ -915,6 +921,43 @@ def seed():
                 )
                 db.add(bed)
             db.flush()
+
+        # prop2 = 456 Healing Ave (lease_up, 6 units)
+        units_data_prop2 = [
+            ("101", m.UnitType.shared, 2, 400, "Main", False),
+            ("102", m.UnitType.one_bed, 1, 480, "Main", False),
+            ("103", m.UnitType.shared, 2, 400, "Main", False),
+            ("201", m.UnitType.shared, 2, 420, "Upper", False),
+            ("202", m.UnitType.one_bed, 1, 480, "Upper", False),
+            ("B01", m.UnitType.suite, 2, 550, "Basement", True),
+        ]
+        for unit_num, utype, beds, sqft, floor, is_suite in units_data_prop2:
+            u = m.Unit(
+                property_id=prop2.property_id,
+                community_id=comm1.community_id,
+                unit_number=unit_num,
+                unit_type=utype,
+                bed_count=beds,
+                sqft=Decimal(str(sqft)),
+                floor=floor,
+                is_legal_suite=is_suite,
+                is_occupied=False,
+            )
+            db.add(u)
+            db.flush()
+            for b in range(1, beds + 1):
+                rent = Decimal("1100.00") if utype == m.UnitType.shared else Decimal("1400.00")
+                if utype == m.UnitType.suite:
+                    rent = Decimal("1700.00")
+                bed = m.Bed(
+                    unit_id=u.unit_id,
+                    bed_label=f"{unit_num}-B{b}",
+                    monthly_rent=rent,
+                    rent_type=m.RentType.private_pay,
+                    status=m.BedStatus.available,
+                )
+                db.add(bed)
+        db.flush()
 
         # =================================================================
         # 14. RESIDENTS (7 residents in comm1)

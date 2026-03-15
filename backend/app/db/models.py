@@ -752,6 +752,9 @@ class Property(Base):
         "ValuationHistory", back_populates="property", cascade="all, delete-orphan",
         order_by="ValuationHistory.valuation_date.desc()"
     )
+    units = relationship(
+        "Unit", back_populates="property", cascade="all, delete-orphan"
+    )
 
 
 class DevelopmentPlan(Base):
@@ -868,13 +871,18 @@ class Unit(Base):
     __tablename__ = "units"
 
     unit_id = Column(Integer, primary_key=True, index=True)
-    community_id = Column(Integer, ForeignKey("communities.community_id"), nullable=False)
+    property_id = Column(Integer, ForeignKey("properties.property_id"), nullable=False)
+    community_id = Column(Integer, ForeignKey("communities.community_id"), nullable=True)
     unit_number = Column(String(32), nullable=False)
     unit_type = Column(_enum(UnitType), nullable=False)
     bed_count = Column(Integer, nullable=False)
     sqft = Column(Numeric(10, 2), nullable=False)
+    floor = Column(String(16), nullable=True)  # e.g. "Main", "Upper", "Basement"
+    is_legal_suite = Column(Boolean, default=False, nullable=False)
     is_occupied = Column(Boolean, default=False, nullable=False)
+    notes = Column(Text, nullable=True)
 
+    property = relationship("Property", back_populates="units")
     community = relationship("Community", back_populates="units")
     beds = relationship("Bed", back_populates="unit", cascade="all, delete-orphan")
     residents = relationship(
