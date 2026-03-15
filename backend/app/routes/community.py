@@ -319,3 +319,52 @@ def update_maintenance(
     db.commit()
     db.refresh(req)
     return req
+
+
+# ---------------------------------------------------------------------------
+# Interim Operations P&L Dashboard
+# ---------------------------------------------------------------------------
+
+from app.services.operations_service import (
+    compute_community_pnl,
+    compute_occupancy,
+    compute_portfolio_operations_summary,
+)
+
+
+@router.get("/communities/{community_id}/pnl")
+def get_community_pnl(
+    community_id: int,
+    year: int = 2026,
+    month: int | None = None,
+    db: Session = Depends(get_db),
+    _: User = Depends(get_current_user),
+):
+    """Full P&L summary for a community: occupancy, revenue, expenses, NOI, budget comparison."""
+    result = compute_community_pnl(db, community_id, year, month)
+    if "error" in result:
+        raise HTTPException(status_code=404, detail=result["error"])
+    return result
+
+
+@router.get("/communities/{community_id}/occupancy")
+def get_community_occupancy(
+    community_id: int,
+    db: Session = Depends(get_db),
+    _: User = Depends(get_current_user),
+):
+    """Real-time bed occupancy snapshot for a community."""
+    comm = db.query(Community).filter(Community.community_id == community_id).first()
+    if not comm:
+        raise HTTPException(status_code=404, detail="Community not found")
+    return compute_occupancy(db, community_id)
+
+
+@router.get("/operations/portfolio-summary")
+def get_portfolio_operations_summary(
+    year: int = 2026,
+    db: Session = Depends(get_db),
+    _: User = Depends(get_current_user),
+):
+    """Aggregate P&L across all communities for the operations dashboard."""
+    return compute_portfolio_operations_summary(db, year)

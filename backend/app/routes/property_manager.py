@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 
 from app.db.models import PropertyManagerEntity, User
 from app.db.session import get_db
-from app.core.deps import get_current_user, require_gp_or_ops
+from app.core.deps import get_current_user, require_gp_or_ops, require_gp_ops_pm
 from app.schemas.property_manager import (
     PropertyManagerCreate, PropertyManagerOut, PropertyManagerUpdate,
 )
@@ -15,7 +15,7 @@ router = APIRouter(prefix="/api/property-managers", tags=["Property Managers"])
 @router.get("", response_model=list[PropertyManagerOut])
 def list_property_managers(
     db: Session = Depends(get_db),
-    _: User = Depends(get_current_user),
+    _: User = Depends(require_gp_ops_pm),
 ):
     pms = db.query(PropertyManagerEntity).all()
     results = []
@@ -45,7 +45,7 @@ def create_property_manager(
 def get_property_manager(
     pm_id: int,
     db: Session = Depends(get_db),
-    _: User = Depends(get_current_user),
+    _: User = Depends(require_gp_ops_pm),
 ):
     pm = db.query(PropertyManagerEntity).filter(PropertyManagerEntity.pm_id == pm_id).first()
     if not pm:

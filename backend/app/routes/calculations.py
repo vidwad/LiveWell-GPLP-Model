@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 
 from app.db.session import get_db
 from app.db.models import User, Property, DebtFacility
-from app.core.deps import get_current_user, require_gp_or_ops
+from app.core.deps import get_current_user, require_gp_or_ops, require_gp_ops_pm, require_investor_or_above
 from app.schemas.calculations import (
     NOIInput, NOIResult,
     DSCRInput, DSCRResult,
@@ -30,7 +30,7 @@ router = APIRouter()
 @router.post("/noi", response_model=NOIResult)
 def compute_noi(
     payload: NOIInput,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_gp_ops_pm),
 ):
     """Calculate Net Operating Income from revenue and expense inputs."""
     return calculate_noi(**payload.model_dump())
@@ -39,7 +39,7 @@ def compute_noi(
 @router.post("/dscr", response_model=DSCRResult)
 def compute_dscr(
     payload: DSCRInput,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_gp_ops_pm),
 ):
     """Calculate Debt Service Coverage Ratio."""
     return calculate_dscr(**payload.model_dump())
@@ -48,7 +48,7 @@ def compute_dscr(
 @router.post("/ltv", response_model=LTVResult)
 def compute_ltv(
     payload: LTVInput,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_gp_ops_pm),
 ):
     """Calculate Loan-to-Value ratio."""
     return calculate_ltv(**payload.model_dump())
@@ -57,7 +57,7 @@ def compute_ltv(
 @router.post("/irr", response_model=IRRResult)
 def compute_irr(
     payload: IRRInput,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_gp_ops_pm),
 ):
     """Calculate Internal Rate of Return from a series of cash flows."""
     result = calculate_irr(payload.cash_flows)
@@ -73,7 +73,7 @@ def compute_irr(
 def property_financial_summary(
     property_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_investor_or_above),
 ):
     """
     Aggregate financial summary for a property.

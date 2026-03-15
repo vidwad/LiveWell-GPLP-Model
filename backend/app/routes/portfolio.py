@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 
 from app.core.deps import (
     get_current_user, require_gp_ops_pm, require_gp_or_ops,
-    get_user_entity_ids,
+    require_investor_or_above, get_user_entity_ids,
 )
 from app.db.models import (
     DevelopmentPlan, LPEntity, Property, PropertyCluster, User, UserRole,
@@ -129,7 +129,7 @@ def create_property(
 def get_property(
     property_id: int,
     db: Session = Depends(get_db),
-    _: User = Depends(get_current_user),
+    _: User = Depends(require_investor_or_above),
 ):
     prop = db.query(Property).filter(Property.property_id == property_id).first()
     if not prop:
@@ -175,7 +175,7 @@ def delete_property(
 def list_plans(
     property_id: int,
     db: Session = Depends(get_db),
-    _: User = Depends(get_current_user),
+    _: User = Depends(require_investor_or_above),
 ):
     prop = db.query(Property).filter(Property.property_id == property_id).first()
     if not prop:
@@ -223,7 +223,7 @@ def delete_plan(
 @router.post("/model", response_model=ModelingResult)
 def run_model(
     payload: ModelingInput,
-    _: User = Depends(get_current_user),
+    _: User = Depends(require_gp_ops_pm),
 ):
     from decimal import Decimal, ROUND_HALF_UP
     # Total project cost = land + construction
@@ -274,7 +274,7 @@ def run_model(
 @router.get("/clusters", response_model=list[PropertyClusterOut])
 def list_clusters(
     db: Session = Depends(get_db),
-    _: User = Depends(get_current_user),
+    _: User = Depends(require_investor_or_above),
 ):
     clusters = db.query(PropertyCluster).all()
     result = []
@@ -317,7 +317,7 @@ def create_cluster(
 def get_cluster(
     cluster_id: int,
     db: Session = Depends(get_db),
-    _: User = Depends(get_current_user),
+    _: User = Depends(require_investor_or_above),
 ):
     cluster = db.query(PropertyCluster).filter(PropertyCluster.cluster_id == cluster_id).first()
     if not cluster:
@@ -359,7 +359,7 @@ def create_debt_facility(
 def list_debt_facilities(
     property_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_investor_or_above),
 ):
     return db.query(DebtFacility).filter(DebtFacility.property_id == property_id).all()
 
@@ -427,7 +427,7 @@ def get_amortization_schedule(
     debt_id: int,
     years: int = 10,
     db: Session = Depends(get_db),
-    _: User = Depends(get_current_user),
+    _: User = Depends(require_investor_or_above),
 ):
     """
     Return a full amortization schedule (monthly + annual) for a debt facility.
@@ -551,7 +551,7 @@ def run_projection(
     property_id: int,
     payload: _ProjectionInput,
     db: Session = Depends(get_db),
-    _: User = Depends(get_current_user),
+    _: User = Depends(require_gp_ops_pm),
 ):
     """
     Run a time-phased annual projection for a property.
@@ -883,7 +883,7 @@ def _calc_sale(scenario: SaleScenario) -> SaleScenarioOut:
 def list_refinance_scenarios(
     property_id: int,
     db: Session = Depends(get_db),
-    _: User = Depends(get_current_user),
+    _: User = Depends(require_investor_or_above),
 ):
     return [_calc_refinance(s) for s in db.query(RefinanceScenario).filter(RefinanceScenario.property_id == property_id).all()]
 
@@ -921,7 +921,7 @@ def delete_refinance_scenario(
 def list_sale_scenarios(
     property_id: int,
     db: Session = Depends(get_db),
-    _: User = Depends(get_current_user),
+    _: User = Depends(require_investor_or_above),
 ):
     return [_calc_sale(s) for s in db.query(SaleScenario).filter(SaleScenario.property_id == property_id).all()]
 
@@ -964,7 +964,7 @@ def compare_development_plans(
     property_id: int,
     plan_ids: str,   # comma-separated list of plan IDs e.g. "1,2,3"
     db: Session = Depends(get_db),
-    _: User = Depends(get_current_user),
+    _: User = Depends(require_gp_ops_pm),
 ):
     """
     Side-by-side comparison of multiple DevelopmentPlan versions for a property.

@@ -22,6 +22,7 @@ import {
   X,
   HandCoins,
   RefreshCw,
+  Activity,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/providers/AuthProvider";
@@ -98,6 +99,12 @@ const NAV_ITEMS = [
     href: "/property-managers",
     label: "Property Mgrs",
     icon: Building2,
+    roles: ["GP_ADMIN", "OPERATIONS_MANAGER", "PROPERTY_MANAGER"] as UserRole[],
+  },
+  {
+    href: "/operations",
+    label: "Operations P&L",
+    icon: Activity,
     roles: ["GP_ADMIN", "OPERATIONS_MANAGER", "PROPERTY_MANAGER"] as UserRole[],
   },
   {

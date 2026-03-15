@@ -54,7 +54,7 @@ def get_management_pack(
 @router.get("/summary")
 def get_summary(
     db: Session = Depends(get_db),
-    _: User = Depends(get_current_user),
+    _: User = Depends(require_gp_or_ops),
 ):
     # --- Properties ---
     properties = db.query(Property).all()

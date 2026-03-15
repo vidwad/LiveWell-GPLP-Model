@@ -53,7 +53,7 @@ router = APIRouter()
 def list_stage_transitions(
     property_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_investor_or_above),
 ):
     """List all stage transitions for a property (audit trail)."""
     prop = db.query(Property).filter(Property.property_id == property_id).first()
@@ -184,7 +184,7 @@ def list_milestones(
     property_id: int,
     stage: str | None = None,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_investor_or_above),
 ):
     """List milestones for a property, optionally filtered by stage."""
     prop = db.query(Property).filter(Property.property_id == property_id).first()
