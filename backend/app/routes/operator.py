@@ -463,6 +463,20 @@ class _TurnoverCreate(_BaseModel):
     assigned_to: int | None = None
 
 
+class _TurnoverUpdate(_BaseModel):
+    unit_id: int | None = None
+    vacated_by_resident_id: int | None = None
+    move_out_date: _dt.date | None = None
+    target_ready_date: _dt.date | None = None
+    status: str | None = None
+    inspection_notes: str | None = None
+    cleaning_complete: bool | None = None
+    repairs_complete: bool | None = None
+    painting_complete: bool | None = None
+    inspection_passed: bool | None = None
+    assigned_to: int | None = None
+
+
 class _TurnoverOut(_TurnoverCreate):
     turnover_id: int
     actual_ready_date: _dt.date | None = None
@@ -502,7 +516,7 @@ def create_turnover(
 @router.patch("/turnovers/{turnover_id}", response_model=_TurnoverOut)
 def update_turnover(
     turnover_id: int,
-    payload: _TurnoverCreate,
+    payload: _TurnoverUpdate,
     db: Session = Depends(get_db),
     _: User = Depends(require_gp_ops_pm),
 ):

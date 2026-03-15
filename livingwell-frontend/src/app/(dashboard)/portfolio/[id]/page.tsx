@@ -51,25 +51,41 @@ function AmortizationPanel({ propertyId, debtId }: { propertyId: number; debtId:
   if (isLoading) return <Skeleton className="h-32 w-full" />;
   if (!data) return <p className="text-sm text-muted-foreground">No schedule data.</p>;
 
-  const annual: Array<{
+  // Backend returns annual_schedule without opening_balance — compute it
+  const rawAnnual: Array<{
     year: number;
-    opening_balance: number;
     total_payment: number;
     total_interest: number;
     total_principal: number;
     closing_balance: number;
-  }> = data.annual ?? [];
+    is_io_year?: boolean;
+  }> = data.annual_schedule ?? data.annual ?? [];
 
-  const monthly: Array<{
+  const startBalance = data.outstanding_balance ?? 0;
+  const annual = rawAnnual.map((row, i) => ({
+    ...row,
+    opening_balance: i === 0 ? startBalance : rawAnnual[i - 1].closing_balance,
+  }));
+
+  // Backend monthly uses "balance" not "closing_balance", and has no year/month/opening_balance
+  const rawMonthly: Array<{
     period: number;
-    year: number;
-    month: number;
-    opening_balance: number;
     payment: number;
     interest: number;
     principal: number;
-    closing_balance: number;
-  }> = data.monthly ?? [];
+    balance: number;
+  }> = data.monthly_schedule ?? data.monthly ?? [];
+
+  const monthly = rawMonthly.map((row, i) => ({
+    period: row.period,
+    year: Math.ceil(row.period / 12),
+    month: ((row.period - 1) % 12) + 1,
+    opening_balance: i === 0 ? startBalance : rawMonthly[i - 1].balance,
+    payment: row.payment,
+    interest: row.interest,
+    principal: row.principal,
+    closing_balance: row.balance,
+  }));
 
   return (
     <div className="space-y-4 mt-3">

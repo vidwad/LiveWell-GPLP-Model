@@ -245,33 +245,30 @@ export default function ReportsPage() {
                       <thead>
                         <tr className="border-b text-left">
                           <th className="pb-2 font-semibold text-muted-foreground">Fund</th>
-                          <th className="pb-2 font-semibold text-muted-foreground text-right">Properties</th>
-                          <th className="pb-2 font-semibold text-muted-foreground text-right">Total Value</th>
-                          <th className="pb-2 font-semibold text-muted-foreground text-right">Total Debt</th>
-                          <th className="pb-2 font-semibold text-muted-foreground text-right">Equity</th>
-                          <th className="pb-2 font-semibold text-muted-foreground text-right">NOI</th>
-                          <th className="pb-2 font-semibold text-muted-foreground text-right">LTV</th>
+                          <th className="pb-2 font-semibold text-muted-foreground text-right">Committed</th>
+                          <th className="pb-2 font-semibold text-muted-foreground text-right">Raised</th>
+                          <th className="pb-2 font-semibold text-muted-foreground text-right">Equity Value</th>
+                          <th className="pb-2 font-semibold text-muted-foreground text-right">Distributions</th>
+                          <th className="pb-2 font-semibold text-muted-foreground text-right">Equity Multiple</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y">
                         {pack.lp_summary.map((lp: {
                           lp_id: number;
                           lp_name: string;
-                          property_count: number;
-                          total_value: number;
-                          total_debt: number;
-                          total_equity: number;
-                          total_noi: number;
-                          portfolio_ltv: number;
+                          capital_committed: number;
+                          capital_raised: number;
+                          equity_value: number;
+                          total_distributions: number;
+                          equity_multiple: number;
                         }) => (
                           <tr key={lp.lp_id}>
                             <td className="py-2 font-medium">{lp.lp_name}</td>
-                            <td className="py-2 text-right">{lp.property_count}</td>
-                            <td className="py-2 text-right">{formatCurrency(lp.total_value)}</td>
-                            <td className="py-2 text-right">{formatCurrency(lp.total_debt)}</td>
-                            <td className="py-2 text-right">{formatCurrency(lp.total_equity)}</td>
-                            <td className="py-2 text-right">{formatCurrency(lp.total_noi)}</td>
-                            <td className="py-2 text-right">{Number(lp.portfolio_ltv).toFixed(1)}%</td>
+                            <td className="py-2 text-right">{formatCurrency(lp.capital_committed)}</td>
+                            <td className="py-2 text-right">{formatCurrency(lp.capital_raised)}</td>
+                            <td className="py-2 text-right">{formatCurrency(lp.equity_value)}</td>
+                            <td className="py-2 text-right">{formatCurrency(lp.total_distributions)}</td>
+                            <td className="py-2 text-right">{(lp.equity_multiple || 0).toFixed(2)}x</td>
                           </tr>
                         ))}
                       </tbody>

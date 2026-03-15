@@ -508,13 +508,23 @@ class _YearProjectionOut(_BaseModel):
 
 
 class _ProjectionInput(_BaseModel):
-    stabilized_annual_revenue: float
-    stabilized_operating_expenses: float
-    construction_start_year: int | None = None
-    construction_duration_years: int = 1
+    # Simplified inputs (from frontend)
+    planned_units: int | None = None
+    monthly_rent_per_unit: float | None = None
+    annual_expense_ratio: float | None = None  # 0.35 = 35%
+    vacancy_rate_stabilized: float | None = None  # 0.05 = 5%
+    construction_start_date: str | None = None  # ISO date string
+    construction_months: int = 18
     lease_up_months: int = 12
+    annual_debt_service: float | None = None
+    exit_cap_rate: float | None = None  # 0.055 = 5.5%
+    # Advanced inputs (original schema, used as overrides)
+    stabilized_annual_revenue: float | None = None
+    stabilized_operating_expenses: float | None = None
+    construction_start_year: int | None = None
+    construction_duration_years: int | None = None
     lease_up_start_occupancy: float = 0.20
-    stabilized_occupancy: float = 0.93
+    stabilized_occupancy: float | None = None
     interim_revenue: float = 0.0
     interim_expenses: float = 0.0
     carrying_cost_annual: float = 0.0
@@ -569,15 +579,62 @@ def run_projection(
                     d.io_period_months or 0,
                 )
 
+    # Derive stabilized revenue/expenses from simplified inputs if not provided directly
+    if payload.stabilized_annual_revenue is not None:
+        stab_revenue = payload.stabilized_annual_revenue
+    elif payload.planned_units and payload.monthly_rent_per_unit:
+        stab_revenue = payload.planned_units * payload.monthly_rent_per_unit * 12
+    else:
+        stab_revenue = 0.0
+
+    if payload.stabilized_operating_expenses is not None:
+        stab_expenses = payload.stabilized_operating_expenses
+    elif payload.annual_expense_ratio is not None and stab_revenue > 0:
+        stab_expenses = stab_revenue * payload.annual_expense_ratio
+    else:
+        stab_expenses = 0.0
+
+    # Derive construction_start_year as a RELATIVE year (1-based projection year)
+    # The engine treats this as "construction begins in projection year N"
+    construction_start_year = payload.construction_start_year
+    if construction_start_year is None and payload.construction_start_date:
+        try:
+            from datetime import date as _date
+            start_date = _date.fromisoformat(payload.construction_start_date)
+            current_year = _date.today().year
+            # Convert calendar year to relative projection year (1-based)
+            # If construction starts this year or in the past, it's year 1
+            relative_year = max(1, start_date.year - current_year + 1)
+            construction_start_year = relative_year
+        except (ValueError, IndexError):
+            construction_start_year = 1  # Default: construction starts immediately
+
+    # Derive construction_duration_years from months
+    construction_duration_years = payload.construction_duration_years
+    if construction_duration_years is None:
+        construction_duration_years = max(1, round(payload.construction_months / 12))
+
+    # Use vacancy_rate_stabilized to compute stabilized_occupancy
+    stabilized_occupancy = payload.stabilized_occupancy
+    if stabilized_occupancy is None:
+        if payload.vacancy_rate_stabilized is not None:
+            stabilized_occupancy = 1.0 - payload.vacancy_rate_stabilized
+        else:
+            stabilized_occupancy = 0.93
+
+    # Override annual_debt_service from simplified input if provided
+    if payload.annual_debt_service is not None and payload.annual_debt_service > 0:
+        ads = payload.annual_debt_service
+
     proj_engine = LifecycleProjectionEngine(
-        stabilized_annual_revenue=payload.stabilized_annual_revenue,
-        stabilized_operating_expenses=payload.stabilized_operating_expenses,
+        stabilized_annual_revenue=stab_revenue,
+        stabilized_operating_expenses=stab_expenses,
         annual_debt_service=ads,
-        construction_start_year=payload.construction_start_year,
-        construction_duration_years=payload.construction_duration_years,
+        construction_start_year=construction_start_year,
+        construction_duration_years=construction_duration_years,
         lease_up_months=payload.lease_up_months,
         lease_up_start_occupancy=payload.lease_up_start_occupancy,
-        stabilized_occupancy=payload.stabilized_occupancy,
+        stabilized_occupancy=stabilized_occupancy,
         interim_revenue=payload.interim_revenue,
         interim_expenses=payload.interim_expenses,
         carrying_cost_annual=payload.carrying_cost_annual,
