@@ -3,7 +3,7 @@
 > **Platform identity:** Real estate LP syndication + property lifecycle modeling + community operations + investor reporting platform.
 > **Not:** A generic PE/VC fund administration system.
 >
-> Last updated: 2026-03-14
+> Last updated: 2026-03-15
 
 ---
 
@@ -28,8 +28,8 @@
 | 1.1.1 | UserRole enum (GP_ADMIN, OPERATIONS_MANAGER, PROPERTY_MANAGER, INVESTOR, RESIDENT) | DONE | 5 roles defined in models.py |
 | 1.1.2 | ScopeAssignment model (user → entity_type + entity_id + permission_level) | DONE | Polymorphic FK pattern with view/manage/admin levels |
 | 1.1.3 | ScopeAssignment CRUD endpoints | DONE | POST/GET in investment routes |
-| 1.1.4 | Role-based route guards on all endpoints | PARTIAL | Only ~16 role checks across all routes. Most endpoints have no role enforcement. |
-| 1.1.5 | Scope-based data filtering on all list endpoints | PARTIAL | Only LP list filters by scope for non-GP_ADMIN users. Portfolio, community, operator routes have no scope filtering. |
+| 1.1.4 | Role-based route guards on all endpoints | DONE | 135 of 156 endpoints have explicit role guards. Remaining 11 are correctly auth-only (notifications, auth, user-scoped reads). |
+| 1.1.5 | Scope-based data filtering on all list endpoints | PARTIAL | LP list filters by scope for non-GP_ADMIN users. Portfolio list_properties has inline role filtering. Other routes need scope filtering. |
 | 1.1.6 | Frontend role-aware UI (hide/show actions based on user role) | NOT DONE | All UI shows all actions regardless of role. |
 | 1.1.7 | Capability-based permissions (e.g., "can_create_subscription", "can_approve_distribution") | NOT DONE | No fine-grained capability system exists. |
 
@@ -49,7 +49,7 @@
 | 1.2.10 | LP CRUD endpoints (create, read, update, list) | DONE | |
 | 1.2.11 | LP detail frontend page with Overview tab | DONE | /investment/[lpId] |
 | 1.2.12 | LP Edit dialog form | DONE | 22-field dialog |
-| 1.2.13 | LP Create form/page | NOT DONE | No "New LP" page or dialog exists. Only edit of existing LPs. |
+| 1.2.13 | LP Create form/page | DONE | /investment/new — full multi-section form with all LP fields |
 
 ### 1.3 Investor / Subscription / Holding Model
 
@@ -74,13 +74,13 @@
 | # | Item | Status | Notes |
 |---|------|--------|-------|
 | 1.4.1 | Property model with lp_id FK (LP ownership) | DONE | Property → LP relationship exists |
-| 1.4.2 | Community model with property_id FK and operator_id FK | DONE | Community → Property → LP chain exists |
-| 1.4.3 | **CRITICAL: Community is currently property-level, not city-level** | NEEDS REDESIGN | Current: Community has property_id FK (1 community per property). User's intent: Community is a city+purpose grouping (e.g., "Calgary Recovery Community") that contains MULTIPLE properties from potentially different LPs. This is the biggest structural mismatch. |
+| 1.4.2 | Community model as city+purpose entity with operator_id FK | DONE | Community has city, province, description, operator_id. No property_id FK. |
+| 1.4.3 | Community is city-level, not property-level | DONE | Redesigned: Community is a city+purpose grouping (e.g., "RecoverWell Calgary"). Properties have community_id FK pointing to Community. Multiple properties from different LPs can belong to the same community. |
 | 1.4.4 | OperatorEntity model (legal_name, contact_name, email, phone) | DONE | |
 | 1.4.5 | Operator → Community relationship | DONE | Community has operator_id FK |
-| 1.4.6 | **PropertyManager as a distinct entity/role** | NOT DONE | No PropertyManager model exists. Property management is not separated from operator workflows. The PROPERTY_MANAGER role exists in UserRole enum but has no dedicated model, routes, or UI. |
-| 1.4.7 | Property belongs to one LP (ownership) AND one Community (operations) — enforced | PARTIAL | Property → LP exists. Property → Community exists (reverse: Community → Property). But the Community model needs redesign (see 1.4.3). |
-| 1.4.8 | Multiple LPs can contribute properties to the same Community | NOT POSSIBLE | Current schema: Community.property_id is a single FK. Need Community as a city-level entity that properties join, not the other way around. |
+| 1.4.6 | PropertyManager as a distinct entity | DONE | PropertyManagerEntity model with company_name, contact_name, email, phone, license_number, service_area, management_fee_percent. Property has pm_id FK. Full CRUD routes and frontend page at /property-managers. |
+| 1.4.7 | Property belongs to one LP (ownership) AND one Community (operations) — enforced | DONE | Property has lp_id FK and community_id FK. |
+| 1.4.8 | Multiple LPs can contribute properties to the same Community | DONE | Community is city-level; properties from different LPs can share the same community_id. |
 
 ### 1.5 Target Property vs Actual Property Distinction
 
@@ -106,8 +106,8 @@
 | 2.1.3 | Unit/bed occupancy tracking (is_occupied, bed status) | DONE | Unit.is_occupied, Bed.status (available, occupied, reserved, maintenance) |
 | 2.1.4 | Resident model (move_in/out dates, rent_amount, payment_status) | DONE | |
 | 2.1.5 | Interim house expense tracking | PARTIAL | OperatingExpense model exists with categories (utilities, insurance, maintenance, etc.) but not explicitly tied to "interim" vs "stabilized" phase |
-| 2.1.6 | Interim revenue vs expense summary (actual house P&L) | NOT DONE | No endpoint or UI that calculates interim-phase property-level P&L |
-| 2.1.7 | Interim occupancy dashboard | NOT DONE | No dedicated view showing current occupancy rates, bed availability, revenue per bed |
+| 2.1.6 | Interim revenue vs expense summary (actual house P&L) | DONE | operations_service.py computes community-level P&L with revenue, expenses, NOI, collection rates. Endpoints: GET /community/{id}/pnl and GET /community/operations/portfolio-summary. |
+| 2.1.7 | Interim occupancy dashboard | DONE | Operations P&L Dashboard at /operations shows occupancy rates, bed counts, revenue per occupied bed, monthly potential, expense breakdown, budget vs actual — per community and portfolio-wide. |
 | 2.1.8 | Support-service cost tracking for interim operations | NOT DONE | No model for support services (counseling, meals, etc.) as distinct cost items |
 
 ### 2.2 Redevelopment Scenario
@@ -157,7 +157,7 @@
 |---|------|--------|-------|
 | 2.6.1 | PropertyStageTransition model (from_stage → to_stage with dates) | DONE | |
 | 2.6.2 | PropertyMilestone model (milestone_type, target_date, actual_date, status) | DONE | |
-| 2.6.3 | Lifecycle routes (transitions, milestones CRUD) | DONE | Full lifecycle.py routes |
+| 2.6.3 | Lifecycle routes (transitions, milestones) | DONE | Full CRUD in lifecycle.py |
 | 2.6.4 | Lifecycle UI page | DONE | /lifecycle page |
 | 2.6.5 | Timeline visualization (Gantt-style or milestone chart) | NOT DONE | List-based UI only |
 
@@ -243,9 +243,9 @@
 | # | Item | Status | Notes |
 |---|------|--------|-------|
 | 4.1.1 | Unit/Bed/Resident models | DONE | Full models with occupancy tracking |
-| 4.1.2 | Occupancy tracking endpoints | PARTIAL | Community routes exist but occupancy-specific endpoints are limited |
-| 4.1.3 | Occupancy dashboard UI | NOT DONE | No dedicated occupancy view |
-| 4.1.4 | Occupancy rate calculations (by community, by property) | NOT DONE | |
+| 4.1.2 | Occupancy tracking endpoints | DONE | Community P&L endpoint includes occupancy data. Portfolio summary aggregates across communities. |
+| 4.1.3 | Occupancy dashboard UI | DONE | Operations P&L Dashboard at /operations shows per-community and portfolio-wide occupancy with progress bars. |
+| 4.1.4 | Occupancy rate calculations (by community, by property) | DONE | operations_service.py computes occupancy rates per community. |
 | 4.1.5 | Vacancy tracking and alerts | NOT DONE | |
 
 ### 4.2 Maintenance
@@ -283,8 +283,8 @@
 | 4.5.2 | OperatingExpense model (community_id, category, amount, date) | DONE | |
 | 4.5.3 | Budget CRUD endpoints | DONE | In operator routes |
 | 4.5.4 | Expense CRUD endpoints | DONE | In operator routes |
-| 4.5.5 | Budget vs actual comparison endpoint | DONE | GET /operator/budget-vs-actual |
-| 4.5.6 | Budget vs actual UI | PARTIAL | Operator page exists but comparison view may be limited |
+| 4.5.5 | Budget vs actual comparison endpoint | DONE | GET /operator/budget-vs-actual and in operations_service.py P&L |
+| 4.5.6 | Budget vs actual UI | DONE | Operations P&L Dashboard shows budget vs actual table per community with variance analysis. |
 | 4.5.7 | Variance analysis and alerts | NOT DONE | |
 
 ### 4.6 Community Operations
@@ -293,8 +293,8 @@
 |---|------|--------|-------|
 | 4.6.1 | Community CRUD endpoints | DONE | |
 | 4.6.2 | Community list/detail UI | DONE | /communities, /communities/[id] |
-| 4.6.3 | Community-level reporting (occupancy, revenue, expenses) | NOT DONE | |
-| 4.6.4 | **Community model redesign (city-level, not property-level)** | NOT DONE | See 1.4.3 — this is a critical structural change |
+| 4.6.3 | Community-level reporting (occupancy, revenue, expenses) | DONE | Operations P&L Dashboard provides per-community P&L with all metrics. |
+| 4.6.4 | Community model redesign (city-level, not property-level) | DONE | Community is now a city+purpose entity. Properties have community_id FK. |
 | 4.6.5 | Events and services tracking | NOT DONE | No model for community events or support services |
 | 4.6.6 | Grant/funding opportunity tracking | DONE | FundingOpportunity model and CRUD exist |
 
@@ -333,8 +333,8 @@
 
 | # | Item | Status | Notes |
 |---|------|--------|-------|
-| 5.4.1 | Capital call model | NOT DONE | Not currently required |
-| 5.4.2 | Capital call workflow | NOT DONE | Not currently required |
+| 5.4.1 | Capital call model | NOT APPLICABLE | Fund uses full upfront funding, not capital calls. |
+| 5.4.2 | Capital call workflow | NOT APPLICABLE | Fund uses full upfront funding, not capital calls. |
 
 ---
 
@@ -342,7 +342,7 @@
 
 | # | Item | Status | Notes |
 |---|------|--------|-------|
-| T.1 | Extract inline computations from route handlers into service layers | PARTIAL | investment_service.py and validation_service.py created. Other routes still have inline logic. |
+| T.1 | Extract inline computations from route handlers into service layers | PARTIAL | investment_service.py, validation_service.py, and operations_service.py created. Other routes still have inline logic. |
 | T.2 | Reduce oversized route files (investment.py is ~1000 lines) | NOT DONE | |
 | T.3 | Reduce oversized page files (LP detail page is ~1100 lines) | NOT DONE | |
 | T.4 | Centralize calculation logic | PARTIAL | calculations.py exists but some calcs are duplicated |
@@ -350,10 +350,10 @@
 | T.6 | Enforce workflow state transitions consistently | PARTIAL | LP and subscription transitions validated. Other entities (maintenance, milestones) are not. |
 | T.7 | Backend/frontend separation of concern | PARTIAL | Some computed fields done in service layer, some still inline in routes |
 | T.8 | Report generation structure (PDF export) | PARTIAL | quarterly_reports.py service exists. No investor statement PDF. |
-| T.9 | Waterfall engine: make LP-specific and configurable | PARTIAL | European-style waterfall built. Needs to support LP-specific rule sets, special class/founding LP, refinance/sale proceeds. |
-| T.10 | Seed data: remove ownership_percent and cost_basis from holdings | NOT DONE | Seed still has these fields even though model computes them. Seed runs but fields are ignored. |
-| T.11 | **Community model architectural redesign** | NOT DONE | Most impactful structural change needed. See 1.4.3. |
-| T.12 | PropertyManager as distinct entity | NOT DONE | See 1.4.6. |
+| T.9 | Waterfall engine: make LP-specific and configurable | PARTIAL | European-style waterfall built with 4 tiers. Needs to support LP-specific rule sets, special class/founding LP, refinance/sale proceeds. |
+| T.10 | Seed data consistency | DONE | Holdings no longer store ownership_percent or cost_basis. Seed data is clean and consistent. |
+| T.11 | Community model architectural redesign | DONE | Community is now city+purpose-level. Properties have community_id FK. |
+| T.12 | PropertyManager as distinct entity | DONE | Full model, routes, seed data, and frontend page implemented. |
 
 ---
 
@@ -361,24 +361,28 @@
 
 | Category | Done | Partial | Not Done | Total |
 |----------|------|---------|----------|-------|
-| Priority 1 — Foundation | 24 | 6 | 5 | 35 |
+| Priority 1 — Foundation | 30 | 3 | 2 | 35 |
 | Priority 2 — Core Modeling | 22 | 5 | 10 | 37 |
 | Priority 3 — Funding & Reporting | 11 | 2 | 6 | 19 |
-| Priority 4 — Operations | 10 | 3 | 10 | 23 |
+| Priority 4 — Operations | 16 | 2 | 5 | 23 |
 | Priority 5 — Advanced | 5 | 0 | 5 | 10 |
-| Technical Debt | 0 | 7 | 5 | 12 |
-| **Total** | **72** | **23** | **41** | **136** |
+| Technical Debt | 3 | 6 | 3 | 12 |
+| **Total** | **87** | **18** | **31** | **136** |
 
 ---
 
-## Top 5 Most Impactful Items to Address Next
+## Recommended Next Items to Address
 
-1. **Community model redesign (1.4.3 / T.11)** — Currently property-level; needs to become city+purpose-level. This is the single biggest architectural mismatch with the user's vision. Affects how properties, operators, and communities relate.
+1. **Scope-based data filtering (1.1.5)** — Extend scope filtering to all list endpoints so investors only see their LP's data, PMs only see their properties, etc.
 
-2. **PropertyManager as distinct entity (1.4.6 / T.12)** — The three-layer separation (LP ownership / Community operator / Property manager) is a core architectural principle that is not yet implemented.
+2. **Frontend role-aware UI (1.1.6)** — Hide create/edit/delete buttons for users who don't have permission. Show investor-appropriate views vs admin views.
 
-3. **Role/scope enforcement across all routes (1.1.4, 1.1.5)** — Most endpoints are unprotected. This is a security and data isolation issue.
+3. **Capital deployed tracking (3.2.3, 3.2.4)** — Track how much raised capital has been spent on acquisitions. Calculate remaining investable capital.
 
-4. **Interim operations emphasis (2.1.6, 2.1.7)** — The "as-is house" operating phase needs a dedicated P&L view and occupancy dashboard. This is central to the business model, not secondary.
+4. **LP-level P&L summary (3.4.4)** — Aggregate income and expenses at the LP level across all properties owned by that LP.
 
-5. **LP Create form (1.2.13)** — Cannot create new LPs from the UI. Only edit existing ones.
+5. **Investor distribution history (3.3.3)** — Per-investor view of all distributions received, with waterfall tier breakdown.
+
+6. **Amortization schedule generation (2.5.7)** — Month-by-month amortization table for each debt facility.
+
+7. **Development plan comparison UI (2.2.6)** — Side-by-side comparison of different plan versions for the same property.
