@@ -19,6 +19,20 @@ from app.db.models import (
     TargetPropertyStatus, OperatorEntity,
 )
 from app.db.session import get_db
+from app.services.investment_service import (
+    compute_lp_summary,
+    compute_holdings_with_ownership,
+    compute_portfolio_rollup,
+    compute_waterfall,
+)
+from app.services.validation_service import (
+    validate_subscription_amount,
+    validate_subscription_status_transition,
+    validate_lp_status_transition,
+    validate_tranche_status_transition,
+    validate_holding_units,
+    validate_upfront_funding,
+)
 from app.schemas.investment import (
     GPEntityCreate, GPEntityUpdate, GPEntityOut,
     LPEntityCreate, LPEntityUpdate, LPEntityOut, LPEntityDetail,
@@ -202,38 +216,8 @@ def get_lp_detail(
         if not has_scope:
             raise HTTPException(status_code=403, detail="No access to this LP")
 
-    subs = lp.subscriptions or []
-    total_committed = sum(s.commitment_amount for s in subs) if subs else Decimal("0")
-    total_funded = sum(s.funded_amount for s in subs) if subs else Decimal("0")
-
-    # Funding progress
-    gross_subs = total_committed
-    accepted_subs = sum(
-        s.commitment_amount for s in subs
-        if s.status and s.status.value in ("accepted", "funded", "issued", "closed")
-    )
-    funded_subs = sum(s.funded_amount for s in subs)
-    total_units = sum(s.unit_quantity or Decimal("0") for s in subs if s.status and s.status.value in ("issued", "closed"))
-
-    target = lp.target_raise or Decimal("0")
-    remaining = max(target - total_committed, Decimal("0"))
-
-    # Capital deployment
-    formation = lp.formation_costs or Decimal("0")
-    offering = lp.offering_costs or Decimal("0")
-    reserve = lp.reserve_amount or Decimal("0")
-    if not reserve and lp.reserve_percent and total_funded:
-        reserve = total_funded * lp.reserve_percent / Decimal("100")
-    net_deployable = max(total_funded - formation - offering - reserve, Decimal("0"))
-
-    # Capital deployed to actual properties
-    capital_deployed = sum(
-        p.purchase_price or Decimal("0") for p in (lp.properties or [])
-    )
-    capital_available = max(net_deployable - capital_deployed, Decimal("0"))
-
-    # Unique investors
-    investor_ids = set(s.investor_id for s in subs)
+    # Use service layer for all computed fields
+    summary = compute_lp_summary(db, lp_id)
 
     return LPEntityDetail(
         lp_id=lp.lp_id,
@@ -248,7 +232,6 @@ def get_lp_detail(
         status=lp.status.value if lp.status else "draft",
         unit_price=lp.unit_price,
         minimum_subscription=lp.minimum_subscription,
-        minimum_investment=lp.minimum_investment,
         target_raise=lp.target_raise,
         minimum_raise=lp.minimum_raise,
         maximum_raise=lp.maximum_raise,
@@ -263,26 +246,11 @@ def get_lp_detail(
         gp_catchup_percent=lp.gp_catchup_percent,
         asset_management_fee_percent=lp.asset_management_fee_percent,
         acquisition_fee_percent=lp.acquisition_fee_percent,
+        total_units_authorized=lp.total_units_authorized,
         notes=lp.notes,
         created_at=lp.created_at,
         updated_at=lp.updated_at,
-        total_committed=total_committed,
-        total_funded=total_funded,
-        total_units_issued=total_units,
-        subscription_count=len(subs),
-        holding_count=len(lp.holdings) if lp.holdings else 0,
-        property_count=len(lp.properties) if lp.properties else 0,
-        target_property_count=len(lp.target_properties) if lp.target_properties else 0,
-        investor_count=len(investor_ids),
-        gross_subscriptions=gross_subs,
-        accepted_subscriptions=accepted_subs,
-        funded_subscriptions=funded_subs,
-        remaining_capacity=remaining,
-        total_formation_costs=formation,
-        total_reserve_allocations=reserve,
-        net_deployable_capital=net_deployable,
-        capital_deployed=capital_deployed,
-        capital_available=capital_available,
+        **summary,
     )
 
 
@@ -296,7 +264,15 @@ def update_lp_entity(
     lp = db.query(LPEntity).filter(LPEntity.lp_id == lp_id).first()
     if not lp:
         raise HTTPException(status_code=404, detail="LP entity not found")
-    for key, val in payload.model_dump(exclude_unset=True).items():
+
+    data = payload.model_dump(exclude_unset=True)
+
+    # Validate LP status transition if status is being changed
+    if "status" in data and data["status"]:
+        current = lp.status.value if lp.status else "draft"
+        validate_lp_status_transition(current, data["status"])
+
+    for key, val in data.items():
         if key == "status" and val:
             val = LPStatus(val)
         if key == "purpose_type" and val:
@@ -388,7 +364,15 @@ def update_tranche(
     tranche = db.query(LPTranche).filter(LPTranche.tranche_id == tranche_id).first()
     if not tranche:
         raise HTTPException(status_code=404, detail="Tranche not found")
-    for key, val in payload.model_dump(exclude_unset=True).items():
+
+    data = payload.model_dump(exclude_unset=True)
+
+    # Validate tranche status transition
+    if "status" in data and data["status"]:
+        current = tranche.status.value if tranche.status else "draft"
+        validate_tranche_status_transition(current, data["status"])
+
+    for key, val in data.items():
         if key == "status" and val:
             val = TrancheStatus(val)
         setattr(tranche, key, val)
@@ -532,6 +516,9 @@ def create_subscription(
         if tranche.status != TrancheStatus.open:
             raise HTTPException(status_code=400, detail="Tranche is not open for subscriptions")
 
+    # Validate subscription amount against fund rules
+    validate_subscription_amount(db, lp, payload.commitment_amount)
+
     # Auto-calculate unit_quantity if issue_price is set
     issue_price = payload.issue_price or (tranche.issue_price if tranche else lp.unit_price)
     unit_qty = payload.unit_quantity
@@ -569,7 +556,35 @@ def update_subscription(
     sub = db.query(Subscription).filter(Subscription.subscription_id == subscription_id).first()
     if not sub:
         raise HTTPException(status_code=404, detail="Subscription not found")
-    for key, val in payload.model_dump(exclude_unset=True).items():
+
+    data = payload.model_dump(exclude_unset=True)
+
+    # Validate status transition if status is being changed
+    if "status" in data and data["status"]:
+        current = sub.status.value if sub.status else "draft"
+        validate_subscription_status_transition(current, data["status"])
+
+        # If transitioning to 'funded', enforce full upfront funding
+        if data["status"] == "funded":
+            funded_amt = data.get("funded_amount", sub.funded_amount)
+            commit_amt = data.get("commitment_amount", sub.commitment_amount)
+            if funded_amt != commit_amt:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Full upfront funding required. Funded amount must equal "
+                           f"commitment amount (${commit_amt:,.2f})",
+                )
+
+    # Validate commitment amount change if applicable
+    if "commitment_amount" in data and data["commitment_amount"]:
+        lp = db.query(LPEntity).filter(LPEntity.lp_id == sub.lp_id).first()
+        if lp:
+            validate_subscription_amount(
+                db, lp, data["commitment_amount"],
+                exclude_subscription_id=subscription_id,
+            )
+
+    for key, val in data.items():
         if key == "status" and val:
             val = SubscriptionStatus(val)
         setattr(sub, key, val)
@@ -588,13 +603,17 @@ def list_holdings(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_investor_or_above),
 ):
-    query = db.query(Holding).filter(Holding.lp_id == lp_id)
+    # Use service layer for computed ownership_percent and cost_basis
+    holdings_data = compute_holdings_with_ownership(db, lp_id)
+
+    # Filter for investor role
     if current_user.role == UserRole.INVESTOR:
         investor = db.query(Investor).filter(Investor.user_id == current_user.user_id).first()
         if not investor:
             return []
-        query = query.filter(Holding.investor_id == investor.investor_id)
-    return [_holding_out(h) for h in query.all()]
+        holdings_data = [h for h in holdings_data if h["investor_id"] == investor.investor_id]
+
+    return [HoldingOut(**h) for h in holdings_data]
 
 
 @router.post("/lp/{lp_id}/holdings", response_model=HoldingOut, status_code=status.HTTP_201_CREATED)
@@ -610,6 +629,9 @@ def create_holding(
     investor = db.query(Investor).filter(Investor.investor_id == payload.investor_id).first()
     if not investor:
         raise HTTPException(status_code=404, detail="Investor not found")
+
+    # Validate total units won't exceed authorized limit
+    validate_holding_units(db, lp, payload.units_held)
 
     # Rule: No holding without a valid funded subscription (unless GP position)
     if not payload.is_gp and payload.subscription_id:
@@ -627,8 +649,6 @@ def create_holding(
         average_issue_price=payload.average_issue_price,
         total_capital_contributed=payload.total_capital_contributed,
         initial_issue_date=payload.initial_issue_date,
-        ownership_percent=payload.ownership_percent,
-        cost_basis=payload.cost_basis,
         unreturned_capital=payload.unreturned_capital,
         unpaid_preferred=payload.unpaid_preferred,
         is_gp=payload.is_gp,
@@ -637,7 +657,13 @@ def create_holding(
     db.add(holding)
     db.commit()
     db.refresh(holding)
-    return _holding_out(holding)
+
+    # Return with computed ownership_percent and cost_basis
+    holdings_data = compute_holdings_with_ownership(db, lp_id)
+    for h in holdings_data:
+        if h["holding_id"] == holding.holding_id:
+            return HoldingOut(**h)
+    return _holding_out(holding)  # fallback
 
 
 @router.patch("/holdings/{holding_id}", response_model=HoldingOut)
@@ -654,7 +680,13 @@ def update_holding(
         setattr(holding, key, val)
     db.commit()
     db.refresh(holding)
-    return _holding_out(holding)
+
+    # Return with computed ownership_percent and cost_basis
+    holdings_data = compute_holdings_with_ownership(db, holding.lp_id)
+    for h in holdings_data:
+        if h["holding_id"] == holding.holding_id:
+            return HoldingOut(**h)
+    return _holding_out(holding)  # fallback
 
 
 # ===========================================================================
@@ -805,58 +837,42 @@ def get_lp_portfolio_rollup(
     if not lp:
         raise HTTPException(status_code=404, detail="LP entity not found")
 
-    targets = lp.target_properties or []
-    actuals = lp.properties or []
+    # Use service layer for all rollup computations
+    rollup = compute_portfolio_rollup(db, lp_id)
+    return LPPortfolioRollup(**rollup)
 
-    # Target portfolio totals
-    total_acq = sum(t.estimated_acquisition_price or Decimal("0") for t in targets)
-    total_constr = sum(t.construction_budget or Decimal("0") for t in targets)
-    total_all_in = total_acq + total_constr
-    total_stab_noi = sum(t.stabilized_annual_noi or Decimal("0") for t in targets)
-    total_stab_val = sum(t.stabilized_value or Decimal("0") for t in targets)
-    total_debt = sum(t.assumed_debt_amount or Decimal("0") for t in targets)
-    total_equity_req = total_all_in - total_debt
 
-    total_planned_units = sum(t.planned_units or 0 for t in targets)
-    total_planned_beds = sum(t.planned_beds or 0 for t in targets)
+# ===========================================================================
+# Distribution Waterfall (European-style, 4-tier)
+# ===========================================================================
 
-    # Actual portfolio totals
-    total_purchase = sum(p.purchase_price or Decimal("0") for p in actuals)
-    total_market = sum(p.current_market_value or p.estimated_value or Decimal("0") for p in actuals)
+from pydantic import BaseModel as _BM
 
-    # Projected LP-level metrics
-    total_funded = sum(s.funded_amount for s in (lp.subscriptions or [])) if lp.subscriptions else Decimal("0")
-    projected_equity_value = total_stab_val - total_debt if total_stab_val else None
-    projected_cash_on_cash = None
-    projected_equity_multiple = None
-    if total_funded and total_funded > 0:
-        if total_stab_noi:
-            projected_cash_on_cash = (total_stab_noi / total_funded) * Decimal("100")
-        if projected_equity_value:
-            projected_equity_multiple = projected_equity_value / total_funded
+class WaterfallRequest(_BM):
+    distributable_amount: Decimal
 
-    return LPPortfolioRollup(
-        lp_id=lp.lp_id,
-        lp_name=lp.name,
-        target_property_count=len(targets),
-        total_target_acquisition_cost=total_acq,
-        total_target_construction_budget=total_constr,
-        total_target_all_in_cost=total_all_in,
-        total_target_stabilized_noi=total_stab_noi,
-        total_target_stabilized_value=total_stab_val,
-        total_target_debt=total_debt,
-        total_target_equity_required=total_equity_req,
-        actual_property_count=len(actuals),
-        total_actual_purchase_price=total_purchase,
-        total_actual_market_value=total_market,
-        total_planned_units=total_planned_units,
-        total_planned_beds=total_planned_beds,
-        projected_portfolio_value=total_stab_val if total_stab_val else None,
-        projected_lp_equity_value=projected_equity_value,
-        projected_annual_noi=total_stab_noi if total_stab_noi else None,
-        projected_cash_on_cash=projected_cash_on_cash,
-        projected_equity_multiple=projected_equity_multiple,
-    )
+
+@router.post("/lp/{lp_id}/waterfall")
+def run_waterfall(
+    lp_id: int,
+    payload: WaterfallRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_gp_admin),
+):
+    """Run a European-style distribution waterfall calculation.
+
+    This is a simulation / preview endpoint. It does NOT create distribution
+    events or allocations — it returns the computed breakdown so the GP admin
+    can review before approving an actual distribution.
+    """
+    lp = db.query(LPEntity).filter(LPEntity.lp_id == lp_id).first()
+    if not lp:
+        raise HTTPException(status_code=404, detail="LP entity not found")
+
+    result = compute_waterfall(db, lp_id, payload.distributable_amount)
+    if "error" in result:
+        raise HTTPException(status_code=400, detail=result["error"])
+    return result
 
 
 # ===========================================================================

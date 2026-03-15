@@ -305,3 +305,11 @@ export function useDistributionEvents(lpId: number) {
     enabled: !!lpId,
   });
 }
+
+// ── Waterfall ──────────────────────────────────────────────────────
+export function useComputeWaterfall() {
+  return useMutation({
+    mutationFn: ({ lpId, distributableAmount }: { lpId: number; distributableAmount: number }) =>
+      investment.computeWaterfall(lpId, distributableAmount),
+  });
+}

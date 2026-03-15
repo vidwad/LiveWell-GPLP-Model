@@ -1,5 +1,6 @@
 import datetime
 from decimal import Decimal
+from typing import Optional
 
 from pydantic import BaseModel
 from app.db.models import (
@@ -12,20 +13,40 @@ from app.db.models import (
 # ---------------------------------------------------------------------------
 
 class CommunityCreate(BaseModel):
-    property_id: int
     community_type: CommunityType
     name: str
+    city: str
+    province: str = "Alberta"
+    operator_id: Optional[int] = None
     has_meal_plan: bool = False
-    meal_plan_monthly_cost: Decimal | None = None
+    meal_plan_monthly_cost: Optional[Decimal] = None
+    target_occupancy_percent: Optional[Decimal] = None
+    description: Optional[str] = None
+
+
+class CommunityUpdate(BaseModel):
+    name: Optional[str] = None
+    city: Optional[str] = None
+    province: Optional[str] = None
+    community_type: Optional[CommunityType] = None
+    operator_id: Optional[int] = None
+    has_meal_plan: Optional[bool] = None
+    meal_plan_monthly_cost: Optional[Decimal] = None
+    target_occupancy_percent: Optional[Decimal] = None
+    description: Optional[str] = None
 
 
 class CommunityOut(BaseModel):
     community_id: int
-    property_id: int
     community_type: CommunityType
     name: str
+    city: str
+    province: str
+    operator_id: Optional[int] = None
     has_meal_plan: bool
-    meal_plan_monthly_cost: Decimal | None
+    meal_plan_monthly_cost: Optional[Decimal] = None
+    target_occupancy_percent: Optional[Decimal] = None
+    description: Optional[str] = None
 
     model_config = {"from_attributes": True}
 
@@ -81,14 +102,14 @@ class BedOut(BaseModel):
 
 class ResidentCreate(BaseModel):
     unit_id: int
-    bed_id: int | None = None
+    bed_id: Optional[int] = None
     full_name: str
-    email: str | None = None
-    phone: str | None = None
+    email: Optional[str] = None
+    phone: Optional[str] = None
     bed_number: str
     rent_type: RentType
     move_in_date: datetime.date
-    move_out_date: datetime.date | None = None
+    move_out_date: Optional[datetime.date] = None
     enrolled_meal_plan: bool = False
 
 
@@ -96,14 +117,14 @@ class ResidentOut(BaseModel):
     resident_id: int
     community_id: int
     unit_id: int
-    bed_id: int | None
+    bed_id: Optional[int] = None
     full_name: str
-    email: str | None
-    phone: str | None
+    email: Optional[str] = None
+    phone: Optional[str] = None
     bed_number: str
     rent_type: RentType
     move_in_date: datetime.date
-    move_out_date: datetime.date | None
+    move_out_date: Optional[datetime.date] = None
     enrolled_meal_plan: bool
 
     model_config = {"from_attributes": True}
@@ -115,23 +136,23 @@ class ResidentOut(BaseModel):
 
 class MaintenanceRequestCreate(BaseModel):
     property_id: int
-    resident_id: int | None = None
+    resident_id: Optional[int] = None
     description: str
 
 
 class MaintenanceRequestUpdate(BaseModel):
     status: MaintenanceStatus
-    resolved_at: datetime.datetime | None = None
+    resolved_at: Optional[datetime.datetime] = None
 
 
 class MaintenanceRequestOut(BaseModel):
     request_id: int
     property_id: int
-    resident_id: int | None
+    resident_id: Optional[int] = None
     description: str
     status: MaintenanceStatus
     created_at: datetime.datetime
-    resolved_at: datetime.datetime | None
+    resolved_at: Optional[datetime.datetime] = None
 
     model_config = {"from_attributes": True}
 
@@ -145,14 +166,14 @@ class RentPaymentCreate(BaseModel):
     payment_date: datetime.datetime
     period_month: int
     period_year: int
-    bed_id: int | None = None
+    bed_id: Optional[int] = None
     includes_meal_plan: bool = False
 
 
 class RentPaymentOut(BaseModel):
     payment_id: int
     resident_id: int
-    bed_id: int | None
+    bed_id: Optional[int] = None
     amount: Decimal
     payment_date: datetime.datetime
     period_month: int

@@ -66,8 +66,11 @@ export default function CommunitiesPage() {
                 </CardHeader>
                 <CardContent>
                   <p className="text-sm text-muted-foreground">
-                    Property #{c.property_id}
+                    {c.city}, {c.province}
                   </p>
+                  {c.description && (
+                    <p className="mt-1 text-xs text-muted-foreground line-clamp-2">{c.description}</p>
+                  )}
                 </CardContent>
               </Card>
             </Link>

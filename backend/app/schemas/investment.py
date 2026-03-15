@@ -61,7 +61,6 @@ class LPEntityBase(BaseModel):
     # Offering terms
     unit_price: Optional[Decimal] = None
     minimum_subscription: Optional[Decimal] = None
-    minimum_investment: Optional[Decimal] = None
     target_raise: Optional[Decimal] = None
     minimum_raise: Optional[Decimal] = None
     maximum_raise: Optional[Decimal] = None
@@ -83,6 +82,7 @@ class LPEntityBase(BaseModel):
     asset_management_fee_percent: Optional[Decimal] = None
     acquisition_fee_percent: Optional[Decimal] = None
 
+    total_units_authorized: Optional[Decimal] = None
     notes: Optional[str] = None
 
 
@@ -101,7 +101,6 @@ class LPEntityUpdate(BaseModel):
     status: Optional[str] = None
     unit_price: Optional[Decimal] = None
     minimum_subscription: Optional[Decimal] = None
-    minimum_investment: Optional[Decimal] = None
     target_raise: Optional[Decimal] = None
     minimum_raise: Optional[Decimal] = None
     maximum_raise: Optional[Decimal] = None
@@ -116,6 +115,7 @@ class LPEntityUpdate(BaseModel):
     gp_catchup_percent: Optional[Decimal] = None
     asset_management_fee_percent: Optional[Decimal] = None
     acquisition_fee_percent: Optional[Decimal] = None
+    total_units_authorized: Optional[Decimal] = None
     notes: Optional[str] = None
 
 
@@ -211,8 +211,8 @@ class LPTrancheOut(LPTrancheBase):
 class SubscriptionBase(BaseModel):
     commitment_amount: Decimal
     funded_amount: Decimal = Decimal("0")
-    issue_price: Optional[Decimal] = None
-    unit_quantity: Optional[Decimal] = None
+    issue_price: Decimal
+    unit_quantity: Decimal
     status: str = "draft"
     submitted_date: Optional[date] = None
     accepted_date: Optional[date] = None
@@ -259,16 +259,14 @@ class SubscriptionOut(SubscriptionBase):
 # ---------------------------------------------------------------------------
 
 class HoldingBase(BaseModel):
-    units_held: Optional[Decimal] = None
-    average_issue_price: Optional[Decimal] = None
-    total_capital_contributed: Optional[Decimal] = None
-    initial_issue_date: Optional[date] = None
-    ownership_percent: Decimal
-    cost_basis: Decimal
+    units_held: Decimal
+    average_issue_price: Decimal
+    total_capital_contributed: Decimal
+    initial_issue_date: date
     unreturned_capital: Decimal
     unpaid_preferred: Decimal = Decimal("0")
     is_gp: bool = False
-    status: Optional[str] = "active"
+    status: str = "active"
 
 
 class HoldingCreate(HoldingBase):
@@ -282,8 +280,6 @@ class HoldingUpdate(BaseModel):
     average_issue_price: Optional[Decimal] = None
     total_capital_contributed: Optional[Decimal] = None
     initial_issue_date: Optional[date] = None
-    ownership_percent: Optional[Decimal] = None
-    cost_basis: Optional[Decimal] = None
     unreturned_capital: Optional[Decimal] = None
     unpaid_preferred: Optional[Decimal] = None
     is_gp: Optional[bool] = None
@@ -297,6 +293,10 @@ class HoldingOut(HoldingBase):
     subscription_id: Optional[int] = None
     investor_name: Optional[str] = None
     lp_name: Optional[str] = None
+
+    # Computed fields (not stored in DB)
+    ownership_percent: Optional[Decimal] = None  # computed: units_held / total_units * 100
+    cost_basis: Optional[Decimal] = None          # computed: units_held * average_issue_price
 
     class Config:
         from_attributes = True

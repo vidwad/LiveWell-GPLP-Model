@@ -11,7 +11,7 @@ from app.db.models import (
 from app.db.session import get_db
 from app.schemas.community import (
     BedCreate, BedOut,
-    CommunityCreate, CommunityOut,
+    CommunityCreate, CommunityOut, CommunityUpdate,
     MaintenanceRequestCreate, MaintenanceRequestOut, MaintenanceRequestUpdate,
     RentPaymentCreate, RentPaymentOut,
     ResidentCreate, ResidentOut,
@@ -55,6 +55,23 @@ def get_community(
     community = db.query(Community).filter(Community.community_id == community_id).first()
     if not community:
         raise HTTPException(status_code=404, detail="Community not found")
+    return community
+
+
+@router.patch("/communities/{community_id}", response_model=CommunityOut)
+def update_community(
+    community_id: int,
+    payload: CommunityUpdate,
+    db: Session = Depends(get_db),
+    _: User = Depends(require_gp_or_ops),
+):
+    community = db.query(Community).filter(Community.community_id == community_id).first()
+    if not community:
+        raise HTTPException(status_code=404, detail="Community not found")
+    for k, v in payload.model_dump(exclude_unset=True).items():
+        setattr(community, k, v)
+    db.commit()
+    db.refresh(community)
     return community
 
 

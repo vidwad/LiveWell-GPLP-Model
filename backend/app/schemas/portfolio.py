@@ -44,6 +44,7 @@ class PropertyCreate(BaseModel):
     province: str
     lp_id: int | None = None
     cluster_id: int | None = None
+    community_id: int | None = None
     purchase_date: datetime.date | None = None
     purchase_price: Decimal | None = None
     assessed_value: Decimal | None = None
@@ -61,6 +62,7 @@ class PropertyUpdate(BaseModel):
     province: str | None = None
     lp_id: int | None = None
     cluster_id: int | None = None
+    community_id: int | None = None
     purchase_date: datetime.date | None = None
     purchase_price: Decimal | None = None
     assessed_value: Decimal | None = None
@@ -80,6 +82,8 @@ class PropertyOut(BaseModel):
     lp_id: int | None
     lp_name: str | None = None
     cluster_id: int | None
+    community_id: int | None = None
+    community_name: str | None = None
     purchase_date: datetime.date | None
     purchase_price: Decimal | None
     assessed_value: Decimal | None

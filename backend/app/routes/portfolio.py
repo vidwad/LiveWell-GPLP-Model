@@ -45,6 +45,8 @@ def _property_to_out(prop: Property) -> PropertyOut:
         lp_id=prop.lp_id,
         lp_name=prop.lp.name if prop.lp else None,
         cluster_id=prop.cluster_id,
+        community_id=prop.community_id,
+        community_name=prop.community.name if prop.community else None,
         purchase_date=prop.purchase_date,
         purchase_price=prop.purchase_price,
         assessed_value=prop.assessed_value,
@@ -96,6 +98,8 @@ def list_properties(
         data = PropertyOut.model_validate(p)
         if p.lp:
             data.lp_name = p.lp.name
+        if p.community:
+            data.community_name = p.community.name
         results.append(data)
     return results
 

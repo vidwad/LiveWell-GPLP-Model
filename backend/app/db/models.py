@@ -340,7 +340,7 @@ class LPEntity(Base):
     # Offering terms
     unit_price = Column(Numeric(14, 2), nullable=True)      # price per LP unit
     minimum_subscription = Column(Numeric(14, 2), nullable=True)  # min subscription amount
-    minimum_investment = Column(Numeric(14, 2), nullable=True)    # kept for backward compat
+    # minimum_investment removed — use minimum_subscription only
     target_raise = Column(Numeric(16, 2), nullable=True)
     minimum_raise = Column(Numeric(16, 2), nullable=True)
     maximum_raise = Column(Numeric(16, 2), nullable=True)
@@ -361,6 +361,9 @@ class LPEntity(Base):
     # Fee structure
     asset_management_fee_percent = Column(Numeric(5, 2), nullable=True)
     acquisition_fee_percent = Column(Numeric(5, 2), nullable=True)
+
+    # Total units authorized for issuance (= maximum_raise / unit_price)
+    total_units_authorized = Column(Numeric(14, 4), nullable=True)
 
     notes = Column(Text, nullable=True)
     created_at = Column(DateTime, nullable=True, default=func.now())
@@ -432,8 +435,8 @@ class Subscription(Base):
 
     commitment_amount = Column(Numeric(14, 2), nullable=False)  # subscription amount
     funded_amount = Column(Numeric(14, 2), nullable=False, default=0)
-    issue_price = Column(Numeric(14, 2), nullable=True)         # price per unit at subscription
-    unit_quantity = Column(Numeric(14, 4), nullable=True)       # number of units
+    issue_price = Column(Numeric(14, 2), nullable=False)         # price per unit at subscription
+    unit_quantity = Column(Numeric(14, 4), nullable=False)       # number of units issued
 
     status = Column(
         _enum(SubscriptionStatus), nullable=False, default=SubscriptionStatus.draft
@@ -452,7 +455,7 @@ class Subscription(Base):
 
 
 class Holding(Base):
-    """An investor's actual equity position in a specific LP."""
+    """An investor's actual equity position in a specific LP (unit-based tracking)."""
     __tablename__ = "holdings"
 
     holding_id = Column(Integer, primary_key=True, index=True)
@@ -460,19 +463,17 @@ class Holding(Base):
     lp_id = Column(Integer, ForeignKey("lp_entities.lp_id"), nullable=False)
     subscription_id = Column(Integer, ForeignKey("subscriptions.subscription_id"), nullable=True)
 
-    # Unit-based position
-    units_held = Column(Numeric(14, 4), nullable=True)          # total LP units
-    average_issue_price = Column(Numeric(14, 2), nullable=True) # weighted avg price
-    total_capital_contributed = Column(Numeric(14, 2), nullable=True)
-    initial_issue_date = Column(Date, nullable=True)
+    # Unit-based position (PRIMARY equity tracking)
+    units_held = Column(Numeric(14, 4), nullable=False)           # total LP units held
+    average_issue_price = Column(Numeric(14, 2), nullable=False)  # weighted avg price per unit
+    total_capital_contributed = Column(Numeric(14, 2), nullable=False)  # total cash invested
+    initial_issue_date = Column(Date, nullable=False)
 
-    # Legacy / percentage-based
-    ownership_percent = Column(Numeric(7, 4), nullable=False)   # e.g. 12.5000
-    cost_basis = Column(Numeric(14, 2), nullable=False)
-    unreturned_capital = Column(Numeric(14, 2), nullable=False)
-    unpaid_preferred = Column(Numeric(14, 2), nullable=False, default=0)
+    # Capital account tracking (updated on distributions)
+    unreturned_capital = Column(Numeric(14, 2), nullable=False)   # capital not yet returned
+    unpaid_preferred = Column(Numeric(14, 2), nullable=False, default=0)  # accrued pref return owed
     is_gp = Column(Boolean, default=False, nullable=False)
-    status = Column(String(32), nullable=True, default="active") # active, redeemed, transferred
+    status = Column(String(32), nullable=False, default="active")  # active, redeemed, transferred
 
     investor = relationship("Investor", back_populates="holdings")
     lp = relationship("LPEntity", back_populates="holdings")
@@ -728,9 +729,8 @@ class Property(Base):
     development_plans = relationship(
         "DevelopmentPlan", back_populates="property", cascade="all, delete-orphan"
     )
-    communities = relationship(
-        "Community", back_populates="property", cascade="all, delete-orphan"
-    )
+    community_id = Column(Integer, ForeignKey("communities.community_id"), nullable=True)
+    community = relationship("Community", back_populates="properties")
     maintenance_requests = relationship(
         "MaintenanceRequest", back_populates="property", cascade="all, delete-orphan"
     )
@@ -803,19 +803,23 @@ class OperatorEntity(Base):
 # ---------------------------------------------------------------------------
 
 class Community(Base):
+    """City + purpose-level grouping. Multiple properties (from different LPs)
+    can belong to the same community.  E.g. 'Calgary Recovery Community'."""
     __tablename__ = "communities"
 
     community_id = Column(Integer, primary_key=True, index=True)
-    property_id = Column(Integer, ForeignKey("properties.property_id"), nullable=False)
     operator_id = Column(Integer, ForeignKey("operator_entities.operator_id"), nullable=True)
     community_type = Column(_enum(CommunityType), nullable=False)
     name = Column(String(256), nullable=False)
+    city = Column(String(128), nullable=False)
+    province = Column(String(64), nullable=False, default="Alberta")
     has_meal_plan = Column(Boolean, default=False, nullable=False)
     meal_plan_monthly_cost = Column(Numeric(10, 2), nullable=True)
     target_occupancy_percent = Column(Numeric(5, 2), nullable=True)  # e.g. 95.00
+    description = Column(Text, nullable=True)
 
-    property = relationship("Property", back_populates="communities")
     operator = relationship("OperatorEntity", back_populates="communities")
+    properties = relationship("Property", back_populates="community")
     units = relationship("Unit", back_populates="community", cascade="all, delete-orphan")
     residents = relationship(
         "Resident", back_populates="community", cascade="all, delete-orphan"

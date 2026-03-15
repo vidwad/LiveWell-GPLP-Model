@@ -43,7 +43,9 @@ import {
   useDeleteTargetProperty,
   useConvertTargetProperty,
   useUpdateLP,
+  useComputeWaterfall,
 } from "@/hooks/useInvestment";
+import type { WaterfallResult } from "@/types/investment";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Table,
@@ -188,6 +190,19 @@ export default function LPDetailPage() {
   const updateTargetProperty = useUpdateTargetProperty();
   const deleteTargetProperty = useDeleteTargetProperty();
   const convertTargetProperty = useConvertTargetProperty();
+  const computeWaterfall = useComputeWaterfall();
+
+  /* ── waterfall state ────────────────────────────────────────── */
+  const [waterfallAmount, setWaterfallAmount] = useState("");
+  const [waterfallResult, setWaterfallResult] = useState<WaterfallResult | null>(null);
+
+  function handleRunWaterfall() {
+    const amt = Number(waterfallAmount);
+    if (!amt || amt <= 0) return;
+    computeWaterfall.mutate({ lpId, distributableAmount: amt }, {
+      onSuccess: (data) => setWaterfallResult(data),
+    });
+  }
 
   /* ── form dialogs ────────────────────────────────────────────── */
   const lpForm = useFormDialog({
@@ -613,9 +628,26 @@ export default function LPDetailPage() {
         {/* ── Holdings Tab ──────────────────────────────────────── */}
         <TabsContent value="holdings" className="mt-4 space-y-4">
           <div className="flex justify-between items-center">
-            <h3 className="text-sm font-semibold">Holdings</h3>
+            <h3 className="text-sm font-semibold">Unit-Based Holdings</h3>
             <Button size="sm" onClick={holdingForm.openCreate}><Plus className="h-3.5 w-3.5 mr-1" /> Add Holding</Button>
           </div>
+
+          {/* Unit Summary KPIs */}
+          {holdings && holdings.length > 0 && (() => {
+            const totalUnits = holdings.reduce((s, h) => s + Number(h.units_held || 0), 0);
+            const totalCost = holdings.reduce((s, h) => s + Number(h.cost_basis || 0), 0);
+            const totalUnreturned = holdings.reduce((s, h) => s + Number(h.unreturned_capital || 0), 0);
+            const authorized = Number(lp?.total_units_authorized || 0);
+            return (
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <KPI label="Total Units Outstanding" value={fmtNum(totalUnits)} sub={authorized ? `of ${fmtNum(authorized)} authorized` : undefined} icon={Hash} />
+                <KPI label="Total Cost Basis" value={formatCurrencyCompact(String(totalCost))} icon={DollarSign} />
+                <KPI label="Total Unreturned Capital" value={formatCurrencyCompact(String(totalUnreturned))} icon={TrendingUp} />
+                <KPI label="Unit Price" value={lp?.unit_price ? formatCurrency(lp.unit_price) : "—"} sub="per LP unit" icon={Landmark} />
+              </div>
+            );
+          })()}
+
           <Card>
             <CardContent className="pt-4">
               {!holdings || holdings.length === 0 ? (
@@ -626,8 +658,9 @@ export default function LPDetailPage() {
                     <TableHeader>
                       <TableRow>
                         <TableHead>Investor</TableHead>
-                        <TableHead className="text-right">Units</TableHead>
-                        <TableHead className="text-right">Ownership</TableHead>
+                        <TableHead className="text-right">Units Held</TableHead>
+                        <TableHead className="text-right">Avg Issue Price</TableHead>
+                        <TableHead className="text-right">Ownership %</TableHead>
                         <TableHead className="text-right">Cost Basis</TableHead>
                         <TableHead className="text-right">Unreturned Capital</TableHead>
                         <TableHead>Type</TableHead>
@@ -639,8 +672,9 @@ export default function LPDetailPage() {
                       {holdings.map((h) => (
                         <TableRow key={h.holding_id}>
                           <TableCell className="font-medium text-sm">{h.investor_name ?? `#${h.investor_id}`}</TableCell>
-                          <TableCell className="text-right tabular-nums text-sm">{h.units_held ? fmtNum(h.units_held) : "—"}</TableCell>
-                          <TableCell className="text-right tabular-nums text-sm">{fmtPct(h.ownership_percent)}</TableCell>
+                          <TableCell className="text-right tabular-nums text-sm font-semibold">{fmtNum(h.units_held)}</TableCell>
+                          <TableCell className="text-right tabular-nums text-sm">{formatCurrency(h.average_issue_price)}</TableCell>
+                          <TableCell className="text-right tabular-nums text-sm text-muted-foreground">{fmtPct(h.ownership_percent)}</TableCell>
                           <TableCell className="text-right tabular-nums text-sm">{formatCurrency(h.cost_basis)}</TableCell>
                           <TableCell className="text-right tabular-nums text-sm">{formatCurrency(h.unreturned_capital)}</TableCell>
                           <TableCell><Badge variant={h.is_gp ? "secondary" : "outline"} className="text-xs">{h.is_gp ? "GP" : "LP"}</Badge></TableCell>
@@ -658,8 +692,19 @@ export default function LPDetailPage() {
                           </TableCell>
                         </TableRow>
                       ))}
+                      {/* Total row */}
+                      <TableRow className="bg-muted/50 font-semibold">
+                        <TableCell className="text-sm">Total</TableCell>
+                        <TableCell className="text-right tabular-nums text-sm">{fmtNum(holdings.reduce((s, h) => s + Number(h.units_held || 0), 0))}</TableCell>
+                        <TableCell className="text-right text-sm">—</TableCell>
+                        <TableCell className="text-right tabular-nums text-sm">{fmtPct(String(holdings.reduce((s, h) => s + Number(h.ownership_percent || 0), 0).toFixed(4)))}</TableCell>
+                        <TableCell className="text-right tabular-nums text-sm">{formatCurrency(String(holdings.reduce((s, h) => s + Number(h.cost_basis || 0), 0)))}</TableCell>
+                        <TableCell className="text-right tabular-nums text-sm">{formatCurrency(String(holdings.reduce((s, h) => s + Number(h.unreturned_capital || 0), 0)))}</TableCell>
+                        <TableCell colSpan={3}></TableCell>
+                      </TableRow>
                     </TableBody>
                   </Table>
+                  <p className="text-xs text-muted-foreground mt-2 italic">Ownership % and Cost Basis are computed dynamically from units held. Units are the primary equity tracking method.</p>
                 </div>
               )}
             </CardContent>
@@ -814,6 +859,95 @@ export default function LPDetailPage() {
                       </p>
                     </div>
                   </div>
+                </CardContent>
+              </Card>
+              {/* Waterfall Simulator */}
+              <Card className="md:col-span-2">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm flex items-center gap-2">
+                    <DollarSign className="h-4 w-4" /> Distribution Waterfall Simulator
+                    <Badge variant="outline" className="text-[10px] ml-1">EUROPEAN STYLE</Badge>
+                  </CardTitle>
+                  <p className="text-xs text-muted-foreground">Enter a hypothetical distributable amount to see how it flows through the 4-tier waterfall: Return of Capital → Preferred Return → GP Catch-up → Carried Interest.</p>
+                </CardHeader>
+                <CardContent>
+                  <div className="flex items-end gap-3 mb-4">
+                    <div className="flex-1 max-w-xs">
+                      <Label className="text-xs mb-1">Distributable Amount ($)</Label>
+                      <Input
+                        type="number"
+                        placeholder="e.g. 500000"
+                        value={waterfallAmount}
+                        onChange={(e) => setWaterfallAmount(e.target.value)}
+                      />
+                    </div>
+                    <Button onClick={handleRunWaterfall} disabled={computeWaterfall.isPending || !waterfallAmount}>
+                      {computeWaterfall.isPending ? "Computing..." : "Run Waterfall"}
+                    </Button>
+                  </div>
+
+                  {waterfallResult && (() => {
+                    const da = waterfallResult.distributable_amount;
+                    const tierData = [
+                      { key: 1, label: "Return of Capital", amount: waterfallResult.tier1_total },
+                      { key: 2, label: "Preferred Return", amount: waterfallResult.tier2_total },
+                      { key: 3, label: "GP Catch-up", amount: waterfallResult.tier3_total },
+                      { key: 4, label: "Carried Interest", amount: waterfallResult.tier4_total },
+                    ];
+                    const totalUnitsAll = waterfallResult.allocations.reduce((s, a) => s + a.units_held, 0);
+                    return (
+                    <div className="space-y-4">
+                      {/* Tier Summary */}
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                        {tierData.map((tier) => (
+                          <div key={tier.key} className="rounded-lg border p-3">
+                            <p className="text-xs text-muted-foreground">{tier.label}</p>
+                            <p className="text-lg font-bold tabular-nums">{formatCurrencyCompact(String(tier.amount))}</p>
+                            <p className="text-xs text-muted-foreground">{da > 0 ? (tier.amount / da * 100).toFixed(1) : "0.0"}% of total</p>
+                          </div>
+                        ))}
+                      </div>
+
+                      {/* Per-Holding Allocations */}
+                      {waterfallResult.allocations.length > 0 && (
+                        <div className="overflow-x-auto">
+                          <Table>
+                            <TableHeader>
+                              <TableRow>
+                                <TableHead>Investor</TableHead>
+                                <TableHead className="text-right">Units</TableHead>
+                                <TableHead className="text-right">Ownership</TableHead>
+                                <TableHead className="text-right">Return of Capital</TableHead>
+                                <TableHead className="text-right">Preferred Return</TableHead>
+                                <TableHead className="text-right">GP Catch-up</TableHead>
+                                <TableHead className="text-right">Carry Split</TableHead>
+                                <TableHead className="text-right font-semibold">Total</TableHead>
+                              </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                              {waterfallResult.allocations.map((a) => (
+                                <TableRow key={a.holding_id}>
+                                  <TableCell className="text-sm font-medium">{a.investor_name}</TableCell>
+                                  <TableCell className="text-right tabular-nums text-sm">{fmtNum(a.units_held)}</TableCell>
+                                  <TableCell className="text-right tabular-nums text-sm">{totalUnitsAll > 0 ? ((a.units_held / totalUnitsAll) * 100).toFixed(1) : "0.0"}%</TableCell>
+                                  <TableCell className="text-right tabular-nums text-sm">{formatCurrency(String(a.tier1_roc))}</TableCell>
+                                  <TableCell className="text-right tabular-nums text-sm">{formatCurrency(String(a.tier2_preferred))}</TableCell>
+                                  <TableCell className="text-right tabular-nums text-sm">{formatCurrency(String(a.tier3_catchup))}</TableCell>
+                                  <TableCell className="text-right tabular-nums text-sm">{formatCurrency(String(a.tier4_carry))}</TableCell>
+                                  <TableCell className="text-right tabular-nums text-sm font-semibold">{formatCurrency(String(a.total))}</TableCell>
+                                </TableRow>
+                              ))}
+                            </TableBody>
+                          </Table>
+                        </div>
+                      )}
+
+                      <p className="text-xs text-muted-foreground italic">
+                        Waterfall: European style (whole-fund). LPs receive all capital back + {lp?.preferred_return_rate ?? "8"}% preferred return before GP carry of {lp?.gp_promote_percent ?? "20"}%.
+                      </p>
+                    </div>
+                  );
+                  })()}
                 </CardContent>
               </Card>
             </div>

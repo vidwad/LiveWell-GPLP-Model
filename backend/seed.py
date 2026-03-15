@@ -104,7 +104,6 @@ def seed():
             status=m.LPStatus.operating,
             unit_price=Decimal("1000.00"),
             minimum_subscription=Decimal("50000.00"),
-            minimum_investment=Decimal("50000.00"),
             target_raise=Decimal("5000000.00"),
             minimum_raise=Decimal("2000000.00"),
             maximum_raise=Decimal("6000000.00"),
@@ -118,6 +117,7 @@ def seed():
             gp_catchup_percent=Decimal("100.00"),
             asset_management_fee_percent=Decimal("1.50"),
             acquisition_fee_percent=Decimal("1.00"),
+            total_units_authorized=Decimal("5000"),
             notes="Fully funded and operating. Properties acquired in Calgary and Edmonton.",
         )
         lp2 = m.LPEntity(
@@ -132,7 +132,6 @@ def seed():
             status=m.LPStatus.open_for_subscription,
             unit_price=Decimal("1000.00"),
             minimum_subscription=Decimal("100000.00"),
-            minimum_investment=Decimal("100000.00"),
             target_raise=Decimal("8000000.00"),
             minimum_raise=Decimal("3000000.00"),
             maximum_raise=Decimal("10000000.00"),
@@ -146,6 +145,7 @@ def seed():
             gp_catchup_percent=Decimal("100.00"),
             asset_management_fee_percent=Decimal("1.50"),
             acquisition_fee_percent=Decimal("1.00"),
+            total_units_authorized=Decimal("10000"),
             notes="Currently raising capital. First tranche open.",
         )
         db.add_all([lp1, lp2])
@@ -317,8 +317,6 @@ def seed():
             average_issue_price=Decimal("1000.00"),
             total_capital_contributed=Decimal("50000.00"),
             initial_issue_date=date(2024, 8, 5),
-            ownership_percent=Decimal("5.0000"),
-            cost_basis=Decimal("50000.00"),
             unreturned_capital=Decimal("50000.00"),
             unpaid_preferred=Decimal("0.00"),
             is_gp=True,
@@ -331,8 +329,6 @@ def seed():
             average_issue_price=Decimal("1000.00"),
             total_capital_contributed=Decimal("250000.00"),
             initial_issue_date=date(2024, 8, 5),
-            ownership_percent=Decimal("25.0000"),
-            cost_basis=Decimal("250000.00"),
             unreturned_capital=Decimal("250000.00"),
             unpaid_preferred=Decimal("0.00"),
             is_gp=False,
@@ -345,8 +341,6 @@ def seed():
             average_issue_price=Decimal("1000.00"),
             total_capital_contributed=Decimal("500000.00"),
             initial_issue_date=date(2024, 8, 15),
-            ownership_percent=Decimal("50.0000"),
-            cost_basis=Decimal("500000.00"),
             unreturned_capital=Decimal("500000.00"),
             unpaid_preferred=Decimal("0.00"),
             is_gp=False,
@@ -359,8 +353,6 @@ def seed():
             average_issue_price=Decimal("1000.00"),
             total_capital_contributed=Decimal("200000.00"),
             initial_issue_date=date(2024, 8, 25),
-            ownership_percent=Decimal("20.0000"),
-            cost_basis=Decimal("200000.00"),
             unreturned_capital=Decimal("200000.00"),
             unpaid_preferred=Decimal("0.00"),
             is_gp=False,
@@ -374,8 +366,6 @@ def seed():
             average_issue_price=Decimal("1000.00"),
             total_capital_contributed=Decimal("150000.00"),
             initial_issue_date=date(2025, 5, 1),
-            ownership_percent=Decimal("18.7500"),
-            cost_basis=Decimal("150000.00"),
             unreturned_capital=Decimal("150000.00"),
             unpaid_preferred=Decimal("0.00"),
             is_gp=False,
@@ -811,42 +801,49 @@ def seed():
         # =================================================================
         # 12. COMMUNITIES
         # =================================================================
+        # Communities are city + purpose level — multiple properties can belong
+        # to the same community.  E.g. both prop1 and prop2 are in the
+        # "RecoverWell Calgary" community.
         comm1 = m.Community(
-            property_id=prop1.property_id,
             operator_id=op_recover.operator_id,
             community_type=m.CommunityType.recover,
-            name="RecoverWell Calgary NE",
+            name="RecoverWell Calgary",
+            city="Calgary",
+            province="Alberta",
             has_meal_plan=True,
             meal_plan_monthly_cost=Decimal("350.00"),
             target_occupancy_percent=Decimal("95.00"),
+            description="Calgary-area recovery community supporting adults in addiction and mental health recovery.",
         )
         comm2 = m.Community(
-            property_id=prop2.property_id,
-            operator_id=op_recover.operator_id,
-            community_type=m.CommunityType.recover,
-            name="RecoverWell Calgary Healing",
-            has_meal_plan=True,
-            meal_plan_monthly_cost=Decimal("350.00"),
-            target_occupancy_percent=Decimal("95.00"),
-        )
-        comm3 = m.Community(
-            property_id=prop3.property_id,
             operator_id=op_study.operator_id,
             community_type=m.CommunityType.study,
-            name="StudyWell Edmonton Campus",
+            name="StudyWell Edmonton",
+            city="Edmonton",
+            province="Alberta",
             has_meal_plan=False,
             target_occupancy_percent=Decimal("90.00"),
+            description="Edmonton student housing community near post-secondary campuses.",
         )
-        comm4 = m.Community(
-            property_id=prop4.property_id,
+        comm3 = m.Community(
             operator_id=op_retire.operator_id,
             community_type=m.CommunityType.retire,
             name="RetireWell Red Deer",
+            city="Red Deer",
+            province="Alberta",
             has_meal_plan=True,
             meal_plan_monthly_cost=Decimal("500.00"),
             target_occupancy_percent=Decimal("92.00"),
+            description="Red Deer seniors living community with full meal service.",
         )
-        db.add_all([comm1, comm2, comm3, comm4])
+        db.add_all([comm1, comm2, comm3])
+        db.flush()
+
+        # Assign properties to communities
+        prop1.community_id = comm1.community_id  # 123 Recovery Rd → RecoverWell Calgary
+        prop2.community_id = comm1.community_id  # 456 Healing Ave → RecoverWell Calgary
+        prop3.community_id = comm2.community_id  # 789 Scholar Blvd → StudyWell Edmonton
+        prop4.community_id = comm3.community_id  # 321 Sunset Dr → RetireWell Red Deer
         db.flush()
 
         # =================================================================
@@ -1357,7 +1354,7 @@ def seed():
         )
         budget3 = m.OperatorBudget(
             operator_id=op_study.operator_id,
-            community_id=comm3.community_id,
+            community_id=comm2.community_id,
             period_type=m.BudgetPeriodType.annual,
             period_label="2026",
             year=2026,

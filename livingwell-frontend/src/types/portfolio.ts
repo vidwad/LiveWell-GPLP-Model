@@ -42,6 +42,8 @@ export interface Property {
   floor_area_ratio: string | null;
   development_stage: DevelopmentStage;
   cluster_id: number | null;
+  community_id: number | null;
+  community_name: string | null;
 }
 
 export interface PropertyCreate {
@@ -59,6 +61,7 @@ export interface PropertyCreate {
   floor_area_ratio?: number;
   development_stage: DevelopmentStage;
   cluster_id?: number;
+  community_id?: number;
 }
 
 export interface DevelopmentPlan {

@@ -127,7 +127,7 @@ export default function CommunityDetailPage({
         <div className="flex items-center gap-2 mt-1">
           <Badge variant="outline">{community.community_type}</Badge>
           <span className="text-muted-foreground text-sm">
-            Property #{community.property_id}
+            {community.city}, {community.province}
           </span>
         </div>
       </div>

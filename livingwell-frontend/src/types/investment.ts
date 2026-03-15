@@ -41,7 +41,7 @@ export interface LPEntity {
   status: LPStatus;
   unit_price: string | null;
   minimum_subscription: string | null;
-  minimum_investment: string | null;
+  total_units_authorized: string | null;
   target_raise: string | null;
   minimum_raise: string | null;
   maximum_raise: string | null;
@@ -93,7 +93,7 @@ export interface LPCreate {
   status?: string;
   unit_price?: number;
   minimum_subscription?: number;
-  minimum_investment?: number;
+  total_units_authorized?: number;
   target_raise?: number;
   minimum_raise?: number;
   maximum_raise?: number;
@@ -220,12 +220,12 @@ export interface Holding {
   subscription_id: number | null;
   investor_name: string | null;
   lp_name: string | null;
-  units_held: string | null;
-  average_issue_price: string | null;
+  units_held: string;
+  average_issue_price: string;
   total_capital_contributed: string | null;
   initial_issue_date: string | null;
-  ownership_percent: string;
-  cost_basis: string;
+  ownership_percent: string;  // computed from units_held / total_units
+  cost_basis: string;         // computed from units_held * average_issue_price
   unreturned_capital: string;
   unpaid_preferred: string;
   is_gp: boolean;
@@ -312,6 +312,38 @@ export interface LPPortfolioRollup {
   projected_cash_on_cash: string | null;
   projected_equity_multiple: string | null;
   projected_irr: string | null;
+}
+
+// ── Waterfall Result ──────────────────────────────────────────────
+export interface WaterfallAllocation {
+  holding_id: number;
+  investor_id: number;
+  investor_name: string;
+  is_gp: boolean;
+  units_held: number;
+  unreturned_capital: number;
+  unpaid_preferred: number;
+  tier1_roc: number;
+  tier2_preferred: number;
+  tier3_catchup: number;
+  tier4_carry: number;
+  total: number;
+}
+
+export interface WaterfallResult {
+  lp_id: number;
+  distributable_amount: number;
+  tier1_total: number;
+  tier2_total: number;
+  tier3_total: number;
+  tier4_total: number;
+  waterfall_params: {
+    preferred_return_rate: string;
+    gp_promote_percent: string;
+    gp_catchup_percent: string;
+    style: string;
+  };
+  allocations: WaterfallAllocation[];
 }
 
 // ── Distribution Event ─────────────────────────────────────────────

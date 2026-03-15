@@ -52,6 +52,12 @@ export default function InvestmentPage() {
             GP/LP entities, fund structure, and capital commitments
           </p>
         </div>
+        <Link href="/investment/new">
+          <Button size="sm">
+            <Plus className="mr-2 h-4 w-4" />
+            New LP
+          </Button>
+        </Link>
       </div>
 
       {/* GP Entities */}

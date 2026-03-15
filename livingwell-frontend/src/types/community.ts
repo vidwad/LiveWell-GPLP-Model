@@ -7,11 +7,15 @@ export type PaymentStatus = "pending" | "paid" | "overdue";
 
 export interface Community {
   community_id: number;
-  property_id: number;
   community_type: CommunityType;
   name: string;
+  city: string;
+  province: string;
+  operator_id: number | null;
   has_meal_plan: boolean;
   meal_plan_monthly_cost: string | null;
+  target_occupancy_percent: string | null;
+  description: string | null;
 }
 
 export interface Unit {
