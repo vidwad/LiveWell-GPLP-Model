@@ -1790,7 +1790,47 @@ export default function PropertyDetailPage({ params }: { params: { id: string } 
                                           (u.beds as Array<Record<string, unknown>>)?.map((bed: Record<string, unknown>) => (
                                             <div key={bed.bed_id as number} className="flex items-center justify-between bg-white rounded p-2 border">
                                               <span className="text-sm font-medium">{bed.bed_label as string}</span>
-                                              <span className="text-sm">${(bed.monthly_rent as number)?.toLocaleString()}/mo</span>
+                                              <div className="flex items-center gap-2">
+                                                {editingBedId === (bed.bed_id as number) ? (
+                                                  <div className="flex items-center gap-1">
+                                                    <Input
+                                                      type="number"
+                                                      className="w-24 h-7 text-sm"
+                                                      value={editBedRent}
+                                                      onChange={(e) => setEditBedRent(e.target.value)}
+                                                    />
+                                                    <Button
+                                                      size="sm"
+                                                      className="h-7 text-xs"
+                                                      onClick={() => {
+                                                        updateBedMutation.mutate({ bedId: bed.bed_id as number, data: { monthly_rent: parseFloat(editBedRent) } });
+                                                        setEditingBedId(null);
+                                                      }}
+                                                    >
+                                                      Save
+                                                    </Button>
+                                                    <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => setEditingBedId(null)}>Cancel</Button>
+                                                  </div>
+                                                ) : (
+                                                  <>
+                                                    <span className="text-sm">${(bed.monthly_rent as number)?.toLocaleString()}/mo</span>
+                                                    {canEdit && (
+                                                      <Button
+                                                        size="sm"
+                                                        variant="ghost"
+                                                        className="h-6 w-6 p-0"
+                                                        onClick={(e) => {
+                                                          e.stopPropagation();
+                                                          setEditingBedId(bed.bed_id as number);
+                                                          setEditBedRent(String(bed.monthly_rent));
+                                                        }}
+                                                      >
+                                                        <Edit2 className="h-3 w-3" />
+                                                      </Button>
+                                                    )}
+                                                  </>
+                                                )}
+                                              </div>
                                               <span className="text-xs text-muted-foreground capitalize">{(bed.rent_type as string)?.replace("_", " ")}</span>
                                             </div>
                                           ))
