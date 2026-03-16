@@ -28,6 +28,9 @@ import {
   AlertCircle,
   SkipForward,
   Edit2,
+  Pencil,
+  Save,
+  X,
   Banknote,
   Shield,
 } from "lucide-react";
@@ -55,6 +58,11 @@ import {
   useUpdateRentPricingMode,
   useUpdateAnnualRentIncrease,
   useUpdateBed,
+  useUpdatePlan,
+  useDeletePlan,
+  useCreateBed,
+  useDeleteBed,
+  useUpdatePropertyUnit,
 } from "@/hooks/usePortfolio";
 import {
   useStageTransitions,
@@ -297,6 +305,8 @@ export default function PropertyDetailPage({ params }: { params: { id: string } 
   const { data: property, isLoading } = useProperty(propertyId);
   const { data: plans } = useDevelopmentPlans(propertyId);
   const { mutateAsync: createPlan, isPending: planPending } = useCreatePlan(propertyId);
+  const { mutateAsync: updatePlan, isPending: updatePlanPending } = useUpdatePlan(propertyId);
+  const { mutateAsync: deletePlan } = useDeletePlan(propertyId);
   const { mutateAsync: deleteProperty, isPending: deletePending } = useDeleteProperty();
 
   // Debt & Amortization
@@ -363,6 +373,67 @@ export default function PropertyDetailPage({ params }: { params: { id: string } 
     estimated_construction_cost: 0, development_start_date: "", construction_duration_days: 0,
   });
 
+  // Plan editing state
+  const [editingPlanId, setEditingPlanId] = useState<number | null>(null);
+  const [editPlanForm, setEditPlanForm] = useState<Record<string, string | number>>({
+    plan_name: "", status: "", planned_units: 0, planned_beds: 0, planned_sqft: 0,
+    estimated_construction_cost: 0, development_start_date: "", construction_duration_days: 0,
+    hard_costs: 0, soft_costs: 0, site_costs: 0, financing_costs: 0,
+    contingency_percent: 0, cost_per_sqft: 0,
+    projected_annual_revenue: 0, projected_annual_noi: 0,
+    estimated_completion_date: "", estimated_stabilization_date: "",
+    rent_pricing_mode: "", annual_rent_increase_pct: 0,
+  });
+
+  const startEditingPlan = (plan: DevelopmentPlan) => {
+    setEditingPlanId(plan.plan_id);
+    setEditPlanForm({
+      plan_name: plan.plan_name || "",
+      status: plan.status || "draft",
+      planned_units: plan.planned_units,
+      planned_beds: plan.planned_beds,
+      planned_sqft: Number(plan.planned_sqft) || 0,
+      estimated_construction_cost: Number(plan.estimated_construction_cost) || 0,
+      hard_costs: Number(plan.hard_costs) || 0,
+      soft_costs: Number(plan.soft_costs) || 0,
+      site_costs: Number(plan.site_costs) || 0,
+      financing_costs: Number(plan.financing_costs) || 0,
+      contingency_percent: Number(plan.contingency_percent) || 0,
+      cost_per_sqft: Number(plan.cost_per_sqft) || 0,
+      projected_annual_revenue: Number(plan.projected_annual_revenue) || 0,
+      projected_annual_noi: Number(plan.projected_annual_noi) || 0,
+      development_start_date: plan.development_start_date || "",
+      construction_duration_days: plan.construction_duration_days || 0,
+      estimated_completion_date: plan.estimated_completion_date || "",
+      estimated_stabilization_date: plan.estimated_stabilization_date || "",
+      rent_pricing_mode: plan.rent_pricing_mode || "by_bed",
+      annual_rent_increase_pct: Number(plan.annual_rent_increase_pct) || 0,
+    });
+  };
+
+  const handleSavePlan = async () => {
+    if (!editingPlanId) return;
+    try {
+      const data: Record<string, unknown> = {};
+      for (const [key, value] of Object.entries(editPlanForm)) {
+        if (value !== "" && value !== 0) data[key] = value;
+        else if (key === "plan_name" && value === "") continue;
+        else data[key] = value || undefined;
+      }
+      await updatePlan({ planId: editingPlanId, data });
+      toast.success("Development plan updated");
+      setEditingPlanId(null);
+    } catch (e) { toast.error("Failed to update plan"); }
+  };
+
+  const handleDeletePlan = async (planId: number) => {
+    if (!confirm("Delete this development plan? This cannot be undone.")) return;
+    try {
+      await deletePlan(planId);
+      toast.success("Development plan deleted");
+    } catch (e) { toast.error("Failed to delete plan"); }
+  };
+
   // Plan comparison
   const [compareMode, setCompareMode] = useState(false);
   const [comparePlanIds, setComparePlanIds] = useState<[number | null, number | null]>([null, null]);
@@ -380,10 +451,16 @@ export default function PropertyDetailPage({ params }: { params: { id: string } 
   const updatePricingMode = useUpdateRentPricingMode(propertyId);
   const updateAnnualRentIncrease = useUpdateAnnualRentIncrease(propertyId);
   const updateBedMutation = useUpdateBed(propertyId);
+  const createBedMutation = useCreateBed(propertyId);
+  const deleteBedMutation = useDeleteBed(propertyId);
+  const updateUnitMutation = useUpdatePropertyUnit(propertyId);
   const [editingBedId, setEditingBedId] = useState<number | null>(null);
   const [editBedRent, setEditBedRent] = useState("");
   const [expandedRentUnit, setExpandedRentUnit] = useState<number | null>(null);
   const [rentIncreaseInput, setRentIncreaseInput] = useState("");
+  const [addingBedToUnit, setAddingBedToUnit] = useState<number | null>(null);
+  const [newBedRent, setNewBedRent] = useState("1400");
+  const [newBedRoom, setNewBedRoom] = useState<number>(1);
 
   // Lifecycle
   const { data: transitions } = useStageTransitions(propertyId);
@@ -441,7 +518,7 @@ export default function PropertyDetailPage({ params }: { params: { id: string } 
       toast.success("Debt facility added");
       setShowAddDebt(false);
       resetDebtForm();
-    } catch { toast.error("Failed to add debt facility"); }
+    } catch (e) { toast.error("Failed to add debt facility"); }
   };
 
   const handleUpdateDebt = async (e: React.FormEvent) => {
@@ -471,7 +548,7 @@ export default function PropertyDetailPage({ params }: { params: { id: string } 
       toast.success("Debt facility updated");
       setEditingDebtId(null);
       resetDebtForm();
-    } catch { toast.error("Failed to update debt facility"); }
+    } catch (e) { toast.error("Failed to update debt facility"); }
   };
 
   const startEditDebt = (debt: Record<string, unknown>) => {
@@ -517,7 +594,7 @@ export default function PropertyDetailPage({ params }: { params: { id: string } 
       await createPlan(planForm);
       toast.success("Development plan added");
       setPlanOpen(false);
-    } catch { toast.error("Failed to add plan"); }
+    } catch (e) { toast.error("Failed to add plan"); }
   };
 
   const handleDelete = async () => {
@@ -526,7 +603,7 @@ export default function PropertyDetailPage({ params }: { params: { id: string } 
       await deleteProperty(propertyId);
       toast.success("Property deleted");
       router.push("/portfolio");
-    } catch { toast.error("Failed to delete property"); }
+    } catch (e) { toast.error("Failed to delete property"); }
   };
 
   const handleRunProjection = async (e: React.FormEvent) => {
@@ -546,7 +623,7 @@ export default function PropertyDetailPage({ params }: { params: { id: string } 
       const result = await runProjection(input);
       setProjResults((result as { projections?: Array<Record<string, unknown>> }).projections ?? (result as Array<Record<string, unknown>>));
       toast.success("Projection complete");
-    } catch { toast.error("Failed to run projection"); }
+    } catch (e) { toast.error("Failed to run projection"); }
   };
 
   const handleCreateRefi = async (e: React.FormEvent) => {
@@ -570,7 +647,7 @@ export default function PropertyDetailPage({ params }: { params: { id: string } 
       });
       toast.success("Refinance scenario saved");
       setRefiForm({ label: "Refinance Scenario", assumed_new_valuation: "", new_ltv_percent: "75", new_interest_rate: "", new_amortization_months: "300", existing_debt_payout: "", closing_costs: "0", notes: "", expected_date: "", linked_event: "", linked_milestone_id: "", total_equity_invested: "", annual_noi_at_refi: "", hold_period_months: "" });
-    } catch { toast.error("Failed to save refinance scenario"); }
+    } catch (e) { toast.error("Failed to save refinance scenario"); }
   };
 
   const handleCreateSale = async (e: React.FormEvent) => {
@@ -593,7 +670,7 @@ export default function PropertyDetailPage({ params }: { params: { id: string } 
       });
       toast.success("Sale scenario saved");
       setSaleForm({ label: "Sale Scenario", assumed_sale_price: "", selling_costs_percent: "5", debt_payout: "", capital_gains_reserve: "0", notes: "", expected_date: "", linked_event: "", linked_milestone_id: "", total_equity_invested: "", annual_noi_at_sale: "", hold_period_months: "", annual_cash_flow: "" });
-    } catch { toast.error("Failed to save sale scenario"); }
+    } catch (e) { toast.error("Failed to save sale scenario"); }
   };
 
   /* ── Loading / Not Found ── */
@@ -1069,7 +1146,7 @@ export default function PropertyDetailPage({ params }: { params: { id: string } 
                             toast.success("Milestone added");
                             setShowMilestoneDialog(false);
                             setMilestoneForm({ title: "", description: "", target_date: "", stage: "" });
-                          } catch { toast.error("Failed to add milestone"); }
+                          } catch (e) { toast.error("Failed to add milestone"); }
                         }}
                         className="space-y-4"
                       >
@@ -1175,7 +1252,7 @@ export default function PropertyDetailPage({ params }: { params: { id: string } 
                                             },
                                           });
                                           toast.success(`Milestone marked as ${newStatus.replace("_", " ")}`);
-                                        } catch { toast.error("Failed to update milestone"); }
+                                        } catch (e) { toast.error("Failed to update milestone"); }
                                       }}
                                     >
                                       {m.status === "pending" ? "Start" : "Complete"}
@@ -1775,66 +1852,184 @@ export default function PropertyDetailPage({ params }: { params: { id: string } 
                                   <tr>
                                     <td colSpan={7} className="bg-muted/20 p-3">
                                       <div className="space-y-2">
-                                        <p className="text-xs font-medium text-muted-foreground mb-2">
-                                          {(plan.pricing_mode as string) === "by_bedroom" ? "Bedroom" : "Bed"} Detail — Unit {u.unit_number as string}
-                                        </p>
-                                        {(plan.pricing_mode as string) === "by_bedroom" ? (
-                                          (u.bedrooms as Array<Record<string, unknown>>)?.map((br: Record<string, unknown>, idx: number) => (
-                                            <div key={idx} className="flex items-center justify-between bg-white rounded p-2 border">
-                                              <span className="text-sm">Bedroom {(br.bedroom_number as number) || idx + 1}</span>
-                                              <span className="text-sm font-medium">${(br.total_rent as number)?.toLocaleString()}/mo</span>
-                                              <span className="text-xs text-muted-foreground">{(br.beds as Array<unknown>)?.length || 0} bed(s)</span>
+                                        <div className="flex items-center justify-between mb-2">
+                                          <p className="text-xs font-medium text-muted-foreground">
+                                            {(plan.pricing_mode as string) === "by_bedroom" ? "Bedroom" : "Bed"} Detail — Unit {u.unit_number as string}
+                                          </p>
+                                          {canEdit && (
+                                            <Button
+                                              size="sm"
+                                              variant="outline"
+                                              className="h-7 text-xs gap-1"
+                                              onClick={(e) => {
+                                                e.stopPropagation();
+                                                setAddingBedToUnit(addingBedToUnit === (u.unit_id as number) ? null : (u.unit_id as number));
+                                                setNewBedRent("1400");
+                                                setNewBedRoom(1);
+                                              }}
+                                            >
+                                              <Plus className="h-3 w-3" /> Add Bed
+                                            </Button>
+                                          )}
+                                        </div>
+
+                                        {/* Add Bed Form */}
+                                        {addingBedToUnit === (u.unit_id as number) && (() => {
+                                          const bedroomCount = (u.bedroom_count as number) || 1;
+                                          const bedrooms = u.bedrooms as Array<Record<string, unknown>> || [];
+                                          return (
+                                            <div className="bg-emerald-50 rounded p-3 border border-emerald-200 space-y-2">
+                                              <div className="text-xs font-semibold text-emerald-800">Add Bed to Room</div>
+                                              <div className="flex flex-wrap items-center gap-2">
+                                                <div className="flex items-center gap-1">
+                                                  <span className="text-xs font-medium">Room:</span>
+                                                  <select
+                                                    className="h-7 text-sm rounded border border-input bg-background px-2"
+                                                    value={newBedRoom}
+                                                    onChange={(e) => setNewBedRoom(parseInt(e.target.value))}
+                                                  >
+                                                    {Array.from({ length: bedroomCount }, (_, i) => i + 1).map((roomNum) => {
+                                                      const roomBeds = bedrooms.find((br) => (br.bedroom_number as number) === roomNum);
+                                                      const bedCount = roomBeds ? (roomBeds.beds as Array<unknown>)?.length || 0 : 0;
+                                                      return (
+                                                        <option key={roomNum} value={roomNum}>
+                                                          Room {roomNum} ({bedCount} bed{bedCount !== 1 ? "s" : ""})
+                                                        </option>
+                                                      );
+                                                    })}
+                                                  </select>
+                                                </div>
+                                                <div className="flex items-center gap-1">
+                                                  <span className="text-xs font-medium">Rent:</span>
+                                                  <Input
+                                                    type="number"
+                                                    className="w-24 h-7 text-sm"
+                                                    placeholder="Rent/mo"
+                                                    value={newBedRent}
+                                                    onChange={(e) => setNewBedRent(e.target.value)}
+                                                  />
+                                                </div>
+                                                <Button
+                                                  size="sm"
+                                                  className="h-7 text-xs"
+                                                  onClick={() => {
+                                                    const beds = u.beds as Array<Record<string, unknown>> || [];
+                                                    const nextNum = beds.length + 1;
+                                                    createBedMutation.mutate({
+                                                      unitId: u.unit_id as number,
+                                                      data: {
+                                                        unit_id: u.unit_id as number,
+                                                        bed_label: `${u.unit_number as string}-B${nextNum}`,
+                                                        monthly_rent: parseFloat(newBedRent) || 1400,
+                                                        rent_type: "private_pay",
+                                                        bedroom_number: newBedRoom,
+                                                        is_post_renovation: true,
+                                                      },
+                                                    });
+                                                    setAddingBedToUnit(null);
+                                                  }}
+                                                >
+                                                  <Save className="h-3 w-3 mr-1" /> Save
+                                                </Button>
+                                                <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => setAddingBedToUnit(null)}>
+                                                  <X className="h-3 w-3" />
+                                                </Button>
+                                              </div>
                                             </div>
-                                          ))
-                                        ) : (
-                                          (u.beds as Array<Record<string, unknown>>)?.map((bed: Record<string, unknown>) => (
-                                            <div key={bed.bed_id as number} className="flex items-center justify-between bg-white rounded p-2 border">
-                                              <span className="text-sm font-medium">{bed.bed_label as string}</span>
-                                              <div className="flex items-center gap-2">
-                                                {editingBedId === (bed.bed_id as number) ? (
-                                                  <div className="flex items-center gap-1">
-                                                    <Input
-                                                      type="number"
-                                                      className="w-24 h-7 text-sm"
-                                                      value={editBedRent}
-                                                      onChange={(e) => setEditBedRent(e.target.value)}
-                                                    />
-                                                    <Button
-                                                      size="sm"
-                                                      className="h-7 text-xs"
-                                                      onClick={() => {
-                                                        updateBedMutation.mutate({ bedId: bed.bed_id as number, data: { monthly_rent: parseFloat(editBedRent) } });
-                                                        setEditingBedId(null);
-                                                      }}
-                                                    >
-                                                      Save
-                                                    </Button>
-                                                    <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => setEditingBedId(null)}>Cancel</Button>
+                                          );
+                                        })()}
+
+                                        {/* Beds grouped by Room */}
+                                        {(() => {
+                                          const bedrooms = u.bedrooms as Array<Record<string, unknown>> || [];
+                                          const bedroomCount = (u.bedroom_count as number) || bedrooms.length || 1;
+                                          // Build room list: use bedrooms array if available, otherwise group beds by bedroom_number
+                                          const rooms = Array.from({ length: bedroomCount }, (_, i) => {
+                                            const roomNum = i + 1;
+                                            const existing = bedrooms.find((br) => (br.bedroom_number as number) === roomNum);
+                                            const roomBeds = existing
+                                              ? (existing.beds as Array<Record<string, unknown>> || [])
+                                              : ((u.beds as Array<Record<string, unknown>> || []).filter((b) => (b.bedroom_number as number) === roomNum));
+                                            return { roomNum, beds: roomBeds };
+                                          });
+                                          return rooms.map(({ roomNum, beds: roomBeds }) => (
+                                            <div key={roomNum} className="space-y-1">
+                                              <div className="flex items-center gap-2 px-1">
+                                                <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                                                  Room {roomNum}
+                                                </span>
+                                                <span className="text-xs text-muted-foreground">
+                                                  ({roomBeds.length} bed{roomBeds.length !== 1 ? "s" : ""})
+                                                </span>
+                                                <div className="flex-1 border-t border-dashed" />
+                                              </div>
+                                              {roomBeds.map((bed: Record<string, unknown>) => (
+                                                <div key={bed.bed_id as number} className="flex items-center justify-between bg-white rounded p-2 border ml-3">
+                                                  <span className="text-sm font-medium">{bed.bed_label as string}</span>
+                                                  <div className="flex items-center gap-2">
+                                                    {editingBedId === (bed.bed_id as number) ? (
+                                                      <div className="flex items-center gap-1">
+                                                        <Input
+                                                          type="number"
+                                                          className="w-24 h-7 text-sm"
+                                                          value={editBedRent}
+                                                          onChange={(e) => setEditBedRent(e.target.value)}
+                                                        />
+                                                        <Button
+                                                          size="sm"
+                                                          className="h-7 text-xs"
+                                                          onClick={() => {
+                                                            updateBedMutation.mutate({ bedId: bed.bed_id as number, data: { monthly_rent: parseFloat(editBedRent) } });
+                                                            setEditingBedId(null);
+                                                          }}
+                                                        >
+                                                          Save
+                                                        </Button>
+                                                        <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => setEditingBedId(null)}>Cancel</Button>
+                                                      </div>
+                                                    ) : (
+                                                      <>
+                                                        <span className="text-sm">${(bed.monthly_rent as number)?.toLocaleString()}/mo</span>
+                                                        {canEdit && (
+                                                          <Button
+                                                            size="sm"
+                                                            variant="ghost"
+                                                            className="h-6 w-6 p-0"
+                                                            onClick={(e) => {
+                                                              e.stopPropagation();
+                                                              setEditingBedId(bed.bed_id as number);
+                                                              setEditBedRent(String(bed.monthly_rent));
+                                                            }}
+                                                          >
+                                                            <Edit2 className="h-3 w-3" />
+                                                          </Button>
+                                                        )}
+                                                      </>
+                                                    )}
                                                   </div>
-                                                ) : (
-                                                  <>
-                                                    <span className="text-sm">${(bed.monthly_rent as number)?.toLocaleString()}/mo</span>
-                                                    {canEdit && (
+                                                  <div className="flex items-center gap-2">
+                                                    <span className="text-xs text-muted-foreground capitalize">{(bed.rent_type as string)?.replace("_", " ")}</span>
+                                                    {canEdit && (u.beds as Array<Record<string, unknown>>)?.length > 1 && (
                                                       <Button
                                                         size="sm"
                                                         variant="ghost"
-                                                        className="h-6 w-6 p-0"
+                                                        className="h-6 w-6 p-0 text-red-500 hover:text-red-700 hover:bg-red-50"
                                                         onClick={(e) => {
                                                           e.stopPropagation();
-                                                          setEditingBedId(bed.bed_id as number);
-                                                          setEditBedRent(String(bed.monthly_rent));
+                                                          if (confirm(`Remove bed ${bed.bed_label as string}?`)) {
+                                                            deleteBedMutation.mutate(bed.bed_id as number);
+                                                          }
                                                         }}
                                                       >
-                                                        <Edit2 className="h-3 w-3" />
+                                                        <Trash2 className="h-3 w-3" />
                                                       </Button>
                                                     )}
-                                                  </>
-                                                )}
-                                              </div>
-                                              <span className="text-xs text-muted-foreground capitalize">{(bed.rent_type as string)?.replace("_", " ")}</span>
+                                                  </div>
+                                                </div>
+                                              ))}
                                             </div>
-                                          ))
-                                        )}
+                                          ));
+                                        })()}
                                       </div>
                                     </td>
                                   </tr>
@@ -2025,10 +2220,12 @@ export default function PropertyDetailPage({ params }: { params: { id: string } 
                   <p className="text-xs text-muted-foreground mt-1">Add a plan to track units, costs, and timelines.</p>
                 </div>
               ) : (
+                <React.Fragment>
                 <div className="overflow-x-auto rounded-lg border">
                   <Table>
                     <TableHeader>
                       <TableRow className="bg-muted/50">
+                        <TableHead>Plan Name</TableHead>
                         <TableHead>Status</TableHead>
                         <TableHead className="text-right">Units</TableHead>
                         <TableHead className="text-right">Beds</TableHead>
@@ -2038,11 +2235,13 @@ export default function PropertyDetailPage({ params }: { params: { id: string } 
                         <TableHead>Start</TableHead>
                         <TableHead>Completion</TableHead>
                         <TableHead className="text-right">Proj. NOI</TableHead>
+                        {canEdit && <TableHead className="text-right">Actions</TableHead>}
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {plans.map((plan: DevelopmentPlan) => (
                         <TableRow key={plan.plan_id}>
+                          <TableCell className="font-medium">{plan.plan_name || `Plan v${plan.version}`}</TableCell>
                           <TableCell>
                             <Badge variant={plan.status === "active" ? "default" : "secondary"} className="text-xs">
                               {plan.status}
@@ -2056,11 +2255,133 @@ export default function PropertyDetailPage({ params }: { params: { id: string } 
                           <TableCell>{plan.development_start_date ? formatDate(plan.development_start_date) : "—"}</TableCell>
                           <TableCell>{plan.estimated_completion_date ? formatDate(plan.estimated_completion_date) : "—"}</TableCell>
                           <TableCell className="text-right font-medium text-green-600">{plan.projected_annual_noi ? formatCurrency(Number(plan.projected_annual_noi)) : "—"}</TableCell>
+                          {canEdit && (
+                            <TableCell className="text-right">
+                              <div className="flex items-center justify-end gap-1">
+                                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => startEditingPlan(plan)}>
+                                  <Pencil className="h-3.5 w-3.5" />
+                                </Button>
+                                <Button variant="ghost" size="icon" className="h-7 w-7 text-red-500 hover:text-red-700" onClick={() => handleDeletePlan(plan.plan_id)}>
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                </Button>
+                              </div>
+                            </TableCell>
+                          )}
                         </TableRow>
                       ))}
                     </TableBody>
                   </Table>
                 </div>
+
+                {/* ── Edit Plan Dialog ── */}
+                <Dialog open={editingPlanId !== null} onOpenChange={(open) => { if (!open) setEditingPlanId(null); }}>
+                  <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+                    <DialogHeader>
+                      <DialogTitle>Edit Development Plan</DialogTitle>
+                    </DialogHeader>
+                    <div className="space-y-4">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div className="space-y-2 sm:col-span-2">
+                          <Label>Plan Name</Label>
+                          <Input value={editPlanForm.plan_name} onChange={(e) => setEditPlanForm((f) => ({ ...f, plan_name: e.target.value }))} placeholder="e.g. 8-Plex Conversion" />
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Status</Label>
+                          <Select value={String(editPlanForm.status)} onValueChange={(v) => setEditPlanForm((f) => ({ ...f, status: v }))}>
+                            <SelectTrigger><SelectValue /></SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="draft">Draft</SelectItem>
+                              <SelectItem value="approved">Approved</SelectItem>
+                              <SelectItem value="active">Active</SelectItem>
+                              <SelectItem value="superseded">Superseded</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Pricing Mode</Label>
+                          <Select value={String(editPlanForm.rent_pricing_mode)} onValueChange={(v) => setEditPlanForm((f) => ({ ...f, rent_pricing_mode: v }))}>
+                            <SelectTrigger><SelectValue /></SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="by_bed">By Bed</SelectItem>
+                              <SelectItem value="by_unit">By Unit</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Planned Units</Label>
+                          <Input type="number" value={editPlanForm.planned_units} onChange={(e) => setEditPlanForm((f) => ({ ...f, planned_units: Number(e.target.value) }))} />
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Planned Beds</Label>
+                          <Input type="number" value={editPlanForm.planned_beds} onChange={(e) => setEditPlanForm((f) => ({ ...f, planned_beds: Number(e.target.value) }))} />
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Planned Sqft</Label>
+                          <Input type="number" value={editPlanForm.planned_sqft} onChange={(e) => setEditPlanForm((f) => ({ ...f, planned_sqft: Number(e.target.value) }))} />
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Est. Construction Cost</Label>
+                          <Input type="number" value={editPlanForm.estimated_construction_cost} onChange={(e) => setEditPlanForm((f) => ({ ...f, estimated_construction_cost: Number(e.target.value) }))} />
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Hard Costs</Label>
+                          <Input type="number" value={editPlanForm.hard_costs} onChange={(e) => setEditPlanForm((f) => ({ ...f, hard_costs: Number(e.target.value) }))} />
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Soft Costs</Label>
+                          <Input type="number" value={editPlanForm.soft_costs} onChange={(e) => setEditPlanForm((f) => ({ ...f, soft_costs: Number(e.target.value) }))} />
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Site Costs</Label>
+                          <Input type="number" value={editPlanForm.site_costs} onChange={(e) => setEditPlanForm((f) => ({ ...f, site_costs: Number(e.target.value) }))} />
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Financing Costs</Label>
+                          <Input type="number" value={editPlanForm.financing_costs} onChange={(e) => setEditPlanForm((f) => ({ ...f, financing_costs: Number(e.target.value) }))} />
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Contingency %</Label>
+                          <Input type="number" value={editPlanForm.contingency_percent} onChange={(e) => setEditPlanForm((f) => ({ ...f, contingency_percent: Number(e.target.value) }))} />
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Annual Rent Increase %</Label>
+                          <Input type="number" value={editPlanForm.annual_rent_increase_pct} onChange={(e) => setEditPlanForm((f) => ({ ...f, annual_rent_increase_pct: Number(e.target.value) }))} />
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Proj. Annual Revenue</Label>
+                          <Input type="number" value={editPlanForm.projected_annual_revenue} onChange={(e) => setEditPlanForm((f) => ({ ...f, projected_annual_revenue: Number(e.target.value) }))} />
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Proj. Annual NOI</Label>
+                          <Input type="number" value={editPlanForm.projected_annual_noi} onChange={(e) => setEditPlanForm((f) => ({ ...f, projected_annual_noi: Number(e.target.value) }))} />
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Start Date</Label>
+                          <Input type="date" value={editPlanForm.development_start_date} onChange={(e) => setEditPlanForm((f) => ({ ...f, development_start_date: e.target.value }))} />
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Duration (days)</Label>
+                          <Input type="number" value={editPlanForm.construction_duration_days} onChange={(e) => setEditPlanForm((f) => ({ ...f, construction_duration_days: Number(e.target.value) }))} />
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Est. Completion Date</Label>
+                          <Input type="date" value={editPlanForm.estimated_completion_date} onChange={(e) => setEditPlanForm((f) => ({ ...f, estimated_completion_date: e.target.value }))} />
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Est. Stabilization Date</Label>
+                          <Input type="date" value={editPlanForm.estimated_stabilization_date} onChange={(e) => setEditPlanForm((f) => ({ ...f, estimated_stabilization_date: e.target.value }))} />
+                        </div>
+                      </div>
+                      <div className="flex gap-2 justify-end">
+                        <Button variant="outline" onClick={() => setEditingPlanId(null)}>Cancel</Button>
+                        <Button onClick={handleSavePlan} disabled={updatePlanPending}>
+                          {updatePlanPending ? "Saving…" : "Save Changes"}
+                        </Button>
+                      </div>
+                    </div>
+                  </DialogContent>
+                </Dialog>
+                </React.Fragment>
               )}
 
               {/* ── Comparison View ── */}

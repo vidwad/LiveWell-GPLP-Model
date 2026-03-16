@@ -21,7 +21,7 @@ from app.db.session import get_db
 from app.schemas.portfolio import (
     CostEstimateInput, CostEstimateResult,
     DebtFacilityCreate, DebtFacilityOut,
-    DevelopmentPlanCreate, DevelopmentPlanOut,
+    DevelopmentPlanCreate, DevelopmentPlanOut, DevelopmentPlanUpdate,
     ModelingInput, ModelingResult,
     PropertyClusterCreate, PropertyClusterOut,
     PropertyCreate, PropertyOut, PropertyUpdate,
@@ -192,6 +192,25 @@ def delete_plan(
         raise HTTPException(status_code=404, detail="Plan not found")
     db.delete(plan)
     db.commit()
+
+
+@router.patch("/plans/{plan_id}", response_model=DevelopmentPlanOut)
+def update_plan(
+    plan_id: int,
+    payload: DevelopmentPlanUpdate,
+    db: Session = Depends(get_db),
+    _: User = Depends(require_gp_ops_pm),
+):
+    """Partial update of a development plan — only supplied fields are changed."""
+    plan = db.query(DevelopmentPlan).filter(DevelopmentPlan.plan_id == plan_id).first()
+    if not plan:
+        raise HTTPException(status_code=404, detail="Plan not found")
+    update_data = payload.model_dump(exclude_unset=True)
+    for key, value in update_data.items():
+        setattr(plan, key, value)
+    db.commit()
+    db.refresh(plan)
+    return plan
 
 
 # ---------------------------------------------------------------------------
@@ -1643,6 +1662,8 @@ def create_bed(
         bed_label=payload.bed_label,
         monthly_rent=payload.monthly_rent,
         rent_type=payload.rent_type,
+        bedroom_number=payload.bedroom_number,
+        is_post_renovation=payload.is_post_renovation,
     )
     db.add(bed)
     db.commit()
@@ -1675,6 +1696,26 @@ def update_bed(
     db.commit()
     db.refresh(bed)
     return bed
+
+
+@router.delete(
+    "/beds/{bed_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+def delete_bed(
+    bed_id: int,
+    db: Session = Depends(get_db),
+    _: User = Depends(require_gp_ops_pm),
+):
+    """Delete a bed from a unit. Also decrements the parent unit's bed_count."""
+    bed = db.query(Bed).filter(Bed.bed_id == bed_id).first()
+    if not bed:
+        raise HTTPException(404, "Bed not found")
+    unit = db.query(Unit).filter(Unit.unit_id == bed.unit_id).first()
+    db.delete(bed)
+    if unit and unit.bed_count and unit.bed_count > 0:
+        unit.bed_count = max(0, unit.bed_count - 1)
+    db.commit()
 
 
 @router.get(

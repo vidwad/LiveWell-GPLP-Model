@@ -95,6 +95,7 @@ export interface PropertyManagerCreate {
 export interface DevelopmentPlan {
   plan_id: number;
   property_id: number;
+  plan_name: string | null;
   version: number;
   status: DevelopmentPlanStatus;
   planned_units: number;
@@ -105,6 +106,7 @@ export interface DevelopmentPlan {
   site_costs: string | null;
   financing_costs: string | null;
   contingency_percent: string | null;
+  cost_escalation_percent_per_year: string | null;
   cost_per_sqft: string | null;
   estimated_construction_cost: string | null;
   projected_annual_revenue: string | null;
@@ -113,10 +115,13 @@ export interface DevelopmentPlan {
   construction_duration_days: number | null;
   estimated_completion_date: string | null;
   estimated_stabilization_date: string | null;
+  rent_pricing_mode: string | null;
+  annual_rent_increase_pct: string | null;
 }
 
 export interface DevelopmentPlanCreate {
   version?: number;
+  plan_name?: string;
   status?: DevelopmentPlanStatus;
   planned_units: number;
   planned_beds: number;
@@ -126,6 +131,7 @@ export interface DevelopmentPlanCreate {
   site_costs?: number;
   financing_costs?: number;
   contingency_percent?: number;
+  cost_escalation_percent_per_year?: number;
   cost_per_sqft?: number;
   estimated_construction_cost?: number;
   projected_annual_revenue?: number;
@@ -134,6 +140,16 @@ export interface DevelopmentPlanCreate {
   construction_duration_days?: number;
   estimated_completion_date?: string;
   estimated_stabilization_date?: string;
+  rent_pricing_mode?: string;
+  annual_rent_increase_pct?: number;
+}
+
+export type DevelopmentPlanUpdate = Partial<Omit<DevelopmentPlanCreate, 'planned_units' | 'planned_beds' | 'planned_sqft' | 'estimated_construction_cost'>> & {
+  plan_name?: string;
+  planned_units?: number;
+  planned_beds?: number;
+  planned_sqft?: number;
+  estimated_construction_cost?: number;
 }
 
 export interface ModelingInput {

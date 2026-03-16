@@ -5,6 +5,7 @@ import {
   PropertyCreate,
   DevelopmentPlan,
   DevelopmentPlanCreate,
+  DevelopmentPlanUpdate,
   ModelingInput,
   ModelingResult,
 } from "@/types/portfolio";
@@ -83,6 +84,32 @@ export function useCreatePlan(propertyId: number) {
         .post<DevelopmentPlan>(`/api/portfolio/properties/${propertyId}/plans`, data)
         .then((r) => r.data),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["plans", propertyId] }),
+  });
+}
+
+export function useUpdatePlan(propertyId: number) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ planId, data }: { planId: number; data: DevelopmentPlanUpdate }) =>
+      apiClient
+        .patch<DevelopmentPlan>(`/api/portfolio/plans/${planId}`, data)
+        .then((r) => r.data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["plans", propertyId] });
+      qc.invalidateQueries({ queryKey: ["rent-roll", propertyId] });
+    },
+  });
+}
+
+export function useDeletePlan(propertyId: number) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (planId: number) =>
+      apiClient.delete(`/api/portfolio/plans/${planId}`),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["plans", propertyId] });
+      qc.invalidateQueries({ queryKey: ["rent-roll", propertyId] });
+    },
   });
 }
 
@@ -351,6 +378,34 @@ export function useUpdateBed(propertyId: number) {
   return useMutation({
     mutationFn: ({ bedId, data }: { bedId: number; data: object }) =>
       apiClient.patch(`/api/portfolio/beds/${bedId}`, null, { params: data }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["rent-roll", propertyId] });
+      qc.invalidateQueries({ queryKey: ["property-units", propertyId] });
+      qc.invalidateQueries({ queryKey: ["property-unit-summary", propertyId] });
+    },
+  });
+}
+
+export function useCreateBed(propertyId: number) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ unitId, data }: { unitId: number; data: object }) =>
+      apiClient
+        .post(`/api/portfolio/properties/${propertyId}/units/${unitId}/beds`, data)
+        .then((r) => r.data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["rent-roll", propertyId] });
+      qc.invalidateQueries({ queryKey: ["property-units", propertyId] });
+      qc.invalidateQueries({ queryKey: ["property-unit-summary", propertyId] });
+    },
+  });
+}
+
+export function useDeleteBed(propertyId: number) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (bedId: number) =>
+      apiClient.delete(`/api/portfolio/beds/${bedId}`),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["rent-roll", propertyId] });
       qc.invalidateQueries({ queryKey: ["property-units", propertyId] });

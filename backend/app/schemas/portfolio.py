@@ -122,6 +122,7 @@ class PropertyOut(BaseModel):
 
 class DevelopmentPlanCreate(BaseModel):
     version: int = 1
+    plan_name: str | None = None
     status: str = "draft"
     planned_units: int
     planned_beds: int
@@ -144,9 +145,36 @@ class DevelopmentPlanCreate(BaseModel):
     annual_rent_increase_pct: Decimal | None = None
 
 
+class DevelopmentPlanUpdate(BaseModel):
+    """All fields optional — only supplied fields are updated."""
+    plan_name: str | None = None
+    version: int | None = None
+    status: str | None = None
+    planned_units: int | None = None
+    planned_beds: int | None = None
+    planned_sqft: Decimal | None = None
+    hard_costs: Decimal | None = None
+    soft_costs: Decimal | None = None
+    site_costs: Decimal | None = None
+    financing_costs: Decimal | None = None
+    contingency_percent: Decimal | None = None
+    cost_escalation_percent_per_year: Decimal | None = None
+    cost_per_sqft: Decimal | None = None
+    estimated_construction_cost: Decimal | None = None
+    projected_annual_revenue: Decimal | None = None
+    projected_annual_noi: Decimal | None = None
+    development_start_date: datetime.date | None = None
+    construction_duration_days: int | None = None
+    estimated_completion_date: datetime.date | None = None
+    estimated_stabilization_date: datetime.date | None = None
+    rent_pricing_mode: str | None = None
+    annual_rent_increase_pct: Decimal | None = None
+
+
 class DevelopmentPlanOut(BaseModel):
     plan_id: int
     property_id: int
+    plan_name: str | None = None
     version: int
     status: str
     planned_units: int

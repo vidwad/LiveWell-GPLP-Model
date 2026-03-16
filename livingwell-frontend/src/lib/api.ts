@@ -1,5 +1,5 @@
 import axios from "axios";
-import type { CostEstimateInput, CostEstimateResult, Property, PropertyCreate, DevelopmentPlan, DevelopmentPlanCreate, PropertyCluster, PropertyManager, PropertyManagerCreate } from "@/types/portfolio";
+import type { CostEstimateInput, CostEstimateResult, Property, PropertyCreate, DevelopmentPlan, DevelopmentPlanCreate, DevelopmentPlanUpdate, PropertyCluster, PropertyManager, PropertyManagerCreate } from "@/types/portfolio";
 import type { GPEntity, LPEntity, LPDetail, LPCreate, LPTranche, LPTrancheCreate, Subscription, SubscriptionCreate, Holding, TargetProperty, LPPortfolioRollup, DistributionEvent, Investor as InvInvestor, WaterfallResult as InvWaterfallResult } from "@/types/investment";
 import type { Investor, InvestorCreate, InvestorSummary, InvestorDashboard, InvestorDistributionHistory, Document, Message, WaterfallInput, WaterfallResult } from "@/types/investor";
 
@@ -57,6 +57,8 @@ export const portfolio = {
   createProperty: (data: PropertyCreate) => apiClient.post<Property>("/api/portfolio/properties", data).then(r => r.data),
   getDevelopmentPlans: (propertyId: number) => apiClient.get<DevelopmentPlan[]>(`/api/portfolio/properties/${propertyId}/plans`).then(r => r.data),
   createDevelopmentPlan: (propertyId: number, data: DevelopmentPlanCreate) => apiClient.post<DevelopmentPlan>(`/api/portfolio/properties/${propertyId}/plans`, data).then(r => r.data),
+  updateDevelopmentPlan: (planId: number, data: DevelopmentPlanUpdate) => apiClient.patch<DevelopmentPlan>(`/api/portfolio/plans/${planId}`, data).then(r => r.data),
+  deleteDevelopmentPlan: (planId: number) => apiClient.delete(`/api/portfolio/plans/${planId}`),
   getClusters: () => apiClient.get<PropertyCluster[]>("/api/portfolio/clusters").then(r => r.data),
   estimateCosts: (data: CostEstimateInput) => apiClient.post<CostEstimateResult>("/api/portfolio/modeling/estimate-costs", data).then(r => r.data),
   getReturnsMetrics: () => apiClient.get("/api/portfolio/metrics/returns").then(r => r.data),
@@ -102,6 +104,8 @@ export const portfolio = {
     apiClient.post(`/api/portfolio/properties/${propertyId}/units/${unitId}/beds`, data).then(r => r.data),
   updateBed: (bedId: number, data: object) =>
     apiClient.patch(`/api/portfolio/beds/${bedId}`, data).then(r => r.data),
+  deleteBed: (bedId: number) =>
+    apiClient.delete(`/api/portfolio/beds/${bedId}`).then(r => r.data),
   // Rent Roll
   getRentRoll: (propertyId: number, phase?: string) =>
     apiClient.get(`/api/portfolio/properties/${propertyId}/rent-roll`, { params: phase ? { phase } : {} }).then(r => r.data),
