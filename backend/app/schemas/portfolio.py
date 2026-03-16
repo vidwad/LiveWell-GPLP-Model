@@ -7,7 +7,7 @@ from decimal import Decimal
 from typing import List, Optional
 
 from pydantic import BaseModel
-from app.db.models import DevelopmentStage
+from app.db.models import DevelopmentStage, RentPricingMode
 
 
 # ---------------------------------------------------------------------------
@@ -55,6 +55,11 @@ class PropertyCreate(BaseModel):
     max_buildable_area: Decimal | None = None
     floor_area_ratio: Decimal | None = None
     development_stage: DevelopmentStage = DevelopmentStage.prospect
+    rent_pricing_mode: RentPricingMode = RentPricingMode.by_bed
+    annual_rent_increase_pct: Decimal | None = None  # e.g. 3.0 = 3% per year
+    annual_revenue: Decimal | None = None
+    annual_expenses: Decimal | None = None
+    annual_other_income: Decimal | None = None
 
 
 class PropertyUpdate(BaseModel):
@@ -74,6 +79,11 @@ class PropertyUpdate(BaseModel):
     max_buildable_area: Decimal | None = None
     floor_area_ratio: Decimal | None = None
     development_stage: DevelopmentStage | None = None
+    rent_pricing_mode: RentPricingMode | None = None
+    annual_rent_increase_pct: Decimal | None = None
+    annual_revenue: Decimal | None = None
+    annual_expenses: Decimal | None = None
+    annual_other_income: Decimal | None = None
 
 
 class PropertyOut(BaseModel):
@@ -97,6 +107,11 @@ class PropertyOut(BaseModel):
     max_buildable_area: Decimal | None
     floor_area_ratio: Decimal | None
     development_stage: DevelopmentStage
+    rent_pricing_mode: RentPricingMode = RentPricingMode.by_bed
+    annual_rent_increase_pct: Decimal | None = None
+    annual_revenue: Decimal | None = None
+    annual_expenses: Decimal | None = None
+    annual_other_income: Decimal | None = None
 
     model_config = {"from_attributes": True}
 
@@ -125,6 +140,8 @@ class DevelopmentPlanCreate(BaseModel):
     construction_duration_days: int | None = None
     estimated_completion_date: datetime.date | None = None
     estimated_stabilization_date: datetime.date | None = None
+    rent_pricing_mode: str | None = None
+    annual_rent_increase_pct: Decimal | None = None
 
 
 class DevelopmentPlanOut(BaseModel):
@@ -149,6 +166,8 @@ class DevelopmentPlanOut(BaseModel):
     construction_duration_days: int | None
     estimated_completion_date: datetime.date | None
     estimated_stabilization_date: datetime.date | None
+    rent_pricing_mode: str | None = None
+    annual_rent_increase_pct: Decimal | None = None
 
     model_config = {"from_attributes": True}
 
@@ -219,6 +238,9 @@ class DebtFacilityCreate(BaseModel):
     maturity_date: str | None = None
     ltv_covenant: float | None = None
     dscr_covenant: float | None = None
+    debt_purpose: str = "acquisition"  # acquisition, construction, refinancing
+    replaces_debt_id: int | None = None  # links refinancing to original debt
+    development_plan_id: int | None = None  # NULL = baseline, set = plan-specific
     notes: str | None = None
 
 class DebtFacilityOut(BaseModel):
@@ -239,6 +261,9 @@ class DebtFacilityOut(BaseModel):
     maturity_date: datetime.date | None
     ltv_covenant: float | None
     dscr_covenant: float | None
+    debt_purpose: str = "acquisition"
+    replaces_debt_id: int | None = None
+    development_plan_id: int | None = None
     notes: str | None
     created_at: datetime.datetime | None
 

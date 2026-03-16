@@ -309,3 +309,52 @@ export function useDeletePropertyUnit(propertyId: number) {
     },
   });
 }
+
+// Rent Roll — returns full dual-phase response with pre_development, post_development, comparison, escalation
+export function useRentRoll(propertyId: number) {
+  return useQuery({
+    queryKey: ["rent-roll", propertyId],
+    queryFn: () =>
+      apiClient
+        .get(`/api/portfolio/properties/${propertyId}/rent-roll`)
+        .then((r) => r.data),
+    enabled: propertyId > 0,
+  });
+}
+
+export function useUpdateRentPricingMode(propertyId: number) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (mode: string) =>
+      apiClient.patch(`/api/portfolio/properties/${propertyId}/rent-pricing-mode`, null, { params: { mode } }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["rent-roll", propertyId] });
+      qc.invalidateQueries({ queryKey: ["property", propertyId] });
+    },
+  });
+}
+
+export function useUpdateAnnualRentIncrease(propertyId: number) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (pct: number) =>
+      apiClient.patch(`/api/portfolio/properties/${propertyId}`, { annual_rent_increase_pct: pct }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["rent-roll", propertyId] });
+      qc.invalidateQueries({ queryKey: ["property", propertyId] });
+    },
+  });
+}
+
+export function useUpdateBed(propertyId: number) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ bedId, data }: { bedId: number; data: object }) =>
+      apiClient.patch(`/api/portfolio/beds/${bedId}`, null, { params: data }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["rent-roll", propertyId] });
+      qc.invalidateQueries({ queryKey: ["property-units", propertyId] });
+      qc.invalidateQueries({ queryKey: ["property-unit-summary", propertyId] });
+    },
+  });
+}

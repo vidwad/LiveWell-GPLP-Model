@@ -102,6 +102,13 @@ export const portfolio = {
     apiClient.post(`/api/portfolio/properties/${propertyId}/units/${unitId}/beds`, data).then(r => r.data),
   updateBed: (bedId: number, data: object) =>
     apiClient.patch(`/api/portfolio/beds/${bedId}`, data).then(r => r.data),
+  // Rent Roll
+  getRentRoll: (propertyId: number, phase?: string) =>
+    apiClient.get(`/api/portfolio/properties/${propertyId}/rent-roll`, { params: phase ? { phase } : {} }).then(r => r.data),
+  updateRentPricingMode: (propertyId: number, mode: string) =>
+    apiClient.patch(`/api/portfolio/properties/${propertyId}/rent-pricing-mode`, null, { params: { mode } }).then(r => r.data),
+  bulkCreateBeds: (propertyId: number, unitId: number, beds: object[]) =>
+    apiClient.post(`/api/portfolio/properties/${propertyId}/units/bulk-beds`, beds, { params: { unit_id: unitId } }).then(r => r.data),
 };
 
 // ── Investment (GP / LP / Tranche / Subscription / Holding / Target / Distribution) ─────

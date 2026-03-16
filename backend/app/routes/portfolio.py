@@ -571,7 +571,22 @@ def run_projection(
     elif payload.planned_units and payload.monthly_rent_per_unit:
         stab_revenue = payload.planned_units * payload.monthly_rent_per_unit * 12
     else:
-        stab_revenue = 0.0
+        # Fallback: pull from rent roll data
+        from sqlalchemy.orm import joinedload as _jl
+        prop_units = (
+            db.query(Unit)
+            .filter(Unit.property_id == property_id)
+            .options(_jl(Unit.beds))
+            .all()
+        )
+        if prop_units:
+            stab_revenue = sum(
+                float(b.monthly_rent or 0) * 12
+                for u in prop_units
+                for b in u.beds
+            )
+        else:
+            stab_revenue = 0.0
 
     if payload.stabilized_operating_expenses is not None:
         stab_expenses = payload.stabilized_operating_expenses
@@ -1736,3 +1751,319 @@ def get_property_unit_summary(
         "unit_mix": unit_mix,
         "floor_breakdown": floor_breakdown,
     }
+
+
+# ---------------------------------------------------------------------------
+# Rent Roll Summary
+# ---------------------------------------------------------------------------
+
+def _calc_phase_summary(units_list, pricing_mode, is_projection=False):
+    """Helper: calculate rent roll summary for a list of units.
+    When is_projection=True, treat all beds as occupied (stabilized projection)."""
+    rent_roll_units = []
+    total_potential_monthly = 0.0
+    total_actual_monthly = 0.0
+    total_beds = 0
+    occupied_beds = 0
+    vacant_beds = 0
+
+    for u in units_list:
+        unit_data = {
+            "unit_id": u.unit_id,
+            "unit_number": u.unit_number,
+            "unit_type": u.unit_type.value if hasattr(u.unit_type, 'value') else str(u.unit_type),
+            "bed_count": u.bed_count,
+            "bedroom_count": u.bedroom_count,
+            "sqft": float(u.sqft),
+            "floor": u.floor,
+            "is_legal_suite": u.is_legal_suite,
+            "is_occupied": u.is_occupied,
+            "renovation_phase": u.renovation_phase.value if hasattr(u.renovation_phase, 'value') else str(u.renovation_phase),
+            "monthly_rent": float(u.monthly_rent) if u.monthly_rent else None,
+            "beds": [],
+            "bedrooms": {},
+            "unit_potential_monthly": 0.0,
+            "unit_actual_monthly": 0.0,
+            "unit_vacancy_count": 0,
+        }
+
+        for bed in u.beds:
+            bed_data = {
+                "bed_id": bed.bed_id,
+                "bed_label": bed.bed_label,
+                "monthly_rent": float(bed.monthly_rent),
+                "rent_type": bed.rent_type.value if hasattr(bed.rent_type, 'value') else str(bed.rent_type),
+                "status": bed.status.value if hasattr(bed.status, 'value') else str(bed.status),
+                "bedroom_number": bed.bedroom_number,
+                "is_post_renovation": bed.is_post_renovation,
+            }
+            unit_data["beds"].append(bed_data)
+
+            br_num = bed.bedroom_number or 0
+            if br_num not in unit_data["bedrooms"]:
+                unit_data["bedrooms"][br_num] = {
+                    "bedroom_number": br_num,
+                    "beds": [],
+                    "total_rent": 0.0,
+                }
+            unit_data["bedrooms"][br_num]["beds"].append(bed_data)
+            unit_data["bedrooms"][br_num]["total_rent"] += float(bed.monthly_rent)
+
+            total_beds += 1
+            unit_data["unit_potential_monthly"] += float(bed.monthly_rent)
+            bed_status = bed.status.value if hasattr(bed.status, 'value') else bed.status
+            if is_projection or bed_status == "occupied":
+                unit_data["unit_actual_monthly"] += float(bed.monthly_rent)
+                occupied_beds += 1
+            else:
+                unit_data["unit_vacancy_count"] += 1
+                if bed_status in ("available", "reserved"):
+                    vacant_beds += 1
+
+        unit_data["bedrooms"] = list(unit_data["bedrooms"].values())
+
+        if pricing_mode == "by_unit" and u.monthly_rent:
+            unit_data["unit_potential_monthly"] = float(u.monthly_rent)
+            if u.is_occupied:
+                unit_data["unit_actual_monthly"] = float(u.monthly_rent)
+            else:
+                unit_data["unit_actual_monthly"] = 0.0
+
+        total_potential_monthly += unit_data["unit_potential_monthly"]
+        total_actual_monthly += unit_data["unit_actual_monthly"]
+        rent_roll_units.append(unit_data)
+
+    vacancy_rate = round((1 - occupied_beds / total_beds) * 100, 1) if total_beds > 0 else 0.0
+    vacancy_loss_monthly = total_potential_monthly - total_actual_monthly
+
+    return {
+        "total_units": len(units_list),
+        "total_beds": total_beds,
+        "occupied_beds": occupied_beds,
+        "vacant_beds": vacant_beds,
+        "vacancy_rate": vacancy_rate,
+        "potential_monthly_rent": round(total_potential_monthly, 2),
+        "actual_monthly_rent": round(total_actual_monthly, 2),
+        "vacancy_loss_monthly": round(vacancy_loss_monthly, 2),
+        "potential_annual_rent": round(total_potential_monthly * 12, 2),
+        "actual_annual_rent": round(total_actual_monthly * 12, 2),
+        "vacancy_loss_annual": round(vacancy_loss_monthly * 12, 2),
+        "units": rent_roll_units,
+    }
+
+
+@router.get("/properties/{property_id}/rent-roll")
+def get_rent_roll(
+    property_id: int,
+    db: Session = Depends(get_db),
+    _: User = Depends(get_current_user),
+):
+    """
+    Comprehensive rent roll for a property.
+    Groups units by development_plan_id:
+      - NULL = Baseline (as-acquired, operate as-is)
+      - plan_id = X = Projected state after Development Plan X
+    Each phase gets its own independent rent roll summary, debt summary,
+    and rent escalation projection.
+    """
+    prop = db.query(Property).filter(Property.property_id == property_id).first()
+    if not prop:
+        raise HTTPException(404, "Property not found")
+
+    from app.db.models import RentPricingMode, DevelopmentPlan as DP
+
+    baseline_pricing_mode = prop.rent_pricing_mode or "by_bed"
+    baseline_annual_increase = float(prop.annual_rent_increase_pct or 0)
+
+    all_units = db.query(Unit).filter(Unit.property_id == property_id).all()
+    all_debt = db.query(DebtFacility).filter(DebtFacility.property_id == property_id).all()
+    all_plans = db.query(DP).filter(DP.property_id == property_id).order_by(DP.version).all()
+
+    # Group units and debt by development_plan_id
+    baseline_units = [u for u in all_units if u.development_plan_id is None]
+    baseline_debt = [d for d in all_debt if d.development_plan_id is None]
+
+    baseline_summary = _calc_phase_summary(baseline_units, baseline_pricing_mode)
+
+    # Calculate baseline debt service
+    baseline_annual_debt_service = 0.0
+    for d in baseline_debt:
+        if d.outstanding_balance and d.outstanding_balance > 0 and d.interest_rate:
+            rate = float(d.interest_rate) / 100
+            balance = float(d.outstanding_balance)
+            if d.amortization_months and d.amortization_months > 0:
+                mr = rate / 12
+                n = d.amortization_months
+                if mr > 0:
+                    pmt = balance * (mr * (1 + mr) ** n) / ((1 + mr) ** n - 1)
+                else:
+                    pmt = balance / n
+                baseline_annual_debt_service += pmt * 12
+            else:
+                baseline_annual_debt_service += balance * rate
+
+    def _build_projection(summary, increase_pct, years=10):
+        if not summary or summary["total_units"] == 0:
+            return None
+        rows = []
+        for yr in range(years + 1):
+            factor = (1 + increase_pct / 100) ** yr
+            gross = round(summary["potential_annual_rent"] * factor, 2)
+            effective = round(summary["actual_annual_rent"] * factor, 2)
+            rows.append({
+                "year": yr,
+                "gross_annual": gross,
+                "effective_annual": effective,
+                "monthly": round(gross / 12, 2),
+            })
+        return rows
+
+    baseline_projection = _build_projection(baseline_summary, baseline_annual_increase)
+
+    # Build plan phases
+    plan_phases = []
+    prev_summary = baseline_summary
+    for plan in all_plans:
+        plan_units = [u for u in all_units if u.development_plan_id == plan.plan_id]
+        plan_debt = [d for d in all_debt if d.development_plan_id == plan.plan_id]
+        plan_pricing = plan.rent_pricing_mode.value if plan.rent_pricing_mode and hasattr(plan.rent_pricing_mode, 'value') else (plan.rent_pricing_mode or baseline_pricing_mode)
+        plan_increase = float(plan.annual_rent_increase_pct or baseline_annual_increase)
+
+        plan_summary = _calc_phase_summary(plan_units, plan_pricing, is_projection=True) if plan_units else None
+
+        # Plan debt service
+        plan_annual_debt_service = 0.0
+        for d in plan_debt:
+            if d.outstanding_balance and d.outstanding_balance > 0 and d.interest_rate:
+                rate = float(d.interest_rate) / 100
+                balance = float(d.outstanding_balance)
+                if d.amortization_months and d.amortization_months > 0:
+                    mr = rate / 12
+                    n = d.amortization_months
+                    if mr > 0:
+                        pmt = balance * (mr * (1 + mr) ** n) / ((1 + mr) ** n - 1)
+                    else:
+                        pmt = balance / n
+                    plan_annual_debt_service += pmt * 12
+                else:
+                    plan_annual_debt_service += balance * rate
+
+        # Comparison vs previous phase
+        comparison = None
+        if plan_summary and prev_summary and prev_summary["total_units"] > 0:
+            pre_pot = prev_summary["potential_monthly_rent"]
+            post_pot = plan_summary["potential_monthly_rent"]
+            delta_monthly = post_pot - pre_pot
+            pct_change = round((delta_monthly / pre_pot) * 100, 1) if pre_pot > 0 else 0.0
+            comparison = {
+                "prev_monthly": pre_pot,
+                "plan_monthly": post_pot,
+                "delta_monthly": round(delta_monthly, 2),
+                "delta_annual": round(delta_monthly * 12, 2),
+                "pct_change": pct_change,
+                "prev_units": prev_summary["total_units"],
+                "plan_units": plan_summary["total_units"] if plan_summary else 0,
+                "prev_beds": prev_summary["total_beds"],
+                "plan_beds": plan_summary["total_beds"] if plan_summary else 0,
+            }
+
+        plan_projection = _build_projection(plan_summary, plan_increase) if plan_summary else None
+
+        plan_phases.append({
+            "plan_id": plan.plan_id,
+            "plan_version": plan.version,
+            "plan_status": plan.status.value if hasattr(plan.status, 'value') else str(plan.status),
+            "plan_label": plan.plan_name or f"Plan v{plan.version}",
+            "pricing_mode": plan_pricing,
+            "annual_rent_increase_pct": plan_increase,
+            "development_start_date": plan.development_start_date.isoformat() if plan.development_start_date else None,
+            "estimated_completion_date": plan.estimated_completion_date.isoformat() if plan.estimated_completion_date else None,
+            "estimated_stabilization_date": plan.estimated_stabilization_date.isoformat() if plan.estimated_stabilization_date else None,
+            "construction_duration_days": plan.construction_duration_days,
+            "rent_roll": plan_summary,
+            "debt_count": len(plan_debt),
+            "annual_debt_service": round(plan_annual_debt_service, 2),
+            "comparison_vs_previous": comparison,
+            "escalation_projection": plan_projection,
+        })
+
+        if plan_summary:
+            prev_summary = plan_summary
+
+    return {
+        "property_id": property_id,
+        "baseline": {
+            "pricing_mode": baseline_pricing_mode,
+            "annual_rent_increase_pct": baseline_annual_increase,
+            "rent_roll": baseline_summary,
+            "debt_count": len(baseline_debt),
+            "annual_debt_service": round(baseline_annual_debt_service, 2),
+            "escalation_projection": baseline_projection,
+        },
+        "plan_phases": plan_phases,
+        "total_plans": len(plan_phases),
+    }
+
+
+@router.patch("/properties/{property_id}/rent-pricing-mode")
+def update_rent_pricing_mode(
+    property_id: int,
+    mode: str,
+    db: Session = Depends(get_db),
+    _: User = Depends(require_gp_or_ops),
+):
+    """Update the rent pricing mode for a property."""
+    from app.db.models import RentPricingMode
+    prop = db.query(Property).filter(Property.property_id == property_id).first()
+    if not prop:
+        raise HTTPException(404, "Property not found")
+    if mode not in [m.value for m in RentPricingMode]:
+        raise HTTPException(400, f"Invalid pricing mode: {mode}")
+    prop.rent_pricing_mode = mode
+    db.commit()
+    return {"property_id": property_id, "rent_pricing_mode": mode}
+
+
+@router.post("/properties/{property_id}/units/bulk-beds")
+def bulk_create_beds(
+    property_id: int,
+    unit_id: int,
+    beds: list[dict],
+    db: Session = Depends(get_db),
+    _: User = Depends(require_gp_ops_pm),
+):
+    """Bulk create beds for a unit (used when setting up bedroom/bed rents)."""
+    unit = db.query(Unit).filter(
+        Unit.unit_id == unit_id,
+        Unit.property_id == property_id,
+    ).first()
+    if not unit:
+        raise HTTPException(404, "Unit not found for this property")
+
+    created = []
+    for bed_data in beds:
+        bed = Bed(
+            unit_id=unit_id,
+            bed_label=bed_data.get("bed_label", f"Bed {len(created) + 1}"),
+            monthly_rent=bed_data.get("monthly_rent", 0),
+            rent_type=bed_data.get("rent_type", "private_pay"),
+            bedroom_number=bed_data.get("bedroom_number"),
+            is_post_renovation=bed_data.get("is_post_renovation", False),
+        )
+        db.add(bed)
+        created.append(bed)
+
+    db.commit()
+    for b in created:
+        db.refresh(b)
+
+    return [
+        {
+            "bed_id": b.bed_id,
+            "unit_id": b.unit_id,
+            "bed_label": b.bed_label,
+            "monthly_rent": float(b.monthly_rent),
+            "bedroom_number": b.bedroom_number,
+        }
+        for b in created
+    ]

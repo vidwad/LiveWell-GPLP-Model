@@ -4,7 +4,8 @@ from typing import Optional
 
 from pydantic import BaseModel
 from app.db.models import (
-    BedStatus, CommunityType, MaintenanceStatus, PaymentStatus, RentType, UnitType,
+    BedStatus, CommunityType, MaintenanceStatus, PaymentStatus, RentType,
+    RenovationPhase, UnitType,
 )
 
 
@@ -64,6 +65,10 @@ class UnitCreate(BaseModel):
     is_legal_suite: bool = False
     notes: Optional[str] = None
     community_id: Optional[int] = None  # optional operational grouping
+    monthly_rent: Optional[Decimal] = None  # for by_unit pricing
+    bedroom_count: Optional[int] = None  # for by_bedroom pricing
+    renovation_phase: RenovationPhase = RenovationPhase.pre_renovation
+    development_plan_id: Optional[int] = None  # NULL = baseline, set = plan-specific
 
 
 class UnitUpdate(BaseModel):
@@ -76,6 +81,10 @@ class UnitUpdate(BaseModel):
     is_occupied: Optional[bool] = None
     notes: Optional[str] = None
     community_id: Optional[int] = None
+    monthly_rent: Optional[Decimal] = None
+    bedroom_count: Optional[int] = None
+    renovation_phase: Optional[RenovationPhase] = None
+    development_plan_id: Optional[int] = None
 
 
 class UnitOut(BaseModel):
@@ -90,6 +99,10 @@ class UnitOut(BaseModel):
     is_legal_suite: bool
     is_occupied: bool
     notes: Optional[str] = None
+    monthly_rent: Optional[Decimal] = None
+    bedroom_count: Optional[int] = None
+    renovation_phase: RenovationPhase = RenovationPhase.pre_renovation
+    development_plan_id: Optional[int] = None
 
     model_config = {"from_attributes": True}
 
@@ -110,6 +123,8 @@ class BedCreate(BaseModel):
     bed_label: str
     monthly_rent: Decimal
     rent_type: RentType = RentType.private_pay
+    bedroom_number: Optional[int] = None
+    is_post_renovation: bool = False
 
 
 class BedOut(BaseModel):
@@ -119,6 +134,8 @@ class BedOut(BaseModel):
     monthly_rent: Decimal
     rent_type: RentType
     status: BedStatus
+    bedroom_number: Optional[int] = None
+    is_post_renovation: bool = False
 
     model_config = {"from_attributes": True}
 

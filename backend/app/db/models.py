@@ -70,6 +70,17 @@ class RentType(str, enum.Enum):
     transitional = "transitional"
 
 
+class RentPricingMode(str, enum.Enum):
+    by_unit = "by_unit"
+    by_bedroom = "by_bedroom"
+    by_bed = "by_bed"
+
+
+class RenovationPhase(str, enum.Enum):
+    pre_renovation = "pre_renovation"
+    post_renovation = "post_renovation"
+
+
 class BedStatus(str, enum.Enum):
     available = "available"
     occupied = "occupied"
@@ -515,6 +526,13 @@ class DebtFacility(Base):
     debt_type = Column(_enum(DebtType), nullable=False)
     status = Column(_enum(DebtStatus), default=DebtStatus.pending)
 
+    # Purpose: "acquisition" (original purchase), "construction", "refinancing" (post-dev)
+    debt_purpose = Column(String(50), default="acquisition")
+    # If this is a refinancing, link to the original debt it replaces
+    replaces_debt_id = Column(Integer, ForeignKey("debt_facilities.debt_id"), nullable=True)
+    # Link to development plan: NULL = baseline (acquisition debt), set = plan-specific debt
+    development_plan_id = Column(Integer, ForeignKey("development_plans.plan_id"), nullable=True)
+
     # Amounts
     commitment_amount = Column(Numeric(15, 2), nullable=False)  # Total facility size
     drawn_amount = Column(Numeric(15, 2), default=0)            # Amount drawn to date
@@ -541,6 +559,7 @@ class DebtFacility(Base):
 
     # Relationships
     property = relationship("Property", back_populates="debt_facilities")
+    development_plan = relationship("DevelopmentPlan", back_populates="planned_debt_rel")
 
 
 # ---------------------------------------------------------------------------
@@ -728,6 +747,15 @@ class Property(Base):
     development_stage = Column(
         _enum(DevelopmentStage), nullable=False, default=DevelopmentStage.prospect
     )
+    rent_pricing_mode = Column(
+        _enum(RentPricingMode), nullable=False, default=RentPricingMode.by_bed
+    )
+    # Projected annual rent increase percentage (e.g. 3.0 = 3% per year)
+    annual_rent_increase_pct = Column(Numeric(5, 2), nullable=True, default=0)
+    # Revenue & expense fields for cash flow
+    annual_revenue = Column(Numeric(14, 2), nullable=True)
+    annual_expenses = Column(Numeric(14, 2), nullable=True)
+    annual_other_income = Column(Numeric(14, 2), nullable=True)
 
     lp = relationship("LPEntity", back_populates="properties")
     cluster = relationship("PropertyCluster", back_populates="properties")
@@ -763,6 +791,7 @@ class DevelopmentPlan(Base):
     plan_id = Column(Integer, primary_key=True, index=True)
     property_id = Column(Integer, ForeignKey("properties.property_id"), nullable=False)
     version = Column(Integer, nullable=False, default=1)
+    plan_name = Column(String(256), nullable=True)  # human-readable label e.g. "8-Plex Conversion"
     status = Column(
         _enum(DevelopmentPlanStatus), nullable=False, default=DevelopmentPlanStatus.draft
     )
@@ -790,7 +819,13 @@ class DevelopmentPlan(Base):
     estimated_completion_date = Column(Date, nullable=True)
     estimated_stabilization_date = Column(Date, nullable=True)
 
+    # Rent roll configuration for this plan's projected state
+    rent_pricing_mode = Column(_enum(RentPricingMode), nullable=True)  # how rent is priced after this plan
+    annual_rent_increase_pct = Column(Numeric(5, 2), nullable=True, default=0)  # projected annual rent escalation
+
     property = relationship("Property", back_populates="development_plans")
+    planned_units_rel = relationship("Unit", back_populates="development_plan", cascade="all, delete-orphan")
+    planned_debt_rel = relationship("DebtFacility", back_populates="development_plan", cascade="all, delete-orphan")
 
 
 # ---------------------------------------------------------------------------
@@ -881,9 +916,18 @@ class Unit(Base):
     is_legal_suite = Column(Boolean, default=False, nullable=False)
     is_occupied = Column(Boolean, default=False, nullable=False)
     notes = Column(Text, nullable=True)
+    # Rent roll fields
+    monthly_rent = Column(Numeric(10, 2), nullable=True)  # used when pricing is by_unit
+    bedroom_count = Column(Integer, nullable=True)  # explicit bedroom count for by_bedroom mode
+    renovation_phase = Column(
+        _enum(RenovationPhase), nullable=False, default=RenovationPhase.pre_renovation
+    )
+    # Link to development plan: NULL = baseline (as-acquired), set = projected state after that plan
+    development_plan_id = Column(Integer, ForeignKey("development_plans.plan_id"), nullable=True)
 
     property = relationship("Property", back_populates="units")
     community = relationship("Community", back_populates="units")
+    development_plan = relationship("DevelopmentPlan", back_populates="planned_units_rel")
     beds = relationship("Bed", back_populates="unit", cascade="all, delete-orphan")
     residents = relationship(
         "Resident", back_populates="unit", cascade="all, delete-orphan"
@@ -900,6 +944,8 @@ class Bed(Base):
     monthly_rent = Column(Numeric(10, 2), nullable=False)
     rent_type = Column(_enum(RentType), nullable=False, default=RentType.private_pay)
     status = Column(_enum(BedStatus), nullable=False, default=BedStatus.available)
+    bedroom_number = Column(Integer, nullable=True)  # which bedroom this bed belongs to (for by_bedroom mode)
+    is_post_renovation = Column(Boolean, default=False, nullable=False)  # flag for post-reno beds
 
     unit = relationship("Unit", back_populates="beds")
     resident = relationship("Resident", back_populates="bed", uselist=False)

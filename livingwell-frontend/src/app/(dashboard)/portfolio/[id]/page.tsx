@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import React, { useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import {
@@ -51,6 +51,10 @@ import {
   useDeletePropertyUnit,
   useCreateDebtFacility,
   useUpdateDebtFacility,
+  useRentRoll,
+  useUpdateRentPricingMode,
+  useUpdateAnnualRentIncrease,
+  useUpdateBed,
 } from "@/hooks/usePortfolio";
 import {
   useStageTransitions,
@@ -78,6 +82,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Separator } from "@/components/ui/separator";
 import {
   Table,
   TableBody,
@@ -370,6 +375,16 @@ export default function PropertyDetailPage({ params }: { params: { id: string } 
   const [showAddUnit, setShowAddUnit] = useState(false);
   const [expandedUnit, setExpandedUnit] = useState<number | null>(null);
 
+  // Rent Roll — multi-phase response: { baseline, plan_phases[], comparison, escalation }
+  const { data: rentRollData } = useRentRoll(propertyId);
+  const updatePricingMode = useUpdateRentPricingMode(propertyId);
+  const updateAnnualRentIncrease = useUpdateAnnualRentIncrease(propertyId);
+  const updateBedMutation = useUpdateBed(propertyId);
+  const [editingBedId, setEditingBedId] = useState<number | null>(null);
+  const [editBedRent, setEditBedRent] = useState("");
+  const [expandedRentUnit, setExpandedRentUnit] = useState<number | null>(null);
+  const [rentIncreaseInput, setRentIncreaseInput] = useState("");
+
   // Lifecycle
   const { data: transitions } = useStageTransitions(propertyId);
   const { data: allowedTransitions } = useAllowedTransitions(propertyId);
@@ -392,6 +407,16 @@ export default function PropertyDetailPage({ params }: { params: { id: string } 
     (sum: number, d: { outstanding_balance: number }) => sum + (d.outstanding_balance ?? 0), 0
   );
   const activePlan = (plans ?? []).find((p: { status: string }) => p.status === "active") ?? (plans ?? [])[0];
+
+  // Backward-compatible rentRoll alias: prefer the last plan phase, fall back to baseline
+  const rentRoll = (() => {
+    const phases = rentRollData?.plan_phases;
+    if (phases && phases.length > 0) {
+      const last = phases[phases.length - 1];
+      return last.rent_roll ?? null;
+    }
+    return rentRollData?.baseline?.rent_roll ?? null;
+  })();
 
   /* ── Handlers ── */
   const handleCreateDebt = async (e: React.FormEvent) => {
@@ -689,6 +714,7 @@ export default function PropertyDetailPage({ params }: { params: { id: string } 
             <TabsTrigger value="overview"><Building2 className="h-4 w-4 sm:mr-1.5" /><span className="hidden sm:inline">Overview</span></TabsTrigger>
             <TabsTrigger value="lifecycle"><Activity className="h-4 w-4 sm:mr-1.5" /><span className="hidden sm:inline">Lifecycle</span></TabsTrigger>
             <TabsTrigger value="units"><Ruler className="h-4 w-4 sm:mr-1.5" /><span className="hidden sm:inline">Units & Beds</span></TabsTrigger>
+            <TabsTrigger value="rentroll"><DollarSign className="h-4 w-4 sm:mr-1.5" /><span className="hidden sm:inline">Rent Roll</span></TabsTrigger>
             <TabsTrigger value="plans"><Layers className="h-4 w-4 sm:mr-1.5" /><span className="hidden sm:inline">Dev Plans</span></TabsTrigger>
             <TabsTrigger value="debt"><Landmark className="h-4 w-4 sm:mr-1.5" /><span className="hidden sm:inline">Debt & Financing</span></TabsTrigger>
             <TabsTrigger value="projections"><BarChart3 className="h-4 w-4 sm:mr-1.5" /><span className="hidden sm:inline">Projections</span></TabsTrigger>
@@ -1378,6 +1404,510 @@ export default function PropertyDetailPage({ params }: { params: { id: string } 
               )}
             </CardContent>
           </Card>
+        </TabsContent>
+
+        {/* ── Rent Roll ── */}
+        <TabsContent value="rentroll" className="mt-6 space-y-6">
+
+          {/* ─── BASELINE (As-Acquired) ─── */}
+          <div>
+            <div className="flex items-center gap-2 mb-4">
+              <div className="h-8 w-1 bg-blue-600 rounded" />
+              <h3 className="text-lg font-semibold">Baseline (As-Acquired)</h3>
+              <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">
+                {rentRollData?.baseline?.pricing_mode?.replace("_", " ") || "by_bed"}
+              </span>
+            </div>
+
+            {/* Baseline KPI Cards */}
+            {(() => {
+              const b = rentRollData?.baseline?.rent_roll;
+              if (!b) return null;
+              return (
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+                  <Card><CardContent className="pt-4 pb-3">
+                    <p className="text-xs text-muted-foreground">Potential Monthly</p>
+                    <p className="text-xl font-bold text-green-700">${b.potential_monthly_rent?.toLocaleString()}</p>
+                    <p className="text-xs text-muted-foreground mt-1">${(b.potential_annual_rent || 0).toLocaleString()}/yr</p>
+                  </CardContent></Card>
+                  <Card><CardContent className="pt-4 pb-3">
+                    <p className="text-xs text-muted-foreground">Actual Monthly</p>
+                    <p className="text-xl font-bold">${b.actual_monthly_rent?.toLocaleString()}</p>
+                    <p className="text-xs text-muted-foreground mt-1">${(b.actual_annual_rent || 0).toLocaleString()}/yr</p>
+                  </CardContent></Card>
+                  <Card><CardContent className="pt-4 pb-3">
+                    <p className="text-xs text-muted-foreground">Vacancy Loss</p>
+                    <p className="text-xl font-bold text-red-600">${b.vacancy_loss_monthly?.toLocaleString()}</p>
+                    <p className="text-xs text-muted-foreground mt-1">{b.vacancy_rate}% vacancy</p>
+                  </CardContent></Card>
+                  <Card><CardContent className="pt-4 pb-3">
+                    <p className="text-xs text-muted-foreground">Occupancy</p>
+                    <p className="text-xl font-bold">{b.occupied_beds}/{b.total_beds} beds</p>
+                    <p className="text-xs text-muted-foreground mt-1">{b.total_units} units</p>
+                  </CardContent></Card>
+                </div>
+              );
+            })()}
+
+            {/* Baseline Pricing Mode Selector */}
+            <Card className="mb-4">
+              <CardContent className="pt-4 pb-4">
+                <div className="flex items-center gap-4 flex-wrap">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-medium">Pricing Mode:</span>
+                    <Select
+                      value={rentRollData?.baseline?.pricing_mode || "by_bed"}
+                      onValueChange={(v) => updatePricingMode.mutate(v)}
+                    >
+                      <SelectTrigger className="w-[160px] h-8 text-sm">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="by_unit">By Unit</SelectItem>
+                        <SelectItem value="by_bedroom">By Bedroom</SelectItem>
+                        <SelectItem value="by_bed">By Bed</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-medium">Annual Rent Increase:</span>
+                    <div className="flex items-center gap-1">
+                      <Input
+                        type="number"
+                        step="0.5"
+                        className="w-20 h-8 text-sm"
+                        value={rentIncreaseInput || (rentRollData?.baseline?.annual_rent_increase_pct ?? "")}
+                        onChange={(e) => setRentIncreaseInput(e.target.value)}
+                        placeholder="0"
+                      />
+                      <span className="text-sm">%</span>
+                      {rentIncreaseInput && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-8 text-xs"
+                          onClick={() => {
+                            updateAnnualRentIncrease.mutate(parseFloat(rentIncreaseInput));
+                            setRentIncreaseInput("");
+                          }}
+                        >
+                          Save
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Baseline Unit Table */}
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm">Baseline Units</CardTitle>
+              </CardHeader>
+              <CardContent>
+                {!rentRollData?.baseline?.rent_roll?.units?.length ? (
+                  <p className="text-sm text-muted-foreground py-4 text-center">No baseline units configured.</p>
+                ) : (
+                  <div className="border rounded-lg overflow-hidden">
+                    <table className="w-full text-sm">
+                      <thead className="bg-muted/50">
+                        <tr>
+                          <th className="text-left p-2 font-medium">Unit</th>
+                          <th className="text-left p-2 font-medium">Type</th>
+                          <th className="text-center p-2 font-medium">Beds</th>
+                          <th className="text-right p-2 font-medium">Potential/mo</th>
+                          <th className="text-right p-2 font-medium">Actual/mo</th>
+                          <th className="text-center p-2 font-medium">Vacancy</th>
+                          <th className="text-center p-2 font-medium">Status</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {(rentRollData.baseline.rent_roll.units || []).map((u: Record<string, unknown>) => (
+                          <React.Fragment key={u.unit_id as number}>
+                            <tr
+                              className="border-t hover:bg-muted/30 cursor-pointer"
+                              onClick={() => setExpandedRentUnit(expandedRentUnit === (u.unit_id as number) ? null : (u.unit_id as number))}
+                            >
+                              <td className="p-2 font-medium">{u.unit_number as string}</td>
+                              <td className="p-2 capitalize">{(u.unit_type as string)?.replace("_", " ")}</td>
+                              <td className="p-2 text-center">{u.bed_count as number}</td>
+                              <td className="p-2 text-right">${(u.unit_potential_monthly as number)?.toLocaleString()}</td>
+                              <td className="p-2 text-right">${(u.unit_actual_monthly as number)?.toLocaleString()}</td>
+                              <td className="p-2 text-center">
+                                {(u.unit_vacancy_count as number) > 0 ? (
+                                  <span className="text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded-full">{u.unit_vacancy_count as number} vacant</span>
+                                ) : (
+                                  <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full">Full</span>
+                                )}
+                              </td>
+                              <td className="p-2 text-center">
+                                {u.is_occupied ? (
+                                  <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full">Occupied</span>
+                                ) : (
+                                  <span className="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">Vacant</span>
+                                )}
+                              </td>
+                            </tr>
+                            {expandedRentUnit === (u.unit_id as number) && (
+                              <tr>
+                                <td colSpan={7} className="bg-muted/20 p-3">
+                                  <div className="space-y-2">
+                                    <p className="text-xs font-medium text-muted-foreground mb-2">
+                                      {rentRollData.baseline.pricing_mode === "by_bedroom" ? "Bedroom" : "Bed"} Detail — Unit {u.unit_number as string}
+                                    </p>
+                                    {rentRollData.baseline.pricing_mode === "by_bedroom" ? (
+                                      (u.bedrooms as Array<Record<string, unknown>>)?.map((br: Record<string, unknown>, idx: number) => (
+                                        <div key={idx} className="flex items-center justify-between bg-white rounded p-2 border">
+                                          <span className="text-sm">Bedroom {(br.bedroom_number as number) || idx + 1}</span>
+                                          <span className="text-sm font-medium">${(br.total_rent as number)?.toLocaleString()}/mo</span>
+                                          <span className="text-xs text-muted-foreground">{(br.beds as Array<unknown>)?.length || 0} bed(s)</span>
+                                        </div>
+                                      ))
+                                    ) : (
+                                      (u.beds as Array<Record<string, unknown>>)?.map((bed: Record<string, unknown>) => (
+                                        <div key={bed.bed_id as number} className="flex items-center justify-between bg-white rounded p-2 border">
+                                          <span className="text-sm font-medium">{bed.bed_label as string}</span>
+                                          <div className="flex items-center gap-2">
+                                            {editingBedId === (bed.bed_id as number) ? (
+                                              <div className="flex items-center gap-1">
+                                                <Input
+                                                  type="number"
+                                                  className="w-24 h-7 text-sm"
+                                                  value={editBedRent}
+                                                  onChange={(e) => setEditBedRent(e.target.value)}
+                                                />
+                                                <Button
+                                                  size="sm"
+                                                  className="h-7 text-xs"
+                                                  onClick={() => {
+                                                    updateBedMutation.mutate({ bedId: bed.bed_id as number, data: { monthly_rent: parseFloat(editBedRent) } });
+                                                    setEditingBedId(null);
+                                                  }}
+                                                >
+                                                  Save
+                                                </Button>
+                                                <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => setEditingBedId(null)}>Cancel</Button>
+                                              </div>
+                                            ) : (
+                                              <>
+                                                <span className="text-sm">${(bed.monthly_rent as number)?.toLocaleString()}/mo</span>
+                                                {canEdit && (
+                                                  <Button
+                                                    size="sm"
+                                                    variant="ghost"
+                                                    className="h-6 w-6 p-0"
+                                                    onClick={(e) => {
+                                                      e.stopPropagation();
+                                                      setEditingBedId(bed.bed_id as number);
+                                                      setEditBedRent(String(bed.monthly_rent));
+                                                    }}
+                                                  >
+                                                    <Edit2 className="h-3 w-3" />
+                                                  </Button>
+                                                )}
+                                              </>
+                                            )}
+                                          </div>
+                                          <span className={`text-xs px-2 py-0.5 rounded-full ${
+                                            bed.status === "occupied" ? "bg-green-100 text-green-700" :
+                                            bed.status === "available" ? "bg-amber-100 text-amber-700" :
+                                            "bg-gray-100 text-gray-700"
+                                          }`}>
+                                            {bed.status as string}
+                                          </span>
+                                        </div>
+                                      ))
+                                    )}
+                                  </div>
+                                </td>
+                              </tr>
+                            )}
+                          </React.Fragment>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* ─── DEVELOPMENT PLAN PHASES ─── */}
+          {(rentRollData?.plan_phases || []).map((plan: Record<string, unknown>, planIdx: number) => {
+            const pr = plan.rent_roll as Record<string, unknown> | null;
+            const comp = plan.comparison_vs_previous as Record<string, unknown> | null;
+            const esc = plan.escalation_projection as Array<Record<string, unknown>> | null;
+            return (
+              <div key={plan.plan_id as number} className="mt-8">
+                <div className="flex items-center gap-2 mb-4">
+                  <div className="h-8 w-1 bg-emerald-600 rounded" />
+                  <h3 className="text-lg font-semibold">{plan.plan_label as string}</h3>
+                  <span className="text-xs bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full">
+                    {(plan.plan_status as string)?.replace("_", " ")}
+                  </span>
+                  <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">
+                    {(plan.pricing_mode as string)?.replace("_", " ") || "by_bed"}
+                  </span>
+                  {(plan.annual_rent_increase_pct as number) > 0 && (
+                    <span className="text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full">
+                      +{plan.annual_rent_increase_pct as number}%/yr escalation
+                    </span>
+                  )}
+                </div>
+
+                {/* Timeline Info */}
+                <Card className="mb-4 border-emerald-200">
+                  <CardContent className="pt-4 pb-4">
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                      <div>
+                        <p className="text-xs text-muted-foreground">Construction Start</p>
+                        <p className="font-medium">{plan.development_start_date ? new Date(plan.development_start_date as string).toLocaleDateString() : "TBD"}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-muted-foreground">Est. Completion</p>
+                        <p className="font-medium">{plan.estimated_completion_date ? new Date(plan.estimated_completion_date as string).toLocaleDateString() : "TBD"}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-muted-foreground">Est. Stabilization</p>
+                        <p className="font-medium">{plan.estimated_stabilization_date ? new Date(plan.estimated_stabilization_date as string).toLocaleDateString() : "TBD"}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-muted-foreground">Plan Debt</p>
+                        <p className="font-medium">{plan.debt_count as number} facilit{(plan.debt_count as number) === 1 ? "y" : "ies"} — ${((plan.annual_debt_service as number) || 0).toLocaleString()}/yr</p>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* Plan KPI Cards */}
+                {pr && (
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+                    <Card><CardContent className="pt-4 pb-3">
+                      <p className="text-xs text-muted-foreground">Projected Monthly</p>
+                      <p className="text-xl font-bold text-emerald-700">${(pr.potential_monthly_rent as number)?.toLocaleString()}</p>
+                      <p className="text-xs text-muted-foreground mt-1">${((pr.potential_annual_rent as number) || 0).toLocaleString()}/yr</p>
+                    </CardContent></Card>
+                    <Card><CardContent className="pt-4 pb-3">
+                      <p className="text-xs text-muted-foreground">Units</p>
+                      <p className="text-xl font-bold">{pr.total_units as number}</p>
+                      <p className="text-xs text-muted-foreground mt-1">{pr.total_beds as number} beds</p>
+                    </CardContent></Card>
+                    <Card><CardContent className="pt-4 pb-3">
+                      <p className="text-xs text-muted-foreground">Avg Rent/Bed</p>
+                      <p className="text-xl font-bold">${(pr.total_beds as number) > 0 ? Math.round((pr.potential_monthly_rent as number) / (pr.total_beds as number)).toLocaleString() : 0}</p>
+                      <p className="text-xs text-muted-foreground mt-1">per month</p>
+                    </CardContent></Card>
+                    <Card><CardContent className="pt-4 pb-3">
+                      <p className="text-xs text-muted-foreground">Debt Service</p>
+                      <p className="text-xl font-bold text-red-600">${((plan.annual_debt_service as number) || 0).toLocaleString()}</p>
+                      <p className="text-xs text-muted-foreground mt-1">annual</p>
+                    </CardContent></Card>
+                  </div>
+                )}
+
+                {/* Comparison vs Previous Phase */}
+                {comp && (
+                  <Card className="mb-4 border-amber-200 bg-amber-50/50">
+                    <CardContent className="pt-4 pb-4">
+                      <p className="text-sm font-semibold mb-3">Revenue Comparison vs Baseline</p>
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                        <div>
+                          <p className="text-xs text-muted-foreground">Previous Monthly</p>
+                          <p className="font-medium">${(comp.prev_monthly as number)?.toLocaleString()}</p>
+                          <p className="text-xs text-muted-foreground">{comp.prev_units as number} units / {comp.prev_beds as number} beds</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-muted-foreground">Projected Monthly</p>
+                          <p className="font-medium text-emerald-700">${(comp.plan_monthly as number)?.toLocaleString()}</p>
+                          <p className="text-xs text-muted-foreground">{comp.plan_units as number} units / {comp.plan_beds as number} beds</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-muted-foreground">Monthly Uplift</p>
+                          <p className="font-bold text-emerald-700">+${(comp.delta_monthly as number)?.toLocaleString()}/mo</p>
+                          <p className="text-xs text-emerald-600">+{comp.pct_change as number}%</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-muted-foreground">Annual Uplift</p>
+                          <p className="font-bold text-emerald-700">+${(comp.delta_annual as number)?.toLocaleString()}/yr</p>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
+
+                {/* Plan Unit Table */}
+                {pr && (pr.units as Array<Record<string, unknown>>)?.length > 0 && (
+                  <Card className="mb-4">
+                    <CardHeader className="pb-2">
+                      <CardTitle className="text-sm">Projected Units — {plan.plan_label as string}</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="border rounded-lg overflow-hidden">
+                        <table className="w-full text-sm">
+                          <thead className="bg-muted/50">
+                            <tr>
+                              <th className="text-left p-2 font-medium">Unit</th>
+                              <th className="text-left p-2 font-medium">Type</th>
+                              <th className="text-center p-2 font-medium">Beds</th>
+                              <th className="text-center p-2 font-medium">Bedrooms</th>
+                              <th className="text-right p-2 font-medium">Projected/mo</th>
+                              <th className="text-right p-2 font-medium">Sqft</th>
+                              <th className="text-left p-2 font-medium">Floor</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {(pr.units as Array<Record<string, unknown>>).map((u: Record<string, unknown>) => (
+                              <React.Fragment key={u.unit_id as number}>
+                                <tr
+                                  className="border-t hover:bg-muted/30 cursor-pointer"
+                                  onClick={() => setExpandedRentUnit(expandedRentUnit === (u.unit_id as number) ? null : (u.unit_id as number))}
+                                >
+                                  <td className="p-2 font-medium">{u.unit_number as string}</td>
+                                  <td className="p-2 capitalize">{(u.unit_type as string)?.replace("_", " ")}</td>
+                                  <td className="p-2 text-center">{u.bed_count as number}</td>
+                                  <td className="p-2 text-center">{(u.bedroom_count as number) || "-"}</td>
+                                  <td className="p-2 text-right font-medium">${(u.unit_potential_monthly as number)?.toLocaleString()}</td>
+                                  <td className="p-2 text-right">{(u.sqft as number)?.toLocaleString()}</td>
+                                  <td className="p-2">{u.floor as string}</td>
+                                </tr>
+                                {expandedRentUnit === (u.unit_id as number) && (
+                                  <tr>
+                                    <td colSpan={7} className="bg-muted/20 p-3">
+                                      <div className="space-y-2">
+                                        <p className="text-xs font-medium text-muted-foreground mb-2">
+                                          {(plan.pricing_mode as string) === "by_bedroom" ? "Bedroom" : "Bed"} Detail — Unit {u.unit_number as string}
+                                        </p>
+                                        {(plan.pricing_mode as string) === "by_bedroom" ? (
+                                          (u.bedrooms as Array<Record<string, unknown>>)?.map((br: Record<string, unknown>, idx: number) => (
+                                            <div key={idx} className="flex items-center justify-between bg-white rounded p-2 border">
+                                              <span className="text-sm">Bedroom {(br.bedroom_number as number) || idx + 1}</span>
+                                              <span className="text-sm font-medium">${(br.total_rent as number)?.toLocaleString()}/mo</span>
+                                              <span className="text-xs text-muted-foreground">{(br.beds as Array<unknown>)?.length || 0} bed(s)</span>
+                                            </div>
+                                          ))
+                                        ) : (
+                                          (u.beds as Array<Record<string, unknown>>)?.map((bed: Record<string, unknown>) => (
+                                            <div key={bed.bed_id as number} className="flex items-center justify-between bg-white rounded p-2 border">
+                                              <span className="text-sm font-medium">{bed.bed_label as string}</span>
+                                              <span className="text-sm">${(bed.monthly_rent as number)?.toLocaleString()}/mo</span>
+                                              <span className="text-xs text-muted-foreground capitalize">{(bed.rent_type as string)?.replace("_", " ")}</span>
+                                            </div>
+                                          ))
+                                        )}
+                                      </div>
+                                    </td>
+                                  </tr>
+                                )}
+                              </React.Fragment>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
+
+                {/* Rent Escalation Projection */}
+                {esc && esc.length > 0 && (
+                  <Card className="mb-4">
+                    <CardHeader className="pb-2">
+                      <CardTitle className="text-sm">Rent Escalation Projection ({plan.annual_rent_increase_pct as number}%/yr)</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="border rounded-lg overflow-hidden">
+                        <table className="w-full text-sm">
+                          <thead className="bg-muted/50">
+                            <tr>
+                              <th className="text-left p-2 font-medium">Year</th>
+                              <th className="text-right p-2 font-medium">Monthly Rent</th>
+                              <th className="text-right p-2 font-medium">Annual Gross</th>
+                              <th className="text-right p-2 font-medium">Cumulative Growth</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {esc.map((yr: Record<string, unknown>) => (
+                              <tr key={yr.year as number} className="border-t">
+                                <td className="p-2">{(yr.year as number) === 0 ? "Stabilization" : `Year ${yr.year as number}`}</td>
+                                <td className="p-2 text-right">${(yr.monthly as number)?.toLocaleString(undefined, { maximumFractionDigits: 0 })}</td>
+                                <td className="p-2 text-right">${(yr.gross_annual as number)?.toLocaleString(undefined, { maximumFractionDigits: 0 })}</td>
+                                <td className="p-2 text-right text-emerald-600">
+                                  {(yr.year as number) === 0 ? "—" : `+${(((yr.gross_annual as number) / (esc[0].gross_annual as number) - 1) * 100).toFixed(1)}%`}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
+
+                {/* Cash Flow Summary for this Plan */}
+                {pr && (
+                  <Card className="border-emerald-200">
+                    <CardHeader className="pb-2">
+                      <CardTitle className="text-sm">Projected Cash Flow — {plan.plan_label as string}</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-2 text-sm">
+                        <div className="flex justify-between">
+                          <span>Gross Potential Rent</span>
+                          <span className="font-medium">${((pr.potential_annual_rent as number) || 0).toLocaleString()}/yr</span>
+                        </div>
+                        <div className="flex justify-between text-red-600">
+                          <span>Less: Vacancy ({(pr.vacancy_rate as number) || 0}%)</span>
+                          <span>-${((pr.vacancy_loss_annual as number) || 0).toLocaleString()}/yr</span>
+                        </div>
+                        <Separator />
+                        <div className="flex justify-between font-semibold">
+                          <span>Effective Gross Income</span>
+                          <span>${((pr.actual_annual_rent as number) || 0).toLocaleString()}/yr</span>
+                        </div>
+                        {Number(property?.annual_expenses) > 0 && (
+                          <>
+                            <div className="flex justify-between text-red-600">
+                              <span>Less: Operating Expenses</span>
+                              <span>-${Number(property.annual_expenses).toLocaleString()}/yr</span>
+                            </div>
+                            <div className="flex justify-between font-semibold">
+                              <span>Net Operating Income (NOI)</span>
+                              <span>${((pr.actual_annual_rent as number) - Number(property.annual_expenses)).toLocaleString()}/yr</span>
+                            </div>
+                          </>
+                        )}
+                        {(plan.annual_debt_service as number) > 0 && (
+                          <>
+                            <div className="flex justify-between text-red-600">
+                              <span>Less: Debt Service ({plan.debt_count as number} facilit{(plan.debt_count as number) === 1 ? "y" : "ies"})</span>
+                              <span>-${(plan.annual_debt_service as number).toLocaleString()}/yr</span>
+                            </div>
+                            <Separator />
+                            <div className="flex justify-between font-bold text-lg">
+                              <span>Cash Flow After Debt Service</span>
+                              <span className={((pr.actual_annual_rent as number) - Number(property?.annual_expenses || 0) - (plan.annual_debt_service as number)) >= 0 ? "text-emerald-700" : "text-red-700"}>
+                                ${((pr.actual_annual_rent as number) - Number(property?.annual_expenses || 0) - (plan.annual_debt_service as number)).toLocaleString()}/yr
+                              </span>
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
+              </div>
+            );
+          })}
+
+          {/* No Plans Message */}
+          {(!rentRollData?.plan_phases || rentRollData.plan_phases.length === 0) && rentRollData?.baseline && (
+            <Card className="border-dashed">
+              <CardContent className="pt-6 pb-6 text-center">
+                <p className="text-sm text-muted-foreground">No development plans configured yet. Create a development plan in the Dev Plans tab to see projected rent rolls.</p>
+              </CardContent>
+            </Card>
+          )}
+
         </TabsContent>
 
         {/* ── Development Plans ── */}
@@ -2118,11 +2648,25 @@ export default function PropertyDetailPage({ params }: { params: { id: string } 
                   <div className="grid grid-cols-2 gap-3">
                     <div className="space-y-1">
                       <Label className="text-xs">Planned Units</Label>
-                      <Input type="number" value={projForm.planned_units} onChange={(e) => setProjForm((f) => ({ ...f, planned_units: e.target.value }))} placeholder="10" required />
+                      <div className="flex gap-1.5">
+                        <Input type="number" value={projForm.planned_units} onChange={(e) => setProjForm((f) => ({ ...f, planned_units: e.target.value }))} placeholder={rentRoll?.total_units ? `Current: ${rentRoll.total_units}` : "10"} required />
+                        {rentRoll?.total_units && !projForm.planned_units && (
+                          <Button type="button" variant="outline" size="sm" className="h-9 text-[10px] px-2 shrink-0" onClick={() => setProjForm(f => ({ ...f, planned_units: String(rentRoll.total_units) }))}>
+                            Auto
+                          </Button>
+                        )}
+                      </div>
                     </div>
                     <div className="space-y-1">
                       <Label className="text-xs">Rent / Unit ($)</Label>
-                      <Input type="number" value={projForm.monthly_rent_per_unit} onChange={(e) => setProjForm((f) => ({ ...f, monthly_rent_per_unit: e.target.value }))} placeholder="2200" required />
+                      <div className="flex gap-1.5">
+                        <Input type="number" value={projForm.monthly_rent_per_unit} onChange={(e) => setProjForm((f) => ({ ...f, monthly_rent_per_unit: e.target.value }))} placeholder={rentRoll?.total_units ? `Avg: ${Math.round(rentRoll.potential_monthly_rent / rentRoll.total_units)}` : "2200"} required />
+                        {rentRoll?.total_units && !projForm.monthly_rent_per_unit && (
+                          <Button type="button" variant="outline" size="sm" className="h-9 text-[10px] px-2 shrink-0" onClick={() => setProjForm(f => ({ ...f, monthly_rent_per_unit: String(Math.round(rentRoll.potential_monthly_rent / rentRoll.total_units)) }))}>
+                            Auto
+                          </Button>
+                        )}
+                      </div>
                     </div>
                   </div>
                   <div className="grid grid-cols-2 gap-3">
@@ -2132,7 +2676,14 @@ export default function PropertyDetailPage({ params }: { params: { id: string } 
                     </div>
                     <div className="space-y-1">
                       <Label className="text-xs">Vacancy Rate (%)</Label>
-                      <Input type="number" step="0.1" value={projForm.vacancy_rate_stabilized} onChange={(e) => setProjForm((f) => ({ ...f, vacancy_rate_stabilized: e.target.value }))} />
+                      <div className="flex gap-1.5">
+                        <Input type="number" step="0.1" value={projForm.vacancy_rate_stabilized} onChange={(e) => setProjForm((f) => ({ ...f, vacancy_rate_stabilized: e.target.value }))} placeholder={rentRoll?.vacancy_rate !== undefined ? `Current: ${rentRoll.vacancy_rate}` : "5"} />
+                        {rentRoll?.vacancy_rate !== undefined && !projForm.vacancy_rate_stabilized && (
+                          <Button type="button" variant="outline" size="sm" className="h-9 text-[10px] px-2 shrink-0" onClick={() => setProjForm(f => ({ ...f, vacancy_rate_stabilized: String(rentRoll.vacancy_rate) }))}>
+                            Auto
+                          </Button>
+                        )}
+                      </div>
                     </div>
                   </div>
                   <div className="space-y-1">

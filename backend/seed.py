@@ -760,9 +760,11 @@ def seed():
         # =================================================================
         # 11. DEVELOPMENT PLANS
         # =================================================================
+        # (plans are created first so we can reference plan_id for plan-linked debt below)
         plan1 = m.DevelopmentPlan(
             property_id=prop1.property_id,
             version=1,
+            plan_name="8-Plex Conversion",
             status=m.DevelopmentPlanStatus.active,
             planned_units=8,
             planned_beds=16,
@@ -780,10 +782,13 @@ def seed():
             construction_duration_days=270,
             estimated_completion_date=date(2025, 6, 28),
             estimated_stabilization_date=date(2025, 9, 28),
+            rent_pricing_mode=m.RentPricingMode.by_bed,
+            annual_rent_increase_pct=Decimal("3.00"),
         )
         plan2 = m.DevelopmentPlan(
             property_id=prop2.property_id,
             version=1,
+            plan_name="6-Unit Student Housing",
             status=m.DevelopmentPlanStatus.approved,
             planned_units=6,
             planned_beds=12,
@@ -805,6 +810,7 @@ def seed():
         plan3 = m.DevelopmentPlan(
             property_id=prop3.property_id,
             version=1,
+            plan_name="10-Bed Recovery Home",
             status=m.DevelopmentPlanStatus.active,
             planned_units=10,
             planned_beds=20,
@@ -825,6 +831,54 @@ def seed():
         )
         db.add_all([plan1, plan2, plan3])
         db.flush()
+
+        # Plan-linked debt: construction loan for plan1 (prop1 redevelopment)
+        debt_plan1_construction = m.DebtFacility(
+            property_id=prop1.property_id,
+            lender_name="ATB Financial",
+            debt_type=m.DebtType.construction_loan,
+            status=m.DebtStatus.active,
+            commitment_amount=Decimal("1830000.00"),
+            drawn_amount=Decimal("900000.00"),
+            outstanding_balance=Decimal("900000.00"),
+            interest_rate=Decimal("6.5000"),
+            rate_type="variable",
+            term_months=18,
+            amortization_months=0,
+            io_period_months=18,
+            origination_date=date(2024, 10, 1),
+            maturity_date=date(2026, 4, 1),
+            ltv_covenant=Decimal("80.00"),
+            dscr_covenant=None,
+            debt_purpose="construction",
+            development_plan_id=plan1.plan_id,
+            notes="Construction financing for 8-plex redevelopment",
+        )
+        debt_plan1_perm = m.DebtFacility(
+            property_id=prop1.property_id,
+            lender_name="CMHC MLI Select",
+            debt_type=m.DebtType.permanent_mortgage,
+            status=m.DebtStatus.pending,
+            commitment_amount=Decimal("2800000.00"),
+            drawn_amount=Decimal("0.00"),
+            outstanding_balance=Decimal("0.00"),
+            interest_rate=Decimal("4.7500"),
+            rate_type="fixed",
+            term_months=120,
+            amortization_months=300,
+            io_period_months=0,
+            origination_date=None,
+            maturity_date=None,
+            ltv_covenant=Decimal("75.00"),
+            dscr_covenant=Decimal("1.20"),
+            debt_purpose="refinancing",
+            replaces_debt_id=debt1.debt_id,
+            development_plan_id=plan1.plan_id,
+            notes="Permanent take-out financing post-stabilization, replaces acquisition mortgage",
+        )
+        db.add_all([debt_plan1_construction, debt_plan1_perm])
+        db.flush()
+        print("  [ok] Plan-linked debt facilities")
 
         # =================================================================
         # 12. COMMUNITIES
@@ -921,6 +975,48 @@ def seed():
                 )
                 db.add(bed)
             db.flush()
+
+        # ── Post-Development Units for prop1 ──
+        # After redevelopment: 8-plex with 3 bedrooms each (24 beds total)
+        post_reno_units_prop1 = [
+            ("A1", m.UnitType.three_bed, 3, 750, "Main", False),
+            ("A2", m.UnitType.three_bed, 3, 750, "Main", False),
+            ("A3", m.UnitType.three_bed, 3, 700, "Main", False),
+            ("A4", m.UnitType.three_bed, 3, 700, "Main", False),
+            ("B1", m.UnitType.three_bed, 3, 750, "Upper", False),
+            ("B2", m.UnitType.three_bed, 3, 750, "Upper", False),
+            ("B3", m.UnitType.three_bed, 3, 700, "Upper", False),
+            ("B4", m.UnitType.three_bed, 3, 700, "Upper", False),
+        ]
+        for unit_num, utype, beds, sqft, floor, is_suite in post_reno_units_prop1:
+            u = m.Unit(
+                property_id=prop1.property_id,
+                community_id=comm1.community_id,
+                unit_number=unit_num,
+                unit_type=utype,
+                bed_count=beds,
+                sqft=Decimal(str(sqft)),
+                floor=floor,
+                is_legal_suite=is_suite,
+                is_occupied=False,
+                renovation_phase=m.RenovationPhase.post_renovation,
+                bedroom_count=3,
+                development_plan_id=plan1.plan_id,
+            )
+            db.add(u)
+            db.flush()
+            for b in range(1, beds + 1):
+                bed = m.Bed(
+                    unit_id=u.unit_id,
+                    bed_label=f"{unit_num}-B{b}",
+                    monthly_rent=Decimal("1400.00"),
+                    rent_type=m.RentType.private_pay,
+                    status=m.BedStatus.available,
+                    bedroom_number=b,
+                    is_post_renovation=True,
+                )
+                db.add(bed)
+        db.flush()
 
         # prop2 = 456 Healing Ave (lease_up, 6 units)
         units_data_prop2 = [
