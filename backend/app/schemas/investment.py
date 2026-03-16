@@ -86,6 +86,12 @@ class LPEntityBase(BaseModel):
     # Fee structure
     asset_management_fee_percent: Optional[Decimal] = None
     acquisition_fee_percent: Optional[Decimal] = None
+    selling_commission_percent: Optional[Decimal] = None
+    construction_management_fee_percent: Optional[Decimal] = None
+    refinancing_fee_percent: Optional[Decimal] = None
+    turnover_replacement_fee_percent: Optional[Decimal] = None
+    lp_profit_share_percent: Optional[Decimal] = None
+    gp_profit_share_percent: Optional[Decimal] = None
 
     total_units_authorized: Optional[Decimal] = None
     notes: Optional[str] = None
@@ -125,6 +131,12 @@ class LPEntityUpdate(BaseModel):
     management_fee_percent: Optional[Decimal] = None
     asset_management_fee_percent: Optional[Decimal] = None
     acquisition_fee_percent: Optional[Decimal] = None
+    selling_commission_percent: Optional[Decimal] = None
+    construction_management_fee_percent: Optional[Decimal] = None
+    refinancing_fee_percent: Optional[Decimal] = None
+    turnover_replacement_fee_percent: Optional[Decimal] = None
+    lp_profit_share_percent: Optional[Decimal] = None
+    gp_profit_share_percent: Optional[Decimal] = None
     total_units_authorized: Optional[Decimal] = None
     notes: Optional[str] = None
 
@@ -594,6 +606,55 @@ class InvestorOut(InvestorBase):
     investor_id: int
     user_id: Optional[int] = None
     created_at: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
+
+
+# ---------------------------------------------------------------------------
+# LP Fee Schedule Items
+# ---------------------------------------------------------------------------
+
+class LPFeeItemBase(BaseModel):
+    fee_name: str
+    fee_slug: str
+    fee_type: str                                      # "percentage" or "fixed"
+    rate: Optional[Decimal] = None
+    fixed_amount: Optional[Decimal] = None
+    basis_type: Optional[str] = None
+    basis_description: Optional[str] = None
+    timing_trigger: Optional[str] = None
+    calculation_description: Optional[str] = None
+    calculated_amount: Optional[Decimal] = None
+    is_active: bool = True
+    default_rate: Optional[Decimal] = None
+    default_fixed_amount: Optional[Decimal] = None
+    notes: Optional[str] = None
+
+
+class LPFeeItemCreate(LPFeeItemBase):
+    lp_id: int
+
+
+class LPFeeItemUpdate(BaseModel):
+    fee_name: Optional[str] = None
+    fee_type: Optional[str] = None
+    rate: Optional[Decimal] = None
+    fixed_amount: Optional[Decimal] = None
+    basis_type: Optional[str] = None
+    basis_description: Optional[str] = None
+    timing_trigger: Optional[str] = None
+    calculation_description: Optional[str] = None
+    calculated_amount: Optional[Decimal] = None
+    is_active: Optional[bool] = None
+    notes: Optional[str] = None
+
+
+class LPFeeItemOut(LPFeeItemBase):
+    fee_item_id: int
+    lp_id: int
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
 
     class Config:
         from_attributes = True

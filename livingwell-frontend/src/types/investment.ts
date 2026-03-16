@@ -56,6 +56,12 @@ export interface LPEntity {
   gp_catchup_percent: string | null;
   asset_management_fee_percent: string | null;
   acquisition_fee_percent: string | null;
+  selling_commission_percent: string | null;
+  construction_management_fee_percent: string | null;
+  refinancing_fee_percent: string | null;
+  turnover_replacement_fee_percent: string | null;
+  lp_profit_share_percent: string | null;
+  gp_profit_share_percent: string | null;
   notes: string | null;
   created_at: string | null;
   updated_at: string | null;
@@ -108,6 +114,12 @@ export interface LPCreate {
   gp_catchup_percent?: number;
   asset_management_fee_percent?: number;
   acquisition_fee_percent?: number;
+  selling_commission_percent?: number;
+  construction_management_fee_percent?: number;
+  refinancing_fee_percent?: number;
+  turnover_replacement_fee_percent?: number;
+  lp_profit_share_percent?: number;
+  gp_profit_share_percent?: number;
   notes?: string;
 }
 

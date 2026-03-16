@@ -33,6 +33,7 @@ import {
   X,
   Banknote,
   Shield,
+  Users,
 } from "lucide-react";
 import {
   useProperty,
@@ -341,6 +342,14 @@ export default function PropertyDetailPage({ params }: { params: { id: string } 
     lease_up_months: "6", annual_debt_service: "", exit_cap_rate: "5.5",
     disposition_cost_pct: "2", total_equity_invested: "", debt_balance_at_exit: "",
     carrying_cost_annual: "",
+    // LP Fee parameters
+    management_fee_rate: "2.5", construction_mgmt_fee_rate: "1.5",
+    construction_budget: "", selling_commission_rate: "10",
+    offering_cost: "250000", acquisition_fee_rate: "2",
+    acquisition_cost: "", gross_raise: "",
+    refinancing_fee_rate: "2.5", refinance_amount: "",
+    turnover_fee_rate: "2", property_fmv_at_turnover: "",
+    lp_profit_share: "70", gp_profit_share: "30",
   });
 
   // Refinance Scenarios
@@ -624,6 +633,21 @@ export default function PropertyDetailPage({ params }: { params: { id: string } 
         disposition_cost_pct: Number(projForm.disposition_cost_pct) / 100,
         projection_years: 10,
       };
+      // LP Fee parameters (rates as decimals)
+      input.management_fee_rate = Number(projForm.management_fee_rate) / 100;
+      input.construction_mgmt_fee_rate = Number(projForm.construction_mgmt_fee_rate) / 100;
+      input.selling_commission_rate = Number(projForm.selling_commission_rate) / 100;
+      input.acquisition_fee_rate = Number(projForm.acquisition_fee_rate) / 100;
+      input.refinancing_fee_rate = Number(projForm.refinancing_fee_rate) / 100;
+      input.turnover_fee_rate = Number(projForm.turnover_fee_rate) / 100;
+      input.lp_profit_share = Number(projForm.lp_profit_share) / 100;
+      input.gp_profit_share = Number(projForm.gp_profit_share) / 100;
+      if (projForm.offering_cost) input.offering_cost = Number(projForm.offering_cost);
+      if (projForm.construction_budget) input.construction_budget = Number(projForm.construction_budget);
+      if (projForm.acquisition_cost) input.acquisition_cost = Number(projForm.acquisition_cost);
+      if (projForm.gross_raise) input.gross_raise = Number(projForm.gross_raise);
+      if (projForm.refinance_amount) input.refinance_amount = Number(projForm.refinance_amount);
+      if (projForm.property_fmv_at_turnover) input.property_fmv_at_turnover = Number(projForm.property_fmv_at_turnover);
       // Optional fields — only send if provided
       if (projForm.planned_units) input.planned_units = Number(projForm.planned_units);
       if (projForm.monthly_rent_per_unit) input.monthly_rent_per_unit = Number(projForm.monthly_rent_per_unit);
@@ -3120,6 +3144,86 @@ export default function PropertyDetailPage({ params }: { params: { id: string } 
                     </div>
                   </div>
 
+                  {/* ── LP Fees & Costs ── */}
+                  <div className="rounded-lg border border-amber-200 bg-amber-50/50 p-3 space-y-3">
+                    <p className="text-xs font-semibold text-amber-700">LP Fees & Costs</p>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-1">
+                        <Label className="text-xs">Management Fee (% of Gross Rev)</Label>
+                        <Input type="number" step="0.1" value={projForm.management_fee_rate} onChange={(e) => setProjForm((f) => ({ ...f, management_fee_rate: e.target.value }))} />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs">Construction Mgmt Fee (%)</Label>
+                        <Input type="number" step="0.1" value={projForm.construction_mgmt_fee_rate} onChange={(e) => setProjForm((f) => ({ ...f, construction_mgmt_fee_rate: e.target.value }))} />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-1">
+                        <Label className="text-xs">Selling Commission (%)</Label>
+                        <Input type="number" step="0.1" value={projForm.selling_commission_rate} onChange={(e) => setProjForm((f) => ({ ...f, selling_commission_rate: e.target.value }))} />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs">Offering Cost ($)</Label>
+                        <Input type="number" value={projForm.offering_cost} onChange={(e) => setProjForm((f) => ({ ...f, offering_cost: e.target.value }))} />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-1">
+                        <Label className="text-xs">Acquisition Fee (%)</Label>
+                        <Input type="number" step="0.1" value={projForm.acquisition_fee_rate} onChange={(e) => setProjForm((f) => ({ ...f, acquisition_fee_rate: e.target.value }))} />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs">Acquisition Cost ($)</Label>
+                        <Input type="number" value={projForm.acquisition_cost} onChange={(e) => setProjForm((f) => ({ ...f, acquisition_cost: e.target.value }))} placeholder="Purchase price" />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-1">
+                        <Label className="text-xs">Gross Capital Raise ($)</Label>
+                        <Input type="number" value={projForm.gross_raise} onChange={(e) => setProjForm((f) => ({ ...f, gross_raise: e.target.value }))} placeholder="Total capital raised" />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs">Construction Budget ($)</Label>
+                        <Input type="number" value={projForm.construction_budget} onChange={(e) => setProjForm((f) => ({ ...f, construction_budget: e.target.value }))} placeholder="Auto from plan" />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-1">
+                        <Label className="text-xs">Refinancing Fee (%)</Label>
+                        <Input type="number" step="0.1" value={projForm.refinancing_fee_rate} onChange={(e) => setProjForm((f) => ({ ...f, refinancing_fee_rate: e.target.value }))} />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs">Refinance Amount ($)</Label>
+                        <Input type="number" value={projForm.refinance_amount} onChange={(e) => setProjForm((f) => ({ ...f, refinance_amount: e.target.value }))} placeholder="If applicable" />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-1">
+                        <Label className="text-xs">Turnover/Replacement Fee (%)</Label>
+                        <Input type="number" step="0.1" value={projForm.turnover_fee_rate} onChange={(e) => setProjForm((f) => ({ ...f, turnover_fee_rate: e.target.value }))} />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs">Property FMV at Turnover ($)</Label>
+                        <Input type="number" value={projForm.property_fmv_at_turnover} onChange={(e) => setProjForm((f) => ({ ...f, property_fmv_at_turnover: e.target.value }))} placeholder="If applicable" />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* ── Profit Sharing ── */}
+                  <div className="rounded-lg border border-indigo-200 bg-indigo-50/50 p-3 space-y-3">
+                    <p className="text-xs font-semibold text-indigo-700">Profit Sharing</p>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-1">
+                        <Label className="text-xs">LP Share (%)</Label>
+                        <Input type="number" step="1" value={projForm.lp_profit_share} onChange={(e) => setProjForm((f) => ({ ...f, lp_profit_share: e.target.value, gp_profit_share: String(100 - Number(e.target.value)) }))} />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs">GP Share (%)</Label>
+                        <Input type="number" step="1" value={projForm.gp_profit_share} onChange={(e) => setProjForm((f) => ({ ...f, gp_profit_share: e.target.value, lp_profit_share: String(100 - Number(e.target.value)) }))} />
+                      </div>
+                    </div>
+                  </div>
+
                   <Button type="submit" className="w-full" disabled={projPending}>
                     {projPending ? "Running…" : "Run 10-Year Projection"}
                   </Button>
@@ -3285,6 +3389,127 @@ export default function PropertyDetailPage({ params }: { params: { id: string } 
                       </CardContent>
                     </Card>
                   )}
+
+                  {/* ── LP Fee Summary ── */}
+                  {projResults.summary && (projResults.summary as Record<string, unknown>).fees && (() => {
+                    const fees = (projResults.summary as Record<string, unknown>).fees as Record<string, number>;
+                    return (
+                      <Card className="border-amber-300">
+                        <CardHeader className="pb-3">
+                          <CardTitle className="text-base flex items-center gap-2">
+                            <DollarSign className="h-4 w-4 text-amber-600" />
+                            LP Fee Schedule Summary
+                          </CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                          <div className="space-y-3">
+                            {/* Upfront Fees */}
+                            <div>
+                              <p className="text-xs font-semibold text-amber-700 mb-2">Upfront Fees (Deducted from Capital Raise)</p>
+                              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                                <div className="bg-amber-50 rounded-lg p-3">
+                                  <p className="text-[10px] text-muted-foreground">Selling Commission (10%)</p>
+                                  <p className="text-sm font-semibold">{formatCurrency(fees.selling_commission)}</p>
+                                </div>
+                                <div className="bg-amber-50 rounded-lg p-3">
+                                  <p className="text-[10px] text-muted-foreground">Offering Cost (Fixed)</p>
+                                  <p className="text-sm font-semibold">{formatCurrency(fees.offering_cost)}</p>
+                                </div>
+                                <div className="bg-amber-50 rounded-lg p-3">
+                                  <p className="text-[10px] text-muted-foreground">Acquisition Fee (2%)</p>
+                                  <p className="text-sm font-semibold">{formatCurrency(fees.acquisition_fee)}</p>
+                                </div>
+                                <div className="bg-amber-50 rounded-lg p-3 border border-amber-300">
+                                  <p className="text-[10px] text-muted-foreground font-semibold">Total Upfront Fees</p>
+                                  <p className="text-sm font-bold text-amber-700">{formatCurrency(fees.total_upfront_fees)}</p>
+                                </div>
+                              </div>
+                            </div>
+                            <Separator />
+                            {/* Ongoing Fees */}
+                            <div>
+                              <p className="text-xs font-semibold text-amber-700 mb-2">Ongoing Fees (Over Projection Period)</p>
+                              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                                <div className="bg-amber-50 rounded-lg p-3">
+                                  <p className="text-[10px] text-muted-foreground">Management Fees (2.5% of Gross Rev)</p>
+                                  <p className="text-sm font-semibold">{formatCurrency(fees.total_management_fees)}</p>
+                                </div>
+                                <div className="bg-amber-50 rounded-lg p-3">
+                                  <p className="text-[10px] text-muted-foreground">Construction Mgmt Fee (1.5%)</p>
+                                  <p className="text-sm font-semibold">{formatCurrency(fees.total_construction_mgmt_fees)}</p>
+                                </div>
+                                <div className="bg-amber-50 rounded-lg p-3">
+                                  <p className="text-[10px] text-muted-foreground">Refinancing Fee (2.5%)</p>
+                                  <p className="text-sm font-semibold">{formatCurrency(fees.refinancing_fee)}</p>
+                                </div>
+                                <div className="bg-amber-50 rounded-lg p-3">
+                                  <p className="text-[10px] text-muted-foreground">Turnover Fee (2%)</p>
+                                  <p className="text-sm font-semibold">{formatCurrency(fees.turnover_replacement_fee)}</p>
+                                </div>
+                              </div>
+                            </div>
+                            <Separator />
+                            {/* Totals */}
+                            <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                              <div className="bg-red-50 rounded-lg p-3 border border-red-200">
+                                <p className="text-[10px] text-muted-foreground font-semibold">Total All Fees</p>
+                                <p className="text-sm font-bold text-red-700">{formatCurrency(fees.total_all_fees)}</p>
+                              </div>
+                              <div className="bg-green-50 rounded-lg p-3 border border-green-200">
+                                <p className="text-[10px] text-muted-foreground font-semibold">Net Deployable Capital</p>
+                                <p className="text-sm font-bold text-green-700">{formatCurrency(fees.net_deployable_capital)}</p>
+                              </div>
+                              <div className="bg-blue-50 rounded-lg p-3 border border-blue-200">
+                                <p className="text-[10px] text-muted-foreground font-semibold">Fee Drag on Returns</p>
+                                <p className="text-sm font-bold text-blue-700">
+                                  {projResults.summary.total_equity_invested && (projResults.summary.total_equity_invested as number) > 0
+                                    ? `${((fees.total_all_fees / (projResults.summary.total_equity_invested as number)) * 100).toFixed(1)}%`
+                                    : "N/A"}
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    );
+                  })()}
+
+                  {/* ── Profit Sharing (70/30) ── */}
+                  {projResults.summary && (projResults.summary.lp_share_of_profits != null) && (
+                    <Card className="border-indigo-300">
+                      <CardHeader className="pb-3">
+                        <CardTitle className="text-base flex items-center gap-2">
+                          <Users className="h-4 w-4 text-indigo-600" />
+                          Profit Sharing (70/30 LP/GP Split)
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                          <div className="bg-indigo-50 rounded-lg p-4 text-center">
+                            <p className="text-xs text-muted-foreground">Total Profit</p>
+                            <p className="text-lg font-bold text-indigo-700">{formatCurrency(projResults.summary.total_return as number)}</p>
+                          </div>
+                          <div className="bg-blue-50 rounded-lg p-4 text-center border-2 border-blue-300">
+                            <p className="text-xs text-muted-foreground">LP Share (70%)</p>
+                            <p className="text-lg font-bold text-blue-700">{formatCurrency(projResults.summary.lp_share_of_profits as number)}</p>
+                          </div>
+                          <div className="bg-orange-50 rounded-lg p-4 text-center border-2 border-orange-300">
+                            <p className="text-xs text-muted-foreground">GP Share (30%)</p>
+                            <p className="text-lg font-bold text-orange-700">{formatCurrency(projResults.summary.gp_share_of_profits as number)}</p>
+                          </div>
+                          <div className="bg-green-50 rounded-lg p-4 text-center">
+                            <p className="text-xs text-muted-foreground">LP Equity Multiple</p>
+                            <p className="text-lg font-bold text-green-700">
+                              {projResults.summary.total_equity_invested && (projResults.summary.total_equity_invested as number) > 0
+                                ? `${((projResults.summary.lp_share_of_profits as number) / ((projResults.summary.total_equity_invested as number) * 0.7)).toFixed(2)}x`
+                                : "N/A"}
+                            </p>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  )}
+
                 </React.Fragment>
               )}
             </div>

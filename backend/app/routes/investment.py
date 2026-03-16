@@ -19,7 +19,7 @@ from app.db.models import (
     Holding, TargetProperty, Property,
     DistributionEvent, DistributionAllocation, ScopeAssignment, ScopeEntityType,
     SubscriptionStatus, DistributionEventStatus, LPStatus, TrancheStatus,
-    TargetPropertyStatus, OperatorEntity,
+    TargetPropertyStatus, OperatorEntity, LPFeeItem,
 )
 from app.db.session import get_db
 from app.services.investment_service import (
@@ -50,6 +50,7 @@ from app.schemas.investment import (
     ScopeAssignmentCreate, ScopeAssignmentOut,
     OperatorEntityCreate, OperatorEntityOut,
     InvestorCreate, InvestorUpdate, InvestorOut,
+    LPFeeItemCreate, LPFeeItemUpdate, LPFeeItemOut,
 )
 
 router = APIRouter()
@@ -255,6 +256,12 @@ def get_lp_detail(
         gp_catchup_percent=lp.gp_catchup_percent,
         asset_management_fee_percent=lp.asset_management_fee_percent,
         acquisition_fee_percent=lp.acquisition_fee_percent,
+        selling_commission_percent=lp.selling_commission_percent,
+        construction_management_fee_percent=lp.construction_management_fee_percent,
+        refinancing_fee_percent=lp.refinancing_fee_percent,
+        turnover_replacement_fee_percent=lp.turnover_replacement_fee_percent,
+        lp_profit_share_percent=lp.lp_profit_share_percent,
+        gp_profit_share_percent=lp.gp_profit_share_percent,
         total_units_authorized=lp.total_units_authorized,
         notes=lp.notes,
         created_at=lp.created_at,
@@ -1186,3 +1193,99 @@ def get_portfolio_analytics(
         "funds": fund_summaries,
         "totals": totals,
     }
+
+
+# ===========================================================================
+# LP Fee Schedule Items
+# ===========================================================================
+
+@router.get("/lps/{lp_id}/fees", response_model=List[LPFeeItemOut])
+def list_lp_fee_items(
+    lp_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_investor_or_above),
+):
+    """List all fee items for an LP."""
+    lp = db.query(LPEntity).filter(LPEntity.lp_id == lp_id).first()
+    if not lp:
+        raise HTTPException(status_code=404, detail="LP not found")
+    items = db.query(LPFeeItem).filter(LPFeeItem.lp_id == lp_id).order_by(LPFeeItem.fee_item_id).all()
+    return items
+
+
+@router.get("/lps/{lp_id}/fees/{fee_item_id}", response_model=LPFeeItemOut)
+def get_lp_fee_item(
+    lp_id: int,
+    fee_item_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_investor_or_above),
+):
+    """Get a single fee item."""
+    item = db.query(LPFeeItem).filter(
+        LPFeeItem.lp_id == lp_id,
+        LPFeeItem.fee_item_id == fee_item_id,
+    ).first()
+    if not item:
+        raise HTTPException(status_code=404, detail="Fee item not found")
+    return item
+
+
+@router.post("/lps/{lp_id}/fees", response_model=LPFeeItemOut, status_code=201)
+def create_lp_fee_item(
+    lp_id: int,
+    payload: LPFeeItemCreate,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_gp_admin),
+):
+    """Create a custom fee item for an LP."""
+    lp = db.query(LPEntity).filter(LPEntity.lp_id == lp_id).first()
+    if not lp:
+        raise HTTPException(status_code=404, detail="LP not found")
+    item = LPFeeItem(**payload.model_dump())
+    item.lp_id = lp_id
+    db.add(item)
+    db.commit()
+    db.refresh(item)
+    return item
+
+
+@router.patch("/lps/{lp_id}/fees/{fee_item_id}", response_model=LPFeeItemOut)
+def update_lp_fee_item(
+    lp_id: int,
+    fee_item_id: int,
+    payload: LPFeeItemUpdate,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_gp_admin),
+):
+    """Update a fee item (rate, basis, notes, active status, etc.)."""
+    item = db.query(LPFeeItem).filter(
+        LPFeeItem.lp_id == lp_id,
+        LPFeeItem.fee_item_id == fee_item_id,
+    ).first()
+    if not item:
+        raise HTTPException(status_code=404, detail="Fee item not found")
+    updates = payload.model_dump(exclude_unset=True)
+    for key, val in updates.items():
+        setattr(item, key, val)
+    db.commit()
+    db.refresh(item)
+    return item
+
+
+@router.delete("/lps/{lp_id}/fees/{fee_item_id}", status_code=204)
+def delete_lp_fee_item(
+    lp_id: int,
+    fee_item_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_gp_admin),
+):
+    """Delete a fee item."""
+    item = db.query(LPFeeItem).filter(
+        LPFeeItem.lp_id == lp_id,
+        LPFeeItem.fee_item_id == fee_item_id,
+    ).first()
+    if not item:
+        raise HTTPException(status_code=404, detail="Fee item not found")
+    db.delete(item)
+    db.commit()
+    return None

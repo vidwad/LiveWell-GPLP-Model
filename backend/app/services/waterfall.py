@@ -18,8 +18,8 @@ class WaterfallEngine:
     """
     Calculates GP/LP distributions based on a 3-tier waterfall structure:
     Tier 1: Return of Capital + 8% Preferred Return (100% to LP)
-    Tier 2: GP Catch-up (100% to GP until 80/20 split achieved)
-    Tier 3: 80/20 LP/GP Split
+    Tier 2: GP Catch-up (100% to GP until 70/30 split achieved)
+    Tier 3: 70/30 LP/GP Split
     """
 
     @staticmethod
@@ -28,7 +28,7 @@ class WaterfallEngine:
         unreturned_capital: Decimal,
         unpaid_pref_balance: Decimal,
         pref_rate: Decimal = Decimal("0.08"),
-        gp_promote_share: Decimal = Decimal("0.20")
+        gp_promote_share: Decimal = Decimal("0.30")
     ) -> WaterfallResult:
 
         remaining_cash = distributable_cash
@@ -85,7 +85,7 @@ class WaterfallEngine:
                 remaining_cash -= target_gp_catchup
 
         # ---------------------------------------------------------
-        # Tier 3: 80/20 Split
+        # Tier 3: 70/30 Split
         # ---------------------------------------------------------
         if remaining_cash > 0:
             tier_3_gp = remaining_cash * gp_promote_share

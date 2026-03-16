@@ -505,11 +505,28 @@ class _YearProjectionOut(_BaseModel):
     gross_potential_rent: float
     vacancy_loss: float
     effective_gross_income: float
+    management_fee: float = 0.0
     operating_expenses: float
+    total_expenses: float = 0.0
     noi: float
+    construction_mgmt_fee: float = 0.0
     annual_debt_service: float
     cash_flow: float
     cumulative_cash_flow: float
+
+
+class _FeesSummaryOut(_BaseModel):
+    total_management_fees: float = 0.0
+    total_construction_mgmt_fees: float = 0.0
+    selling_commission: float = 0.0
+    offering_cost: float = 0.0
+    acquisition_fee: float = 0.0
+    refinancing_fee: float = 0.0
+    turnover_replacement_fee: float = 0.0
+    total_upfront_fees: float = 0.0
+    total_ongoing_fees: float = 0.0
+    total_all_fees: float = 0.0
+    net_deployable_capital: float = 0.0
 
 
 class _ProjectionSummaryOut(_BaseModel):
@@ -525,6 +542,9 @@ class _ProjectionSummaryOut(_BaseModel):
     irr_estimate: float | None = None
     cash_on_cash_avg: float | None = None
     annualized_roi: float | None = None
+    fees: _FeesSummaryOut | None = None
+    lp_share_of_profits: float | None = None
+    gp_share_of_profits: float | None = None
 
 
 class _ProjectionResultOut(_BaseModel):
@@ -576,6 +596,21 @@ class _ProjectionInput(_BaseModel):
     debt_annual_rate: float = 0.0
     debt_amortization_months: int = 0
     debt_io_months: int = 0
+    # LP Fee parameters
+    management_fee_rate: float = 0.025       # 2.5% of gross revenues
+    construction_mgmt_fee_rate: float = 0.015 # 1.5% of construction budget
+    construction_budget: float = 0.0          # total construction cost
+    selling_commission_rate: float = 0.10     # 10% of gross raise
+    offering_cost: float = 250000.0           # fixed $250K
+    acquisition_fee_rate: float = 0.02        # 2% of acquisition cost
+    acquisition_cost: float = 0.0             # total acquisition cost
+    gross_raise: float = 0.0                  # total capital raised
+    refinancing_fee_rate: float = 0.025       # 2.5% of refinance amount
+    refinance_amount: float = 0.0             # refinance loan amount
+    turnover_fee_rate: float = 0.02           # 2% of FMV
+    property_fmv_at_turnover: float = 0.0     # FMV at turnover
+    lp_profit_share: float = 0.70             # 70% to LP
+    gp_profit_share: float = 0.30             # 30% to GP
 
 
 @router.post("/properties/{property_id}/projection", response_model=_ProjectionResultOut)
@@ -709,7 +744,18 @@ def run_projection(
     # ── 8. Exit cap rate ──
     exit_cap = payload.exit_cap_rate or 0.055
 
-    # ── 9. Build and run engine ──
+    # ── 9. Auto-populate construction budget from plan ──
+    construction_budget = payload.construction_budget
+    if construction_budget == 0:
+        active_plan = (
+            db.query(DevelopmentPlan)
+            .filter(DevelopmentPlan.property_id == property_id, DevelopmentPlan.status == "active")
+            .first()
+        )
+        if active_plan and active_plan.estimated_construction_cost:
+            construction_budget = float(active_plan.estimated_construction_cost)
+
+    # ── 10. Build and run engine ──
     proj_engine = LifecycleProjectionEngine(
         baseline_annual_revenue=baseline_revenue,
         baseline_annual_expenses=baseline_expenses,
@@ -728,10 +774,42 @@ def run_projection(
         total_equity_invested=payload.total_equity_invested,
         debt_balance_at_exit=payload.debt_balance_at_exit,
         projection_years=payload.projection_years,
+        # LP Fee parameters
+        management_fee_rate=payload.management_fee_rate,
+        construction_mgmt_fee_rate=payload.construction_mgmt_fee_rate,
+        construction_budget=construction_budget,
+        selling_commission_rate=payload.selling_commission_rate,
+        offering_cost=payload.offering_cost,
+        acquisition_fee_rate=payload.acquisition_fee_rate,
+        acquisition_cost=payload.acquisition_cost,
+        gross_raise=payload.gross_raise,
+        refinancing_fee_rate=payload.refinancing_fee_rate,
+        refinance_amount=payload.refinance_amount,
+        turnover_fee_rate=payload.turnover_fee_rate,
+        property_fmv_at_turnover=payload.property_fmv_at_turnover,
+        lp_profit_share=payload.lp_profit_share,
+        gp_profit_share=payload.gp_profit_share,
     )
 
     projections = proj_engine.project()
     summary = proj_engine.compute_summary(projections)
+
+    # Build fees summary output
+    fees_out = None
+    if summary.fees:
+        fees_out = _FeesSummaryOut(
+            total_management_fees=summary.fees.total_management_fees,
+            total_construction_mgmt_fees=summary.fees.total_construction_mgmt_fees,
+            selling_commission=summary.fees.selling_commission,
+            offering_cost=summary.fees.offering_cost,
+            acquisition_fee=summary.fees.acquisition_fee,
+            refinancing_fee=summary.fees.refinancing_fee,
+            turnover_replacement_fee=summary.fees.turnover_replacement_fee,
+            total_upfront_fees=summary.fees.total_upfront_fees,
+            total_ongoing_fees=summary.fees.total_ongoing_fees,
+            total_all_fees=summary.fees.total_all_fees,
+            net_deployable_capital=summary.fees.net_deployable_capital,
+        )
 
     return _ProjectionResultOut(
         projections=[
@@ -741,7 +819,11 @@ def run_projection(
                 gross_potential_rent=y.gross_potential_rent,
                 vacancy_loss=y.vacancy_loss,
                 effective_gross_income=y.effective_gross_income,
-                operating_expenses=y.operating_expenses, noi=y.noi,
+                management_fee=y.management_fee,
+                operating_expenses=y.operating_expenses,
+                total_expenses=y.total_expenses,
+                noi=y.noi,
+                construction_mgmt_fee=y.construction_mgmt_fee,
                 annual_debt_service=y.annual_debt_service,
                 cash_flow=y.cash_flow,
                 cumulative_cash_flow=y.cumulative_cash_flow,
@@ -761,6 +843,9 @@ def run_projection(
             irr_estimate=summary.irr_estimate,
             cash_on_cash_avg=summary.cash_on_cash_avg,
             annualized_roi=summary.annualized_roi,
+            fees=fees_out,
+            lp_share_of_profits=summary.lp_share_of_profits,
+            gp_share_of_profits=summary.gp_share_of_profits,
         ),
     )
 

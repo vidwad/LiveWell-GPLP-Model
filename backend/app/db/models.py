@@ -377,6 +377,12 @@ class LPEntity(Base):
     # Fee structure
     asset_management_fee_percent = Column(Numeric(5, 2), nullable=True)
     acquisition_fee_percent = Column(Numeric(5, 2), nullable=True)
+    selling_commission_percent = Column(Numeric(5, 2), nullable=True)
+    construction_management_fee_percent = Column(Numeric(5, 2), nullable=True)
+    refinancing_fee_percent = Column(Numeric(5, 2), nullable=True)
+    turnover_replacement_fee_percent = Column(Numeric(5, 2), nullable=True)
+    lp_profit_share_percent = Column(Numeric(5, 2), nullable=True, default=70)  # LP profit share after hurdle
+    gp_profit_share_percent = Column(Numeric(5, 2), nullable=True, default=30)  # GP profit share after hurdle
 
     # Total units authorized for issuance (= maximum_raise / unit_price)
     total_units_authorized = Column(Numeric(14, 4), nullable=True)
@@ -400,6 +406,9 @@ class LPEntity(Base):
     )
     quarterly_reports = relationship(
         "QuarterlyReport", back_populates="lp", cascade="all, delete-orphan"
+    )
+    fee_items = relationship(
+        "LPFeeItem", back_populates="lp", cascade="all, delete-orphan"
     )
 
 
@@ -1492,3 +1501,71 @@ class ConstructionDraw(Base):
 
     property = relationship("Property")
     debt_facility = relationship("DebtFacility")
+
+
+# ---------------------------------------------------------------------------
+# LP Fee Schedule
+# ---------------------------------------------------------------------------
+
+class FeeType(str, enum.Enum):
+    percentage = "percentage"
+    fixed = "fixed"
+
+class BasisType(str, enum.Enum):
+    gross_raise = "gross_raise"
+    funded_capital = "funded_capital"
+    subscription_amount = "subscription_amount"
+    acquisition_cost = "acquisition_cost"
+    initial_capital_cost = "initial_capital_cost"
+    gross_revenues = "gross_revenues"
+    construction_budget = "construction_budget"
+    fair_market_value = "fair_market_value"
+    refinance_amount = "refinance_amount"
+    sale_proceeds = "sale_proceeds"
+    custom = "custom"
+    not_applicable = "not_applicable"
+
+
+class LPFeeItem(Base):
+    """
+    Configurable fee / cost / profit-sharing item for an LP.
+    Each LP is seeded with 8 default items per the LP Agreement rules.
+    GP/admin users may edit rates, bases, and notes.
+    """
+    __tablename__ = "lp_fee_items"
+
+    fee_item_id = Column(Integer, primary_key=True, index=True)
+    lp_id = Column(Integer, ForeignKey("lp_entities.lp_id"), nullable=False)
+
+    # Identity
+    fee_name = Column(String(128), nullable=False)            # e.g. "Selling Commission"
+    fee_slug = Column(String(64), nullable=False)             # e.g. "selling_commission"
+    fee_type = Column(_enum(FeeType), nullable=False)         # percentage or fixed
+
+    # Rate / Amount
+    rate = Column(Numeric(7, 4), nullable=True)               # percentage rate (e.g. 10.0000)
+    fixed_amount = Column(Numeric(16, 2), nullable=True)      # fixed dollar amount
+
+    # Basis
+    basis_type = Column(_enum(BasisType), nullable=True)      # what the % is applied to
+    basis_description = Column(String(256), nullable=True)    # human-readable basis explanation
+
+    # Timing
+    timing_trigger = Column(String(256), nullable=True)       # when the fee applies
+
+    # Calculation
+    calculation_description = Column(String(512), nullable=True)  # how it's calculated
+    calculated_amount = Column(Numeric(16, 2), nullable=True)     # last computed $ amount
+
+    # Status
+    is_active = Column(Boolean, nullable=False, default=True)
+    default_rate = Column(Numeric(7, 4), nullable=True)       # original default rate
+    default_fixed_amount = Column(Numeric(16, 2), nullable=True)  # original default fixed amount
+
+    # Notes
+    notes = Column(Text, nullable=True)
+
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    updated_at = Column(DateTime, nullable=True, default=func.now(), onupdate=func.now())
+
+    lp = relationship("LPEntity", back_populates="fee_items")

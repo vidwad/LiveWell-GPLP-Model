@@ -241,6 +241,9 @@ export default function LPDetailPage() {
     offering_date: "", closing_date: "", formation_costs: "", offering_costs: "",
     reserve_percent: "", preferred_return_rate: "", gp_promote_percent: "",
     gp_catchup_percent: "", asset_management_fee_percent: "", acquisition_fee_percent: "",
+    selling_commission_percent: "", construction_management_fee_percent: "",
+    refinancing_fee_percent: "", turnover_replacement_fee_percent: "",
+    lp_profit_share_percent: "", gp_profit_share_percent: "",
     notes: "",
   });
 
@@ -289,7 +292,9 @@ export default function LPDetailPage() {
         if (["unit_price","minimum_subscription","target_raise","minimum_raise","maximum_raise",
              "formation_costs","offering_costs","reserve_percent","preferred_return_rate",
              "gp_promote_percent","gp_catchup_percent","asset_management_fee_percent",
-             "acquisition_fee_percent"].includes(k)) {
+             "acquisition_fee_percent","selling_commission_percent","construction_management_fee_percent",
+             "refinancing_fee_percent","turnover_replacement_fee_percent",
+             "lp_profit_share_percent","gp_profit_share_percent"].includes(k)) {
           data[k] = Number(v);
         } else {
           data[k] = v;
@@ -445,6 +450,12 @@ export default function LPDetailPage() {
                 gp_catchup_percent: lp.gp_catchup_percent || "",
                 asset_management_fee_percent: lp.asset_management_fee_percent || "",
                 acquisition_fee_percent: lp.acquisition_fee_percent || "",
+                selling_commission_percent: lp.selling_commission_percent || "",
+                construction_management_fee_percent: lp.construction_management_fee_percent || "",
+                refinancing_fee_percent: lp.refinancing_fee_percent || "",
+                turnover_replacement_fee_percent: lp.turnover_replacement_fee_percent || "",
+                lp_profit_share_percent: lp.lp_profit_share_percent || "",
+                gp_profit_share_percent: lp.gp_profit_share_percent || "",
                 notes: lp.notes || "",
               });
             }}>
@@ -526,21 +537,150 @@ export default function LPDetailPage() {
               <Card>
                 <CardHeader className="pb-2">
                   <CardTitle className="text-sm flex items-center gap-2">
-                    <Percent className="h-4 w-4" /> Fee & Return Structure
+                    <Percent className="h-4 w-4" /> Return Structure
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-0">
                   <DRow label="Preferred Return" value={fmtPct(lp.preferred_return_rate)} />
                   <DRow label="GP Promote" value={fmtPct(lp.gp_promote_percent)} />
                   <DRow label="GP Catch-up" value={fmtPct(lp.gp_catchup_percent)} />
-                  <DRow label="Asset Mgmt Fee" value={fmtPct(lp.asset_management_fee_percent)} />
-                  <DRow label="Acquisition Fee" value={fmtPct(lp.acquisition_fee_percent)} />
-                  <DRow label="Formation Costs" value={lp.formation_costs ? formatCurrency(lp.formation_costs) : "—"} />
-                  <DRow label="Offering Costs" value={lp.offering_costs ? formatCurrency(lp.offering_costs) : "—"} />
                   <DRow label="Reserve %" value={fmtPct(lp.reserve_percent)} />
+                  <DRow label="Formation Costs" value={lp.formation_costs ? formatCurrency(lp.formation_costs) : "—"} />
                 </CardContent>
               </Card>
             </div>
+
+            {/* LP Fee Schedule — full structured display per Section 3 of LP Agreement */}
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm flex items-center gap-2">
+                  <DollarSign className="h-4 w-4" /> LP Fee Schedule
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  {/* Selling Commission */}
+                  <div className="border rounded-lg p-3 bg-amber-50/50">
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <p className="text-sm font-semibold">Selling Commission</p>
+                        <p className="text-xs text-muted-foreground">Rate: {fmtPct(lp.selling_commission_percent)} of Gross Capital Raise</p>
+                        <p className="text-xs text-muted-foreground">Trigger: Upon capital raise / offering</p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-xs text-muted-foreground">Calculated Amount</p>
+                        <p className="text-sm font-semibold tabular-nums">{lp.gross_subscriptions && lp.selling_commission_percent ? formatCurrency(lp.gross_subscriptions * (lp.selling_commission_percent / 100)) : "—"}</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Offering / Setup Cost */}
+                  <div className="border rounded-lg p-3 bg-amber-50/50">
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <p className="text-sm font-semibold">Offering / Setup Cost</p>
+                        <p className="text-xs text-muted-foreground">Type: Fixed Amount</p>
+                        <p className="text-xs text-muted-foreground">Trigger: Upon LP formation / offering</p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-xs text-muted-foreground">Amount</p>
+                        <p className="text-sm font-semibold tabular-nums">{lp.offering_costs ? formatCurrency(lp.offering_costs) : "—"}</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Acquisition / Closing Fee */}
+                  <div className="border rounded-lg p-3 bg-blue-50/50">
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <p className="text-sm font-semibold">Acquisition / Closing Fee</p>
+                        <p className="text-xs text-muted-foreground">Rate: {fmtPct(lp.acquisition_fee_percent)} of Acquisition Cost</p>
+                        <p className="text-xs text-muted-foreground">Trigger: Upon acquisition / closing</p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-xs text-muted-foreground">Calculated Amount</p>
+                        <p className="text-sm font-semibold tabular-nums">Per property</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Ongoing Management Fee */}
+                  <div className="border rounded-lg p-3 bg-green-50/50">
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <p className="text-sm font-semibold">Ongoing Management Fee</p>
+                        <p className="text-xs text-muted-foreground">Rate: {fmtPct(lp.asset_management_fee_percent)} of Gross Revenues</p>
+                        <p className="text-xs text-muted-foreground">Trigger: Ongoing — interim and stabilized operations</p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-xs text-muted-foreground">Calculated Amount</p>
+                        <p className="text-sm font-semibold tabular-nums">See Projections</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Construction Management Fee */}
+                  <div className="border rounded-lg p-3 bg-purple-50/50">
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <p className="text-sm font-semibold">Construction Management Fee</p>
+                        <p className="text-xs text-muted-foreground">Rate: {fmtPct(lp.construction_management_fee_percent)} of Construction Budget</p>
+                        <p className="text-xs text-muted-foreground">Trigger: During redevelopment / construction</p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-xs text-muted-foreground">Calculated Amount</p>
+                        <p className="text-sm font-semibold tabular-nums">Per property plan</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Refinancing Fee */}
+                  <div className="border rounded-lg p-3 bg-red-50/50">
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <p className="text-sm font-semibold">Refinancing Fee</p>
+                        <p className="text-xs text-muted-foreground">Rate: {fmtPct(lp.refinancing_fee_percent)} of Refinance Amount</p>
+                        <p className="text-xs text-muted-foreground">Trigger: Upon refinancing event</p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-xs text-muted-foreground">Calculated Amount</p>
+                        <p className="text-sm font-semibold tabular-nums">If applicable</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Turnover / Replacement Fee */}
+                  <div className="border rounded-lg p-3 bg-orange-50/50">
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <p className="text-sm font-semibold">Turnover / Replacement Fee</p>
+                        <p className="text-xs text-muted-foreground">Rate: {fmtPct(lp.turnover_replacement_fee_percent)} of Fair Market Value</p>
+                        <p className="text-xs text-muted-foreground">Trigger: Upon property turnover / replacement</p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-xs text-muted-foreground">Calculated Amount</p>
+                        <p className="text-sm font-semibold tabular-nums">If applicable</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Profit Sharing */}
+                  <div className="border rounded-lg p-3 bg-indigo-50/50">
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <p className="text-sm font-semibold">Profit Sharing After Priority Return / Hurdle</p>
+                        <p className="text-xs text-muted-foreground">LP Share: {lp.lp_profit_share_percent ?? 70}% / GP Share: {lp.gp_profit_share_percent ?? 30}%</p>
+                        <p className="text-xs text-muted-foreground">Trigger: After preferred return / hurdle stage</p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-xs text-muted-foreground">Applied to</p>
+                        <p className="text-sm font-semibold tabular-nums">All distributions</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
 
             {/* Capital Summary — full width, 2x3 grid */}
             <Card>
@@ -1234,6 +1374,12 @@ export default function LPDetailPage() {
             <Field label="GP Catch-up %"><Input type="number" step="0.1" value={lpForm.form.gp_catchup_percent} onChange={(e) => lpForm.set("gp_catchup_percent", e.target.value)} /></Field>
             <Field label="Asset Mgmt Fee %"><Input type="number" step="0.1" value={lpForm.form.asset_management_fee_percent} onChange={(e) => lpForm.set("asset_management_fee_percent", e.target.value)} /></Field>
             <Field label="Acquisition Fee %"><Input type="number" step="0.1" value={lpForm.form.acquisition_fee_percent} onChange={(e) => lpForm.set("acquisition_fee_percent", e.target.value)} /></Field>
+            <Field label="Selling Commission %"><Input type="number" step="0.1" value={lpForm.form.selling_commission_percent} onChange={(e) => lpForm.set("selling_commission_percent", e.target.value)} /></Field>
+            <Field label="Construction Mgmt Fee %"><Input type="number" step="0.1" value={lpForm.form.construction_management_fee_percent} onChange={(e) => lpForm.set("construction_management_fee_percent", e.target.value)} /></Field>
+            <Field label="Refinancing Fee %"><Input type="number" step="0.1" value={lpForm.form.refinancing_fee_percent} onChange={(e) => lpForm.set("refinancing_fee_percent", e.target.value)} /></Field>
+            <Field label="Turnover Fee %"><Input type="number" step="0.1" value={lpForm.form.turnover_replacement_fee_percent} onChange={(e) => lpForm.set("turnover_replacement_fee_percent", e.target.value)} /></Field>
+            <Field label="LP Profit Share %"><Input type="number" step="0.1" value={lpForm.form.lp_profit_share_percent} onChange={(e) => lpForm.set("lp_profit_share_percent", e.target.value)} /></Field>
+            <Field label="GP Profit Share %"><Input type="number" step="0.1" value={lpForm.form.gp_profit_share_percent} onChange={(e) => lpForm.set("gp_profit_share_percent", e.target.value)} /></Field>
             <Field label="Notes" className="col-span-2"><textarea className="w-full rounded-lg border border-input bg-transparent px-2.5 py-1 text-sm min-h-[60px]" value={lpForm.form.notes} onChange={(e) => lpForm.set("notes", e.target.value)} /></Field>
           </div>
           <DialogFooter>
