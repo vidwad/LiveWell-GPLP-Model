@@ -27,6 +27,9 @@ import {
   ArrowRight,
   AlertCircle,
   SkipForward,
+  Edit2,
+  Banknote,
+  Shield,
 } from "lucide-react";
 import {
   useProperty,
@@ -46,6 +49,8 @@ import {
   usePropertyUnitSummary,
   useCreatePropertyUnit,
   useDeletePropertyUnit,
+  useCreateDebtFacility,
+  useUpdateDebtFacility,
 } from "@/hooks/usePortfolio";
 import {
   useStageTransitions,
@@ -291,7 +296,25 @@ export default function PropertyDetailPage({ params }: { params: { id: string } 
 
   // Debt & Amortization
   const { data: debtFacilities } = useDebtFacilities(propertyId);
+  const createDebt = useCreateDebtFacility(propertyId);
+  const updateDebt = useUpdateDebtFacility(propertyId);
   const [expandedDebtId, setExpandedDebtId] = useState<number | null>(null);
+  const [showAddDebt, setShowAddDebt] = useState(false);
+  const [editingDebtId, setEditingDebtId] = useState<number | null>(null);
+  const [debtForm, setDebtForm] = useState({
+    lender_name: "", debt_type: "permanent_mortgage", commitment_amount: "",
+    drawn_amount: "0", outstanding_balance: "", interest_rate: "",
+    rate_type: "fixed", term_months: "", amortization_months: "",
+    io_period_months: "0", origination_date: "", maturity_date: "",
+    ltv_covenant: "", dscr_covenant: "", notes: "",
+  });
+  const resetDebtForm = () => setDebtForm({
+    lender_name: "", debt_type: "permanent_mortgage", commitment_amount: "",
+    drawn_amount: "0", outstanding_balance: "", interest_rate: "",
+    rate_type: "fixed", term_months: "", amortization_months: "",
+    io_period_months: "0", origination_date: "", maturity_date: "",
+    ltv_covenant: "", dscr_covenant: "", notes: "",
+  });
 
   // Projections
   const { mutateAsync: runProjection, isPending: projPending } = useRunProjection(propertyId);
@@ -371,6 +394,98 @@ export default function PropertyDetailPage({ params }: { params: { id: string } 
   const activePlan = (plans ?? []).find((p: { status: string }) => p.status === "active") ?? (plans ?? [])[0];
 
   /* ── Handlers ── */
+  const handleCreateDebt = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      const payload: Record<string, unknown> = {
+        lender_name: debtForm.lender_name,
+        debt_type: debtForm.debt_type,
+        commitment_amount: Number(debtForm.commitment_amount),
+        interest_rate: debtForm.interest_rate ? Number(debtForm.interest_rate) : undefined,
+        rate_type: debtForm.rate_type,
+        term_months: debtForm.term_months ? Number(debtForm.term_months) : undefined,
+        amortization_months: debtForm.amortization_months ? Number(debtForm.amortization_months) : undefined,
+        io_period_months: debtForm.io_period_months ? Number(debtForm.io_period_months) : 0,
+        origination_date: debtForm.origination_date || undefined,
+        maturity_date: debtForm.maturity_date || undefined,
+        ltv_covenant: debtForm.ltv_covenant ? Number(debtForm.ltv_covenant) : undefined,
+        dscr_covenant: debtForm.dscr_covenant ? Number(debtForm.dscr_covenant) : undefined,
+        notes: debtForm.notes || undefined,
+      };
+      await createDebt.mutateAsync(payload);
+      toast.success("Debt facility added");
+      setShowAddDebt(false);
+      resetDebtForm();
+    } catch { toast.error("Failed to add debt facility"); }
+  };
+
+  const handleUpdateDebt = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingDebtId) return;
+    try {
+      const payload: Record<string, unknown> = {
+        debtId: editingDebtId,
+        lender_name: debtForm.lender_name,
+        debt_type: debtForm.debt_type,
+        status: "active",
+        commitment_amount: Number(debtForm.commitment_amount),
+        drawn_amount: debtForm.drawn_amount ? Number(debtForm.drawn_amount) : 0,
+        outstanding_balance: debtForm.outstanding_balance ? Number(debtForm.outstanding_balance) : 0,
+        interest_rate: debtForm.interest_rate ? Number(debtForm.interest_rate) : undefined,
+        rate_type: debtForm.rate_type,
+        term_months: debtForm.term_months ? Number(debtForm.term_months) : undefined,
+        amortization_months: debtForm.amortization_months ? Number(debtForm.amortization_months) : undefined,
+        io_period_months: debtForm.io_period_months ? Number(debtForm.io_period_months) : 0,
+        origination_date: debtForm.origination_date || undefined,
+        maturity_date: debtForm.maturity_date || undefined,
+        ltv_covenant: debtForm.ltv_covenant ? Number(debtForm.ltv_covenant) : undefined,
+        dscr_covenant: debtForm.dscr_covenant ? Number(debtForm.dscr_covenant) : undefined,
+        notes: debtForm.notes || undefined,
+      };
+      await updateDebt.mutateAsync(payload);
+      toast.success("Debt facility updated");
+      setEditingDebtId(null);
+      resetDebtForm();
+    } catch { toast.error("Failed to update debt facility"); }
+  };
+
+  const startEditDebt = (debt: Record<string, unknown>) => {
+    setDebtForm({
+      lender_name: String(debt.lender_name ?? ""),
+      debt_type: String(debt.debt_type ?? "permanent_mortgage"),
+      commitment_amount: String(debt.commitment_amount ?? ""),
+      drawn_amount: String(debt.drawn_amount ?? "0"),
+      outstanding_balance: String(debt.outstanding_balance ?? ""),
+      interest_rate: debt.interest_rate != null ? String(debt.interest_rate) : "",
+      rate_type: String(debt.rate_type ?? "fixed"),
+      term_months: debt.term_months != null ? String(debt.term_months) : "",
+      amortization_months: debt.amortization_months != null ? String(debt.amortization_months) : "",
+      io_period_months: debt.io_period_months != null ? String(debt.io_period_months) : "0",
+      origination_date: debt.origination_date ? String(debt.origination_date) : "",
+      maturity_date: debt.maturity_date ? String(debt.maturity_date) : "",
+      ltv_covenant: debt.ltv_covenant != null ? String(debt.ltv_covenant) : "",
+      dscr_covenant: debt.dscr_covenant != null ? String(debt.dscr_covenant) : "",
+      notes: String(debt.notes ?? ""),
+    });
+    setEditingDebtId(Number(debt.debt_id));
+  };
+
+  // Computed: total annual debt service (rough estimate from all active facilities)
+  const totalAnnualDebtService = (debtFacilities ?? []).reduce((sum: number, d: { outstanding_balance: number; interest_rate: number | null; amortization_months: number | null; io_period_months: number | null }) => {
+    const bal = d.outstanding_balance ?? 0;
+    const rate = (d.interest_rate ?? 0) / 100;
+    const amort = d.amortization_months ?? 0;
+    const io = d.io_period_months ?? 0;
+    if (bal <= 0 || rate <= 0) return sum;
+    const monthlyRate = rate / 12;
+    if (amort > 0 && io <= 0) {
+      const pmt = bal * (monthlyRate * Math.pow(1 + monthlyRate, amort)) / (Math.pow(1 + monthlyRate, amort) - 1);
+      return sum + pmt * 12;
+    }
+    // IO or construction loan: interest only
+    return sum + bal * rate;
+  }, 0);
+
   const handleAddPlan = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
@@ -575,7 +690,7 @@ export default function PropertyDetailPage({ params }: { params: { id: string } 
             <TabsTrigger value="lifecycle"><Activity className="h-4 w-4 sm:mr-1.5" /><span className="hidden sm:inline">Lifecycle</span></TabsTrigger>
             <TabsTrigger value="units"><Ruler className="h-4 w-4 sm:mr-1.5" /><span className="hidden sm:inline">Units & Beds</span></TabsTrigger>
             <TabsTrigger value="plans"><Layers className="h-4 w-4 sm:mr-1.5" /><span className="hidden sm:inline">Dev Plans</span></TabsTrigger>
-            <TabsTrigger value="debt"><Landmark className="h-4 w-4 sm:mr-1.5" /><span className="hidden sm:inline">Debt</span></TabsTrigger>
+            <TabsTrigger value="debt"><Landmark className="h-4 w-4 sm:mr-1.5" /><span className="hidden sm:inline">Debt & Financing</span></TabsTrigger>
             <TabsTrigger value="projections"><BarChart3 className="h-4 w-4 sm:mr-1.5" /><span className="hidden sm:inline">Projections</span></TabsTrigger>
             <TabsTrigger value="exit"><TrendingUp className="h-4 w-4 sm:mr-1.5" /><span className="hidden sm:inline">Exit Scenarios</span></TabsTrigger>
           </TabsList>
@@ -1506,80 +1621,485 @@ export default function PropertyDetailPage({ params }: { params: { id: string } 
           </Card>
         </TabsContent>
 
-        {/* ── Debt & Amortization ── */}
-        <TabsContent value="debt" className="mt-6 space-y-4">
+        {/* ── Debt & Financing ── */}
+        <TabsContent value="debt" className="mt-6 space-y-6">
+
+          {/* Debt Summary KPIs */}
+          {(debtFacilities ?? []).length > 0 && (
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <Card className="border-l-4 border-l-blue-500">
+                <CardContent className="pt-4 pb-3 px-4">
+                  <p className="text-xs text-muted-foreground font-medium">Total Commitment</p>
+                  <p className="text-lg font-bold">{formatCurrencyCompact(totalDebtCommitment)}</p>
+                  <p className="text-xs text-muted-foreground">{(debtFacilities ?? []).length} facilit{(debtFacilities ?? []).length === 1 ? "y" : "ies"}</p>
+                </CardContent>
+              </Card>
+              <Card className="border-l-4 border-l-amber-500">
+                <CardContent className="pt-4 pb-3 px-4">
+                  <p className="text-xs text-muted-foreground font-medium">Outstanding Balance</p>
+                  <p className="text-lg font-bold text-amber-700">{formatCurrencyCompact(totalDebtOutstanding)}</p>
+                  <p className="text-xs text-muted-foreground">{totalDebtCommitment > 0 ? ((totalDebtOutstanding / totalDebtCommitment) * 100).toFixed(0) : 0}% drawn</p>
+                </CardContent>
+              </Card>
+              <Card className="border-l-4 border-l-red-500">
+                <CardContent className="pt-4 pb-3 px-4">
+                  <p className="text-xs text-muted-foreground font-medium">Annual Debt Service</p>
+                  <p className="text-lg font-bold text-red-700">{totalAnnualDebtService > 0 ? formatCurrencyCompact(totalAnnualDebtService) : "—"}</p>
+                  <p className="text-xs text-muted-foreground">{totalAnnualDebtService > 0 ? `${formatCurrencyCompact(totalAnnualDebtService / 12)}/mo` : "No active loans"}</p>
+                </CardContent>
+              </Card>
+              <Card className="border-l-4 border-l-green-500">
+                <CardContent className="pt-4 pb-3 px-4">
+                  <p className="text-xs text-muted-foreground font-medium">Wtd Avg Rate</p>
+                  {(() => {
+                    const active = (debtFacilities ?? []).filter((d: { outstanding_balance: number }) => d.outstanding_balance > 0);
+                    const totalBal = active.reduce((s: number, d: { outstanding_balance: number }) => s + d.outstanding_balance, 0);
+                    const wtdRate = totalBal > 0 ? active.reduce((s: number, d: { outstanding_balance: number; interest_rate: number | null }) => s + d.outstanding_balance * (d.interest_rate ?? 0), 0) / totalBal : 0;
+                    return (
+                      <>
+                        <p className="text-lg font-bold">{wtdRate > 0 ? `${wtdRate.toFixed(2)}%` : "—"}</p>
+                        <p className="text-xs text-muted-foreground">{active.length} active loan{active.length !== 1 ? "s" : ""}</p>
+                      </>
+                    );
+                  })()}
+                </CardContent>
+              </Card>
+            </div>
+          )}
+
+          {/* Add Debt Facility Button */}
+          {canEdit && (
+            <div className="flex justify-end">
+              <Dialog open={showAddDebt} onOpenChange={(open) => { setShowAddDebt(open); if (!open) resetDebtForm(); }}>
+                <DialogTrigger asChild>
+                  <Button size="sm"><Plus className="h-4 w-4 mr-1.5" />Add Debt Facility</Button>
+                </DialogTrigger>
+                <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+                  <DialogHeader>
+                    <DialogTitle className="flex items-center gap-2"><Landmark className="h-5 w-5" />New Debt Facility</DialogTitle>
+                  </DialogHeader>
+                  <form onSubmit={handleCreateDebt} className="space-y-4">
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="col-span-2 space-y-1">
+                        <Label className="text-xs">Lender Name *</Label>
+                        <Input value={debtForm.lender_name} onChange={(e) => setDebtForm(f => ({ ...f, lender_name: e.target.value }))} placeholder="e.g. ATB Financial" required />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs">Debt Type *</Label>
+                        <Select value={debtForm.debt_type} onValueChange={(v) => setDebtForm(f => ({ ...f, debt_type: v }))}>
+                          <SelectTrigger><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="permanent_mortgage">Permanent Mortgage</SelectItem>
+                            <SelectItem value="construction_loan">Construction Loan</SelectItem>
+                            <SelectItem value="bridge_loan">Bridge Loan</SelectItem>
+                            <SelectItem value="mezzanine">Mezzanine</SelectItem>
+                            <SelectItem value="line_of_credit">Line of Credit</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs">Rate Type</Label>
+                        <Select value={debtForm.rate_type} onValueChange={(v) => setDebtForm(f => ({ ...f, rate_type: v }))}>
+                          <SelectTrigger><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="fixed">Fixed</SelectItem>
+                            <SelectItem value="variable">Variable</SelectItem>
+                            <SelectItem value="hybrid">Hybrid</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+
+                    <div className="border rounded-lg p-3 bg-blue-50/30 border-blue-200 space-y-3">
+                      <p className="text-xs font-semibold text-blue-700 flex items-center gap-1.5"><DollarSign className="h-3.5 w-3.5" />Amounts</p>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="space-y-1">
+                          <Label className="text-xs">Commitment Amount ($) *</Label>
+                          <Input type="number" step="0.01" value={debtForm.commitment_amount} onChange={(e) => setDebtForm(f => ({ ...f, commitment_amount: e.target.value }))} placeholder="2,400,000" required />
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-xs">Interest Rate (%)</Label>
+                          <Input type="number" step="0.01" value={debtForm.interest_rate} onChange={(e) => setDebtForm(f => ({ ...f, interest_rate: e.target.value }))} placeholder="5.25" />
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="border rounded-lg p-3 bg-green-50/30 border-green-200 space-y-3">
+                      <p className="text-xs font-semibold text-green-700 flex items-center gap-1.5"><Calendar className="h-3.5 w-3.5" />Loan Terms</p>
+                      <div className="grid grid-cols-3 gap-3">
+                        <div className="space-y-1">
+                          <Label className="text-xs">Term (months)</Label>
+                          <Input type="number" value={debtForm.term_months} onChange={(e) => setDebtForm(f => ({ ...f, term_months: e.target.value }))} placeholder="60" />
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-xs">Amortization (months)</Label>
+                          <Input type="number" value={debtForm.amortization_months} onChange={(e) => setDebtForm(f => ({ ...f, amortization_months: e.target.value }))} placeholder="300" />
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-xs">IO Period (months)</Label>
+                          <Input type="number" value={debtForm.io_period_months} onChange={(e) => setDebtForm(f => ({ ...f, io_period_months: e.target.value }))} placeholder="0" />
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="space-y-1">
+                          <Label className="text-xs">Origination Date</Label>
+                          <Input type="date" value={debtForm.origination_date} onChange={(e) => setDebtForm(f => ({ ...f, origination_date: e.target.value }))} />
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-xs">Maturity Date</Label>
+                          <Input type="date" value={debtForm.maturity_date} onChange={(e) => setDebtForm(f => ({ ...f, maturity_date: e.target.value }))} />
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="border rounded-lg p-3 bg-amber-50/30 border-amber-200 space-y-3">
+                      <p className="text-xs font-semibold text-amber-700 flex items-center gap-1.5"><Shield className="h-3.5 w-3.5" />Covenants</p>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="space-y-1">
+                          <Label className="text-xs">Max LTV (%)</Label>
+                          <Input type="number" step="0.01" value={debtForm.ltv_covenant} onChange={(e) => setDebtForm(f => ({ ...f, ltv_covenant: e.target.value }))} placeholder="75.00" />
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-xs">Min DSCR (x)</Label>
+                          <Input type="number" step="0.01" value={debtForm.dscr_covenant} onChange={(e) => setDebtForm(f => ({ ...f, dscr_covenant: e.target.value }))} placeholder="1.25" />
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="space-y-1">
+                      <Label className="text-xs">Notes</Label>
+                      <Textarea value={debtForm.notes} onChange={(e) => setDebtForm(f => ({ ...f, notes: e.target.value }))} placeholder="Additional notes about this facility..." rows={2} />
+                    </div>
+
+                    <Button type="submit" className="w-full" disabled={createDebt.isPending}>
+                      {createDebt.isPending ? "Adding..." : "Add Debt Facility"}
+                    </Button>
+                  </form>
+                </DialogContent>
+              </Dialog>
+            </div>
+          )}
+
+          {/* Debt Facility Cards */}
           {!debtFacilities || debtFacilities.length === 0 ? (
             <Card>
-              <CardContent className="py-8 text-center">
-                <Landmark className="h-10 w-10 text-muted-foreground/40 mx-auto mb-3" />
-                <p className="text-sm text-muted-foreground">No debt facilities recorded for this property.</p>
+              <CardContent className="py-12 text-center">
+                <Landmark className="h-12 w-12 text-muted-foreground/30 mx-auto mb-3" />
+                <p className="text-sm font-medium text-muted-foreground">No debt facilities recorded</p>
+                <p className="text-xs text-muted-foreground mt-1">Add a mortgage, construction loan, or other debt facility to track terms and amortization.</p>
               </CardContent>
             </Card>
           ) : (
-            debtFacilities.map((debt: {
+            (debtFacilities as Array<{
               debt_id: number; lender_name: string; debt_type: string; status: string;
-              commitment_amount: number; outstanding_balance: number; interest_rate: number | null;
-              rate_type: string; term_months: number | null; maturity_date: string | null;
+              commitment_amount: number; drawn_amount: number; outstanding_balance: number;
+              interest_rate: number | null; rate_type: string; term_months: number | null;
+              maturity_date: string | null; origination_date: string | null;
               amortization_months: number | null; io_period_months: number | null;
-              ltv_covenant: number | null; dscr_covenant: number | null;
-            }) => (
+              ltv_covenant: number | null; dscr_covenant: number | null; notes: string | null;
+            }>).map((debt) => (
               <Card key={debt.debt_id} className="overflow-hidden">
-                <CardHeader className="pb-3">
-                  <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
-                    <div>
-                      <div className="flex items-center gap-2 mb-1">
-                        <CardTitle className="text-base">{debt.lender_name}</CardTitle>
-                        <Badge variant={debt.status === "active" ? "default" : "secondary"} className="text-xs">
-                          {debt.status}
-                        </Badge>
+                {/* Edit mode */}
+                {editingDebtId === debt.debt_id ? (
+                  <CardContent className="pt-6">
+                    <form onSubmit={handleUpdateDebt} className="space-y-4">
+                      <div className="flex items-center justify-between mb-2">
+                        <p className="text-sm font-semibold">Edit Debt Facility</p>
+                        <Button type="button" variant="ghost" size="sm" onClick={() => { setEditingDebtId(null); resetDebtForm(); }}>Cancel</Button>
                       </div>
-                      <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted-foreground">
-                        <span>{debt.debt_type.replace(/_/g, " ")}</span>
-                        <span>{debt.rate_type}</span>
-                        {debt.interest_rate != null && <span>{Number(debt.interest_rate).toFixed(2)}%</span>}
-                        {debt.term_months && <span>{debt.term_months}mo term</span>}
-                        {debt.amortization_months && <span>{debt.amortization_months}mo amort</span>}
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="col-span-2 space-y-1">
+                          <Label className="text-xs">Lender Name *</Label>
+                          <Input value={debtForm.lender_name} onChange={(e) => setDebtForm(f => ({ ...f, lender_name: e.target.value }))} required />
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-xs">Debt Type</Label>
+                          <Select value={debtForm.debt_type} onValueChange={(v) => setDebtForm(f => ({ ...f, debt_type: v }))}>
+                            <SelectTrigger><SelectValue /></SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="permanent_mortgage">Permanent Mortgage</SelectItem>
+                              <SelectItem value="construction_loan">Construction Loan</SelectItem>
+                              <SelectItem value="bridge_loan">Bridge Loan</SelectItem>
+                              <SelectItem value="mezzanine">Mezzanine</SelectItem>
+                              <SelectItem value="line_of_credit">Line of Credit</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-xs">Rate Type</Label>
+                          <Select value={debtForm.rate_type} onValueChange={(v) => setDebtForm(f => ({ ...f, rate_type: v }))}>
+                            <SelectTrigger><SelectValue /></SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="fixed">Fixed</SelectItem>
+                              <SelectItem value="variable">Variable</SelectItem>
+                              <SelectItem value="hybrid">Hybrid</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
                       </div>
-                    </div>
-                    <div className="text-left sm:text-right shrink-0">
-                      <p className="text-lg font-bold">{formatCurrency(debt.commitment_amount)}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {formatCurrency(debt.outstanding_balance)} outstanding
-                      </p>
-                    </div>
-                  </div>
-                </CardHeader>
+                      <div className="grid grid-cols-3 gap-3">
+                        <div className="space-y-1">
+                          <Label className="text-xs">Commitment ($)</Label>
+                          <Input type="number" step="0.01" value={debtForm.commitment_amount} onChange={(e) => setDebtForm(f => ({ ...f, commitment_amount: e.target.value }))} required />
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-xs">Drawn ($)</Label>
+                          <Input type="number" step="0.01" value={debtForm.drawn_amount} onChange={(e) => setDebtForm(f => ({ ...f, drawn_amount: e.target.value }))} />
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-xs">Outstanding ($)</Label>
+                          <Input type="number" step="0.01" value={debtForm.outstanding_balance} onChange={(e) => setDebtForm(f => ({ ...f, outstanding_balance: e.target.value }))} />
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-4 gap-3">
+                        <div className="space-y-1">
+                          <Label className="text-xs">Rate (%)</Label>
+                          <Input type="number" step="0.01" value={debtForm.interest_rate} onChange={(e) => setDebtForm(f => ({ ...f, interest_rate: e.target.value }))} />
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-xs">Term (mo)</Label>
+                          <Input type="number" value={debtForm.term_months} onChange={(e) => setDebtForm(f => ({ ...f, term_months: e.target.value }))} />
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-xs">Amort (mo)</Label>
+                          <Input type="number" value={debtForm.amortization_months} onChange={(e) => setDebtForm(f => ({ ...f, amortization_months: e.target.value }))} />
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-xs">IO (mo)</Label>
+                          <Input type="number" value={debtForm.io_period_months} onChange={(e) => setDebtForm(f => ({ ...f, io_period_months: e.target.value }))} />
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="space-y-1">
+                          <Label className="text-xs">Origination Date</Label>
+                          <Input type="date" value={debtForm.origination_date} onChange={(e) => setDebtForm(f => ({ ...f, origination_date: e.target.value }))} />
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-xs">Maturity Date</Label>
+                          <Input type="date" value={debtForm.maturity_date} onChange={(e) => setDebtForm(f => ({ ...f, maturity_date: e.target.value }))} />
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="space-y-1">
+                          <Label className="text-xs">Max LTV Covenant (%)</Label>
+                          <Input type="number" step="0.01" value={debtForm.ltv_covenant} onChange={(e) => setDebtForm(f => ({ ...f, ltv_covenant: e.target.value }))} />
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-xs">Min DSCR Covenant (x)</Label>
+                          <Input type="number" step="0.01" value={debtForm.dscr_covenant} onChange={(e) => setDebtForm(f => ({ ...f, dscr_covenant: e.target.value }))} />
+                        </div>
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs">Notes</Label>
+                        <Textarea value={debtForm.notes} onChange={(e) => setDebtForm(f => ({ ...f, notes: e.target.value }))} rows={2} />
+                      </div>
+                      <Button type="submit" className="w-full" disabled={updateDebt.isPending}>
+                        {updateDebt.isPending ? "Saving..." : "Save Changes"}
+                      </Button>
+                    </form>
+                  </CardContent>
+                ) : (
+                  /* View mode */
+                  <>
+                    <CardHeader className="pb-3">
+                      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
+                        <div>
+                          <div className="flex items-center gap-2 mb-1">
+                            <CardTitle className="text-base">{debt.lender_name}</CardTitle>
+                            <Badge variant={debt.status === "active" ? "default" : "secondary"} className="text-xs capitalize">
+                              {debt.status.replace(/_/g, " ")}
+                            </Badge>
+                            <Badge variant="outline" className="text-xs capitalize">
+                              {debt.debt_type.replace(/_/g, " ")}
+                            </Badge>
+                          </div>
+                          <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground mt-1">
+                            <span className="flex items-center gap-1"><Banknote className="h-3 w-3" />{debt.rate_type} {debt.interest_rate != null ? `@ ${Number(debt.interest_rate).toFixed(2)}%` : ""}</span>
+                            {debt.term_months && <span>{debt.term_months}mo term</span>}
+                            {debt.amortization_months && <span>{debt.amortization_months}mo amortization</span>}
+                            {(debt.io_period_months ?? 0) > 0 && <span>{debt.io_period_months}mo IO</span>}
+                            {debt.origination_date && <span>Orig: {formatDate(debt.origination_date)}</span>}
+                            {debt.maturity_date && <span>Mat: {formatDate(debt.maturity_date)}</span>}
+                          </div>
+                        </div>
+                        <div className="flex items-start gap-2">
+                          <div className="text-left sm:text-right shrink-0">
+                            <p className="text-lg font-bold">{formatCurrency(debt.commitment_amount)}</p>
+                            <p className="text-xs text-muted-foreground">
+                              {formatCurrency(debt.outstanding_balance)} outstanding
+                            </p>
+                          </div>
+                          {canEdit && (
+                            <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" onClick={() => startEditDebt(debt as unknown as Record<string, unknown>)}>
+                              <Edit2 className="h-3.5 w-3.5" />
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+                    </CardHeader>
 
-                {/* Covenant badges */}
-                {(debt.ltv_covenant || debt.dscr_covenant) && (
-                  <div className="px-6 pb-3 flex flex-wrap gap-2">
-                    {debt.ltv_covenant && (
-                      <span className="inline-flex items-center rounded-md bg-amber-50 px-2 py-1 text-xs font-medium text-amber-700 ring-1 ring-inset ring-amber-200">
-                        LTV Covenant: {debt.ltv_covenant}%
-                      </span>
+                    {/* Loan Details Grid */}
+                    <div className="px-6 pb-3">
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                        <div className="bg-muted/50 rounded-lg p-2.5">
+                          <p className="text-[10px] text-muted-foreground font-medium uppercase tracking-wide">Drawn</p>
+                          <p className="text-sm font-semibold">{formatCurrency(debt.drawn_amount)}</p>
+                        </div>
+                        <div className="bg-muted/50 rounded-lg p-2.5">
+                          <p className="text-[10px] text-muted-foreground font-medium uppercase tracking-wide">Available</p>
+                          <p className="text-sm font-semibold">{formatCurrency(debt.commitment_amount - debt.drawn_amount)}</p>
+                        </div>
+                        <div className="bg-muted/50 rounded-lg p-2.5">
+                          <p className="text-[10px] text-muted-foreground font-medium uppercase tracking-wide">Est. Monthly Pmt</p>
+                          <p className="text-sm font-semibold">
+                            {(() => {
+                              const bal = debt.outstanding_balance ?? 0;
+                              const rate = (debt.interest_rate ?? 0) / 100;
+                              const amort = debt.amortization_months ?? 0;
+                              if (bal <= 0 || rate <= 0) return "—";
+                              const mr = rate / 12;
+                              if (amort > 0 && (debt.io_period_months ?? 0) <= 0) {
+                                const pmt = bal * (mr * Math.pow(1 + mr, amort)) / (Math.pow(1 + mr, amort) - 1);
+                                return formatCurrency(pmt);
+                              }
+                              return formatCurrency(bal * mr) + " (IO)";
+                            })()}
+                          </p>
+                        </div>
+                        <div className="bg-muted/50 rounded-lg p-2.5">
+                          <p className="text-[10px] text-muted-foreground font-medium uppercase tracking-wide">Est. Annual DS</p>
+                          <p className="text-sm font-semibold">
+                            {(() => {
+                              const bal = debt.outstanding_balance ?? 0;
+                              const rate = (debt.interest_rate ?? 0) / 100;
+                              const amort = debt.amortization_months ?? 0;
+                              if (bal <= 0 || rate <= 0) return "—";
+                              const mr = rate / 12;
+                              if (amort > 0 && (debt.io_period_months ?? 0) <= 0) {
+                                const pmt = bal * (mr * Math.pow(1 + mr, amort)) / (Math.pow(1 + mr, amort) - 1);
+                                return formatCurrency(pmt * 12);
+                              }
+                              return formatCurrency(bal * rate);
+                            })()}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Covenant badges */}
+                    {(debt.ltv_covenant || debt.dscr_covenant) && (
+                      <div className="px-6 pb-3 flex flex-wrap gap-2">
+                        {debt.ltv_covenant && (
+                          <span className="inline-flex items-center rounded-md bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-700 ring-1 ring-inset ring-amber-200">
+                            <Shield className="h-3 w-3 mr-1" />LTV Covenant: {debt.ltv_covenant}%
+                          </span>
+                        )}
+                        {debt.dscr_covenant && (
+                          <span className="inline-flex items-center rounded-md bg-blue-50 px-2.5 py-1 text-xs font-medium text-blue-700 ring-1 ring-inset ring-blue-200">
+                            <Shield className="h-3 w-3 mr-1" />DSCR Covenant: {debt.dscr_covenant}x
+                          </span>
+                        )}
+                      </div>
                     )}
-                    {debt.dscr_covenant && (
-                      <span className="inline-flex items-center rounded-md bg-blue-50 px-2 py-1 text-xs font-medium text-blue-700 ring-1 ring-inset ring-blue-200">
-                        DSCR Covenant: {debt.dscr_covenant}x
-                      </span>
+
+                    {debt.notes && (
+                      <div className="px-6 pb-3">
+                        <p className="text-xs text-muted-foreground italic">{debt.notes}</p>
+                      </div>
                     )}
-                  </div>
+
+                    <CardContent className="pt-0">
+                      <button
+                        onClick={() => setExpandedDebtId(expandedDebtId === debt.debt_id ? null : debt.debt_id)}
+                        className="flex items-center gap-1.5 text-xs text-primary hover:underline font-medium"
+                      >
+                        {expandedDebtId === debt.debt_id ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
+                        {expandedDebtId === debt.debt_id ? "Hide" : "View"} amortization schedule
+                      </button>
+                      {expandedDebtId === debt.debt_id && (
+                        <AmortizationPanel propertyId={propertyId} debtId={debt.debt_id} />
+                      )}
+                    </CardContent>
+                  </>
                 )}
-
-                <CardContent className="pt-0">
-                  <button
-                    onClick={() => setExpandedDebtId(expandedDebtId === debt.debt_id ? null : debt.debt_id)}
-                    className="flex items-center gap-1.5 text-xs text-primary hover:underline font-medium"
-                  >
-                    {expandedDebtId === debt.debt_id ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
-                    {expandedDebtId === debt.debt_id ? "Hide" : "View"} amortization schedule
-                  </button>
-                  {expandedDebtId === debt.debt_id && (
-                    <AmortizationPanel propertyId={propertyId} debtId={debt.debt_id} />
-                  )}
-                </CardContent>
               </Card>
             ))
+          )}
+
+          {/* Cash Flow Impact Summary */}
+          {(debtFacilities ?? []).length > 0 && property && (
+            <Card className="border-t-4 border-t-emerald-500">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <TrendingUp className="h-4 w-4 text-emerald-600" />
+                  Cash Flow Impact Summary
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow className="bg-muted/50">
+                        <TableHead className="text-xs">Metric</TableHead>
+                        <TableHead className="text-xs text-right">Annual</TableHead>
+                        <TableHead className="text-xs text-right">Monthly</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {(() => {
+                        const purchasePrice = property.purchase_price ?? property.current_market_value ?? 0;
+                        const noi = property.annual_revenue ? property.annual_revenue - (property.annual_expenses ?? 0) : 0;
+                        const cashAfterDS = noi - totalAnnualDebtService;
+                        const capRate = purchasePrice > 0 && noi > 0 ? (noi / purchasePrice) * 100 : 0;
+                        const dscr = totalAnnualDebtService > 0 && noi > 0 ? noi / totalAnnualDebtService : 0;
+                        const cashOnCash = (purchasePrice - totalDebtOutstanding) > 0 && cashAfterDS > 0 ? (cashAfterDS / (purchasePrice - totalDebtOutstanding)) * 100 : 0;
+                        return (
+                          <>
+                            <TableRow>
+                              <TableCell className="text-xs font-medium">Net Operating Income (NOI)</TableCell>
+                              <TableCell className="text-xs text-right font-semibold">{noi > 0 ? formatCurrency(noi) : "—"}</TableCell>
+                              <TableCell className="text-xs text-right">{noi > 0 ? formatCurrency(noi / 12) : "—"}</TableCell>
+                            </TableRow>
+                            <TableRow>
+                              <TableCell className="text-xs font-medium text-red-700">Less: Total Debt Service</TableCell>
+                              <TableCell className="text-xs text-right font-semibold text-red-700">{totalAnnualDebtService > 0 ? `(${formatCurrency(totalAnnualDebtService)})` : "—"}</TableCell>
+                              <TableCell className="text-xs text-right text-red-700">{totalAnnualDebtService > 0 ? `(${formatCurrency(totalAnnualDebtService / 12)})` : "—"}</TableCell>
+                            </TableRow>
+                            <TableRow className="border-t-2 border-t-foreground/20">
+                              <TableCell className="text-xs font-bold">Cash Flow After Debt Service</TableCell>
+                              <TableCell className={cn("text-xs text-right font-bold", cashAfterDS >= 0 ? "text-green-700" : "text-red-700")}>
+                                {noi > 0 ? formatCurrency(cashAfterDS) : "—"}
+                              </TableCell>
+                              <TableCell className={cn("text-xs text-right", cashAfterDS >= 0 ? "text-green-700" : "text-red-700")}>
+                                {noi > 0 ? formatCurrency(cashAfterDS / 12) : "—"}
+                              </TableCell>
+                            </TableRow>
+                            <TableRow>
+                              <TableCell colSpan={3} className="pt-4 pb-2">
+                                <div className="grid grid-cols-3 gap-4">
+                                  <div className="text-center">
+                                    <p className="text-[10px] text-muted-foreground font-medium uppercase">Cap Rate</p>
+                                    <p className="text-lg font-bold">{capRate > 0 ? `${capRate.toFixed(2)}%` : "—"}</p>
+                                  </div>
+                                  <div className="text-center">
+                                    <p className="text-[10px] text-muted-foreground font-medium uppercase">DSCR</p>
+                                    <p className={cn("text-lg font-bold", dscr > 0 && dscr < 1.2 ? "text-red-700" : dscr >= 1.2 ? "text-green-700" : "")}>{dscr > 0 ? `${dscr.toFixed(2)}x` : "—"}</p>
+                                  </div>
+                                  <div className="text-center">
+                                    <p className="text-[10px] text-muted-foreground font-medium uppercase">Cash-on-Cash</p>
+                                    <p className="text-lg font-bold">{cashOnCash > 0 ? `${cashOnCash.toFixed(1)}%` : "—"}</p>
+                                  </div>
+                                </div>
+                              </TableCell>
+                            </TableRow>
+                          </>
+                        );
+                      })()}
+                    </TableBody>
+                  </Table>
+                </div>
+              </CardContent>
+            </Card>
           )}
         </TabsContent>
 
@@ -1631,8 +2151,15 @@ export default function PropertyDetailPage({ params }: { params: { id: string } 
                   </div>
                   <div className="grid grid-cols-2 gap-3">
                     <div className="space-y-1">
-                      <Label className="text-xs">Debt Service ($)</Label>
-                      <Input type="number" value={projForm.annual_debt_service} onChange={(e) => setProjForm((f) => ({ ...f, annual_debt_service: e.target.value }))} placeholder="optional" />
+                      <Label className="text-xs">Annual Debt Service ($)</Label>
+                      <div className="flex gap-1.5">
+                        <Input type="number" value={projForm.annual_debt_service} onChange={(e) => setProjForm((f) => ({ ...f, annual_debt_service: e.target.value }))} placeholder={totalAnnualDebtService > 0 ? `Est: ${Math.round(totalAnnualDebtService).toLocaleString()}` : "optional"} />
+                        {totalAnnualDebtService > 0 && !projForm.annual_debt_service && (
+                          <Button type="button" variant="outline" size="sm" className="shrink-0 text-xs" onClick={() => setProjForm(f => ({ ...f, annual_debt_service: String(Math.round(totalAnnualDebtService)) }))}>
+                            Auto-fill
+                          </Button>
+                        )}
+                      </div>
                     </div>
                     <div className="space-y-1">
                       <Label className="text-xs">Exit Cap (%)</Label>
@@ -1794,7 +2321,14 @@ export default function PropertyDetailPage({ params }: { params: { id: string } 
                     <div className="grid grid-cols-2 gap-3">
                       <div className="space-y-1">
                         <Label className="text-xs">Debt Payout ($)</Label>
-                        <Input type="number" value={refiForm.existing_debt_payout} onChange={(e) => setRefiForm((f) => ({ ...f, existing_debt_payout: e.target.value }))} placeholder="opt." />
+                        <div className="flex gap-1.5">
+                          <Input type="number" value={refiForm.existing_debt_payout} onChange={(e) => setRefiForm((f) => ({ ...f, existing_debt_payout: e.target.value }))} placeholder={totalDebtOutstanding > 0 ? `Current: ${totalDebtOutstanding.toLocaleString()}` : "opt."} />
+                          {totalDebtOutstanding > 0 && !refiForm.existing_debt_payout && (
+                            <Button type="button" variant="outline" size="sm" className="shrink-0 text-xs" onClick={() => setRefiForm(f => ({ ...f, existing_debt_payout: String(totalDebtOutstanding) }))}>
+                              Auto-fill
+                            </Button>
+                          )}
+                        </div>
                       </div>
                       <div className="space-y-1">
                         <Label className="text-xs">Closing Costs ($)</Label>
@@ -1807,16 +2341,32 @@ export default function PropertyDetailPage({ params }: { params: { id: string } 
                       <p className="text-xs font-semibold text-emerald-700 flex items-center gap-1.5">
                         <TrendingUp className="h-3.5 w-3.5" /> ROI Projection Inputs
                       </p>
-                      <div className="grid grid-cols-2 gap-3">
-                        <div className="space-y-1">
-                          <Label className="text-xs">Total Equity ($)</Label>
-                          <Input type="number" value={refiForm.total_equity_invested} onChange={(e) => setRefiForm((f) => ({ ...f, total_equity_invested: e.target.value }))} placeholder="e.g. 200000" />
-                        </div>
-                        <div className="space-y-1">
-                          <Label className="text-xs">Annual NOI at Refi ($)</Label>
-                          <Input type="number" value={refiForm.annual_noi_at_refi} onChange={(e) => setRefiForm((f) => ({ ...f, annual_noi_at_refi: e.target.value }))} placeholder="e.g. 72000" />
-                        </div>
-                      </div>
+                      {(() => {
+                        const computedEquity = (property?.purchase_price ?? 0) - totalDebtOutstanding;
+                        const computedNOI = (property?.annual_revenue ?? 0) - (property?.annual_expenses ?? 0);
+                        return (
+                          <div className="grid grid-cols-2 gap-3">
+                            <div className="space-y-1">
+                              <Label className="text-xs">Total Equity ($)</Label>
+                              <div className="flex gap-1.5">
+                                <Input type="number" value={refiForm.total_equity_invested} onChange={(e) => setRefiForm((f) => ({ ...f, total_equity_invested: e.target.value }))} placeholder={computedEquity > 0 ? `Est: ${Math.round(computedEquity).toLocaleString()}` : "e.g. 200000"} />
+                                {computedEquity > 0 && !refiForm.total_equity_invested && (
+                                  <Button type="button" variant="outline" size="sm" className="shrink-0 text-xs" onClick={() => setRefiForm(f => ({ ...f, total_equity_invested: String(Math.round(computedEquity)) }))}>Auto</Button>
+                                )}
+                              </div>
+                            </div>
+                            <div className="space-y-1">
+                              <Label className="text-xs">Annual NOI at Refi ($)</Label>
+                              <div className="flex gap-1.5">
+                                <Input type="number" value={refiForm.annual_noi_at_refi} onChange={(e) => setRefiForm((f) => ({ ...f, annual_noi_at_refi: e.target.value }))} placeholder={computedNOI > 0 ? `Est: ${Math.round(computedNOI).toLocaleString()}` : "e.g. 72000"} />
+                                {computedNOI > 0 && !refiForm.annual_noi_at_refi && (
+                                  <Button type="button" variant="outline" size="sm" className="shrink-0 text-xs" onClick={() => setRefiForm(f => ({ ...f, annual_noi_at_refi: String(Math.round(computedNOI)) }))}>Auto</Button>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })()}
                     </div>
 
                     <div className="space-y-1">
@@ -2045,7 +2595,14 @@ export default function PropertyDetailPage({ params }: { params: { id: string } 
                     <div className="grid grid-cols-2 gap-3">
                       <div className="space-y-1">
                         <Label className="text-xs">Debt Payout ($)</Label>
-                        <Input type="number" value={saleForm.debt_payout} onChange={(e) => setSaleForm((f) => ({ ...f, debt_payout: e.target.value }))} placeholder="opt." />
+                        <div className="flex gap-1.5">
+                          <Input type="number" value={saleForm.debt_payout} onChange={(e) => setSaleForm((f) => ({ ...f, debt_payout: e.target.value }))} placeholder={totalDebtOutstanding > 0 ? `Current: ${totalDebtOutstanding.toLocaleString()}` : "opt."} />
+                          {totalDebtOutstanding > 0 && !saleForm.debt_payout && (
+                            <Button type="button" variant="outline" size="sm" className="shrink-0 text-xs" onClick={() => setSaleForm(f => ({ ...f, debt_payout: String(totalDebtOutstanding) }))}>
+                              Auto-fill
+                            </Button>
+                          )}
+                        </div>
                       </div>
                       <div className="space-y-1">
                         <Label className="text-xs">Cap Gains Reserve ($)</Label>
@@ -2058,20 +2615,45 @@ export default function PropertyDetailPage({ params }: { params: { id: string } 
                       <p className="text-xs font-semibold text-emerald-700 flex items-center gap-1.5">
                         <TrendingUp className="h-3.5 w-3.5" /> ROI Projection Inputs
                       </p>
-                      <div className="grid grid-cols-2 gap-3">
-                        <div className="space-y-1">
-                          <Label className="text-xs">Total Equity ($)</Label>
-                          <Input type="number" value={saleForm.total_equity_invested} onChange={(e) => setSaleForm((f) => ({ ...f, total_equity_invested: e.target.value }))} placeholder="e.g. 200000" />
-                        </div>
-                        <div className="space-y-1">
-                          <Label className="text-xs">Annual NOI at Sale ($)</Label>
-                          <Input type="number" value={saleForm.annual_noi_at_sale} onChange={(e) => setSaleForm((f) => ({ ...f, annual_noi_at_sale: e.target.value }))} placeholder="e.g. 78000" />
-                        </div>
-                      </div>
-                      <div className="space-y-1">
-                        <Label className="text-xs">Avg Annual Cash Flow ($)</Label>
-                        <Input type="number" value={saleForm.annual_cash_flow} onChange={(e) => setSaleForm((f) => ({ ...f, annual_cash_flow: e.target.value }))} placeholder="e.g. 28000" />
-                      </div>
+                      {(() => {
+                        const computedEquity = (property?.purchase_price ?? 0) - totalDebtOutstanding;
+                        const computedNOI = (property?.annual_revenue ?? 0) - (property?.annual_expenses ?? 0);
+                        const computedCashFlow = computedNOI - totalAnnualDebtService;
+                        return (
+                          <>
+                            <div className="grid grid-cols-2 gap-3">
+                              <div className="space-y-1">
+                                <Label className="text-xs">Total Equity ($)</Label>
+                                <div className="flex gap-1.5">
+                                  <Input type="number" value={saleForm.total_equity_invested} onChange={(e) => setSaleForm((f) => ({ ...f, total_equity_invested: e.target.value }))} placeholder={computedEquity > 0 ? `Est: ${Math.round(computedEquity).toLocaleString()}` : "e.g. 200000"} />
+                                  {computedEquity > 0 && !saleForm.total_equity_invested && (
+                                    <Button type="button" variant="outline" size="sm" className="shrink-0 text-xs" onClick={() => setSaleForm(f => ({ ...f, total_equity_invested: String(Math.round(computedEquity)) }))}>Auto</Button>
+                                  )}
+                                </div>
+                              </div>
+                              <div className="space-y-1">
+                                <Label className="text-xs">Annual NOI at Sale ($)</Label>
+                                <div className="flex gap-1.5">
+                                  <Input type="number" value={saleForm.annual_noi_at_sale} onChange={(e) => setSaleForm((f) => ({ ...f, annual_noi_at_sale: e.target.value }))} placeholder={computedNOI > 0 ? `Est: ${Math.round(computedNOI).toLocaleString()}` : "e.g. 78000"} />
+                                  {computedNOI > 0 && !saleForm.annual_noi_at_sale && (
+                                    <Button type="button" variant="outline" size="sm" className="shrink-0 text-xs" onClick={() => setSaleForm(f => ({ ...f, annual_noi_at_sale: String(Math.round(computedNOI)) }))}>Auto</Button>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                            <div className="space-y-1">
+                              <Label className="text-xs">Avg Annual Cash Flow After DS ($)</Label>
+                              <div className="flex gap-1.5">
+                                <Input type="number" value={saleForm.annual_cash_flow} onChange={(e) => setSaleForm((f) => ({ ...f, annual_cash_flow: e.target.value }))} placeholder={computedCashFlow > 0 ? `Est: ${Math.round(computedCashFlow).toLocaleString()}` : "e.g. 28000"} />
+                                {computedCashFlow > 0 && !saleForm.annual_cash_flow && (
+                                  <Button type="button" variant="outline" size="sm" className="shrink-0 text-xs" onClick={() => setSaleForm(f => ({ ...f, annual_cash_flow: String(Math.round(computedCashFlow)) }))}>Auto</Button>
+                                )}
+                              </div>
+                            </div>
+                          </>
+                        );
+                      })()}
+
                     </div>
 
                     <div className="space-y-1">

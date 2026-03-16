@@ -133,6 +133,32 @@ export function useAmortizationSchedule(
   });
 }
 
+export function useCreateDebtFacility(propertyId: number) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: object) =>
+      apiClient
+        .post(`/api/portfolio/debt-facilities`, { ...input, property_id: propertyId })
+        .then((r) => r.data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["debt", propertyId] });
+    },
+  });
+}
+
+export function useUpdateDebtFacility(propertyId: number) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ debtId, ...input }: { debtId: number; [key: string]: unknown }) =>
+      apiClient
+        .patch(`/api/portfolio/debt-facilities/${debtId}`, input)
+        .then((r) => r.data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["debt", propertyId] });
+    },
+  });
+}
+
 // ── Projections ───────────────────────────────────────────────────────────
 
 export function useRunProjection(propertyId: number) {
