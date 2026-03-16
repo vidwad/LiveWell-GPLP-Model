@@ -502,7 +502,7 @@ class _YearProjectionOut(_BaseModel):
     phase: str
     rentable_months: int
     occupancy_rate: float
-    gross_revenue: float
+    gross_potential_rent: float
     vacancy_loss: float
     effective_gross_income: float
     operating_expenses: float
@@ -512,30 +512,65 @@ class _YearProjectionOut(_BaseModel):
     cumulative_cash_flow: float
 
 
+class _ProjectionSummaryOut(_BaseModel):
+    total_cash_flow: float
+    exit_noi: float
+    exit_cap_rate: float
+    terminal_value: float
+    disposition_costs: float
+    net_exit_proceeds: float
+    total_return: float
+    total_equity_invested: float
+    equity_multiple: float | None = None
+    irr_estimate: float | None = None
+    cash_on_cash_avg: float | None = None
+    annualized_roi: float | None = None
+
+
+class _ProjectionResultOut(_BaseModel):
+    projections: list[_YearProjectionOut]
+    summary: _ProjectionSummaryOut
+
+
 class _ProjectionInput(_BaseModel):
-    # Simplified inputs (from frontend)
+    # ── Core inputs (from frontend) ──
+    # Revenue sources
+    baseline_annual_revenue: float | None = None   # current as-is income
+    baseline_annual_expenses: float | None = None   # current as-is expenses
+    stabilized_annual_revenue: float | None = None  # projected plan income
+    # Simplified revenue calc (fallback)
     planned_units: int | None = None
     monthly_rent_per_unit: float | None = None
+    # Expense & vacancy assumptions
     annual_expense_ratio: float | None = None  # 0.35 = 35%
-    vacancy_rate_stabilized: float | None = None  # 0.05 = 5%
+    vacancy_rate: float | None = None          # 0.05 = 5%
+    annual_rent_increase: float | None = None  # 0.03 = 3%
+    expense_growth_rate: float = 0.02
+    # Construction timeline
     construction_start_date: str | None = None  # ISO date string
     construction_months: int = 18
-    lease_up_months: int = 12
+    lease_up_months: int = 6
+    carrying_cost_annual: float = 0.0
+    # Debt service
     annual_debt_service: float | None = None
-    exit_cap_rate: float | None = None  # 0.055 = 5.5%
-    # Advanced inputs (original schema, used as overrides)
-    stabilized_annual_revenue: float | None = None
-    stabilized_operating_expenses: float | None = None
+    # Exit assumptions
+    exit_cap_rate: float | None = None         # 0.055 = 5.5%
+    disposition_cost_pct: float = 0.02         # 2% selling costs
+    # Equity & debt for return calcs
+    total_equity_invested: float = 0.0
+    debt_balance_at_exit: float = 0.0
+    # Projection horizon
+    projection_years: int = 10
+    # ── Legacy / advanced overrides ──
     construction_start_year: int | None = None
     construction_duration_years: int | None = None
-    lease_up_start_occupancy: float = 0.20
+    stabilized_operating_expenses: float | None = None
+    vacancy_rate_stabilized: float | None = None  # legacy alias
+    lease_up_start_occupancy: float = 0.0
     stabilized_occupancy: float | None = None
     interim_revenue: float = 0.0
     interim_expenses: float = 0.0
-    carrying_cost_annual: float = 0.0
-    projection_years: int = 10
-    expense_growth_rate: float = 0.03
-    revenue_growth_rate: float = 0.025
+    revenue_growth_rate: float | None = None
     # Debt params for embedded debt service calculation
     debt_outstanding_balance: float = 0.0
     debt_annual_rate: float = 0.0
@@ -543,7 +578,7 @@ class _ProjectionInput(_BaseModel):
     debt_io_months: int = 0
 
 
-@router.post("/properties/{property_id}/projection", response_model=_List[_YearProjectionOut])
+@router.post("/properties/{property_id}/projection", response_model=_ProjectionResultOut)
 def run_projection(
     property_id: int,
     payload: _ProjectionInput,
@@ -552,14 +587,66 @@ def run_projection(
 ):
     """
     Run a time-phased annual projection for a property.
-    If debt params are provided they override any stored debt facility data.
+    Returns year-by-year cash flows AND summary return metrics.
     """
-    if not db.query(Property).filter(Property.property_id == property_id).first():
+    prop = db.query(Property).filter(Property.property_id == property_id).first()
+    if not prop:
         raise HTTPException(404, "Property not found")
 
-    # Determine annual debt service
+    from sqlalchemy.orm import joinedload as _jl
+
+    # ── 1. Auto-populate baseline revenue from rent roll ──
+    baseline_revenue = payload.baseline_annual_revenue or 0.0
+    baseline_expenses = payload.baseline_annual_expenses or 0.0
+    if baseline_revenue == 0:
+        baseline_units = (
+            db.query(Unit)
+            .filter(Unit.property_id == property_id, Unit.development_plan_id.is_(None))
+            .options(_jl(Unit.beds))
+            .all()
+        )
+        if baseline_units:
+            baseline_revenue = sum(
+                float(b.monthly_rent or 0) * 12
+                for u in baseline_units for b in u.beds
+            )
+
+    # ── 2. Auto-populate stabilized revenue from plan rent roll ──
+    stab_revenue = payload.stabilized_annual_revenue or 0.0
+    if stab_revenue == 0 and payload.planned_units and payload.monthly_rent_per_unit:
+        stab_revenue = payload.planned_units * payload.monthly_rent_per_unit * 12
+    if stab_revenue == 0:
+        # Try to pull from active development plan units
+        plan_units = (
+            db.query(Unit)
+            .filter(Unit.property_id == property_id, Unit.development_plan_id.isnot(None))
+            .options(_jl(Unit.beds))
+            .all()
+        )
+        if plan_units:
+            stab_revenue = sum(
+                float(b.monthly_rent or 0) * 12
+                for u in plan_units for b in u.beds
+            )
+    if stab_revenue == 0:
+        # Final fallback: use all units
+        all_units = (
+            db.query(Unit)
+            .filter(Unit.property_id == property_id)
+            .options(_jl(Unit.beds))
+            .all()
+        )
+        if all_units:
+            stab_revenue = sum(
+                float(b.monthly_rent or 0) * 12
+                for u in all_units for b in u.beds
+            )
+
+    # ── 3. Determine annual debt service ──
     ads = 0.0
-    if payload.debt_outstanding_balance > 0 and payload.debt_annual_rate > 0:
+    if payload.annual_debt_service is not None and payload.annual_debt_service > 0:
+        ads = payload.annual_debt_service
+    elif payload.debt_outstanding_balance > 0 and payload.debt_annual_rate > 0:
         engine = _MortgageEngine(
             outstanding_balance=payload.debt_outstanding_balance,
             annual_interest_rate=payload.debt_annual_rate / 100,
@@ -568,7 +655,6 @@ def run_projection(
         )
         ads = engine.annual_debt_service(year=1)
     else:
-        # Use active debt facilities from DB
         from app.services.calculations import calculate_annual_debt_service
         debts = (
             db.query(DebtFacility)
@@ -584,96 +670,99 @@ def run_projection(
                     d.io_period_months or 0,
                 )
 
-    # Derive stabilized revenue/expenses from simplified inputs if not provided directly
-    if payload.stabilized_annual_revenue is not None:
-        stab_revenue = payload.stabilized_annual_revenue
-    elif payload.planned_units and payload.monthly_rent_per_unit:
-        stab_revenue = payload.planned_units * payload.monthly_rent_per_unit * 12
-    else:
-        # Fallback: pull from rent roll data
-        from sqlalchemy.orm import joinedload as _jl
-        prop_units = (
-            db.query(Unit)
-            .filter(Unit.property_id == property_id)
-            .options(_jl(Unit.beds))
-            .all()
-        )
-        if prop_units:
-            stab_revenue = sum(
-                float(b.monthly_rent or 0) * 12
-                for u in prop_units
-                for b in u.beds
-            )
-        else:
-            stab_revenue = 0.0
-
-    if payload.stabilized_operating_expenses is not None:
-        stab_expenses = payload.stabilized_operating_expenses
-    elif payload.annual_expense_ratio is not None and stab_revenue > 0:
-        stab_expenses = stab_revenue * payload.annual_expense_ratio
-    else:
-        stab_expenses = 0.0
-
-    # Derive construction_start_year as a RELATIVE year (1-based projection year)
-    # The engine treats this as "construction begins in projection year N"
+    # ── 4. Derive construction timeline ──
     construction_start_year = payload.construction_start_year
     if construction_start_year is None and payload.construction_start_date:
         try:
             from datetime import date as _date
             start_date = _date.fromisoformat(payload.construction_start_date)
             current_year = _date.today().year
-            # Convert calendar year to relative projection year (1-based)
-            # If construction starts this year or in the past, it's year 1
             relative_year = max(1, start_date.year - current_year + 1)
             construction_start_year = relative_year
         except (ValueError, IndexError):
-            construction_start_year = 1  # Default: construction starts immediately
+            construction_start_year = 1
 
-    # Derive construction_duration_years from months
     construction_duration_years = payload.construction_duration_years
     if construction_duration_years is None:
         construction_duration_years = max(1, round(payload.construction_months / 12))
 
-    # Use vacancy_rate_stabilized to compute stabilized_occupancy
-    stabilized_occupancy = payload.stabilized_occupancy
-    if stabilized_occupancy is None:
+    # ── 5. Resolve vacancy rate ──
+    vacancy_rate = payload.vacancy_rate
+    if vacancy_rate is None:
         if payload.vacancy_rate_stabilized is not None:
-            stabilized_occupancy = 1.0 - payload.vacancy_rate_stabilized
+            vacancy_rate = payload.vacancy_rate_stabilized
+        elif payload.stabilized_occupancy is not None:
+            vacancy_rate = 1.0 - payload.stabilized_occupancy
         else:
-            stabilized_occupancy = 0.93
+            vacancy_rate = 0.05  # default 5%
 
-    # Override annual_debt_service from simplified input if provided
-    if payload.annual_debt_service is not None and payload.annual_debt_service > 0:
-        ads = payload.annual_debt_service
+    # ── 6. Resolve expense ratio ──
+    expense_ratio = payload.annual_expense_ratio or 0.35
+    if payload.stabilized_operating_expenses and stab_revenue > 0:
+        expense_ratio = payload.stabilized_operating_expenses / stab_revenue
 
+    # ── 7. Resolve rent escalation ──
+    rent_increase = payload.annual_rent_increase
+    if rent_increase is None:
+        rent_increase = payload.revenue_growth_rate or 0.03
+
+    # ── 8. Exit cap rate ──
+    exit_cap = payload.exit_cap_rate or 0.055
+
+    # ── 9. Build and run engine ──
     proj_engine = LifecycleProjectionEngine(
+        baseline_annual_revenue=baseline_revenue,
+        baseline_annual_expenses=baseline_expenses,
         stabilized_annual_revenue=stab_revenue,
-        stabilized_operating_expenses=stab_expenses,
+        annual_expense_ratio=expense_ratio,
         annual_debt_service=ads,
+        vacancy_rate=vacancy_rate,
+        annual_rent_increase=rent_increase,
+        expense_growth_rate=payload.expense_growth_rate,
         construction_start_year=construction_start_year,
         construction_duration_years=construction_duration_years,
         lease_up_months=payload.lease_up_months,
-        lease_up_start_occupancy=payload.lease_up_start_occupancy,
-        stabilized_occupancy=stabilized_occupancy,
-        interim_revenue=payload.interim_revenue,
-        interim_expenses=payload.interim_expenses,
         carrying_cost_annual=payload.carrying_cost_annual,
+        exit_cap_rate=exit_cap,
+        disposition_cost_pct=payload.disposition_cost_pct,
+        total_equity_invested=payload.total_equity_invested,
+        debt_balance_at_exit=payload.debt_balance_at_exit,
         projection_years=payload.projection_years,
-        expense_growth_rate=payload.expense_growth_rate,
-        revenue_growth_rate=payload.revenue_growth_rate,
     )
 
-    return [
-        _YearProjectionOut(
-            year=y.year, phase=y.phase, rentable_months=y.rentable_months,
-            occupancy_rate=y.occupancy_rate, gross_revenue=y.gross_revenue,
-            vacancy_loss=y.vacancy_loss, effective_gross_income=y.effective_gross_income,
-            operating_expenses=y.operating_expenses, noi=y.noi,
-            annual_debt_service=y.annual_debt_service, cash_flow=y.cash_flow,
-            cumulative_cash_flow=y.cumulative_cash_flow,
-        )
-        for y in proj_engine.project()
-    ]
+    projections = proj_engine.project()
+    summary = proj_engine.compute_summary(projections)
+
+    return _ProjectionResultOut(
+        projections=[
+            _YearProjectionOut(
+                year=y.year, phase=y.phase, rentable_months=y.rentable_months,
+                occupancy_rate=y.occupancy_rate,
+                gross_potential_rent=y.gross_potential_rent,
+                vacancy_loss=y.vacancy_loss,
+                effective_gross_income=y.effective_gross_income,
+                operating_expenses=y.operating_expenses, noi=y.noi,
+                annual_debt_service=y.annual_debt_service,
+                cash_flow=y.cash_flow,
+                cumulative_cash_flow=y.cumulative_cash_flow,
+            )
+            for y in projections
+        ],
+        summary=_ProjectionSummaryOut(
+            total_cash_flow=summary.total_cash_flow,
+            exit_noi=summary.exit_noi,
+            exit_cap_rate=summary.exit_cap_rate,
+            terminal_value=summary.terminal_value,
+            disposition_costs=summary.disposition_costs,
+            net_exit_proceeds=summary.net_exit_proceeds,
+            total_return=summary.total_return,
+            total_equity_invested=summary.total_equity_invested,
+            equity_multiple=summary.equity_multiple,
+            irr_estimate=summary.irr_estimate,
+            cash_on_cash_avg=summary.cash_on_cash_avg,
+            annualized_roi=summary.annualized_roi,
+        ),
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -1668,6 +1757,10 @@ def create_bed(
     db.add(bed)
     db.commit()
     db.refresh(bed)
+    # Update unit bed_count to reflect actual count
+    actual_count = db.query(Bed).filter(Bed.unit_id == unit_id).count()
+    unit.bed_count = actual_count
+    db.commit()
     return bed
 
 
@@ -1711,11 +1804,15 @@ def delete_bed(
     bed = db.query(Bed).filter(Bed.bed_id == bed_id).first()
     if not bed:
         raise HTTPException(404, "Bed not found")
-    unit = db.query(Unit).filter(Unit.unit_id == bed.unit_id).first()
+    unit_id = bed.unit_id
+    unit = db.query(Unit).filter(Unit.unit_id == unit_id).first()
     db.delete(bed)
-    if unit and unit.bed_count and unit.bed_count > 0:
-        unit.bed_count = max(0, unit.bed_count - 1)
     db.commit()
+    # Update unit bed_count to reflect actual count
+    if unit:
+        actual_count = db.query(Bed).filter(Bed.unit_id == unit_id).count()
+        unit.bed_count = actual_count
+        db.commit()
 
 
 @router.get(

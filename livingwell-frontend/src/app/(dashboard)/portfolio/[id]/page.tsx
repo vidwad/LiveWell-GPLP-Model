@@ -333,11 +333,14 @@ export default function PropertyDetailPage({ params }: { params: { id: string } 
 
   // Projections
   const { mutateAsync: runProjection, isPending: projPending } = useRunProjection(propertyId);
-  const [projResults, setProjResults] = useState<Array<Record<string, unknown>> | null>(null);
+  const [projResults, setProjResults] = useState<{ projections: Array<Record<string, unknown>>; summary: Record<string, unknown> } | null>(null);
   const [projForm, setProjForm] = useState({
     planned_units: "", monthly_rent_per_unit: "", annual_expense_ratio: "35",
-    vacancy_rate_stabilized: "5", construction_start_date: "", construction_months: "18",
-    lease_up_months: "12", annual_debt_service: "", exit_cap_rate: "5.5",
+    vacancy_rate: "5", annual_rent_increase: "3", expense_growth_rate: "2",
+    construction_start_date: "", construction_months: "9",
+    lease_up_months: "6", annual_debt_service: "", exit_cap_rate: "5.5",
+    disposition_cost_pct: "2", total_equity_invested: "", debt_balance_at_exit: "",
+    carrying_cost_annual: "",
   });
 
   // Refinance Scenarios
@@ -609,19 +612,27 @@ export default function PropertyDetailPage({ params }: { params: { id: string } 
   const handleRunProjection = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      const input = {
-        planned_units: Number(projForm.planned_units),
-        monthly_rent_per_unit: Number(projForm.monthly_rent_per_unit),
+      const input: Record<string, unknown> = {
         annual_expense_ratio: Number(projForm.annual_expense_ratio) / 100,
-        vacancy_rate_stabilized: Number(projForm.vacancy_rate_stabilized) / 100,
+        vacancy_rate: Number(projForm.vacancy_rate) / 100,
+        annual_rent_increase: Number(projForm.annual_rent_increase) / 100,
+        expense_growth_rate: Number(projForm.expense_growth_rate) / 100,
         construction_start_date: projForm.construction_start_date || undefined,
         construction_months: Number(projForm.construction_months),
         lease_up_months: Number(projForm.lease_up_months),
-        annual_debt_service: projForm.annual_debt_service ? Number(projForm.annual_debt_service) : undefined,
         exit_cap_rate: Number(projForm.exit_cap_rate) / 100,
+        disposition_cost_pct: Number(projForm.disposition_cost_pct) / 100,
+        projection_years: 10,
       };
-      const result = await runProjection(input);
-      setProjResults((result as { projections?: Array<Record<string, unknown>> }).projections ?? (result as Array<Record<string, unknown>>));
+      // Optional fields — only send if provided
+      if (projForm.planned_units) input.planned_units = Number(projForm.planned_units);
+      if (projForm.monthly_rent_per_unit) input.monthly_rent_per_unit = Number(projForm.monthly_rent_per_unit);
+      if (projForm.annual_debt_service) input.annual_debt_service = Number(projForm.annual_debt_service);
+      if (projForm.total_equity_invested) input.total_equity_invested = Number(projForm.total_equity_invested);
+      if (projForm.debt_balance_at_exit) input.debt_balance_at_exit = Number(projForm.debt_balance_at_exit);
+      if (projForm.carrying_cost_annual) input.carrying_cost_annual = Number(projForm.carrying_cost_annual);
+      const result = await runProjection(input) as { projections: Array<Record<string, unknown>>; summary: Record<string, unknown> };
+      setProjResults(result);
       toast.success("Projection complete");
     } catch (e) { toast.error("Failed to run projection"); }
   };
@@ -1608,7 +1619,7 @@ export default function PropertyDetailPage({ params }: { params: { id: string } 
                             >
                               <td className="p-2 font-medium">{u.unit_number as string}</td>
                               <td className="p-2 capitalize">{(u.unit_type as string)?.replace("_", " ")}</td>
-                              <td className="p-2 text-center">{u.bed_count as number}</td>
+                              <td className="p-2 text-center">{(u.beds as Array<unknown>)?.length || (u.bed_count as number)}</td>
                               <td className="p-2 text-right">${(u.unit_potential_monthly as number)?.toLocaleString()}</td>
                               <td className="p-2 text-right">${(u.unit_actual_monthly as number)?.toLocaleString()}</td>
                               <td className="p-2 text-center">
@@ -1842,7 +1853,7 @@ export default function PropertyDetailPage({ params }: { params: { id: string } 
                                 >
                                   <td className="p-2 font-medium">{u.unit_number as string}</td>
                                   <td className="p-2 capitalize">{(u.unit_type as string)?.replace("_", " ")}</td>
-                                  <td className="p-2 text-center">{u.bed_count as number}</td>
+                                  <td className="p-2 text-center">{(u.beds as Array<unknown>)?.length || (u.bed_count as number)}</td>
                                   <td className="p-2 text-center">{(u.bedroom_count as number) || "-"}</td>
                                   <td className="p-2 text-right font-medium">${(u.unit_potential_monthly as number)?.toLocaleString()}</td>
                                   <td className="p-2 text-right">{(u.sqft as number)?.toLocaleString()}</td>
@@ -2996,88 +3007,119 @@ export default function PropertyDetailPage({ params }: { params: { id: string } 
 
         {/* ── Projections ── */}
         <TabsContent value="projections" className="mt-6">
-          <div className="grid gap-6 lg:grid-cols-[360px_1fr]">
+          <div className="grid gap-6 lg:grid-cols-[380px_1fr]">
+            {/* ── Projection Inputs Panel ── */}
             <Card>
               <CardHeader className="pb-3">
                 <CardTitle className="text-base flex items-center gap-2">
                   <BarChart3 className="h-4 w-4 text-muted-foreground" />
-                  Projection Inputs
+                  Projection Assumptions
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <form onSubmit={handleRunProjection} className="space-y-3">
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="space-y-1">
-                      <Label className="text-xs">Planned Units</Label>
-                      <div className="flex gap-1.5">
-                        <Input type="number" value={projForm.planned_units} onChange={(e) => setProjForm((f) => ({ ...f, planned_units: e.target.value }))} placeholder={rentRoll?.total_units ? `Current: ${rentRoll.total_units}` : "10"} required />
-                        {rentRoll?.total_units && !projForm.planned_units && (
-                          <Button type="button" variant="outline" size="sm" className="h-9 text-[10px] px-2 shrink-0" onClick={() => setProjForm(f => ({ ...f, planned_units: String(rentRoll.total_units) }))}>
-                            Auto
-                          </Button>
-                        )}
+                <form onSubmit={handleRunProjection} className="space-y-4">
+                  {/* ── Revenue Assumptions ── */}
+                  <div className="rounded-lg border border-blue-200 bg-blue-50/50 p-3 space-y-3">
+                    <p className="text-xs font-semibold text-blue-700">Revenue Assumptions</p>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-1">
+                        <Label className="text-xs">Vacancy Rate (%)</Label>
+                        <Input type="number" step="0.1" value={projForm.vacancy_rate} onChange={(e) => setProjForm((f) => ({ ...f, vacancy_rate: e.target.value }))} />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs">Annual Rent Increase (%)</Label>
+                        <Input type="number" step="0.1" value={projForm.annual_rent_increase} onChange={(e) => setProjForm((f) => ({ ...f, annual_rent_increase: e.target.value }))} />
                       </div>
                     </div>
-                    <div className="space-y-1">
-                      <Label className="text-xs">Rent / Unit ($)</Label>
-                      <div className="flex gap-1.5">
-                        <Input type="number" value={projForm.monthly_rent_per_unit} onChange={(e) => setProjForm((f) => ({ ...f, monthly_rent_per_unit: e.target.value }))} placeholder={rentRoll?.total_units ? `Avg: ${Math.round(rentRoll.potential_monthly_rent / rentRoll.total_units)}` : "2200"} required />
-                        {rentRoll?.total_units && !projForm.monthly_rent_per_unit && (
-                          <Button type="button" variant="outline" size="sm" className="h-9 text-[10px] px-2 shrink-0" onClick={() => setProjForm(f => ({ ...f, monthly_rent_per_unit: String(Math.round(rentRoll.potential_monthly_rent / rentRoll.total_units)) }))}>
-                            Auto
-                          </Button>
-                        )}
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-1">
+                        <Label className="text-xs">Planned Units</Label>
+                        <Input type="number" value={projForm.planned_units} onChange={(e) => setProjForm((f) => ({ ...f, planned_units: e.target.value }))} placeholder="Auto from rent roll" />
                       </div>
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="space-y-1">
-                      <Label className="text-xs">Expense Ratio (%)</Label>
-                      <Input type="number" step="0.1" value={projForm.annual_expense_ratio} onChange={(e) => setProjForm((f) => ({ ...f, annual_expense_ratio: e.target.value }))} />
-                    </div>
-                    <div className="space-y-1">
-                      <Label className="text-xs">Vacancy Rate (%)</Label>
-                      <div className="flex gap-1.5">
-                        <Input type="number" step="0.1" value={projForm.vacancy_rate_stabilized} onChange={(e) => setProjForm((f) => ({ ...f, vacancy_rate_stabilized: e.target.value }))} placeholder={rentRoll?.vacancy_rate !== undefined ? `Current: ${rentRoll.vacancy_rate}` : "5"} />
-                        {rentRoll?.vacancy_rate !== undefined && !projForm.vacancy_rate_stabilized && (
-                          <Button type="button" variant="outline" size="sm" className="h-9 text-[10px] px-2 shrink-0" onClick={() => setProjForm(f => ({ ...f, vacancy_rate_stabilized: String(rentRoll.vacancy_rate) }))}>
-                            Auto
-                          </Button>
-                        )}
+                      <div className="space-y-1">
+                        <Label className="text-xs">Rent / Unit ($)</Label>
+                        <Input type="number" value={projForm.monthly_rent_per_unit} onChange={(e) => setProjForm((f) => ({ ...f, monthly_rent_per_unit: e.target.value }))} placeholder="Auto from rent roll" />
                       </div>
                     </div>
                   </div>
-                  <div className="space-y-1">
-                    <Label className="text-xs">Construction Start</Label>
-                    <Input type="date" value={projForm.construction_start_date} onChange={(e) => setProjForm((f) => ({ ...f, construction_start_date: e.target.value }))} />
-                  </div>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="space-y-1">
-                      <Label className="text-xs">Construction (mo)</Label>
-                      <Input type="number" value={projForm.construction_months} onChange={(e) => setProjForm((f) => ({ ...f, construction_months: e.target.value }))} />
+
+                  {/* ── Expense Assumptions ── */}
+                  <div className="rounded-lg border border-orange-200 bg-orange-50/50 p-3 space-y-3">
+                    <p className="text-xs font-semibold text-orange-700">Expense Assumptions</p>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-1">
+                        <Label className="text-xs">Expense Ratio (%)</Label>
+                        <Input type="number" step="0.1" value={projForm.annual_expense_ratio} onChange={(e) => setProjForm((f) => ({ ...f, annual_expense_ratio: e.target.value }))} />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs">Expense Growth (%/yr)</Label>
+                        <Input type="number" step="0.1" value={projForm.expense_growth_rate} onChange={(e) => setProjForm((f) => ({ ...f, expense_growth_rate: e.target.value }))} />
+                      </div>
                     </div>
+                  </div>
+
+                  {/* ── Development Timeline ── */}
+                  <div className="rounded-lg border border-purple-200 bg-purple-50/50 p-3 space-y-3">
+                    <p className="text-xs font-semibold text-purple-700">Development Timeline</p>
                     <div className="space-y-1">
-                      <Label className="text-xs">Lease-Up (mo)</Label>
-                      <Input type="number" value={projForm.lease_up_months} onChange={(e) => setProjForm((f) => ({ ...f, lease_up_months: e.target.value }))} />
+                      <Label className="text-xs">Construction Start</Label>
+                      <Input type="date" value={projForm.construction_start_date} onChange={(e) => setProjForm((f) => ({ ...f, construction_start_date: e.target.value }))} />
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-1">
+                        <Label className="text-xs">Construction (months)</Label>
+                        <Input type="number" value={projForm.construction_months} onChange={(e) => setProjForm((f) => ({ ...f, construction_months: e.target.value }))} />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs">Lease-Up (months)</Label>
+                        <Input type="number" value={projForm.lease_up_months} onChange={(e) => setProjForm((f) => ({ ...f, lease_up_months: e.target.value }))} />
+                      </div>
                     </div>
                   </div>
-                  <div className="grid grid-cols-2 gap-3">
+
+                  {/* ── Debt & Financing ── */}
+                  <div className="rounded-lg border border-red-200 bg-red-50/50 p-3 space-y-3">
+                    <p className="text-xs font-semibold text-red-700">Debt & Financing</p>
                     <div className="space-y-1">
                       <Label className="text-xs">Annual Debt Service ($)</Label>
                       <div className="flex gap-1.5">
-                        <Input type="number" value={projForm.annual_debt_service} onChange={(e) => setProjForm((f) => ({ ...f, annual_debt_service: e.target.value }))} placeholder={totalAnnualDebtService > 0 ? `Est: ${Math.round(totalAnnualDebtService).toLocaleString()}` : "optional"} />
+                        <Input type="number" value={projForm.annual_debt_service} onChange={(e) => setProjForm((f) => ({ ...f, annual_debt_service: e.target.value }))} placeholder={totalAnnualDebtService > 0 ? `Auto: $${Math.round(totalAnnualDebtService).toLocaleString()}` : "Auto from debt facilities"} />
                         {totalAnnualDebtService > 0 && !projForm.annual_debt_service && (
                           <Button type="button" variant="outline" size="sm" className="shrink-0 text-xs" onClick={() => setProjForm(f => ({ ...f, annual_debt_service: String(Math.round(totalAnnualDebtService)) }))}>
-                            Auto-fill
+                            Fill
                           </Button>
                         )}
                       </div>
                     </div>
                     <div className="space-y-1">
-                      <Label className="text-xs">Exit Cap (%)</Label>
-                      <Input type="number" step="0.1" value={projForm.exit_cap_rate} onChange={(e) => setProjForm((f) => ({ ...f, exit_cap_rate: e.target.value }))} />
+                      <Label className="text-xs">Carrying Cost During Construction ($/yr)</Label>
+                      <Input type="number" value={projForm.carrying_cost_annual} onChange={(e) => setProjForm((f) => ({ ...f, carrying_cost_annual: e.target.value }))} placeholder="Interest-only payments" />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs">Debt Balance at Exit ($)</Label>
+                      <Input type="number" value={projForm.debt_balance_at_exit} onChange={(e) => setProjForm((f) => ({ ...f, debt_balance_at_exit: e.target.value }))} placeholder="For net exit proceeds" />
                     </div>
                   </div>
+
+                  {/* ── Exit & Return ── */}
+                  <div className="rounded-lg border border-green-200 bg-green-50/50 p-3 space-y-3">
+                    <p className="text-xs font-semibold text-green-700">Exit & Return</p>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-1">
+                        <Label className="text-xs">Exit Cap Rate (%)</Label>
+                        <Input type="number" step="0.1" value={projForm.exit_cap_rate} onChange={(e) => setProjForm((f) => ({ ...f, exit_cap_rate: e.target.value }))} />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs">Disposition Costs (%)</Label>
+                        <Input type="number" step="0.1" value={projForm.disposition_cost_pct} onChange={(e) => setProjForm((f) => ({ ...f, disposition_cost_pct: e.target.value }))} />
+                      </div>
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs">Total Equity Invested ($)</Label>
+                      <Input type="number" value={projForm.total_equity_invested} onChange={(e) => setProjForm((f) => ({ ...f, total_equity_invested: e.target.value }))} placeholder="For ROI & equity multiple" />
+                    </div>
+                  </div>
+
                   <Button type="submit" className="w-full" disabled={projPending}>
                     {projPending ? "Running…" : "Run 10-Year Projection"}
                   </Button>
@@ -3085,58 +3127,165 @@ export default function PropertyDetailPage({ params }: { params: { id: string } 
               </CardContent>
             </Card>
 
-            <div>
+            {/* ── Results Panel ── */}
+            <div className="space-y-6">
               {!projResults ? (
                 <Card>
                   <CardContent className="py-12 text-center">
                     <BarChart3 className="h-10 w-10 text-muted-foreground/40 mx-auto mb-3" />
-                    <p className="text-sm text-muted-foreground">Fill in the inputs and run a projection to see year-by-year results.</p>
+                    <p className="text-sm text-muted-foreground">Fill in the assumptions and run a projection to see year-by-year results.</p>
+                    <p className="text-xs text-muted-foreground mt-1">Revenue and debt service are auto-populated from the rent roll and debt facilities.</p>
                   </CardContent>
                 </Card>
               ) : (
-                <Card>
-                  <CardHeader className="pb-3">
-                    <CardTitle className="text-base">Year-by-Year Projection</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="overflow-x-auto rounded-lg border">
-                      <Table>
-                        <TableHeader>
-                          <TableRow className="bg-muted/50">
-                            <TableHead>Year</TableHead>
-                            <TableHead>Phase</TableHead>
-                            <TableHead className="text-right">Revenue</TableHead>
-                            <TableHead className="text-right">NOI</TableHead>
-                            <TableHead className="text-right">Debt Svc</TableHead>
-                            <TableHead className="text-right">Cash Flow</TableHead>
-                            <TableHead className="text-right">Cumulative</TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {projResults.map((row, i) => (
-                            <TableRow key={i}>
-                              <TableCell className="font-medium">{String(row.year ?? i + 1)}</TableCell>
-                              <TableCell>
-                                <span className={cn("px-2 py-0.5 rounded-full text-xs font-medium", PHASE_COLORS[String(row.phase ?? "")] ?? "bg-gray-100 text-gray-700")}>
-                                  {String(row.phase ?? "—").replace("_", "-")}
-                                </span>
-                              </TableCell>
-                              <TableCell className="text-right">{row.gross_revenue != null ? formatCurrency(row.gross_revenue as number) : "—"}</TableCell>
-                              <TableCell className="text-right font-medium">{row.noi != null ? formatCurrency(row.noi as number) : "—"}</TableCell>
-                              <TableCell className="text-right">{row.annual_debt_service != null ? formatCurrency(row.annual_debt_service as number) : "—"}</TableCell>
-                              <TableCell className={cn("text-right font-semibold", (row.cash_flow as number) < 0 ? "text-red-600" : "text-green-600")}>
-                                {row.cash_flow != null ? formatCurrency(row.cash_flow as number) : "—"}
-                              </TableCell>
-                              <TableCell className={cn("text-right", (row.cumulative_cash_flow as number) < 0 ? "text-red-600" : "text-green-600")}>
-                                {row.cumulative_cash_flow != null ? formatCurrency(row.cumulative_cash_flow as number) : "—"}
-                              </TableCell>
-                            </TableRow>
-                          ))}
-                        </TableBody>
-                      </Table>
+                <React.Fragment>
+                  {/* ── Summary Metrics ── */}
+                  {projResults.summary && (
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                      <Card className="border-green-200 bg-green-50/30">
+                        <CardContent className="p-4 text-center">
+                          <p className="text-xs text-muted-foreground">Total Cash Flow</p>
+                          <p className={cn("text-lg font-bold", (projResults.summary.total_cash_flow as number) < 0 ? "text-red-600" : "text-green-700")}>
+                            {formatCurrency(projResults.summary.total_cash_flow as number)}
+                          </p>
+                        </CardContent>
+                      </Card>
+                      <Card className="border-blue-200 bg-blue-50/30">
+                        <CardContent className="p-4 text-center">
+                          <p className="text-xs text-muted-foreground">Terminal Value</p>
+                          <p className="text-lg font-bold text-blue-700">{formatCurrency(projResults.summary.terminal_value as number)}</p>
+                          <p className="text-[10px] text-muted-foreground">Net: {formatCurrency(projResults.summary.net_exit_proceeds as number)}</p>
+                        </CardContent>
+                      </Card>
+                      <Card className="border-purple-200 bg-purple-50/30">
+                        <CardContent className="p-4 text-center">
+                          <p className="text-xs text-muted-foreground">Equity Multiple</p>
+                          <p className="text-lg font-bold text-purple-700">{projResults.summary.equity_multiple}x</p>
+                          <p className="text-[10px] text-muted-foreground">IRR: {projResults.summary.irr_estimate}%</p>
+                        </CardContent>
+                      </Card>
+                      <Card className="border-orange-200 bg-orange-50/30">
+                        <CardContent className="p-4 text-center">
+                          <p className="text-xs text-muted-foreground">Total Return</p>
+                          <p className="text-lg font-bold text-orange-700">{formatCurrency(projResults.summary.total_return as number)}</p>
+                          <p className="text-[10px] text-muted-foreground">CoC: {projResults.summary.cash_on_cash_avg}%</p>
+                        </CardContent>
+                      </Card>
                     </div>
-                  </CardContent>
-                </Card>
+                  )}
+
+                  {/* ── Year-by-Year Table ── */}
+                  <Card>
+                    <CardHeader className="pb-3">
+                      <CardTitle className="text-base">Year-by-Year Pro Forma</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="overflow-x-auto rounded-lg border">
+                        <Table>
+                          <TableHeader>
+                            <TableRow className="bg-muted/50">
+                              <TableHead>Year</TableHead>
+                              <TableHead>Phase</TableHead>
+                              <TableHead className="text-right">Gross Potential Rent</TableHead>
+                              <TableHead className="text-right">Vacancy Loss</TableHead>
+                              <TableHead className="text-right">EGI</TableHead>
+                              <TableHead className="text-right">OpEx</TableHead>
+                              <TableHead className="text-right">NOI</TableHead>
+                              <TableHead className="text-right">Debt Svc</TableHead>
+                              <TableHead className="text-right">Cash Flow</TableHead>
+                              <TableHead className="text-right">Cumulative</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {projResults.projections.map((row, i) => (
+                              <TableRow key={i} className={String(row.phase) === "construction" ? "bg-red-50/30" : String(row.phase) === "lease_up" ? "bg-yellow-50/30" : ""}>
+                                <TableCell className="font-medium">{String(row.year ?? i + 1)}</TableCell>
+                                <TableCell>
+                                  <span className={cn("px-2 py-0.5 rounded-full text-xs font-medium", PHASE_COLORS[String(row.phase ?? "")] ?? "bg-gray-100 text-gray-700")}>
+                                    {String(row.phase ?? "—").replace("_", "-")}
+                                  </span>
+                                </TableCell>
+                                <TableCell className="text-right">{formatCurrency(row.gross_potential_rent as number)}</TableCell>
+                                <TableCell className="text-right text-red-500">{(row.vacancy_loss as number) > 0 ? `-${formatCurrency(row.vacancy_loss as number)}` : "—"}</TableCell>
+                                <TableCell className="text-right">{formatCurrency(row.effective_gross_income as number)}</TableCell>
+                                <TableCell className="text-right text-orange-600">{(row.operating_expenses as number) > 0 ? formatCurrency(row.operating_expenses as number) : "—"}</TableCell>
+                                <TableCell className="text-right font-medium">{formatCurrency(row.noi as number)}</TableCell>
+                                <TableCell className="text-right">{formatCurrency(row.annual_debt_service as number)}</TableCell>
+                                <TableCell className={cn("text-right font-semibold", (row.cash_flow as number) < 0 ? "text-red-600" : "text-green-600")}>
+                                  {formatCurrency(row.cash_flow as number)}
+                                </TableCell>
+                                <TableCell className={cn("text-right", (row.cumulative_cash_flow as number) < 0 ? "text-red-600" : "text-green-600")}>
+                                  {formatCurrency(row.cumulative_cash_flow as number)}
+                                </TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  {/* ── Exit Value Summary ── */}
+                  {projResults.summary && (
+                    <Card className="border-green-300">
+                      <CardHeader className="pb-3">
+                        <CardTitle className="text-base flex items-center gap-2">
+                          <TrendingUp className="h-4 w-4 text-green-600" />
+                          Exit & Return Summary
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                          <div>
+                            <p className="text-xs text-muted-foreground">Exit Year NOI</p>
+                            <p className="text-sm font-semibold">{formatCurrency(projResults.summary.exit_noi as number)}</p>
+                          </div>
+                          <div>
+                            <p className="text-xs text-muted-foreground">Terminal Value (Gross)</p>
+                            <p className="text-sm font-semibold">{formatCurrency(projResults.summary.terminal_value as number)}</p>
+                          </div>
+                          <div>
+                            <p className="text-xs text-muted-foreground">Disposition Costs</p>
+                            <p className="text-sm font-semibold text-red-600">-{formatCurrency(projResults.summary.disposition_costs as number)}</p>
+                          </div>
+                          <div>
+                            <p className="text-xs text-muted-foreground">Net Exit Proceeds</p>
+                            <p className="text-sm font-semibold text-green-700">{formatCurrency(projResults.summary.net_exit_proceeds as number)}</p>
+                          </div>
+                          <div>
+                            <p className="text-xs text-muted-foreground">Cumulative Cash Flow</p>
+                            <p className={cn("text-sm font-semibold", (projResults.summary.total_cash_flow as number) < 0 ? "text-red-600" : "text-green-700")}>
+                              {formatCurrency(projResults.summary.total_cash_flow as number)}
+                            </p>
+                          </div>
+                          <div>
+                            <p className="text-xs text-muted-foreground">Total Return</p>
+                            <p className="text-sm font-bold text-green-700">{formatCurrency(projResults.summary.total_return as number)}</p>
+                          </div>
+                        </div>
+                        <Separator className="my-4" />
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                          <div>
+                            <p className="text-xs text-muted-foreground">Equity Multiple</p>
+                            <p className="text-lg font-bold">{projResults.summary.equity_multiple}x</p>
+                          </div>
+                          <div>
+                            <p className="text-xs text-muted-foreground">IRR (Estimated)</p>
+                            <p className="text-lg font-bold">{projResults.summary.irr_estimate}%</p>
+                          </div>
+                          <div>
+                            <p className="text-xs text-muted-foreground">Avg Cash-on-Cash</p>
+                            <p className="text-lg font-bold">{projResults.summary.cash_on_cash_avg}%</p>
+                          </div>
+                          <div>
+                            <p className="text-xs text-muted-foreground">Annualized ROI</p>
+                            <p className="text-lg font-bold">{projResults.summary.annualized_roi}%</p>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  )}
+                </React.Fragment>
               )}
             </div>
           </div>
