@@ -1900,32 +1900,15 @@ def delete_bed(
         db.commit()
 
 
-@router.get(
-    "/properties/{property_id}/unit-summary",
-)
-def get_property_unit_summary(
-    property_id: int,
-    db: Session = Depends(get_db),
-    _: User = Depends(get_current_user),
-):
-    """
-    Summary of units and beds for a property:
-    total units, total beds, occupied beds, vacancy rate,
-    potential monthly rent, unit mix breakdown.
-    """
-    prop = db.query(Property).filter(Property.property_id == property_id).first()
-    if not prop:
-        raise HTTPException(404, "Property not found")
+def _compute_unit_phase_summary(unit_list):
+    """Compute summary stats for a list of units (shared helper)."""
+    total_units = len(unit_list)
+    total_beds = sum(u.bed_count for u in unit_list)
+    total_sqft = float(sum(u.sqft for u in unit_list))
+    legal_suites = sum(1 for u in unit_list if u.is_legal_suite)
 
-    units = prop.units
-    total_units = len(units)
-    total_beds = sum(u.bed_count for u in units)
-    total_sqft = float(sum(u.sqft for u in units))
-    legal_suites = sum(1 for u in units if u.is_legal_suite)
-
-    # Aggregate bed-level data
     all_beds = []
-    for u in units:
+    for u in unit_list:
         all_beds.extend(u.beds)
 
     occupied_beds = sum(1 for b in all_beds if b.status == BedStatus.occupied)
@@ -1940,9 +1923,8 @@ def get_property_unit_summary(
         if all_beds else 0
     )
 
-    # Unit mix breakdown
     unit_mix = {}
-    for u in units:
+    for u in unit_list:
         key = u.unit_type.value if hasattr(u.unit_type, 'value') else str(u.unit_type)
         if key not in unit_mix:
             unit_mix[key] = {"count": 0, "beds": 0, "sqft": 0}
@@ -1950,9 +1932,8 @@ def get_property_unit_summary(
         unit_mix[key]["beds"] += u.bed_count
         unit_mix[key]["sqft"] += float(u.sqft)
 
-    # Floor breakdown
     floor_breakdown = {}
-    for u in units:
+    for u in unit_list:
         floor = u.floor or "Unspecified"
         if floor not in floor_breakdown:
             floor_breakdown[floor] = {"units": 0, "beds": 0}
@@ -1960,7 +1941,6 @@ def get_property_unit_summary(
         floor_breakdown[floor]["beds"] += u.bed_count
 
     return {
-        "property_id": property_id,
         "total_units": total_units,
         "total_beds": total_beds,
         "total_sqft": total_sqft,
@@ -1973,6 +1953,60 @@ def get_property_unit_summary(
         "actual_monthly_rent": actual_monthly_rent,
         "unit_mix": unit_mix,
         "floor_breakdown": floor_breakdown,
+    }
+
+
+@router.get(
+    "/properties/{property_id}/unit-summary",
+)
+def get_property_unit_summary(
+    property_id: int,
+    db: Session = Depends(get_db),
+    _: User = Depends(get_current_user),
+):
+    """
+    Phased summary of units and beds for a property.
+    Returns separate stats for baseline (current operations) and
+    redevelopment (planned) units, plus combined totals.
+    """
+    prop = db.query(Property).filter(Property.property_id == property_id).first()
+    if not prop:
+        raise HTTPException(404, "Property not found")
+
+    all_units = prop.units
+    baseline_units = [u for u in all_units if u.development_plan_id is None]
+    redev_units = [u for u in all_units if u.development_plan_id is not None]
+
+    # Build redevelopment groups keyed by plan
+    redev_by_plan = {}
+    for u in redev_units:
+        pid = u.development_plan_id
+        if pid not in redev_by_plan:
+            redev_by_plan[pid] = []
+        redev_by_plan[pid].append(u)
+
+    redev_phases = []
+    for plan_id, plan_units in redev_by_plan.items():
+        plan = db.query(DevelopmentPlan).filter(DevelopmentPlan.plan_id == plan_id).first()
+        phase_summary = _compute_unit_phase_summary(plan_units)
+        phase_summary["plan_id"] = plan_id
+        phase_summary["plan_name"] = plan.plan_name if plan else f"Plan {plan_id}"
+        phase_summary["plan_status"] = plan.status.value if plan and hasattr(plan.status, 'value') else (plan.status if plan else "unknown")
+        phase_summary["start_date"] = str(plan.development_start_date) if plan and plan.development_start_date else None
+        phase_summary["completion_date"] = str(plan.estimated_completion_date) if plan and plan.estimated_completion_date else None
+        redev_phases.append(phase_summary)
+
+    baseline_summary = _compute_unit_phase_summary(baseline_units)
+    combined_summary = _compute_unit_phase_summary(all_units)
+
+    return {
+        "property_id": property_id,
+        # Combined totals (backward-compatible)
+        **combined_summary,
+        # Phased breakdowns
+        "baseline": baseline_summary,
+        "redevelopment_phases": redev_phases,
+        "has_redevelopment": len(redev_units) > 0,
     }
 
 
