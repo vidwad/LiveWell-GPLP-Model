@@ -1628,49 +1628,185 @@ export default function PropertyDetailPage({ params }: { params: { id: string } 
                 ))}
 
                 {/* ═══════════════════════════════════════════════════════════════ */}
-                {/* SECTION 3: COMBINED TOTALS (only if redevelopment exists)      */}
+                {/* SECTION 3: NET IMPACT OF REDEVELOPMENT                         */}
                 {/* ═══════════════════════════════════════════════════════════════ */}
-                {hasRedev && unitSummary && (
-                  <div>
-                    <div className="flex items-center gap-2 mb-4 mt-2">
-                      <div className="h-8 w-1 bg-gray-400 rounded" />
-                      <Layers className="h-5 w-5 text-gray-500" />
-                      <h3 className="text-lg font-semibold text-muted-foreground">Combined Totals</h3>
-                      <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">
-                        Baseline + Redevelopment
-                      </span>
+                {hasRedev && unitSummary?.net_impact && (() => {
+                  const ni = unitSummary.net_impact;
+                  const fmtDelta = (v: number) => {
+                    if (v > 0) return `+${v.toLocaleString()}`;
+                    if (v < 0) return v.toLocaleString();
+                    return "0";
+                  };
+                  const deltaColor = (v: number) => v > 0 ? "text-green-600" : v < 0 ? "text-red-600" : "text-muted-foreground";
+                  const arrowIcon = (v: number) => v > 0 ? "\u25B2" : v < 0 ? "\u25BC" : "\u2500";
+
+                  return (
+                    <div>
+                      <div className="flex items-center gap-2 mb-4 mt-2">
+                        <div className="h-8 w-1 bg-emerald-500 rounded" />
+                        <TrendingUp className="h-5 w-5 text-emerald-600" />
+                        <h3 className="text-lg font-semibold">Net Impact of Redevelopment</h3>
+                        <span className="text-xs bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full">
+                          Baseline &rarr; Post-Redevelopment
+                        </span>
+                      </div>
+                      <p className="text-sm text-muted-foreground mb-4">
+                        The current baseline units will be <strong>replaced</strong> by the redevelopment. The figures below show the net change in capacity, revenue, and estimated valuation.
+                      </p>
+
+                      {/* Delta Cards */}
+                      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5 mb-6">
+                        <Card className="border-emerald-200">
+                          <CardContent className="pt-5 pb-4">
+                            <div className="text-xs text-muted-foreground uppercase tracking-wide">Units</div>
+                            <div className="flex items-baseline gap-2 mt-1">
+                              <span className="text-sm text-muted-foreground">{bl?.total_units ?? 0}</span>
+                              <ArrowRight className="h-3 w-3 text-muted-foreground" />
+                              <span className="text-lg font-bold">{ni.post_redev_units}</span>
+                            </div>
+                            <div className={`text-sm font-semibold mt-1 ${deltaColor(ni.delta_units)}`}>
+                              {arrowIcon(ni.delta_units)} {fmtDelta(ni.delta_units)}
+                            </div>
+                          </CardContent>
+                        </Card>
+                        <Card className="border-emerald-200">
+                          <CardContent className="pt-5 pb-4">
+                            <div className="text-xs text-muted-foreground uppercase tracking-wide">Beds</div>
+                            <div className="flex items-baseline gap-2 mt-1">
+                              <span className="text-sm text-muted-foreground">{bl?.total_beds ?? 0}</span>
+                              <ArrowRight className="h-3 w-3 text-muted-foreground" />
+                              <span className="text-lg font-bold">{ni.post_redev_beds}</span>
+                            </div>
+                            <div className={`text-sm font-semibold mt-1 ${deltaColor(ni.delta_beds)}`}>
+                              {arrowIcon(ni.delta_beds)} {fmtDelta(ni.delta_beds)}
+                            </div>
+                          </CardContent>
+                        </Card>
+                        <Card className="border-emerald-200">
+                          <CardContent className="pt-5 pb-4">
+                            <div className="text-xs text-muted-foreground uppercase tracking-wide">Sqft</div>
+                            <div className="flex items-baseline gap-2 mt-1">
+                              <span className="text-sm text-muted-foreground">{(bl?.total_sqft ?? 0).toLocaleString()}</span>
+                              <ArrowRight className="h-3 w-3 text-muted-foreground" />
+                              <span className="text-lg font-bold">{ni.post_redev_sqft.toLocaleString()}</span>
+                            </div>
+                            <div className={`text-sm font-semibold mt-1 ${deltaColor(ni.delta_sqft)}`}>
+                              {arrowIcon(ni.delta_sqft)} {fmtDelta(ni.delta_sqft)}
+                            </div>
+                          </CardContent>
+                        </Card>
+                        <Card className="border-emerald-200">
+                          <CardContent className="pt-5 pb-4">
+                            <div className="text-xs text-muted-foreground uppercase tracking-wide">Monthly Rent</div>
+                            <div className="flex items-baseline gap-2 mt-1">
+                              <span className="text-sm text-muted-foreground">${(bl?.potential_monthly_rent ?? 0).toLocaleString()}</span>
+                              <ArrowRight className="h-3 w-3 text-muted-foreground" />
+                              <span className="text-lg font-bold">${ni.post_redev_monthly_rent.toLocaleString()}</span>
+                            </div>
+                            <div className={`text-sm font-semibold mt-1 ${deltaColor(ni.delta_monthly_rent)}`}>
+                              {arrowIcon(ni.delta_monthly_rent)} ${fmtDelta(ni.delta_monthly_rent)}/mo
+                            </div>
+                          </CardContent>
+                        </Card>
+                        <Card className="border-emerald-200">
+                          <CardContent className="pt-5 pb-4">
+                            <div className="text-xs text-muted-foreground uppercase tracking-wide">Annual NOI</div>
+                            <div className="flex items-baseline gap-2 mt-1">
+                              <span className="text-sm text-muted-foreground">${ni.baseline_annual_noi.toLocaleString()}</span>
+                              <ArrowRight className="h-3 w-3 text-muted-foreground" />
+                              <span className="text-lg font-bold">${ni.redev_annual_noi.toLocaleString()}</span>
+                            </div>
+                            <div className={`text-sm font-semibold mt-1 ${deltaColor(ni.delta_annual_noi)}`}>
+                              {arrowIcon(ni.delta_annual_noi)} ${fmtDelta(ni.delta_annual_noi)}/yr
+                            </div>
+                          </CardContent>
+                        </Card>
+                      </div>
+
+                      {/* Revenue & NOI Comparison + Valuation Scenarios */}
+                      <div className="grid gap-6 lg:grid-cols-2">
+                        {/* Revenue & NOI Comparison */}
+                        <Card>
+                          <CardHeader><CardTitle className="text-base flex items-center gap-2"><BarChart3 className="h-4 w-4 text-emerald-600" />Revenue & NOI Comparison</CardTitle></CardHeader>
+                          <CardContent>
+                            <table className="w-full text-sm">
+                              <thead><tr className="border-b text-left text-muted-foreground">
+                                <th className="pb-2">Metric</th>
+                                <th className="pb-2 text-right">Baseline</th>
+                                <th className="pb-2 text-right">Post-Redev</th>
+                                <th className="pb-2 text-right">Change</th>
+                              </tr></thead>
+                              <tbody>
+                                <tr className="border-b">
+                                  <td className="py-2">Annual Revenue</td>
+                                  <td className="py-2 text-right">${ni.baseline_annual_revenue.toLocaleString()}</td>
+                                  <td className="py-2 text-right">${ni.redev_annual_revenue.toLocaleString()}</td>
+                                  <td className={`py-2 text-right font-medium ${deltaColor(ni.redev_annual_revenue - ni.baseline_annual_revenue)}`}>
+                                    {fmtDelta(ni.redev_annual_revenue - ni.baseline_annual_revenue)}
+                                  </td>
+                                </tr>
+                                <tr className="border-b">
+                                  <td className="py-2">Annual NOI</td>
+                                  <td className="py-2 text-right">${ni.baseline_annual_noi.toLocaleString()}</td>
+                                  <td className="py-2 text-right">${ni.redev_annual_noi.toLocaleString()}</td>
+                                  <td className={`py-2 text-right font-medium ${deltaColor(ni.delta_annual_noi)}`}>
+                                    {fmtDelta(ni.delta_annual_noi)}
+                                  </td>
+                                </tr>
+                                <tr className="border-b">
+                                  <td className="py-2">Construction Cost</td>
+                                  <td className="py-2 text-right text-muted-foreground">&mdash;</td>
+                                  <td className="py-2 text-right">${ni.construction_cost.toLocaleString()}</td>
+                                  <td className="py-2 text-right text-muted-foreground">&mdash;</td>
+                                </tr>
+                                <tr>
+                                  <td className="py-2">Monthly Rent</td>
+                                  <td className="py-2 text-right">${(bl?.potential_monthly_rent ?? 0).toLocaleString()}</td>
+                                  <td className="py-2 text-right">${ni.post_redev_monthly_rent.toLocaleString()}</td>
+                                  <td className={`py-2 text-right font-medium ${deltaColor(ni.delta_monthly_rent)}`}>
+                                    {fmtDelta(ni.delta_monthly_rent)}
+                                  </td>
+                                </tr>
+                              </tbody>
+                            </table>
+                          </CardContent>
+                        </Card>
+
+                        {/* Valuation Impact by Cap Rate */}
+                        <Card>
+                          <CardHeader>
+                            <CardTitle className="text-base flex items-center gap-2">
+                              <DollarSign className="h-4 w-4 text-emerald-600" />Estimated Valuation Impact
+                            </CardTitle>
+                            <p className="text-xs text-muted-foreground">Based on NOI / Cap Rate. Assumes 30% expense ratio where actuals are unavailable.</p>
+                          </CardHeader>
+                          <CardContent>
+                            <table className="w-full text-sm">
+                              <thead><tr className="border-b text-left text-muted-foreground">
+                                <th className="pb-2">Cap Rate</th>
+                                <th className="pb-2 text-right">Baseline Value</th>
+                                <th className="pb-2 text-right">Post-Redev Value</th>
+                                <th className="pb-2 text-right">Increase</th>
+                              </tr></thead>
+                              <tbody>
+                                {ni.valuation_scenarios.map((s: any) => (
+                                  <tr key={s.cap_rate} className="border-b last:border-0">
+                                    <td className="py-2 font-medium">{s.cap_rate}%</td>
+                                    <td className="py-2 text-right">${s.baseline_value.toLocaleString()}</td>
+                                    <td className="py-2 text-right">${s.post_redev_value.toLocaleString()}</td>
+                                    <td className={`py-2 text-right font-medium ${deltaColor(s.value_increase)}`}>
+                                      +${s.value_increase.toLocaleString()} ({s.value_increase_pct}%)
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </CardContent>
+                        </Card>
+                      </div>
                     </div>
-                    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 opacity-75">
-                      <Card className="border-dashed">
-                        <CardContent className="pt-6">
-                          <div className="text-sm text-muted-foreground">Total Units</div>
-                          <div className="text-2xl font-bold">{unitSummary.total_units}</div>
-                          <div className="text-xs text-muted-foreground mt-1">{bl?.total_units ?? 0} current + {unitSummary.total_units - (bl?.total_units ?? 0)} planned</div>
-                        </CardContent>
-                      </Card>
-                      <Card className="border-dashed">
-                        <CardContent className="pt-6">
-                          <div className="text-sm text-muted-foreground">Total Beds</div>
-                          <div className="text-2xl font-bold">{unitSummary.total_beds}</div>
-                          <div className="text-xs text-muted-foreground mt-1">{bl?.total_beds ?? 0} current + {unitSummary.total_beds - (bl?.total_beds ?? 0)} planned</div>
-                        </CardContent>
-                      </Card>
-                      <Card className="border-dashed">
-                        <CardContent className="pt-6">
-                          <div className="text-sm text-muted-foreground">Total Sqft</div>
-                          <div className="text-2xl font-bold">{unitSummary.total_sqft.toLocaleString()}</div>
-                        </CardContent>
-                      </Card>
-                      <Card className="border-dashed">
-                        <CardContent className="pt-6">
-                          <div className="text-sm text-muted-foreground">Projected Monthly Rent</div>
-                          <div className="text-2xl font-bold">${unitSummary.potential_monthly_rent.toLocaleString()}</div>
-                          <div className="text-xs text-muted-foreground mt-1">At full stabilization</div>
-                        </CardContent>
-                      </Card>
-                    </div>
-                  </div>
-                )}
+                  );
+                })()}
 
                 {/* If no redevelopment, show the simple combined view as before */}
                 {!hasRedev && unitSummary && (

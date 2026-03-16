@@ -1999,6 +1999,81 @@ def get_property_unit_summary(
     baseline_summary = _compute_unit_phase_summary(baseline_units)
     combined_summary = _compute_unit_phase_summary(all_units)
 
+    # ── Net Impact of Redevelopment ──
+    # Baseline units will be REPLACED by redevelopment units, not added.
+    # Compute the delta and valuation impact.
+    net_impact = None
+    if redev_phases:
+        # Aggregate all redevelopment phases
+        redev_total_units = sum(p["total_units"] for p in redev_phases)
+        redev_total_beds = sum(p["total_beds"] for p in redev_phases)
+        redev_total_sqft = sum(p["total_sqft"] for p in redev_phases)
+        redev_monthly_rent = sum(p["potential_monthly_rent"] for p in redev_phases)
+
+        bl_units = baseline_summary["total_units"]
+        bl_beds = baseline_summary["total_beds"]
+        bl_sqft = baseline_summary["total_sqft"]
+        bl_monthly_rent = baseline_summary["potential_monthly_rent"]
+
+        delta_units = redev_total_units - bl_units
+        delta_beds = redev_total_beds - bl_beds
+        delta_sqft = redev_total_sqft - bl_sqft
+        delta_monthly_rent = redev_monthly_rent - bl_monthly_rent
+        delta_annual_rent = delta_monthly_rent * 12
+
+        # Baseline annual revenue from bed rents
+        bl_annual_revenue = bl_monthly_rent * 12
+        redev_annual_revenue = redev_monthly_rent * 12
+
+        # Use dev plan's projected_annual_noi if available, else estimate with 30% expense ratio
+        first_plan = db.query(DevelopmentPlan).filter(
+            DevelopmentPlan.plan_id == redev_phases[0]["plan_id"]
+        ).first()
+        redev_annual_noi = float(first_plan.projected_annual_noi) if first_plan and first_plan.projected_annual_noi else redev_annual_revenue * 0.70
+        construction_cost = float(first_plan.estimated_construction_cost) if first_plan and first_plan.estimated_construction_cost else 0
+
+        # Baseline NOI estimate: use property annual_revenue/expenses if available, else 30% expense ratio
+        if prop.annual_revenue and prop.annual_expenses:
+            bl_annual_noi = float(prop.annual_revenue) - float(prop.annual_expenses)
+        else:
+            bl_annual_noi = bl_annual_revenue * 0.70  # assume 30% expense ratio
+
+        delta_annual_noi = redev_annual_noi - bl_annual_noi
+
+        # Valuation scenarios using cap rates
+        cap_rates = [0.05, 0.06, 0.07]  # 5%, 6%, 7%
+        valuation_scenarios = []
+        for cr in cap_rates:
+            bl_val = bl_annual_noi / cr if cr > 0 else 0
+            redev_val = redev_annual_noi / cr if cr > 0 else 0
+            delta_val = redev_val - bl_val
+            valuation_scenarios.append({
+                "cap_rate": round(cr * 100, 1),
+                "baseline_value": round(bl_val),
+                "post_redev_value": round(redev_val),
+                "value_increase": round(delta_val),
+                "value_increase_pct": round((delta_val / bl_val * 100) if bl_val > 0 else 0, 1),
+            })
+
+        net_impact = {
+            "delta_units": delta_units,
+            "delta_beds": delta_beds,
+            "delta_sqft": delta_sqft,
+            "delta_monthly_rent": delta_monthly_rent,
+            "delta_annual_rent": delta_annual_rent,
+            "baseline_annual_revenue": bl_annual_revenue,
+            "redev_annual_revenue": redev_annual_revenue,
+            "baseline_annual_noi": round(bl_annual_noi),
+            "redev_annual_noi": round(redev_annual_noi),
+            "delta_annual_noi": round(delta_annual_noi),
+            "construction_cost": round(construction_cost),
+            "valuation_scenarios": valuation_scenarios,
+            "post_redev_units": redev_total_units,
+            "post_redev_beds": redev_total_beds,
+            "post_redev_sqft": redev_total_sqft,
+            "post_redev_monthly_rent": redev_monthly_rent,
+        }
+
     return {
         "property_id": property_id,
         # Combined totals (backward-compatible)
@@ -2007,6 +2082,7 @@ def get_property_unit_summary(
         "baseline": baseline_summary,
         "redevelopment_phases": redev_phases,
         "has_redevelopment": len(redev_units) > 0,
+        "net_impact": net_impact,
     }
 
 
