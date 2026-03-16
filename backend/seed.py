@@ -123,6 +123,8 @@ def seed():
             construction_management_fee_percent=Decimal("1.50"),
             refinancing_fee_percent=Decimal("2.50"),
             turnover_replacement_fee_percent=Decimal("2.00"),
+            lp_profit_share_percent=Decimal("70.00"),
+            gp_profit_share_percent=Decimal("30.00"),
             total_units_authorized=Decimal("5000"),
             notes="Fully funded and operating. Properties acquired in Calgary and Edmonton.",
         )
@@ -157,6 +159,8 @@ def seed():
             construction_management_fee_percent=Decimal("1.50"),
             refinancing_fee_percent=Decimal("2.50"),
             turnover_replacement_fee_percent=Decimal("2.00"),
+            lp_profit_share_percent=Decimal("70.00"),
+            gp_profit_share_percent=Decimal("30.00"),
             total_units_authorized=Decimal("10000"),
             notes="Currently raising capital. First tranche open.",
         )
