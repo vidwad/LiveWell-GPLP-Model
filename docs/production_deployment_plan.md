@@ -1,104 +1,164 @@
-# Living Well Communities: Production Deployment Plan
+# Living Well Communities: Production Deployment Guide
 
-Moving from a local SQLite/localhost setup to a production-ready application requires several architectural shifts. The current codebase is already well-structured for this transition: the backend uses SQLAlchemy (which supports PostgreSQL), Alembic for migrations, and JWT for authentication. The frontend is a standard Next.js application.
+Moving from a local SQLite/localhost setup to a production-ready application requires several architectural shifts. The current codebase is already well-structured for this transition: the backend uses SQLAlchemy (which supports PostgreSQL), Alembic for migrations, and JWT for authentication with RBAC. The frontend is a standard Next.js application with environment-based API URL configuration.
 
-This document outlines the recommended architecture, hosting providers, and step-by-step deployment process to make the application accessible to others securely.
+This document provides step-by-step instructions to deploy the application so that others can access it securely with real data.
 
-## 1. Target Architecture
+## 1. Architecture Overview
 
-To support real users, concurrent access, and data persistence, the architecture should be split into three tiers:
+| Component | Local Development | Production | Provider |
+|-----------|------------------|------------|----------|
+| **Database** | SQLite (`livingwell_dev.db`) | PostgreSQL 15+ | Supabase (free tier) |
+| **Backend API** | `uvicorn` on port 8000 | Docker container | Render (free or $7/mo) |
+| **Frontend** | `next dev` on port 3000 | Static/Serverless | Vercel (free tier) |
 
-| Component | Current (Local) | Target (Production) | Recommended Provider |
-|-----------|-----------------|---------------------|----------------------|
-| **Database** | SQLite (`livingwell_dev.db`) | PostgreSQL 15+ | Supabase or Neon |
-| **Backend API** | FastAPI (uvicorn on port 8000) | Dockerized FastAPI | Render or Railway |
-| **Frontend** | Next.js (pnpm dev on port 3000) | Next.js (Static/Serverless) | Vercel |
+### Files Created for Deployment
 
-### Why this stack?
-- **Vercel** is the native hosting platform for Next.js, offering zero-config deployments, edge caching, and automatic SSL.
-- **Render/Railway** are excellent PaaS (Platform as a Service) providers for Python/FastAPI backends, offering easy GitHub integration and automatic deployments.
-- **Supabase/Neon** provide managed PostgreSQL databases with generous free tiers and easy connection pooling.
+| File | Purpose |
+|------|---------|
+| `backend/Dockerfile` | Docker image for the FastAPI backend |
+| `backend/.dockerignore` | Excludes dev files from Docker builds |
+| `backend/start.sh` | Startup script: runs migrations, optionally seeds, starts uvicorn |
+| `backend/.env.example` | Template for backend environment variables |
+| `render.yaml` | Render Blueprint for one-click backend deployment |
+| `docker-compose.yml` | Local development with PostgreSQL (optional) |
+| `livingwell-frontend/vercel.json` | Vercel configuration for frontend deployment |
+| `livingwell-frontend/.env.example` | Template for frontend environment variables |
+| `backend/alembic/versions/002_add_profit_share_columns.py` | Migration for new LP profit share columns |
 
-## 2. Pre-Deployment Code Changes
+## 2. Step-by-Step Deployment
 
-Before deploying, a few minor adjustments are needed in the codebase:
+### Phase 1: Set Up the Database (Supabase)
 
-### Backend Adjustments
-1. **CORS Configuration:** Update `backend/app/main.py` to restrict `allow_origins` from `["*"]` to your specific Vercel frontend URL (e.g., `["https://livingwell-app.vercel.app"]`).
-2. **Database URL:** The backend already supports PostgreSQL via the `DATABASE_URL` environment variable in `config.py`. No code changes needed, just environment variable configuration.
-3. **Procfile/Start Command:** Create a `Procfile` or define the start command for the hosting provider:
-   ```bash
-   uvicorn app.main:app --host 0.0.0.0 --port $PORT
+1. Go to [supabase.com](https://supabase.com/) and create a free account.
+2. Click **New Project** and name it `livingwell-prod`.
+3. Choose a strong database password and save it securely.
+4. Once the project is created, go to **Settings** > **Database** > **Connection string** > **URI**.
+5. Copy the connection string. It looks like:
+   ```
+   postgresql://postgres:[YOUR-PASSWORD]@db.[YOUR-REF].supabase.co:5432/postgres
    ```
 
-### Frontend Adjustments
-1. **API URL:** The frontend already uses `NEXT_PUBLIC_API_URL` in `src/lib/api.ts`. This will need to be set to the production backend URL in Vercel's environment variables.
-2. **Build Script:** Ensure `package.json` has a standard build script (`"build": "next build"`).
+### Phase 2: Deploy the Backend (Render)
 
-## 3. Step-by-Step Deployment Guide
+**Option A: One-Click Blueprint (Recommended)**
 
-### Phase 1: Database Setup (Supabase)
-1. Create an account at [Supabase](https://supabase.com/).
-2. Create a new project (e.g., "livingwell-prod").
-3. Navigate to Project Settings -> Database and copy the **Connection String (URI)**.
-   - It will look like: `postgresql://postgres:[YOUR-PASSWORD]@db.[YOUR-PROJECT-REF].supabase.co:5432/postgres`
+1. Go to [render.com](https://render.com/) and create a free account.
+2. Click **New** > **Blueprint** and connect your GitHub repository (`vidwad/LiveWell-GPLP-Model`).
+3. Render will detect the `render.yaml` file and auto-configure the service.
+4. Fill in the required environment variables:
+   - `DATABASE_URL`: Paste the Supabase connection string from Phase 1
+   - `FRONTEND_URL`: Leave blank for now (you will fill this after Phase 3)
+   - `OPENAI_API_KEY`: Your OpenAI key (optional, for AI assistant)
+5. Click **Apply**. Render will build the Docker image and deploy.
 
-### Phase 2: Backend Deployment (Render)
-1. Create an account at [Render](https://render.com/).
-2. Click "New +" -> "Web Service" and connect your GitHub repository (`vidwad/LiveWell-GPLP-Model`).
-3. Configure the service:
+**Option B: Manual Setup**
+
+1. Click **New** > **Web Service** and connect your GitHub repo.
+2. Configure:
    - **Root Directory:** `backend`
-   - **Environment:** `Python 3`
-   - **Build Command:** `pip install -r requirements.txt`
-   - **Start Command:** `uvicorn app.main:app --host 0.0.0.0 --port $PORT`
-4. Add Environment Variables:
-   - `DATABASE_URL`: [Paste the Supabase connection string]
-   - `JWT_SECRET_KEY`: [Generate a strong random string, e.g., using `openssl rand -hex 32`]
-   - `JWT_ALGORITHM`: `HS256`
-5. Click "Create Web Service". Render will build and deploy the API.
-6. **Database Migration:** Once deployed, you need to run the Alembic migrations and seed the database. You can do this via Render's "Shell" tab:
-   ```bash
-   alembic upgrade head
-   python seed.py
-   ```
-7. Copy the resulting backend URL (e.g., `https://livingwell-api.onrender.com`).
+   - **Environment:** `Docker`
+   - **Dockerfile Path:** `./Dockerfile`
+3. Add the same environment variables as Option A, plus:
+   - `ENVIRONMENT`: `production`
+   - `JWT_SECRET_KEY`: Generate with `openssl rand -hex 32`
+4. Click **Create Web Service**.
 
-### Phase 3: Frontend Deployment (Vercel)
-1. Create an account at [Vercel](https://vercel.com/).
-2. Click "Add New..." -> "Project" and import your GitHub repository.
-3. Configure the project:
+**After Deployment — Seed the Database:**
+
+1. Go to the Render dashboard > your service > **Shell** tab.
+2. Run: `SEED_DB=true python seed.py`
+3. This creates the demo users and sample data. **Change passwords immediately** for production use.
+
+### Phase 3: Deploy the Frontend (Vercel)
+
+1. Go to [vercel.com](https://vercel.com/) and create a free account.
+2. Click **Add New** > **Project** and import `vidwad/LiveWell-GPLP-Model`.
+3. Configure:
    - **Root Directory:** `livingwell-frontend`
-   - **Framework Preset:** Next.js
+   - **Framework Preset:** Next.js (auto-detected)
 4. Add Environment Variables:
-   - `NEXT_PUBLIC_API_URL`: [Paste the Render backend URL from Phase 2]
-5. Click "Deploy". Vercel will build and deploy the frontend.
-6. Copy the resulting frontend URL (e.g., `https://livingwell-app.vercel.app`).
+   - `NEXT_PUBLIC_API_URL`: Your Render backend URL (e.g., `https://livingwell-api.onrender.com`)
+5. Click **Deploy**.
+6. Copy the resulting URL (e.g., `https://livingwell-app.vercel.app`).
 
-### Phase 4: Final Configuration
-1. Go back to Render -> Environment Variables.
-2. Add a new variable `FRONTEND_URL` (if you implement strict CORS) or update the CORS settings in `main.py` to allow the Vercel URL.
-3. Restart the Render service.
+### Phase 4: Connect Frontend to Backend
 
-## 4. Security & Authorization Readiness
+1. Go back to Render > your service > **Environment** tab.
+2. Set `FRONTEND_URL` to your Vercel URL (e.g., `https://livingwell-app.vercel.app`).
+3. Click **Save Changes**. The service will automatically redeploy with the updated CORS settings.
 
-The application already has a robust Role-Based Access Control (RBAC) system implemented in `backend/app/core/deps.py`. 
+## 3. Security Configuration
 
-### Current Roles:
-- `GP_ADMIN`: Full access to all endpoints.
-- `OPERATIONS_MANAGER`: Access to operational data, P&L, and budgets.
-- `PROPERTY_MANAGER`: Access to specific communities/properties they manage.
-- `INVESTOR`: Read-only access to their specific LP investments and documents.
-- `RESIDENT`: Access to their specific unit, lease, and maintenance requests.
+The application has a robust Role-Based Access Control (RBAC) system with five roles:
 
-### Production Security Checklist:
-1. **Change Default Passwords:** The `seed.py` script creates default users with the password `Password1!`. In production, you must force a password reset or manually change these hashes in the database immediately after seeding.
-2. **JWT Secret:** Ensure the `JWT_SECRET_KEY` is a strong, unique value and never committed to Git.
-3. **HTTPS:** Both Vercel and Render provide automatic SSL/TLS encryption. Ensure all API calls use `https://`.
-4. **Environment Variables:** Never commit `.env` files. Use the hosting provider's dashboard to manage secrets.
+| Role | Access Level |
+|------|-------------|
+| `GP_ADMIN` | Full access to all endpoints and data |
+| `OPERATIONS_MANAGER` | Operational data, P&L, budgets, communities |
+| `PROPERTY_MANAGER` | Scoped to assigned communities and properties |
+| `INVESTOR` | Read-only access to their LP investments and documents |
+| `RESIDENT` | Access to their unit, lease, and maintenance requests |
 
-## 5. Ongoing Maintenance
+### Production Security Checklist
 
-Once deployed, the workflow changes slightly:
-- **Local Development:** Continue using SQLite and `localhost:8000` / `localhost:3000`.
-- **Database Changes:** When modifying models, generate a new Alembic migration locally (`alembic revision --autogenerate -m "description"`), commit it, and run `alembic upgrade head` on the production server.
-- **Continuous Deployment:** Pushing to the `master` branch on GitHub will automatically trigger builds on both Vercel and Render.
+1. **JWT Secret:** The `render.yaml` auto-generates a strong `JWT_SECRET_KEY`. If you deployed manually, generate one with `openssl rand -hex 32`. Never use the default `supersecretkey`.
+2. **Default Passwords:** The seed script creates users with `Password1!`. Force a password reset or change these hashes in the database immediately after seeding.
+3. **CORS:** In production (`ENVIRONMENT=production`), CORS is restricted to only the configured `FRONTEND_URL`. The wildcard `*` is only used in development mode.
+4. **API Docs:** The `/docs` and `/redoc` endpoints are automatically disabled in production mode.
+5. **HTTPS:** Both Vercel and Render provide automatic SSL/TLS. All traffic is encrypted.
+6. **Environment Variables:** Never commit `.env` files. Use the hosting provider dashboards to manage secrets.
+
+## 4. Local Development with PostgreSQL (Optional)
+
+If you want to develop locally against PostgreSQL instead of SQLite:
+
+```bash
+# Start PostgreSQL in Docker
+docker compose up -d db
+
+# Run the backend against PostgreSQL
+cd backend
+DATABASE_URL=postgresql://postgres:postgres@localhost:5432/livingwell python -m uvicorn app.main:app --reload
+
+# Or start everything with Docker Compose
+docker compose up -d
+```
+
+## 5. Database Migrations
+
+When modifying the SQLAlchemy models:
+
+```bash
+cd backend
+
+# Generate a new migration
+alembic revision --autogenerate -m "describe your change"
+
+# Apply migrations locally
+alembic upgrade head
+
+# Commit the migration file to Git
+# Render will auto-apply migrations on next deploy (via start.sh)
+```
+
+## 6. Continuous Deployment
+
+Once connected to GitHub, both Vercel and Render will automatically deploy when you push to the `master` branch. The workflow is:
+
+1. Develop locally (SQLite + localhost)
+2. Commit and push to `master`
+3. Vercel rebuilds the frontend automatically
+4. Render rebuilds the backend Docker image and runs migrations automatically
+5. Changes are live within minutes
+
+## 7. Demo Login Credentials
+
+| Email | Password | Role |
+|-------|----------|------|
+| admin@livingwell.ca | Password1! | GP Admin |
+| ops@livingwell.ca | Password1! | Operations Manager |
+| pm@livingwell.ca | Password1! | Property Manager |
+| investor1@example.com | Password1! | Investor |
+| investor2@example.com | Password1! | Investor |
+| resident@example.com | Password1! | Resident |

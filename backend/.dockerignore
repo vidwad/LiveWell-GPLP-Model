@@ -1,0 +1,12 @@
+__pycache__/
+*.py[cod]
+*.pyo
+.env
+.venv
+venv/
+*.egg-info/
+*.db
+livingwell_dev.db
+livingwell.db
+.git
+.gitignore

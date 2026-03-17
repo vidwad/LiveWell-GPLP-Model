@@ -6,6 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
+from app.core.config import settings
 from app.routes import portfolio, community, investor, investment, ai, auth, reports, lifecycle, operator, property_manager
 from app.routes.calculations import router as calculations_router
 from app.routes.documents import router as documents_router
@@ -24,17 +25,20 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="Living Well Communities Platform",
-    version="0.2.0",
+    version="0.3.0",
     description=(
         "Enterprise-scale platform for GP/LP development, "
         "community operations, and investor relations."
     ),
     lifespan=lifespan,
+    # Disable docs in production for security
+    docs_url="/docs" if settings.ENVIRONMENT != "production" else None,
+    redoc_url="/redoc" if settings.ENVIRONMENT != "production" else None,
 )
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=settings.cors_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -67,4 +71,4 @@ def root():
 
 @app.get("/healthz", tags=["ops"])
 def health_check():
-    return {"status": "ok"}
+    return {"status": "ok", "environment": settings.ENVIRONMENT}
