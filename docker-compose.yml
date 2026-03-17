@@ -1,47 +1,85 @@
 version: "3.9"
 
 # ============================================================
-# Local Development with PostgreSQL
-# ============================================================
-# Usage:
-#   docker compose up -d          # Start database + backend
-#   docker compose down            # Stop all services
-#   docker compose exec api python seed.py   # Seed the database
+# Living Well Communities — Full Production Stack
+# Usage:  docker compose up -d
 # ============================================================
 
 services:
+  # ── PostgreSQL Database ──────────────────────────────────────
   db:
     image: postgres:15-alpine
     restart: unless-stopped
     environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: livingwell
-    ports:
-      - "5432:5432"
+      POSTGRES_USER: ${POSTGRES_USER:-livingwell}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-livingwell_secret_2024}
+      POSTGRES_DB: ${POSTGRES_DB:-livingwell}
     volumes:
       - pgdata:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-livingwell}"]
       interval: 5s
       timeout: 5s
-      retries: 5
+      retries: 10
 
-  api:
+  # ── FastAPI Backend ──────────────────────────────────────────
+  backend:
     build:
       context: ./backend
       dockerfile: Dockerfile
     restart: unless-stopped
-    ports:
-      - "8000:8000"
-    environment:
-      DATABASE_URL: postgresql://postgres:postgres@db:5432/livingwell
-      JWT_SECRET_KEY: dev-secret-change-in-production
-      JWT_ALGORITHM: HS256
-      FRONTEND_URL: http://localhost:3000
     depends_on:
       db:
         condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-livingwell}:${POSTGRES_PASSWORD:-livingwell_secret_2024}@db:5432/${POSTGRES_DB:-livingwell}
+      ENVIRONMENT: ${ENVIRONMENT:-production}
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:-change_me_in_production_use_openssl_rand_hex_32}
+      JWT_ALGORITHM: HS256
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      SEED_DB: ${SEED_DB:-true}
+    ports:
+      - "8000:8000"
+    volumes:
+      - uploads:/app/uploads
+
+  # ── Next.js Frontend ─────────────────────────────────────────
+  frontend:
+    build:
+      context: ./livingwell-frontend
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-/api}
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "3000:3000"
+
+  # ── Caddy Reverse Proxy (auto-SSL with domain) ──────────────
+  # Uncomment this service AND the caddy volumes below when you
+  # have a domain name pointed at your DigitalOcean droplet.
+  # Caddy automatically provisions free Let's Encrypt SSL certs.
+  #
+  # caddy:
+  #   image: caddy:2-alpine
+  #   restart: unless-stopped
+  #   depends_on:
+  #     - frontend
+  #     - backend
+  #   ports:
+  #     - "80:80"
+  #     - "443:443"
+  #   volumes:
+  #     - ./Caddyfile:/etc/caddy/Caddyfile
+  #     - caddy_data:/data
+  #     - caddy_config:/config
 
 volumes:
   pgdata:
+  uploads:
+  # caddy_data:
+  # caddy_config:

@@ -1,0 +1,25 @@
+# ============================================================
+# Caddy Reverse Proxy Configuration
+# Replace YOUR_DOMAIN.com with your actual domain name.
+# Caddy auto-provisions Let's Encrypt SSL certificates.
+# ============================================================
+
+YOUR_DOMAIN.com {
+    # Frontend — all browser requests
+    reverse_proxy frontend:3000
+
+    # Backend API — requests to /api/*
+    handle_path /api/* {
+        reverse_proxy backend:8000
+    }
+
+    # Backend uploads
+    handle_path /uploads/* {
+        reverse_proxy backend:8000
+    }
+
+    # Backend health check
+    handle /healthz {
+        reverse_proxy backend:8000
+    }
+}
