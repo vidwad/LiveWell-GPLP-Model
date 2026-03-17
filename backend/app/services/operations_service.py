@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session
 
 from app.db.models import (
     Bed, BedStatus, Community, OperatingExpense, OperatorBudget,
-    RentPayment, Resident, Unit, PaymentStatus,
+    RenovationPhase, RentPayment, Resident, Unit, PaymentStatus,
 )
 
 
@@ -25,11 +25,19 @@ def _d(val) -> float:
 
 
 def compute_occupancy(db: Session, community_id: int) -> dict:
-    """Compute bed-level occupancy for a community."""
+    """Compute bed-level occupancy for a community.
+
+    Only counts beds in pre-renovation (baseline) units.  Post-renovation
+    units are planned/projected and not yet leasable, so including them
+    would artificially deflate the occupancy rate.
+    """
     beds = (
         db.query(Bed)
         .join(Unit, Unit.unit_id == Bed.unit_id)
-        .filter(Unit.community_id == community_id)
+        .filter(
+            Unit.community_id == community_id,
+            Unit.renovation_phase != RenovationPhase.post_renovation,
+        )
         .all()
     )
     total_beds = len(beds)

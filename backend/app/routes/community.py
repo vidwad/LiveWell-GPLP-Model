@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 from app.core.deps import get_current_user, require_gp_ops_pm, require_gp_or_ops
 from app.db.models import (
     Bed, BedStatus, Community, MaintenanceRequest, MaintenanceStatus, Property, Resident,
-    RentPayment, PaymentStatus, Unit, User,
+    RentPayment, PaymentStatus, RenovationPhase, Unit, User,
 )
 from app.db.session import get_db
 from app.schemas.community import (
@@ -105,7 +105,9 @@ def list_community_properties(
         raise HTTPException(status_code=404, detail="Community not found")
     results = []
     for prop in community.properties:
-        units = prop.units
+        # Only count baseline (pre-renovation) units for occupancy —
+        # post-renovation units are planned/projected and not yet leasable.
+        units = [u for u in prop.units if u.renovation_phase != RenovationPhase.post_renovation]
         total_units = len(units)
         total_beds = sum(u.bed_count for u in units)
         occupied_beds = sum(

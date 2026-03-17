@@ -230,7 +230,7 @@ export default function ModelPage({
                     type="number"
                     min={0}
                     max={100}
-                    step={1}
+                    step="any"
                     value={form.annual_expense_ratio ?? ""}
                     onChange={numChange("annual_expense_ratio")}
                     placeholder="35"
@@ -242,7 +242,7 @@ export default function ModelPage({
                     type="number"
                     min={0}
                     max={100}
-                    step={1}
+                    step="any"
                     value={form.vacancy_rate ?? ""}
                     onChange={numChange("vacancy_rate")}
                     placeholder="5"
@@ -263,7 +263,7 @@ export default function ModelPage({
                     type="number"
                     min={0}
                     max={20}
-                    step={0.5}
+                    step="any"
                     value={form.annual_rent_increase ?? ""}
                     onChange={numChange("annual_rent_increase")}
                     placeholder="3"
@@ -275,7 +275,7 @@ export default function ModelPage({
                     type="number"
                     min={0}
                     max={20}
-                    step={0.5}
+                    step="any"
                     value={form.expense_growth_rate}
                     onChange={numChange("expense_growth_rate")}
                     placeholder="2"
@@ -344,7 +344,7 @@ export default function ModelPage({
                     type="number"
                     min={0.1}
                     max={20}
-                    step={0.25}
+                    step="any"
                     value={form.exit_cap_rate ?? ""}
                     onChange={numChange("exit_cap_rate")}
                     placeholder="5.5"

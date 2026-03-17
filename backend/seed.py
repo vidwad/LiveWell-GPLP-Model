@@ -2108,6 +2108,249 @@ def seed():
             db.flush()
             print("  [ok] 8 construction expense records for prop2")
 
+        # =================================================================
+        # SPRINT 8.1: SEED EMPTY TABLES
+        # =================================================================
+        print("  --- Sprint 8.1: Seeding empty tables ---")
+
+        # ── Arrears Records ──
+        overdue_payments = db.query(m.RentPayment).filter(
+            m.RentPayment.status == m.PaymentStatus.overdue
+        ).limit(3).all()
+        for i, pay in enumerate(overdue_payments):
+            days = [35, 52, 18][i] if i < 3 else 20
+            bucket = "31-60" if days > 30 else "0-30"
+            if days > 60:
+                bucket = "61-90"
+            arr = m.ArrearsRecord(
+                resident_id=pay.resident_id,
+                rent_payment_id=pay.payment_id,
+                amount_overdue=pay.amount,
+                due_date=date(pay.period_year, pay.period_month, 1),
+                days_overdue=days,
+                aging_bucket=bucket,
+                follow_up_action="Phone call and written notice" if days > 30 else "Email reminder sent",
+                follow_up_date=date(2025, 4, 15) if days > 30 else date(2025, 3, 20),
+                is_resolved=False,
+                notes=f"Resident notified on {date(2025, 3, 10)}",
+            )
+            db.add(arr)
+        db.flush()
+        print(f"  [ok] {len(overdue_payments)} arrears records")
+
+        # ── Funding Opportunities ──
+        fund_opps = [
+            m.FundingOpportunity(
+                operator_id=op_retire.operator_id,
+                community_id=comm3.community_id,
+                title="Alberta Seniors Housing Grant 2025",
+                funding_source="Government of Alberta — Seniors & Housing",
+                amount=Decimal("250000.00"),
+                status=m.FundingStatus.submitted,
+                submission_deadline=date(2025, 6, 30),
+                reporting_deadline=date(2026, 3, 31),
+                notes="Application submitted for RetireWell Red Deer expansion.",
+            ),
+            m.FundingOpportunity(
+                operator_id=op_recover.operator_id,
+                community_id=comm1.community_id,
+                title="CMHC Rapid Housing Initiative — Round 4",
+                funding_source="CMHC",
+                amount=Decimal("500000.00"),
+                status=m.FundingStatus.awarded,
+                submission_deadline=date(2025, 3, 15),
+                awarded_amount=Decimal("425000.00"),
+                notes="Awarded for RecoverWell Calgary NE sober living beds.",
+            ),
+            m.FundingOpportunity(
+                operator_id=op_retire.operator_id,
+                title="United Way — Community Housing Innovation Fund",
+                funding_source="United Way of Calgary",
+                amount=Decimal("75000.00"),
+                status=m.FundingStatus.draft,
+                submission_deadline=date(2025, 9, 1),
+                notes="Exploring application for meal program subsidy.",
+            ),
+        ]
+        db.add_all(fund_opps)
+        db.flush()
+        print("  [ok] 3 funding opportunities")
+
+        # ── Notifications ──
+        notifs = [
+            m.Notification(
+                user_id=users["admin"].user_id,
+                title="Q4 2025 Distribution Paid",
+                message="The Q4 2025 distribution of $50,000 has been paid to all investors.",
+                type=m.NotificationType.distribution,
+                is_read=True,
+                action_url="/investment/1",
+                created_at=datetime(2025, 12, 31),
+            ),
+            m.Notification(
+                user_id=users["investor1"].user_id,
+                title="New Document: Q4 2025 Statement",
+                message="Your quarterly investor statement for Q4 2025 is now available.",
+                type=m.NotificationType.document_uploaded,
+                is_read=False,
+                action_url="/investors/1",
+                created_at=datetime(2026, 1, 5),
+            ),
+            m.Notification(
+                user_id=users["admin"].user_id,
+                title="Property Stage Change: 456 Healing Ave",
+                message="456 Healing Avenue NE has been transitioned from Planning to Construction.",
+                type=m.NotificationType.stage_transition,
+                is_read=True,
+                action_url="/portfolio/2",
+                created_at=datetime(2025, 2, 15),
+            ),
+            m.Notification(
+                user_id=users["ops"].user_id,
+                title="Maintenance Request — Urgent",
+                message="A burst pipe has been reported at 123 Recovery Road NE, Unit 102.",
+                type=m.NotificationType.general,
+                is_read=False,
+                action_url="/maintenance",
+                created_at=datetime(2026, 1, 10),
+            ),
+            m.Notification(
+                user_id=users["investor2"].user_id,
+                title="eTransfer Sent: $6,250.00",
+                message="Your Q4 2025 distribution of $6,250.00 has been sent via eTransfer.",
+                type=m.NotificationType.etransfer,
+                is_read=True,
+                action_url="/etransfers",
+                created_at=datetime(2025, 12, 31),
+            ),
+        ]
+        db.add_all(notifs)
+        db.flush()
+        print("  [ok] 5 notifications")
+
+        # ── Refinance Scenarios ──
+        refi1 = m.RefinanceScenario(
+            property_id=prop1.property_id,
+            label="Year 3 Refinance — 5.5% Cap",
+            assumed_new_valuation=Decimal("2200000.00"),
+            new_ltv_percent=Decimal("65.00"),
+            new_interest_rate=Decimal("4.75"),
+            new_amortization_months=300,
+            existing_debt_payout=Decimal("2400000.00"),
+            closing_costs=Decimal("25000.00"),
+            notes="Refinance after stabilization at 5.5% cap rate.",
+        )
+        refi2 = m.RefinanceScenario(
+            property_id=prop1.property_id,
+            label="Year 3 Refinance — 5.0% Cap (Optimistic)",
+            assumed_new_valuation=Decimal("2500000.00"),
+            new_ltv_percent=Decimal("70.00"),
+            new_interest_rate=Decimal("4.50"),
+            new_amortization_months=300,
+            existing_debt_payout=Decimal("2400000.00"),
+            closing_costs=Decimal("28000.00"),
+            notes="Optimistic scenario with lower cap rate.",
+        )
+        db.add_all([refi1, refi2])
+        db.flush()
+        print("  [ok] 2 refinance scenarios")
+
+        # ── Sale Scenarios ──
+        sale1 = m.SaleScenario(
+            property_id=prop1.property_id,
+            label="Year 5 Exit — Market Sale",
+            assumed_sale_price=Decimal("2400000.00"),
+            selling_costs_percent=Decimal("4.00"),
+            debt_payout=Decimal("2200000.00"),
+            capital_gains_reserve=Decimal("15000.00"),
+            notes="Exit at market value after 5-year hold.",
+        )
+        sale2 = m.SaleScenario(
+            property_id=prop3.property_id,
+            label="Year 7 Exit — Premium Sale",
+            assumed_sale_price=Decimal("3200000.00"),
+            selling_costs_percent=Decimal("3.50"),
+            debt_payout=Decimal("2800000.00"),
+            capital_gains_reserve=Decimal("25000.00"),
+            notes="Premium exit for fully stabilized StudyWell Edmonton property.",
+        )
+        db.add_all([sale1, sale2])
+        db.flush()
+        print("  [ok] 2 sale scenarios")
+
+        # ── Unit Turnovers ──
+        # Get some units with residents for turnovers
+        first_units = db.query(m.Unit).filter(
+            m.Unit.community_id == comm1.community_id
+        ).limit(3).all()
+        for i, u in enumerate(first_units):
+            resident = db.query(m.Resident).filter(m.Resident.unit_id == u.unit_id).first()
+            to = m.UnitTurnover(
+                unit_id=u.unit_id,
+                vacated_by_resident_id=resident.resident_id if resident else None,
+                move_out_date=date(2025, 11, 30) if i == 0 else date(2026, 1, 15) if i == 1 else None,
+                target_ready_date=date(2025, 12, 15) if i == 0 else date(2026, 2, 1) if i == 1 else date(2026, 3, 1),
+                actual_ready_date=date(2025, 12, 12) if i == 0 else None,
+                status=m.TurnoverStatus.completed if i == 0 else m.TurnoverStatus.in_progress if i == 1 else m.TurnoverStatus.scheduled,
+                inspection_notes="Unit in good condition, minor paint touch-up needed." if i == 0 else None,
+                cleaning_complete=(i == 0),
+                repairs_complete=(i == 0),
+                painting_complete=(i == 0),
+                inspection_passed=True if i == 0 else None,
+                assigned_to=users["pm"].user_id,
+            )
+            db.add(to)
+        db.flush()
+        print(f"  [ok] {len(first_units)} unit turnovers")
+
+        # ── Valuation History ──
+        valuations = [
+            m.ValuationHistory(
+                property_id=prop1.property_id,
+                valuation_date=date(2024, 8, 15),
+                value=Decimal("650000.00"),
+                method=m.ValuationMethod.purchase,
+                notes="Purchase price at acquisition.",
+                created_by=users["admin"].user_id,
+            ),
+            m.ValuationHistory(
+                property_id=prop1.property_id,
+                valuation_date=date(2025, 6, 1),
+                value=Decimal("1850000.00"),
+                method=m.ValuationMethod.appraisal,
+                appraiser="Prairie Appraisal Group",
+                notes="Post-renovation appraisal for refinance.",
+                created_by=users["admin"].user_id,
+            ),
+            m.ValuationHistory(
+                property_id=prop1.property_id,
+                valuation_date=date(2025, 12, 15),
+                value=Decimal("2100000.00"),
+                method=m.ValuationMethod.cap_rate,
+                notes="Income approach: NOI $120,000 / Cap Rate 5.7%",
+                created_by=users["admin"].user_id,
+            ),
+            m.ValuationHistory(
+                property_id=prop3.property_id,
+                valuation_date=date(2025, 3, 1),
+                value=Decimal("720000.00"),
+                method=m.ValuationMethod.purchase,
+                notes="Purchase price at acquisition.",
+                created_by=users["admin"].user_id,
+            ),
+            m.ValuationHistory(
+                property_id=prop4.property_id,
+                valuation_date=date(2025, 7, 1),
+                value=Decimal("510000.00"),
+                method=m.ValuationMethod.assessment,
+                notes="Municipal assessment value.",
+                created_by=users["admin"].user_id,
+            ),
+        ]
+        db.add_all(valuations)
+        db.flush()
+        print("  [ok] 5 valuation history records")
+
         db.commit()
         print("=" * 60)
         print("  SEED COMPLETE — Phase 1 Foundation + Phase 3 Features")
@@ -2147,6 +2390,14 @@ def seed():
         print("  --- Sprint 1.2 Enrichment ---")
         print("  Construction Draws:  5 (for prop2)")
         print("  Construction Exp:    8 (budget vs actual for prop2)")
+        print("  --- Sprint 8.1: Previously Empty Tables ---")
+        print("  Arrears Records:     3")
+        print("  Funding Opps:        3")
+        print("  Notifications:       5")
+        print("  Refinance Scenarios: 2")
+        print("  Sale Scenarios:      2")
+        print("  Unit Turnovers:      3")
+        print("  Valuation History:   5")
         print()
         print("  Demo logins:")
         print("    admin@livingwell.ca / Password1!     (GP_ADMIN)")
