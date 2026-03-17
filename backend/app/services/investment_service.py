@@ -516,11 +516,9 @@ def compute_lp_pnl(
                 )
                 total_annual_debt_service += _d(ads)
 
-    # Management fees
+    # Management fees — calculated on gross revenue per LP agreement
     mgmt_fee_pct = _d(lp.management_fee_percent) / Decimal("100") if lp.management_fee_percent else ZERO
-    lp_summary = compute_lp_summary(db, lp_id)
-    total_funded = _d(lp_summary.get("total_funded", 0))
-    annual_mgmt_fee = total_funded * mgmt_fee_pct
+    annual_mgmt_fee = total_revenue_billed * mgmt_fee_pct
 
     # If month is specified, prorate debt service and management fees
     if month:
@@ -555,6 +553,7 @@ def compute_lp_pnl(
             "annual_fee": float(annual_mgmt_fee),
             "period_fee": float(period_mgmt_fee),
             "fee_percent": float(mgmt_fee_pct * Decimal("100")),
+            "fee_basis": "gross_revenue",
         },
         "summary": {
             "noi": float(noi),

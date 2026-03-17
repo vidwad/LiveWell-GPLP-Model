@@ -133,6 +133,7 @@ export default function TurnoversPage() {
                   <Label>Unit ID (optional)</Label>
                   <Input
                     type="number"
+                    min={0}
                     value={form.unit_id}
                     onChange={(e) => setForm((f) => ({ ...f, unit_id: e.target.value }))}
                     placeholder="e.g. 42"
@@ -142,6 +143,7 @@ export default function TurnoversPage() {
                   <Label>Community ID (optional)</Label>
                   <Input
                     type="number"
+                    min={0}
                     value={form.community_id}
                     onChange={(e) => setForm((f) => ({ ...f, community_id: e.target.value }))}
                     placeholder="e.g. 1"

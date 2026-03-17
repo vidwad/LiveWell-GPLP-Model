@@ -104,7 +104,33 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { formatCurrency, formatCurrencyCompact, formatDate, cn } from "@/lib/utils";
-import { DevelopmentPlan, DevelopmentPlanCreate } from "@/types/portfolio";
+import {
+  DevelopmentPlan,
+  DevelopmentPlanCreate,
+  DebtFacility,
+  ProjectionResult,
+  ProjectionRow,
+  ProjectionSummary,
+  ProjectionInput,
+  ProjectionFees,
+  PropertyUnit,
+  Bed,
+  Bedroom,
+  UnitSummaryBase,
+  UnitSummaryResponse,
+  RedevelopmentPhase,
+  ValuationScenario,
+  RentRollResponse,
+  RentRollUnit,
+  RentRollPlanPhase,
+  RentRollComparison,
+  EscalationYear,
+  RentRollData,
+  UnitMixEntry,
+  FloorBreakdownEntry,
+  EditPlanForm,
+} from "@/types/portfolio";
+import type { StageTransition, PropertyMilestone, DevelopmentStage } from "@/types/lifecycle";
 
 /* ── Stage helpers ──────────────────────────────────────────────────────────── */
 
@@ -337,7 +363,7 @@ export default function PropertyDetailPage({ params }: { params: { id: string } 
 
   // Projections
   const { mutateAsync: runProjection, isPending: projPending } = useRunProjection(propertyId);
-  const [projResults, setProjResults] = useState<{ projections: Array<Record<string, unknown>>; summary: Record<string, unknown> } | null>(null);
+  const [projResults, setProjResults] = useState<ProjectionResult | null>(null);
   const [projForm, setProjForm] = useState({
     planned_units: "", monthly_rent_per_unit: "", annual_expense_ratio: "35",
     vacancy_rate: "5", annual_rent_increase: "3", expense_growth_rate: "2",
@@ -390,7 +416,7 @@ export default function PropertyDetailPage({ params }: { params: { id: string } 
 
   // Plan editing state
   const [editingPlanId, setEditingPlanId] = useState<number | null>(null);
-  const [editPlanForm, setEditPlanForm] = useState<Record<string, string | number>>({
+  const [editPlanForm, setEditPlanForm] = useState<EditPlanForm>({
     plan_name: "", status: "", planned_units: 0, planned_beds: 0, planned_sqft: 0,
     estimated_construction_cost: 0, development_start_date: "", construction_duration_days: 0,
     hard_costs: 0, soft_costs: 0, site_costs: 0, financing_costs: 0,
@@ -429,7 +455,7 @@ export default function PropertyDetailPage({ params }: { params: { id: string } 
   const handleSavePlan = async () => {
     if (!editingPlanId) return;
     try {
-      const data: Record<string, unknown> = {};
+      const data: Record<string, string | number | undefined> = {};
       for (const [key, value] of Object.entries(editPlanForm)) {
         if (value !== "" && value !== 0) data[key] = value;
         else if (key === "plan_name" && value === "") continue;
@@ -514,7 +540,7 @@ export default function PropertyDetailPage({ params }: { params: { id: string } 
   const handleCreateDebt = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      const payload: Record<string, unknown> = {
+      const payload: Partial<DebtFacility> & { lender_name: string; debt_type: string; commitment_amount: number } = {
         lender_name: debtForm.lender_name,
         debt_type: debtForm.debt_type,
         commitment_amount: Number(debtForm.commitment_amount),
@@ -540,7 +566,7 @@ export default function PropertyDetailPage({ params }: { params: { id: string } 
     e.preventDefault();
     if (!editingDebtId) return;
     try {
-      const payload: Record<string, unknown> = {
+      const payload: Partial<DebtFacility> & { debtId: number; lender_name: string; debt_type: string; status: string } = {
         debtId: editingDebtId,
         lender_name: debtForm.lender_name,
         debt_type: debtForm.debt_type,
@@ -566,15 +592,15 @@ export default function PropertyDetailPage({ params }: { params: { id: string } 
     } catch (e) { toast.error("Failed to update debt facility"); }
   };
 
-  const startEditDebt = (debt: Record<string, unknown>) => {
+  const startEditDebt = (debt: DebtFacility) => {
     setDebtForm({
-      lender_name: String(debt.lender_name ?? ""),
-      debt_type: String(debt.debt_type ?? "permanent_mortgage"),
+      lender_name: debt.lender_name ?? "",
+      debt_type: debt.debt_type ?? "permanent_mortgage",
       commitment_amount: String(debt.commitment_amount ?? ""),
       drawn_amount: String(debt.drawn_amount ?? "0"),
       outstanding_balance: String(debt.outstanding_balance ?? ""),
       interest_rate: debt.interest_rate != null ? String(debt.interest_rate) : "",
-      rate_type: String(debt.rate_type ?? "fixed"),
+      rate_type: debt.rate_type ?? "fixed",
       term_months: debt.term_months != null ? String(debt.term_months) : "",
       amortization_months: debt.amortization_months != null ? String(debt.amortization_months) : "",
       io_period_months: debt.io_period_months != null ? String(debt.io_period_months) : "0",
@@ -582,9 +608,9 @@ export default function PropertyDetailPage({ params }: { params: { id: string } 
       maturity_date: debt.maturity_date ? String(debt.maturity_date) : "",
       ltv_covenant: debt.ltv_covenant != null ? String(debt.ltv_covenant) : "",
       dscr_covenant: debt.dscr_covenant != null ? String(debt.dscr_covenant) : "",
-      notes: String(debt.notes ?? ""),
+      notes: debt.notes ?? "",
     });
-    setEditingDebtId(Number(debt.debt_id));
+    setEditingDebtId(debt.debt_id);
   };
 
   // Computed: total annual debt service (rough estimate from all active facilities)
@@ -624,7 +650,7 @@ export default function PropertyDetailPage({ params }: { params: { id: string } 
   const handleRunProjection = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      const input: Record<string, unknown> = {
+      const input: ProjectionInput = {
         annual_expense_ratio: Number(projForm.annual_expense_ratio) / 100,
         vacancy_rate: Number(projForm.vacancy_rate) / 100,
         annual_rent_increase: Number(projForm.annual_rent_increase) / 100,
@@ -635,30 +661,28 @@ export default function PropertyDetailPage({ params }: { params: { id: string } 
         exit_cap_rate: Number(projForm.exit_cap_rate) / 100,
         disposition_cost_pct: Number(projForm.disposition_cost_pct) / 100,
         projection_years: 10,
+        management_fee_rate: Number(projForm.management_fee_rate) / 100,
+        construction_mgmt_fee_rate: Number(projForm.construction_mgmt_fee_rate) / 100,
+        selling_commission_rate: Number(projForm.selling_commission_rate) / 100,
+        acquisition_fee_rate: Number(projForm.acquisition_fee_rate) / 100,
+        refinancing_fee_rate: Number(projForm.refinancing_fee_rate) / 100,
+        turnover_fee_rate: Number(projForm.turnover_fee_rate) / 100,
+        lp_profit_share: Number(projForm.lp_profit_share) / 100,
+        gp_profit_share: Number(projForm.gp_profit_share) / 100,
+        offering_cost: projForm.offering_cost ? Number(projForm.offering_cost) : undefined,
+        construction_budget: projForm.construction_budget ? Number(projForm.construction_budget) : undefined,
+        acquisition_cost: projForm.acquisition_cost ? Number(projForm.acquisition_cost) : undefined,
+        gross_raise: projForm.gross_raise ? Number(projForm.gross_raise) : undefined,
+        refinance_amount: projForm.refinance_amount ? Number(projForm.refinance_amount) : undefined,
+        property_fmv_at_turnover: projForm.property_fmv_at_turnover ? Number(projForm.property_fmv_at_turnover) : undefined,
+        planned_units: projForm.planned_units ? Number(projForm.planned_units) : undefined,
+        monthly_rent_per_unit: projForm.monthly_rent_per_unit ? Number(projForm.monthly_rent_per_unit) : undefined,
+        annual_debt_service: projForm.annual_debt_service ? Number(projForm.annual_debt_service) : undefined,
+        total_equity_invested: projForm.total_equity_invested ? Number(projForm.total_equity_invested) : undefined,
+        debt_balance_at_exit: projForm.debt_balance_at_exit ? Number(projForm.debt_balance_at_exit) : undefined,
+        carrying_cost_annual: projForm.carrying_cost_annual ? Number(projForm.carrying_cost_annual) : undefined,
       };
-      // LP Fee parameters (rates as decimals)
-      input.management_fee_rate = Number(projForm.management_fee_rate) / 100;
-      input.construction_mgmt_fee_rate = Number(projForm.construction_mgmt_fee_rate) / 100;
-      input.selling_commission_rate = Number(projForm.selling_commission_rate) / 100;
-      input.acquisition_fee_rate = Number(projForm.acquisition_fee_rate) / 100;
-      input.refinancing_fee_rate = Number(projForm.refinancing_fee_rate) / 100;
-      input.turnover_fee_rate = Number(projForm.turnover_fee_rate) / 100;
-      input.lp_profit_share = Number(projForm.lp_profit_share) / 100;
-      input.gp_profit_share = Number(projForm.gp_profit_share) / 100;
-      if (projForm.offering_cost) input.offering_cost = Number(projForm.offering_cost);
-      if (projForm.construction_budget) input.construction_budget = Number(projForm.construction_budget);
-      if (projForm.acquisition_cost) input.acquisition_cost = Number(projForm.acquisition_cost);
-      if (projForm.gross_raise) input.gross_raise = Number(projForm.gross_raise);
-      if (projForm.refinance_amount) input.refinance_amount = Number(projForm.refinance_amount);
-      if (projForm.property_fmv_at_turnover) input.property_fmv_at_turnover = Number(projForm.property_fmv_at_turnover);
-      // Optional fields — only send if provided
-      if (projForm.planned_units) input.planned_units = Number(projForm.planned_units);
-      if (projForm.monthly_rent_per_unit) input.monthly_rent_per_unit = Number(projForm.monthly_rent_per_unit);
-      if (projForm.annual_debt_service) input.annual_debt_service = Number(projForm.annual_debt_service);
-      if (projForm.total_equity_invested) input.total_equity_invested = Number(projForm.total_equity_invested);
-      if (projForm.debt_balance_at_exit) input.debt_balance_at_exit = Number(projForm.debt_balance_at_exit);
-      if (projForm.carrying_cost_annual) input.carrying_cost_annual = Number(projForm.carrying_cost_annual);
-      const result = await runProjection(input) as { projections: Array<Record<string, unknown>>; summary: Record<string, unknown> };
+      const result = await runProjection(input) as ProjectionResult;
       setProjResults(result);
       toast.success("Projection complete");
     } catch (e) { toast.error("Failed to run projection"); }
@@ -986,7 +1010,7 @@ export default function PropertyDetailPage({ params }: { params: { id: string } 
                   <Activity className="h-4 w-4 text-muted-foreground" />
                   Development Stage Progress
                 </CardTitle>
-                {canEdit && allowedTransitions && (allowedTransitions as any).allowed_transitions?.length > 0 && (
+                {canEdit && allowedTransitions && (allowedTransitions as { allowed_transitions: string[] }).allowed_transitions?.length > 0 && (
                   <Dialog open={showTransitionDialog} onOpenChange={setShowTransitionDialog}>
                     <DialogTrigger asChild>
                       <Button size="sm" variant="outline">
@@ -1003,15 +1027,17 @@ export default function PropertyDetailPage({ params }: { params: { id: string } 
                           e.preventDefault();
                           try {
                             await transitionMutation.mutateAsync({
-                              to_stage: transitionForm.to_stage as any,
+                              to_stage: transitionForm.to_stage as DevelopmentStage,
                               notes: transitionForm.notes || undefined,
                               force: transitionForm.force,
                             });
                             toast.success("Stage transition successful");
                             setShowTransitionDialog(false);
                             setTransitionForm({ to_stage: "", notes: "", force: false });
-                          } catch (err: any) {
-                            const msg = err?.response?.data?.detail?.message || err?.response?.data?.detail || "Transition failed";
+                          } catch (err: unknown) {
+                            const axiosErr = err as { response?: { data?: { detail?: { message?: string } | string } } };
+                            const detail = axiosErr?.response?.data?.detail;
+                            const msg = (typeof detail === "object" && detail !== null ? detail.message : detail) || "Transition failed";
                             toast.error(typeof msg === "string" ? msg : "Transition failed");
                           }
                         }}
@@ -1031,7 +1057,7 @@ export default function PropertyDetailPage({ params }: { params: { id: string } 
                               <SelectValue placeholder="Select target stage" />
                             </SelectTrigger>
                             <SelectContent>
-                              {((allowedTransitions as any)?.allowed_transitions ?? []).map((s: string) => (
+                              {((allowedTransitions as { allowed_transitions: string[] })?.allowed_transitions ?? []).map((s: string) => (
                                 <SelectItem key={s} value={s}>
                                   {STAGE_CONFIG[s]?.label ?? s}
                                 </SelectItem>
@@ -1111,14 +1137,14 @@ export default function PropertyDetailPage({ params }: { params: { id: string } 
               </CardTitle>
             </CardHeader>
             <CardContent>
-              {!transitions || (transitions as any[]).length === 0 ? (
+              {!transitions || (transitions as StageTransition[]).length === 0 ? (
                 <p className="text-sm text-muted-foreground">No stage transitions recorded yet.</p>
               ) : (
                 <div className="relative">
                   {/* Timeline line */}
                   <div className="absolute left-4 top-0 bottom-0 w-px bg-border" />
                   <div className="space-y-4">
-                    {(transitions as any[]).map((t: any) => (
+                    {(transitions as StageTransition[]).map((t) => (
                       <div key={t.transition_id} className="relative flex gap-4 pl-10">
                         <div className={cn(
                           "absolute left-2.5 top-1 h-3 w-3 rounded-full border-2 bg-white",
@@ -1179,7 +1205,7 @@ export default function PropertyDetailPage({ params }: { params: { id: string } 
                               title: milestoneForm.title,
                               description: milestoneForm.description || undefined,
                               target_date: milestoneForm.target_date || undefined,
-                              stage: (milestoneForm.stage || stage) as any,
+                              stage: (milestoneForm.stage || stage) as DevelopmentStage,
                             });
                             toast.success("Milestone added");
                             setShowMilestoneDialog(false);
@@ -1242,18 +1268,18 @@ export default function PropertyDetailPage({ params }: { params: { id: string } 
               </div>
             </CardHeader>
             <CardContent>
-              {!milestones || (milestones as any[]).length === 0 ? (
+              {!milestones || (milestones as PropertyMilestone[]).length === 0 ? (
                 <p className="text-sm text-muted-foreground">No milestones defined yet. Add milestones to track key deliverables.</p>
               ) : (
                 <div className="space-y-3">
                   {/* Group milestones by stage */}
-                  {STAGE_ORDER.filter((s) => (milestones as any[]).some((m: any) => m.stage === s)).map((stageKey) => (
+                  {STAGE_ORDER.filter((s) => (milestones as PropertyMilestone[]).some((m) => m.stage === s)).map((stageKey) => (
                     <div key={stageKey}>
                       <div className="flex items-center gap-2 mb-2">
                         <StageBadge stage={stageKey} />
                       </div>
                       <div className="space-y-2 ml-2">
-                        {(milestones as any[]).filter((m: any) => m.stage === stageKey).map((m: any) => {
+                        {(milestones as PropertyMilestone[]).filter((m) => m.stage === stageKey).map((m) => {
                           const statusIcon = {
                             completed: <CheckCircle2 className="h-4 w-4 text-green-500" />,
                             in_progress: <Clock className="h-4 w-4 text-blue-500" />,
@@ -1285,7 +1311,7 @@ export default function PropertyDetailPage({ params }: { params: { id: string } 
                                           await updateMilestone.mutateAsync({
                                             milestoneId: m.milestone_id,
                                             data: {
-                                              status: newStatus as any,
+                                              status: newStatus as "in_progress" | "completed",
                                               ...(newStatus === "completed" ? { actual_date: new Date().toISOString().split("T")[0] } : {}),
                                             },
                                           });
@@ -1319,14 +1345,14 @@ export default function PropertyDetailPage({ params }: { params: { id: string } 
         {/* ── Units & Beds ── */}
         <TabsContent value="units" className="mt-6 space-y-6">
           {(() => {
-            const baselineUnits = (units ?? []).filter((u: any) => !u.development_plan_id);
-            const redevUnits = (units ?? []).filter((u: any) => u.development_plan_id);
+            const baselineUnits = ((units ?? []) as PropertyUnit[]).filter((u) => !u.development_plan_id);
+            const redevUnits = ((units ?? []) as PropertyUnit[]).filter((u) => u.development_plan_id);
             const bl = unitSummary?.baseline;
             const redevPhases = unitSummary?.redevelopment_phases ?? [];
             const hasRedev = unitSummary?.has_redevelopment;
 
             /* ── Shared unit row renderer ── */
-            const renderUnitRow = (unit: any, colorClass: string = "") => (
+            const renderUnitRow = (unit: PropertyUnit, colorClass: string = "") => (
               <div key={unit.unit_id} className={`border rounded-lg ${colorClass}`}>
                 <div
                   className="flex items-center justify-between px-4 py-3 cursor-pointer hover:bg-muted/50"
@@ -1356,10 +1382,10 @@ export default function PropertyDetailPage({ params }: { params: { id: string } 
                         <th className="pb-2">Bed</th><th className="pb-2 text-right">Monthly Rent</th><th className="pb-2">Rent Type</th><th className="pb-2">Status</th>
                       </tr></thead>
                       <tbody>
-                        {unit.beds.map((bed: any) => (
+                        {unit.beds.map((bed: Bed) => (
                           <tr key={bed.bed_id} className="border-t">
                             <td className="py-2">{bed.bed_label}</td>
-                            <td className="py-2 text-right">${parseFloat(bed.monthly_rent).toLocaleString()}</td>
+                            <td className="py-2 text-right">${Number(bed.monthly_rent).toLocaleString()}</td>
                             <td className="py-2 capitalize">{bed.rent_type.replace("_", " ")}</td>
                             <td className="py-2">
                               <Badge variant={bed.status === "occupied" ? "default" : bed.status === "available" ? "secondary" : "destructive"} className="capitalize">{bed.status}</Badge>
@@ -1374,7 +1400,7 @@ export default function PropertyDetailPage({ params }: { params: { id: string } 
             );
 
             /* ── Shared summary cards renderer ── */
-            const renderSummaryCards = (s: any) => (
+            const renderSummaryCards = (s: UnitSummaryBase) => (
               <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
                 <Card><CardContent className="pt-6">
                   <div className="text-sm text-muted-foreground">Units</div>
@@ -1400,7 +1426,7 @@ export default function PropertyDetailPage({ params }: { params: { id: string } 
             );
 
             /* ── Shared unit mix + floor breakdown renderer ── */
-            const renderMixAndFloor = (s: any) => (
+            const renderMixAndFloor = (s: UnitSummaryBase) => (
               <div className="grid gap-6 lg:grid-cols-2">
                 <Card>
                   <CardHeader><CardTitle className="text-base">Unit Mix</CardTitle></CardHeader>
@@ -1410,7 +1436,7 @@ export default function PropertyDetailPage({ params }: { params: { id: string } 
                         <th className="pb-2">Type</th><th className="pb-2 text-right">Units</th><th className="pb-2 text-right">Beds</th><th className="pb-2 text-right">Sqft</th>
                       </tr></thead>
                       <tbody>
-                        {Object.entries(s.unit_mix).map(([type, mix]: [string, any]) => (
+                        {Object.entries(s.unit_mix).map(([type, mix]: [string, UnitMixEntry]) => (
                           <tr key={type} className="border-b last:border-0">
                             <td className="py-2 capitalize">{type.replace("_", " ")}</td>
                             <td className="py-2 text-right">{mix.count}</td>
@@ -1430,7 +1456,7 @@ export default function PropertyDetailPage({ params }: { params: { id: string } 
                         <th className="pb-2">Floor</th><th className="pb-2 text-right">Units</th><th className="pb-2 text-right">Beds</th>
                       </tr></thead>
                       <tbody>
-                        {Object.entries(s.floor_breakdown).map(([floor, data]: [string, any]) => (
+                        {Object.entries(s.floor_breakdown).map(([floor, data]: [string, FloorBreakdownEntry]) => (
                           <tr key={floor} className="border-b last:border-0">
                             <td className="py-2">{floor}</td>
                             <td className="py-2 text-right">{data.units}</td>
@@ -1521,7 +1547,7 @@ export default function PropertyDetailPage({ params }: { params: { id: string } 
                         <p className="text-sm text-muted-foreground py-4 text-center">No baseline units configured. Add units to define the current bedroom and bed configuration.</p>
                       ) : (
                         <div className="space-y-3">
-                          {baselineUnits.map((unit: any) => renderUnitRow(unit))}
+                          {baselineUnits.map((unit) => renderUnitRow(unit))}
                         </div>
                       )}
                     </CardContent>
@@ -1531,7 +1557,7 @@ export default function PropertyDetailPage({ params }: { params: { id: string } 
                 {/* ═══════════════════════════════════════════════════════════════ */}
                 {/* SECTION 2: REDEVELOPMENT PLAN (Planned Units)                  */}
                 {/* ═══════════════════════════════════════════════════════════════ */}
-                {hasRedev && redevPhases.map((phase: any) => (
+                {hasRedev && redevPhases.map((phase: RedevelopmentPhase) => (
                   <div key={phase.plan_id}>
                     <div className="flex items-center gap-2 mb-4 mt-2">
                       <div className="h-8 w-1 bg-amber-500 rounded" />
@@ -1613,13 +1639,13 @@ export default function PropertyDetailPage({ params }: { params: { id: string } 
                         </CardTitle>
                       </CardHeader>
                       <CardContent>
-                        {redevUnits.filter((u: any) => u.development_plan_id === phase.plan_id).length === 0 ? (
+                        {redevUnits.filter((u) => u.development_plan_id === phase.plan_id).length === 0 ? (
                           <p className="text-sm text-muted-foreground py-4 text-center">No planned units for this development phase.</p>
                         ) : (
                           <div className="space-y-3">
                             {redevUnits
-                              .filter((u: any) => u.development_plan_id === phase.plan_id)
-                              .map((unit: any) => renderUnitRow(unit, "border-amber-200 bg-amber-50/30"))}
+                              .filter((u) => u.development_plan_id === phase.plan_id)
+                              .map((unit) => renderUnitRow(unit, "border-amber-200 bg-amber-50/30"))}
                           </div>
                         )}
                       </CardContent>
@@ -1789,7 +1815,7 @@ export default function PropertyDetailPage({ params }: { params: { id: string } 
                                 <th className="pb-2 text-right">Increase</th>
                               </tr></thead>
                               <tbody>
-                                {ni.valuation_scenarios.map((s: any) => (
+                                {ni.valuation_scenarios.map((s: ValuationScenario) => (
                                   <tr key={s.cap_rate} className="border-b last:border-0">
                                     <td className="py-2 font-medium">{s.cap_rate}%</td>
                                     <td className="py-2 text-right">${s.baseline_value.toLocaleString()}</td>
@@ -1937,20 +1963,20 @@ export default function PropertyDetailPage({ params }: { params: { id: string } 
                         </tr>
                       </thead>
                       <tbody>
-                        {(rentRollData.baseline.rent_roll.units || []).map((u: Record<string, unknown>) => (
-                          <React.Fragment key={u.unit_id as number}>
+                        {(rentRollData.baseline.rent_roll.units || []).map((u: RentRollUnit) => (
+                          <React.Fragment key={u.unit_id}>
                             <tr
                               className="border-t hover:bg-muted/30 cursor-pointer"
-                              onClick={() => setExpandedRentUnit(expandedRentUnit === (u.unit_id as number) ? null : (u.unit_id as number))}
+                              onClick={() => setExpandedRentUnit(expandedRentUnit === u.unit_id ? null : u.unit_id)}
                             >
-                              <td className="p-2 font-medium">{u.unit_number as string}</td>
-                              <td className="p-2 capitalize">{(u.unit_type as string)?.replace("_", " ")}</td>
-                              <td className="p-2 text-center">{(u.beds as Array<unknown>)?.length || (u.bed_count as number)}</td>
-                              <td className="p-2 text-right">${(u.unit_potential_monthly as number)?.toLocaleString()}</td>
-                              <td className="p-2 text-right">${(u.unit_actual_monthly as number)?.toLocaleString()}</td>
+                              <td className="p-2 font-medium">{u.unit_number}</td>
+                              <td className="p-2 capitalize">{u.unit_type?.replace("_", " ")}</td>
+                              <td className="p-2 text-center">{u.beds?.length || u.bed_count}</td>
+                              <td className="p-2 text-right">${u.unit_potential_monthly?.toLocaleString()}</td>
+                              <td className="p-2 text-right">${u.unit_actual_monthly?.toLocaleString()}</td>
                               <td className="p-2 text-center">
-                                {(u.unit_vacancy_count as number) > 0 ? (
-                                  <span className="text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded-full">{u.unit_vacancy_count as number} vacant</span>
+                                {u.unit_vacancy_count > 0 ? (
+                                  <span className="text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded-full">{u.unit_vacancy_count} vacant</span>
                                 ) : (
                                   <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full">Full</span>
                                 )}
@@ -1963,27 +1989,27 @@ export default function PropertyDetailPage({ params }: { params: { id: string } 
                                 )}
                               </td>
                             </tr>
-                            {expandedRentUnit === (u.unit_id as number) && (
+                            {expandedRentUnit === u.unit_id && (
                               <tr>
                                 <td colSpan={7} className="bg-muted/20 p-3">
                                   <div className="space-y-2">
                                     <p className="text-xs font-medium text-muted-foreground mb-2">
-                                      {rentRollData.baseline.pricing_mode === "by_bedroom" ? "Bedroom" : "Bed"} Detail — Unit {u.unit_number as string}
+                                      {rentRollData.baseline.pricing_mode === "by_bedroom" ? "Bedroom" : "Bed"} Detail — Unit {u.unit_number}
                                     </p>
                                     {rentRollData.baseline.pricing_mode === "by_bedroom" ? (
-                                      (u.bedrooms as Array<Record<string, unknown>>)?.map((br: Record<string, unknown>, idx: number) => (
+                                      u.bedrooms?.map((br: Bedroom, idx: number) => (
                                         <div key={idx} className="flex items-center justify-between bg-white rounded p-2 border">
-                                          <span className="text-sm">Bedroom {(br.bedroom_number as number) || idx + 1}</span>
-                                          <span className="text-sm font-medium">${(br.total_rent as number)?.toLocaleString()}/mo</span>
-                                          <span className="text-xs text-muted-foreground">{(br.beds as Array<unknown>)?.length || 0} bed(s)</span>
+                                          <span className="text-sm">Bedroom {br.bedroom_number || idx + 1}</span>
+                                          <span className="text-sm font-medium">${br.total_rent?.toLocaleString()}/mo</span>
+                                          <span className="text-xs text-muted-foreground">{br.beds?.length || 0} bed(s)</span>
                                         </div>
                                       ))
                                     ) : (
-                                      (u.beds as Array<Record<string, unknown>>)?.map((bed: Record<string, unknown>) => (
-                                        <div key={bed.bed_id as number} className="flex items-center justify-between bg-white rounded p-2 border">
-                                          <span className="text-sm font-medium">{bed.bed_label as string}</span>
+                                      u.beds?.map((bed: Bed) => (
+                                        <div key={bed.bed_id} className="flex items-center justify-between bg-white rounded p-2 border">
+                                          <span className="text-sm font-medium">{bed.bed_label}</span>
                                           <div className="flex items-center gap-2">
-                                            {editingBedId === (bed.bed_id as number) ? (
+                                            {editingBedId === bed.bed_id ? (
                                               <div className="flex items-center gap-1">
                                                 <Input
                                                   type="number"
@@ -1995,7 +2021,7 @@ export default function PropertyDetailPage({ params }: { params: { id: string } 
                                                   size="sm"
                                                   className="h-7 text-xs"
                                                   onClick={() => {
-                                                    updateBedMutation.mutate({ bedId: bed.bed_id as number, data: { monthly_rent: parseFloat(editBedRent) } });
+                                                    updateBedMutation.mutate({ bedId: bed.bed_id, data: { monthly_rent: parseFloat(editBedRent) } });
                                                     setEditingBedId(null);
                                                   }}
                                                 >
@@ -2005,7 +2031,7 @@ export default function PropertyDetailPage({ params }: { params: { id: string } 
                                               </div>
                                             ) : (
                                               <>
-                                                <span className="text-sm">${(bed.monthly_rent as number)?.toLocaleString()}/mo</span>
+                                                <span className="text-sm">${bed.monthly_rent?.toLocaleString()}/mo</span>
                                                 {canEdit && (
                                                   <Button
                                                     size="sm"
@@ -2013,7 +2039,7 @@ export default function PropertyDetailPage({ params }: { params: { id: string } 
                                                     className="h-6 w-6 p-0"
                                                     onClick={(e) => {
                                                       e.stopPropagation();
-                                                      setEditingBedId(bed.bed_id as number);
+                                                      setEditingBedId(bed.bed_id);
                                                       setEditBedRent(String(bed.monthly_rent));
                                                     }}
                                                   >
@@ -2028,7 +2054,7 @@ export default function PropertyDetailPage({ params }: { params: { id: string } 
                                             bed.status === "available" ? "bg-amber-100 text-amber-700" :
                                             "bg-gray-100 text-gray-700"
                                           }`}>
-                                            {bed.status as string}
+                                            {bed.status}
                                           </span>
                                         </div>
                                       ))
@@ -2048,24 +2074,24 @@ export default function PropertyDetailPage({ params }: { params: { id: string } 
           </div>
 
           {/* ─── DEVELOPMENT PLAN PHASES ─── */}
-          {(rentRollData?.plan_phases || []).map((plan: Record<string, unknown>, planIdx: number) => {
-            const pr = plan.rent_roll as Record<string, unknown> | null;
-            const comp = plan.comparison_vs_previous as Record<string, unknown> | null;
-            const esc = plan.escalation_projection as Array<Record<string, unknown>> | null;
+          {((rentRollData as RentRollResponse | undefined)?.plan_phases || []).map((plan: RentRollPlanPhase, planIdx: number) => {
+            const pr = plan.rent_roll;
+            const comp = plan.comparison_vs_previous;
+            const esc = plan.escalation_projection;
             return (
-              <div key={plan.plan_id as number} className="mt-8">
+              <div key={plan.plan_id} className="mt-8">
                 <div className="flex items-center gap-2 mb-4">
                   <div className="h-8 w-1 bg-emerald-600 rounded" />
-                  <h3 className="text-lg font-semibold">{plan.plan_label as string}</h3>
+                  <h3 className="text-lg font-semibold">{plan.plan_label}</h3>
                   <span className="text-xs bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full">
-                    {(plan.plan_status as string)?.replace("_", " ")}
+                    {plan.plan_status?.replace("_", " ")}
                   </span>
                   <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">
-                    {(plan.pricing_mode as string)?.replace("_", " ") || "by_bed"}
+                    {plan.pricing_mode?.replace("_", " ") || "by_bed"}
                   </span>
-                  {(plan.annual_rent_increase_pct as number) > 0 && (
+                  {plan.annual_rent_increase_pct > 0 && (
                     <span className="text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full">
-                      +{plan.annual_rent_increase_pct as number}%/yr escalation
+                      +{plan.annual_rent_increase_pct}%/yr escalation
                     </span>
                   )}
                 </div>
@@ -2076,19 +2102,19 @@ export default function PropertyDetailPage({ params }: { params: { id: string } 
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
                       <div>
                         <p className="text-xs text-muted-foreground">Construction Start</p>
-                        <p className="font-medium">{plan.development_start_date ? new Date(plan.development_start_date as string).toLocaleDateString() : "TBD"}</p>
+                        <p className="font-medium">{plan.development_start_date ? new Date(plan.development_start_date).toLocaleDateString() : "TBD"}</p>
                       </div>
                       <div>
                         <p className="text-xs text-muted-foreground">Est. Completion</p>
-                        <p className="font-medium">{plan.estimated_completion_date ? new Date(plan.estimated_completion_date as string).toLocaleDateString() : "TBD"}</p>
+                        <p className="font-medium">{plan.estimated_completion_date ? new Date(plan.estimated_completion_date).toLocaleDateString() : "TBD"}</p>
                       </div>
                       <div>
                         <p className="text-xs text-muted-foreground">Est. Stabilization</p>
-                        <p className="font-medium">{plan.estimated_stabilization_date ? new Date(plan.estimated_stabilization_date as string).toLocaleDateString() : "TBD"}</p>
+                        <p className="font-medium">{plan.estimated_stabilization_date ? new Date(plan.estimated_stabilization_date).toLocaleDateString() : "TBD"}</p>
                       </div>
                       <div>
                         <p className="text-xs text-muted-foreground">Plan Debt</p>
-                        <p className="font-medium">{plan.debt_count as number} facilit{(plan.debt_count as number) === 1 ? "y" : "ies"} — ${((plan.annual_debt_service as number) || 0).toLocaleString()}/yr</p>
+                        <p className="font-medium">{plan.debt_count} facilit{plan.debt_count === 1 ? "y" : "ies"} — ${(plan.annual_debt_service || 0).toLocaleString()}/yr</p>
                       </div>
                     </div>
                   </CardContent>
@@ -2099,22 +2125,22 @@ export default function PropertyDetailPage({ params }: { params: { id: string } 
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
                     <Card><CardContent className="pt-4 pb-3">
                       <p className="text-xs text-muted-foreground">Projected Monthly</p>
-                      <p className="text-xl font-bold text-emerald-700">${(pr.potential_monthly_rent as number)?.toLocaleString()}</p>
-                      <p className="text-xs text-muted-foreground mt-1">${((pr.potential_annual_rent as number) || 0).toLocaleString()}/yr</p>
+                      <p className="text-xl font-bold text-emerald-700">${pr.potential_monthly_rent?.toLocaleString()}</p>
+                      <p className="text-xs text-muted-foreground mt-1">${(pr.potential_annual_rent || 0).toLocaleString()}/yr</p>
                     </CardContent></Card>
                     <Card><CardContent className="pt-4 pb-3">
                       <p className="text-xs text-muted-foreground">Units</p>
-                      <p className="text-xl font-bold">{pr.total_units as number}</p>
-                      <p className="text-xs text-muted-foreground mt-1">{pr.total_beds as number} beds</p>
+                      <p className="text-xl font-bold">{pr.total_units}</p>
+                      <p className="text-xs text-muted-foreground mt-1">{pr.total_beds} beds</p>
                     </CardContent></Card>
                     <Card><CardContent className="pt-4 pb-3">
                       <p className="text-xs text-muted-foreground">Avg Rent/Bed</p>
-                      <p className="text-xl font-bold">${(pr.total_beds as number) > 0 ? Math.round((pr.potential_monthly_rent as number) / (pr.total_beds as number)).toLocaleString() : 0}</p>
+                      <p className="text-xl font-bold">${pr.total_beds > 0 ? Math.round(pr.potential_monthly_rent / pr.total_beds).toLocaleString() : 0}</p>
                       <p className="text-xs text-muted-foreground mt-1">per month</p>
                     </CardContent></Card>
                     <Card><CardContent className="pt-4 pb-3">
                       <p className="text-xs text-muted-foreground">Debt Service</p>
-                      <p className="text-xl font-bold text-red-600">${((plan.annual_debt_service as number) || 0).toLocaleString()}</p>
+                      <p className="text-xl font-bold text-red-600">${(plan.annual_debt_service || 0).toLocaleString()}</p>
                       <p className="text-xs text-muted-foreground mt-1">annual</p>
                     </CardContent></Card>
                   </div>
@@ -2128,22 +2154,22 @@ export default function PropertyDetailPage({ params }: { params: { id: string } 
                       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
                         <div>
                           <p className="text-xs text-muted-foreground">Previous Monthly</p>
-                          <p className="font-medium">${(comp.prev_monthly as number)?.toLocaleString()}</p>
-                          <p className="text-xs text-muted-foreground">{comp.prev_units as number} units / {comp.prev_beds as number} beds</p>
+                          <p className="font-medium">${comp.prev_monthly?.toLocaleString()}</p>
+                          <p className="text-xs text-muted-foreground">{comp.prev_units} units / {comp.prev_beds} beds</p>
                         </div>
                         <div>
                           <p className="text-xs text-muted-foreground">Projected Monthly</p>
-                          <p className="font-medium text-emerald-700">${(comp.plan_monthly as number)?.toLocaleString()}</p>
-                          <p className="text-xs text-muted-foreground">{comp.plan_units as number} units / {comp.plan_beds as number} beds</p>
+                          <p className="font-medium text-emerald-700">${comp.plan_monthly?.toLocaleString()}</p>
+                          <p className="text-xs text-muted-foreground">{comp.plan_units} units / {comp.plan_beds} beds</p>
                         </div>
                         <div>
                           <p className="text-xs text-muted-foreground">Monthly Uplift</p>
-                          <p className="font-bold text-emerald-700">+${(comp.delta_monthly as number)?.toLocaleString()}/mo</p>
-                          <p className="text-xs text-emerald-600">+{comp.pct_change as number}%</p>
+                          <p className="font-bold text-emerald-700">+${comp.delta_monthly?.toLocaleString()}/mo</p>
+                          <p className="text-xs text-emerald-600">+{comp.pct_change}%</p>
                         </div>
                         <div>
                           <p className="text-xs text-muted-foreground">Annual Uplift</p>
-                          <p className="font-bold text-emerald-700">+${(comp.delta_annual as number)?.toLocaleString()}/yr</p>
+                          <p className="font-bold text-emerald-700">+${comp.delta_annual?.toLocaleString()}/yr</p>
                         </div>
                       </div>
                     </CardContent>
@@ -2151,10 +2177,10 @@ export default function PropertyDetailPage({ params }: { params: { id: string } 
                 )}
 
                 {/* Plan Unit Table */}
-                {pr && (pr.units as Array<Record<string, unknown>>)?.length > 0 && (
+                {pr && pr.units?.length > 0 && (
                   <Card className="mb-4">
                     <CardHeader className="pb-2">
-                      <CardTitle className="text-sm">Projected Units — {plan.plan_label as string}</CardTitle>
+                      <CardTitle className="text-sm">Projected Units — {plan.plan_label}</CardTitle>
                     </CardHeader>
                     <CardContent>
                       <div className="border rounded-lg overflow-hidden">
@@ -2171,27 +2197,27 @@ export default function PropertyDetailPage({ params }: { params: { id: string } 
                             </tr>
                           </thead>
                           <tbody>
-                            {(pr.units as Array<Record<string, unknown>>).map((u: Record<string, unknown>) => (
-                              <React.Fragment key={u.unit_id as number}>
+                            {pr.units.map((u: RentRollUnit) => (
+                              <React.Fragment key={u.unit_id}>
                                 <tr
                                   className="border-t hover:bg-muted/30 cursor-pointer"
-                                  onClick={() => setExpandedRentUnit(expandedRentUnit === (u.unit_id as number) ? null : (u.unit_id as number))}
+                                  onClick={() => setExpandedRentUnit(expandedRentUnit === u.unit_id ? null : u.unit_id)}
                                 >
-                                  <td className="p-2 font-medium">{u.unit_number as string}</td>
-                                  <td className="p-2 capitalize">{(u.unit_type as string)?.replace("_", " ")}</td>
-                                  <td className="p-2 text-center">{(u.beds as Array<unknown>)?.length || (u.bed_count as number)}</td>
-                                  <td className="p-2 text-center">{(u.bedroom_count as number) || "-"}</td>
-                                  <td className="p-2 text-right font-medium">${(u.unit_potential_monthly as number)?.toLocaleString()}</td>
-                                  <td className="p-2 text-right">{(u.sqft as number)?.toLocaleString()}</td>
-                                  <td className="p-2">{u.floor as string}</td>
+                                  <td className="p-2 font-medium">{u.unit_number}</td>
+                                  <td className="p-2 capitalize">{u.unit_type?.replace("_", " ")}</td>
+                                  <td className="p-2 text-center">{u.beds?.length || u.bed_count}</td>
+                                  <td className="p-2 text-center">{u.bedroom_count || "-"}</td>
+                                  <td className="p-2 text-right font-medium">${u.unit_potential_monthly?.toLocaleString()}</td>
+                                  <td className="p-2 text-right">{u.sqft?.toLocaleString()}</td>
+                                  <td className="p-2">{u.floor}</td>
                                 </tr>
-                                {expandedRentUnit === (u.unit_id as number) && (
+                                {expandedRentUnit === u.unit_id && (
                                   <tr>
                                     <td colSpan={7} className="bg-muted/20 p-3">
                                       <div className="space-y-2">
                                         <div className="flex items-center justify-between mb-2">
                                           <p className="text-xs font-medium text-muted-foreground">
-                                            {(plan.pricing_mode as string) === "by_bedroom" ? "Bedroom" : "Bed"} Detail — Unit {u.unit_number as string}
+                                            {plan.pricing_mode === "by_bedroom" ? "Bedroom" : "Bed"} Detail — Unit {u.unit_number}
                                           </p>
                                           {canEdit && (
                                             <Button
@@ -2200,7 +2226,7 @@ export default function PropertyDetailPage({ params }: { params: { id: string } 
                                               className="h-7 text-xs gap-1"
                                               onClick={(e) => {
                                                 e.stopPropagation();
-                                                setAddingBedToUnit(addingBedToUnit === (u.unit_id as number) ? null : (u.unit_id as number));
+                                                setAddingBedToUnit(addingBedToUnit === u.unit_id ? null : u.unit_id);
                                                 setNewBedRent("1400");
                                                 setNewBedRoom(1);
                                               }}
@@ -2211,9 +2237,9 @@ export default function PropertyDetailPage({ params }: { params: { id: string } 
                                         </div>
 
                                         {/* Add Bed Form */}
-                                        {addingBedToUnit === (u.unit_id as number) && (() => {
-                                          const bedroomCount = (u.bedroom_count as number) || 1;
-                                          const bedrooms = u.bedrooms as Array<Record<string, unknown>> || [];
+                                        {addingBedToUnit === u.unit_id && (() => {
+                                          const bedroomCount = u.bedroom_count || 1;
+                                          const bedrooms = u.bedrooms || [];
                                           return (
                                             <div className="bg-emerald-50 rounded p-3 border border-emerald-200 space-y-2">
                                               <div className="text-xs font-semibold text-emerald-800">Add Bed to Room</div>
@@ -2226,8 +2252,8 @@ export default function PropertyDetailPage({ params }: { params: { id: string } 
                                                     onChange={(e) => setNewBedRoom(parseInt(e.target.value))}
                                                   >
                                                     {Array.from({ length: bedroomCount }, (_, i) => i + 1).map((roomNum) => {
-                                                      const roomBeds = bedrooms.find((br) => (br.bedroom_number as number) === roomNum);
-                                                      const bedCount = roomBeds ? (roomBeds.beds as Array<unknown>)?.length || 0 : 0;
+                                                      const roomBeds = bedrooms.find((br) => br.bedroom_number === roomNum);
+                                                      const bedCount = roomBeds ? roomBeds.beds?.length || 0 : 0;
                                                       return (
                                                         <option key={roomNum} value={roomNum}>
                                                           Room {roomNum} ({bedCount} bed{bedCount !== 1 ? "s" : ""})
@@ -2250,13 +2276,13 @@ export default function PropertyDetailPage({ params }: { params: { id: string } 
                                                   size="sm"
                                                   className="h-7 text-xs"
                                                   onClick={() => {
-                                                    const beds = u.beds as Array<Record<string, unknown>> || [];
+                                                    const beds = u.beds || [];
                                                     const nextNum = beds.length + 1;
                                                     createBedMutation.mutate({
-                                                      unitId: u.unit_id as number,
+                                                      unitId: u.unit_id,
                                                       data: {
-                                                        unit_id: u.unit_id as number,
-                                                        bed_label: `${u.unit_number as string}-B${nextNum}`,
+                                                        unit_id: u.unit_id,
+                                                        bed_label: `${u.unit_number}-B${nextNum}`,
                                                         monthly_rent: parseFloat(newBedRent) || 1400,
                                                         rent_type: "private_pay",
                                                         bedroom_number: newBedRoom,
@@ -2278,15 +2304,15 @@ export default function PropertyDetailPage({ params }: { params: { id: string } 
 
                                         {/* Beds grouped by Room */}
                                         {(() => {
-                                          const bedrooms = u.bedrooms as Array<Record<string, unknown>> || [];
-                                          const bedroomCount = (u.bedroom_count as number) || bedrooms.length || 1;
+                                          const bedrooms = u.bedrooms || [];
+                                          const bedroomCount = u.bedroom_count || bedrooms.length || 1;
                                           // Build room list: use bedrooms array if available, otherwise group beds by bedroom_number
                                           const rooms = Array.from({ length: bedroomCount }, (_, i) => {
                                             const roomNum = i + 1;
-                                            const existing = bedrooms.find((br) => (br.bedroom_number as number) === roomNum);
-                                            const roomBeds = existing
-                                              ? (existing.beds as Array<Record<string, unknown>> || [])
-                                              : ((u.beds as Array<Record<string, unknown>> || []).filter((b) => (b.bedroom_number as number) === roomNum));
+                                            const existing = bedrooms.find((br) => br.bedroom_number === roomNum);
+                                            const roomBeds: Bed[] = existing
+                                              ? (existing.beds || [])
+                                              : ((u.beds || []).filter((b) => b.bedroom_number === roomNum));
                                             return { roomNum, beds: roomBeds };
                                           });
                                           return rooms.map(({ roomNum, beds: roomBeds }) => (
@@ -2300,11 +2326,11 @@ export default function PropertyDetailPage({ params }: { params: { id: string } 
                                                 </span>
                                                 <div className="flex-1 border-t border-dashed" />
                                               </div>
-                                              {roomBeds.map((bed: Record<string, unknown>) => (
-                                                <div key={bed.bed_id as number} className="flex items-center justify-between bg-white rounded p-2 border ml-3">
-                                                  <span className="text-sm font-medium">{bed.bed_label as string}</span>
+                                              {roomBeds.map((bed: Bed) => (
+                                                <div key={bed.bed_id} className="flex items-center justify-between bg-white rounded p-2 border ml-3">
+                                                  <span className="text-sm font-medium">{bed.bed_label}</span>
                                                   <div className="flex items-center gap-2">
-                                                    {editingBedId === (bed.bed_id as number) ? (
+                                                    {editingBedId === bed.bed_id ? (
                                                       <div className="flex items-center gap-1">
                                                         <Input
                                                           type="number"
@@ -2316,7 +2342,7 @@ export default function PropertyDetailPage({ params }: { params: { id: string } 
                                                           size="sm"
                                                           className="h-7 text-xs"
                                                           onClick={() => {
-                                                            updateBedMutation.mutate({ bedId: bed.bed_id as number, data: { monthly_rent: parseFloat(editBedRent) } });
+                                                            updateBedMutation.mutate({ bedId: bed.bed_id, data: { monthly_rent: parseFloat(editBedRent) } });
                                                             setEditingBedId(null);
                                                           }}
                                                         >
@@ -2326,7 +2352,7 @@ export default function PropertyDetailPage({ params }: { params: { id: string } 
                                                       </div>
                                                     ) : (
                                                       <>
-                                                        <span className="text-sm">${(bed.monthly_rent as number)?.toLocaleString()}/mo</span>
+                                                        <span className="text-sm">${bed.monthly_rent?.toLocaleString()}/mo</span>
                                                         {canEdit && (
                                                           <Button
                                                             size="sm"
@@ -2334,7 +2360,7 @@ export default function PropertyDetailPage({ params }: { params: { id: string } 
                                                             className="h-6 w-6 p-0"
                                                             onClick={(e) => {
                                                               e.stopPropagation();
-                                                              setEditingBedId(bed.bed_id as number);
+                                                              setEditingBedId(bed.bed_id);
                                                               setEditBedRent(String(bed.monthly_rent));
                                                             }}
                                                           >
@@ -2345,16 +2371,16 @@ export default function PropertyDetailPage({ params }: { params: { id: string } 
                                                     )}
                                                   </div>
                                                   <div className="flex items-center gap-2">
-                                                    <span className="text-xs text-muted-foreground capitalize">{(bed.rent_type as string)?.replace("_", " ")}</span>
-                                                    {canEdit && (u.beds as Array<Record<string, unknown>>)?.length > 1 && (
+                                                    <span className="text-xs text-muted-foreground capitalize">{bed.rent_type?.replace("_", " ")}</span>
+                                                    {canEdit && u.beds?.length > 1 && (
                                                       <Button
                                                         size="sm"
                                                         variant="ghost"
                                                         className="h-6 w-6 p-0 text-red-500 hover:text-red-700 hover:bg-red-50"
                                                         onClick={(e) => {
                                                           e.stopPropagation();
-                                                          if (confirm(`Remove bed ${bed.bed_label as string}?`)) {
-                                                            deleteBedMutation.mutate(bed.bed_id as number);
+                                                          if (confirm(`Remove bed ${bed.bed_label}?`)) {
+                                                            deleteBedMutation.mutate(bed.bed_id);
                                                           }
                                                         }}
                                                       >
@@ -2384,7 +2410,7 @@ export default function PropertyDetailPage({ params }: { params: { id: string } 
                 {esc && esc.length > 0 && (
                   <Card className="mb-4">
                     <CardHeader className="pb-2">
-                      <CardTitle className="text-sm">Rent Escalation Projection ({plan.annual_rent_increase_pct as number}%/yr)</CardTitle>
+                      <CardTitle className="text-sm">Rent Escalation Projection ({plan.annual_rent_increase_pct}%/yr)</CardTitle>
                     </CardHeader>
                     <CardContent>
                       <div className="border rounded-lg overflow-hidden">
@@ -2398,13 +2424,13 @@ export default function PropertyDetailPage({ params }: { params: { id: string } 
                             </tr>
                           </thead>
                           <tbody>
-                            {esc.map((yr: Record<string, unknown>) => (
-                              <tr key={yr.year as number} className="border-t">
-                                <td className="p-2">{(yr.year as number) === 0 ? "Stabilization" : `Year ${yr.year as number}`}</td>
-                                <td className="p-2 text-right">${(yr.monthly as number)?.toLocaleString(undefined, { maximumFractionDigits: 0 })}</td>
-                                <td className="p-2 text-right">${(yr.gross_annual as number)?.toLocaleString(undefined, { maximumFractionDigits: 0 })}</td>
+                            {esc.map((yr: EscalationYear) => (
+                              <tr key={yr.year} className="border-t">
+                                <td className="p-2">{yr.year === 0 ? "Stabilization" : `Year ${yr.year}`}</td>
+                                <td className="p-2 text-right">${yr.monthly?.toLocaleString(undefined, { maximumFractionDigits: 0 })}</td>
+                                <td className="p-2 text-right">${yr.gross_annual?.toLocaleString(undefined, { maximumFractionDigits: 0 })}</td>
                                 <td className="p-2 text-right text-emerald-600">
-                                  {(yr.year as number) === 0 ? "—" : `+${(((yr.gross_annual as number) / (esc[0].gross_annual as number) - 1) * 100).toFixed(1)}%`}
+                                  {yr.year === 0 ? "—" : `+${((yr.gross_annual / esc[0].gross_annual - 1) * 100).toFixed(1)}%`}
                                 </td>
                               </tr>
                             ))}
@@ -2425,40 +2451,40 @@ export default function PropertyDetailPage({ params }: { params: { id: string } 
                       <div className="space-y-2 text-sm">
                         <div className="flex justify-between">
                           <span>Gross Potential Rent</span>
-                          <span className="font-medium">${((pr.potential_annual_rent as number) || 0).toLocaleString()}/yr</span>
+                          <span className="font-medium">${(pr.potential_annual_rent || 0).toLocaleString()}/yr</span>
                         </div>
                         <div className="flex justify-between text-red-600">
-                          <span>Less: Vacancy ({(pr.vacancy_rate as number) || 0}%)</span>
-                          <span>-${((pr.vacancy_loss_annual as number) || 0).toLocaleString()}/yr</span>
+                          <span>Less: Vacancy ({pr.vacancy_rate || 0}%)</span>
+                          <span>-${(pr.vacancy_loss_annual || 0).toLocaleString()}/yr</span>
                         </div>
                         <Separator />
                         <div className="flex justify-between font-semibold">
                           <span>Effective Gross Income</span>
-                          <span>${((pr.actual_annual_rent as number) || 0).toLocaleString()}/yr</span>
+                          <span>${(pr.actual_annual_rent || 0).toLocaleString()}/yr</span>
                         </div>
-                        {Number(property?.annual_expenses) > 0 && (
+                        {Number((property as unknown as Record<string, unknown>)?.annual_expenses) > 0 && (
                           <>
                             <div className="flex justify-between text-red-600">
                               <span>Less: Operating Expenses</span>
-                              <span>-${Number(property.annual_expenses).toLocaleString()}/yr</span>
+                              <span>-${Number((property as unknown as Record<string, unknown>).annual_expenses).toLocaleString()}/yr</span>
                             </div>
                             <div className="flex justify-between font-semibold">
                               <span>Net Operating Income (NOI)</span>
-                              <span>${((pr.actual_annual_rent as number) - Number(property.annual_expenses)).toLocaleString()}/yr</span>
+                              <span>${(pr.actual_annual_rent - Number((property as unknown as Record<string, unknown>).annual_expenses)).toLocaleString()}/yr</span>
                             </div>
                           </>
                         )}
-                        {(plan.annual_debt_service as number) > 0 && (
+                        {plan.annual_debt_service > 0 && (
                           <>
                             <div className="flex justify-between text-red-600">
-                              <span>Less: Debt Service ({plan.debt_count as number} facilit{(plan.debt_count as number) === 1 ? "y" : "ies"})</span>
-                              <span>-${(plan.annual_debt_service as number).toLocaleString()}/yr</span>
+                              <span>Less: Debt Service ({plan.debt_count} facilit{plan.debt_count === 1 ? "y" : "ies"})</span>
+                              <span>-${plan.annual_debt_service.toLocaleString()}/yr</span>
                             </div>
                             <Separator />
                             <div className="flex justify-between font-bold text-lg">
                               <span>Cash Flow After Debt Service</span>
-                              <span className={((pr.actual_annual_rent as number) - Number(property?.annual_expenses || 0) - (plan.annual_debt_service as number)) >= 0 ? "text-emerald-700" : "text-red-700"}>
-                                ${((pr.actual_annual_rent as number) - Number(property?.annual_expenses || 0) - (plan.annual_debt_service as number)).toLocaleString()}/yr
+                              <span className={(pr.actual_annual_rent - Number((property as unknown as Record<string, unknown>)?.annual_expenses || 0) - plan.annual_debt_service) >= 0 ? "text-emerald-700" : "text-red-700"}>
+                                ${(pr.actual_annual_rent - Number((property as unknown as Record<string, unknown>)?.annual_expenses || 0) - plan.annual_debt_service).toLocaleString()}/yr
                               </span>
                             </div>
                           </>
@@ -3018,14 +3044,7 @@ export default function PropertyDetailPage({ params }: { params: { id: string } 
               </CardContent>
             </Card>
           ) : (
-            (debtFacilities as Array<{
-              debt_id: number; lender_name: string; debt_type: string; status: string;
-              commitment_amount: number; drawn_amount: number; outstanding_balance: number;
-              interest_rate: number | null; rate_type: string; term_months: number | null;
-              maturity_date: string | null; origination_date: string | null;
-              amortization_months: number | null; io_period_months: number | null;
-              ltv_covenant: number | null; dscr_covenant: number | null; notes: string | null;
-            }>).map((debt) => (
+            (debtFacilities as DebtFacility[]).map((debt) => (
               <Card key={debt.debt_id} className="overflow-hidden">
                 {/* Edit mode */}
                 {editingDebtId === debt.debt_id ? (
@@ -3158,7 +3177,7 @@ export default function PropertyDetailPage({ params }: { params: { id: string } 
                             </p>
                           </div>
                           {canEdit && (
-                            <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" onClick={() => startEditDebt(debt as unknown as Record<string, unknown>)}>
+                            <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" onClick={() => startEditDebt(debt)}>
                               <Edit2 className="h-3.5 w-3.5" />
                             </Button>
                           )}
@@ -3275,8 +3294,9 @@ export default function PropertyDetailPage({ params }: { params: { id: string } 
                     </TableHeader>
                     <TableBody>
                       {(() => {
-                        const purchasePrice = property.purchase_price ?? property.current_market_value ?? 0;
-                        const noi = property.annual_revenue ? property.annual_revenue - (property.annual_expenses ?? 0) : 0;
+                        const purchasePrice = Number(property.purchase_price ?? property.current_market_value ?? 0);
+                        const propExtras = property as unknown as Record<string, unknown>;
+                        const noi = propExtras.annual_revenue ? Number(propExtras.annual_revenue) - Number(propExtras.annual_expenses ?? 0) : 0;
                         const cashAfterDS = noi - totalAnnualDebtService;
                         const capRate = purchasePrice > 0 && noi > 0 ? (noi / purchasePrice) * 100 : 0;
                         const dscr = totalAnnualDebtService > 0 && noi > 0 ? noi / totalAnnualDebtService : 0;
@@ -3551,16 +3571,16 @@ export default function PropertyDetailPage({ params }: { params: { id: string } 
                       <Card className="border-green-200 bg-green-50/30">
                         <CardContent className="p-4 text-center">
                           <p className="text-xs text-muted-foreground">Total Cash Flow</p>
-                          <p className={cn("text-lg font-bold", (projResults.summary.total_cash_flow as number) < 0 ? "text-red-600" : "text-green-700")}>
-                            {formatCurrency(projResults.summary.total_cash_flow as number)}
+                          <p className={cn("text-lg font-bold", (projResults.summary.total_cash_flow) < 0 ? "text-red-600" : "text-green-700")}>
+                            {formatCurrency(projResults.summary.total_cash_flow)}
                           </p>
                         </CardContent>
                       </Card>
                       <Card className="border-blue-200 bg-blue-50/30">
                         <CardContent className="p-4 text-center">
                           <p className="text-xs text-muted-foreground">Terminal Value</p>
-                          <p className="text-lg font-bold text-blue-700">{formatCurrency(projResults.summary.terminal_value as number)}</p>
-                          <p className="text-[10px] text-muted-foreground">Net: {formatCurrency(projResults.summary.net_exit_proceeds as number)}</p>
+                          <p className="text-lg font-bold text-blue-700">{formatCurrency(projResults.summary.terminal_value)}</p>
+                          <p className="text-[10px] text-muted-foreground">Net: {formatCurrency(projResults.summary.net_exit_proceeds)}</p>
                         </CardContent>
                       </Card>
                       <Card className="border-purple-200 bg-purple-50/30">
@@ -3573,7 +3593,7 @@ export default function PropertyDetailPage({ params }: { params: { id: string } 
                       <Card className="border-orange-200 bg-orange-50/30">
                         <CardContent className="p-4 text-center">
                           <p className="text-xs text-muted-foreground">Total Return</p>
-                          <p className="text-lg font-bold text-orange-700">{formatCurrency(projResults.summary.total_return as number)}</p>
+                          <p className="text-lg font-bold text-orange-700">{formatCurrency(projResults.summary.total_return)}</p>
                           <p className="text-[10px] text-muted-foreground">CoC: {projResults.summary.cash_on_cash_avg}%</p>
                         </CardContent>
                       </Card>
@@ -3611,17 +3631,17 @@ export default function PropertyDetailPage({ params }: { params: { id: string } 
                                     {String(row.phase ?? "—").replace("_", "-")}
                                   </span>
                                 </TableCell>
-                                <TableCell className="text-right">{formatCurrency(row.gross_potential_rent as number)}</TableCell>
-                                <TableCell className="text-right text-red-500">{(row.vacancy_loss as number) > 0 ? `-${formatCurrency(row.vacancy_loss as number)}` : "—"}</TableCell>
-                                <TableCell className="text-right">{formatCurrency(row.effective_gross_income as number)}</TableCell>
-                                <TableCell className="text-right text-orange-600">{(row.operating_expenses as number) > 0 ? formatCurrency(row.operating_expenses as number) : "—"}</TableCell>
-                                <TableCell className="text-right font-medium">{formatCurrency(row.noi as number)}</TableCell>
-                                <TableCell className="text-right">{formatCurrency(row.annual_debt_service as number)}</TableCell>
-                                <TableCell className={cn("text-right font-semibold", (row.cash_flow as number) < 0 ? "text-red-600" : "text-green-600")}>
-                                  {formatCurrency(row.cash_flow as number)}
+                                <TableCell className="text-right">{formatCurrency(row.gross_potential_rent)}</TableCell>
+                                <TableCell className="text-right text-red-500">{(row.vacancy_loss) > 0 ? `-${formatCurrency(row.vacancy_loss)}` : "—"}</TableCell>
+                                <TableCell className="text-right">{formatCurrency(row.effective_gross_income)}</TableCell>
+                                <TableCell className="text-right text-orange-600">{(row.operating_expenses) > 0 ? formatCurrency(row.operating_expenses) : "—"}</TableCell>
+                                <TableCell className="text-right font-medium">{formatCurrency(row.noi)}</TableCell>
+                                <TableCell className="text-right">{formatCurrency(row.annual_debt_service)}</TableCell>
+                                <TableCell className={cn("text-right font-semibold", (row.cash_flow) < 0 ? "text-red-600" : "text-green-600")}>
+                                  {formatCurrency(row.cash_flow)}
                                 </TableCell>
-                                <TableCell className={cn("text-right", (row.cumulative_cash_flow as number) < 0 ? "text-red-600" : "text-green-600")}>
-                                  {formatCurrency(row.cumulative_cash_flow as number)}
+                                <TableCell className={cn("text-right", (row.cumulative_cash_flow) < 0 ? "text-red-600" : "text-green-600")}>
+                                  {formatCurrency(row.cumulative_cash_flow)}
                                 </TableCell>
                               </TableRow>
                             ))}
@@ -3644,29 +3664,29 @@ export default function PropertyDetailPage({ params }: { params: { id: string } 
                         <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                           <div>
                             <p className="text-xs text-muted-foreground">Exit Year NOI</p>
-                            <p className="text-sm font-semibold">{formatCurrency(projResults.summary.exit_noi as number)}</p>
+                            <p className="text-sm font-semibold">{formatCurrency(projResults.summary.exit_noi)}</p>
                           </div>
                           <div>
                             <p className="text-xs text-muted-foreground">Terminal Value (Gross)</p>
-                            <p className="text-sm font-semibold">{formatCurrency(projResults.summary.terminal_value as number)}</p>
+                            <p className="text-sm font-semibold">{formatCurrency(projResults.summary.terminal_value)}</p>
                           </div>
                           <div>
                             <p className="text-xs text-muted-foreground">Disposition Costs</p>
-                            <p className="text-sm font-semibold text-red-600">-{formatCurrency(projResults.summary.disposition_costs as number)}</p>
+                            <p className="text-sm font-semibold text-red-600">-{formatCurrency(projResults.summary.disposition_costs)}</p>
                           </div>
                           <div>
                             <p className="text-xs text-muted-foreground">Net Exit Proceeds</p>
-                            <p className="text-sm font-semibold text-green-700">{formatCurrency(projResults.summary.net_exit_proceeds as number)}</p>
+                            <p className="text-sm font-semibold text-green-700">{formatCurrency(projResults.summary.net_exit_proceeds)}</p>
                           </div>
                           <div>
                             <p className="text-xs text-muted-foreground">Cumulative Cash Flow</p>
-                            <p className={cn("text-sm font-semibold", (projResults.summary.total_cash_flow as number) < 0 ? "text-red-600" : "text-green-700")}>
-                              {formatCurrency(projResults.summary.total_cash_flow as number)}
+                            <p className={cn("text-sm font-semibold", (projResults.summary.total_cash_flow) < 0 ? "text-red-600" : "text-green-700")}>
+                              {formatCurrency(projResults.summary.total_cash_flow)}
                             </p>
                           </div>
                           <div>
                             <p className="text-xs text-muted-foreground">Total Return</p>
-                            <p className="text-sm font-bold text-green-700">{formatCurrency(projResults.summary.total_return as number)}</p>
+                            <p className="text-sm font-bold text-green-700">{formatCurrency(projResults.summary.total_return)}</p>
                           </div>
                         </div>
                         <Separator className="my-4" />
@@ -3693,8 +3713,8 @@ export default function PropertyDetailPage({ params }: { params: { id: string } 
                   )}
 
                   {/* ── LP Fee Summary ── */}
-                  {projResults.summary && (projResults.summary as Record<string, unknown>).fees && (() => {
-                    const fees = (projResults.summary as Record<string, unknown>).fees as Record<string, number>;
+                  {projResults.summary?.fees && (() => {
+                    const fees = projResults.summary.fees;
                     return (
                       <Card className="border-amber-300">
                         <CardHeader className="pb-3">
@@ -3764,8 +3784,8 @@ export default function PropertyDetailPage({ params }: { params: { id: string } 
                               <div className="bg-blue-50 rounded-lg p-3 border border-blue-200">
                                 <p className="text-[10px] text-muted-foreground font-semibold">Fee Drag on Returns</p>
                                 <p className="text-sm font-bold text-blue-700">
-                                  {projResults.summary.total_equity_invested && (projResults.summary.total_equity_invested as number) > 0
-                                    ? `${((fees.total_all_fees / (projResults.summary.total_equity_invested as number)) * 100).toFixed(1)}%`
+                                  {projResults.summary.total_equity_invested && (projResults.summary.total_equity_invested) > 0
+                                    ? `${((fees.total_all_fees / (projResults.summary.total_equity_invested)) * 100).toFixed(1)}%`
                                     : "N/A"}
                                 </p>
                               </div>
@@ -3789,21 +3809,21 @@ export default function PropertyDetailPage({ params }: { params: { id: string } 
                         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                           <div className="bg-indigo-50 rounded-lg p-4 text-center">
                             <p className="text-xs text-muted-foreground">Total Profit</p>
-                            <p className="text-lg font-bold text-indigo-700">{formatCurrency(projResults.summary.total_return as number)}</p>
+                            <p className="text-lg font-bold text-indigo-700">{formatCurrency(projResults.summary.total_return)}</p>
                           </div>
                           <div className="bg-blue-50 rounded-lg p-4 text-center border-2 border-blue-300">
                             <p className="text-xs text-muted-foreground">LP Share (70%)</p>
-                            <p className="text-lg font-bold text-blue-700">{formatCurrency(projResults.summary.lp_share_of_profits as number)}</p>
+                            <p className="text-lg font-bold text-blue-700">{formatCurrency(projResults.summary.lp_share_of_profits ?? 0)}</p>
                           </div>
                           <div className="bg-orange-50 rounded-lg p-4 text-center border-2 border-orange-300">
                             <p className="text-xs text-muted-foreground">GP Share (30%)</p>
-                            <p className="text-lg font-bold text-orange-700">{formatCurrency(projResults.summary.gp_share_of_profits as number)}</p>
+                            <p className="text-lg font-bold text-orange-700">{formatCurrency(projResults.summary.gp_share_of_profits ?? 0)}</p>
                           </div>
                           <div className="bg-green-50 rounded-lg p-4 text-center">
                             <p className="text-xs text-muted-foreground">LP Equity Multiple</p>
                             <p className="text-lg font-bold text-green-700">
-                              {projResults.summary.total_equity_invested && (projResults.summary.total_equity_invested as number) > 0
-                                ? `${((projResults.summary.lp_share_of_profits as number) / ((projResults.summary.total_equity_invested as number) * 0.7)).toFixed(2)}x`
+                              {projResults.summary.total_equity_invested && (projResults.summary.total_equity_invested) > 0
+                                ? `${((projResults.summary.lp_share_of_profits) / ((projResults.summary.total_equity_invested) * 0.7)).toFixed(2)}x`
                                 : "N/A"}
                             </p>
                           </div>

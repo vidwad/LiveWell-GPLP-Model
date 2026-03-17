@@ -7,6 +7,7 @@ from decimal import Decimal
 from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 from sqlalchemy import func as sa_func
 
@@ -122,8 +123,15 @@ def create_gp_entity(
 ):
     gp = GPEntity(**payload.model_dump())
     db.add(gp)
-    db.commit()
-    db.refresh(gp)
+    try:
+        db.commit()
+        db.refresh(gp)
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(status_code=400, detail="Database integrity error (e.g., duplicate entry or missing foreign key)")
+    except Exception:
+        db.rollback()
+        raise HTTPException(status_code=500, detail="Internal server error")
     return gp
 
 
@@ -151,8 +159,15 @@ def update_gp_entity(
         raise HTTPException(status_code=404, detail="GP entity not found")
     for key, val in payload.model_dump(exclude_unset=True).items():
         setattr(gp, key, val)
-    db.commit()
-    db.refresh(gp)
+    try:
+        db.commit()
+        db.refresh(gp)
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(status_code=400, detail="Database integrity error (e.g., duplicate entry or missing foreign key)")
+    except Exception:
+        db.rollback()
+        raise HTTPException(status_code=500, detail="Internal server error")
     return gp
 
 
@@ -202,8 +217,15 @@ def create_lp_entity(
         data["purpose_type"] = LPPurposeType(data["purpose_type"])
     lp = LPEntity(**data)
     db.add(lp)
-    db.commit()
-    db.refresh(lp)
+    try:
+        db.commit()
+        db.refresh(lp)
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(status_code=400, detail="Database integrity error (e.g., duplicate entry or missing foreign key)")
+    except Exception:
+        db.rollback()
+        raise HTTPException(status_code=500, detail="Internal server error")
     return lp
 
 
@@ -300,8 +322,15 @@ def update_lp_entity(
             from app.db.models import LPPurposeType
             val = LPPurposeType(val)
         setattr(lp, key, val)
-    db.commit()
-    db.refresh(lp)
+    try:
+        db.commit()
+        db.refresh(lp)
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(status_code=400, detail="Database integrity error (e.g., duplicate entry or missing foreign key)")
+    except Exception:
+        db.rollback()
+        raise HTTPException(status_code=500, detail="Internal server error")
     return lp
 
 
@@ -361,8 +390,15 @@ def create_tranche(
         data["status"] = TrancheStatus(data["status"])
     tranche = LPTranche(**data)
     db.add(tranche)
-    db.commit()
-    db.refresh(tranche)
+    try:
+        db.commit()
+        db.refresh(tranche)
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(status_code=400, detail="Database integrity error (e.g., duplicate entry or missing foreign key)")
+    except Exception:
+        db.rollback()
+        raise HTTPException(status_code=500, detail="Internal server error")
     return LPTrancheOut(
         tranche_id=tranche.tranche_id,
         lp_id=tranche.lp_id,
@@ -401,8 +437,15 @@ def update_tranche(
         if key == "status" and val:
             val = TrancheStatus(val)
         setattr(tranche, key, val)
-    db.commit()
-    db.refresh(tranche)
+    try:
+        db.commit()
+        db.refresh(tranche)
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(status_code=400, detail="Database integrity error (e.g., duplicate entry or missing foreign key)")
+    except Exception:
+        db.rollback()
+        raise HTTPException(status_code=500, detail="Internal server error")
     subs = tranche.subscriptions or []
     return LPTrancheOut(
         tranche_id=tranche.tranche_id,
@@ -447,8 +490,15 @@ def create_investor(
         raise HTTPException(status_code=409, detail="Investor with this email already exists")
     inv = Investor(**payload.model_dump())
     db.add(inv)
-    db.commit()
-    db.refresh(inv)
+    try:
+        db.commit()
+        db.refresh(inv)
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(status_code=400, detail="Database integrity error (e.g., duplicate entry or missing foreign key)")
+    except Exception:
+        db.rollback()
+        raise HTTPException(status_code=500, detail="Internal server error")
     return inv
 
 
@@ -476,8 +526,15 @@ def update_investor(
         raise HTTPException(status_code=404, detail="Investor not found")
     for key, val in payload.model_dump(exclude_unset=True).items():
         setattr(inv, key, val)
-    db.commit()
-    db.refresh(inv)
+    try:
+        db.commit()
+        db.refresh(inv)
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(status_code=400, detail="Database integrity error (e.g., duplicate entry or missing foreign key)")
+    except Exception:
+        db.rollback()
+        raise HTTPException(status_code=500, detail="Internal server error")
     return inv
 
 
@@ -570,8 +627,15 @@ def create_subscription(
         notes=payload.notes,
     )
     db.add(sub)
-    db.commit()
-    db.refresh(sub)
+    try:
+        db.commit()
+        db.refresh(sub)
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(status_code=400, detail="Database integrity error (e.g., duplicate entry or missing foreign key)")
+    except Exception:
+        db.rollback()
+        raise HTTPException(status_code=500, detail="Internal server error")
     return _sub_out(sub)
 
 
@@ -617,8 +681,15 @@ def update_subscription(
         if key == "status" and val:
             val = SubscriptionStatus(val)
         setattr(sub, key, val)
-    db.commit()
-    db.refresh(sub)
+    try:
+        db.commit()
+        db.refresh(sub)
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(status_code=400, detail="Database integrity error (e.g., duplicate entry or missing foreign key)")
+    except Exception:
+        db.rollback()
+        raise HTTPException(status_code=500, detail="Internal server error")
     return _sub_out(sub)
 
 
@@ -688,8 +759,15 @@ def create_holding(
         status=payload.status,
     )
     db.add(holding)
-    db.commit()
-    db.refresh(holding)
+    try:
+        db.commit()
+        db.refresh(holding)
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(status_code=400, detail="Database integrity error (e.g., duplicate entry or missing foreign key)")
+    except Exception:
+        db.rollback()
+        raise HTTPException(status_code=500, detail="Internal server error")
 
     # Return with computed ownership_percent and cost_basis
     holdings_data = compute_holdings_with_ownership(db, lp_id)
@@ -711,8 +789,15 @@ def update_holding(
         raise HTTPException(status_code=404, detail="Holding not found")
     for key, val in payload.model_dump(exclude_unset=True).items():
         setattr(holding, key, val)
-    db.commit()
-    db.refresh(holding)
+    try:
+        db.commit()
+        db.refresh(holding)
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(status_code=400, detail="Database integrity error (e.g., duplicate entry or missing foreign key)")
+    except Exception:
+        db.rollback()
+        raise HTTPException(status_code=500, detail="Internal server error")
 
     # Return with computed ownership_percent and cost_basis
     holdings_data = compute_holdings_with_ownership(db, holding.lp_id)
@@ -760,8 +845,15 @@ def create_target_property(
         data["status"] = TargetPropertyStatus(data["status"])
     tp = TargetProperty(**data)
     db.add(tp)
-    db.commit()
-    db.refresh(tp)
+    try:
+        db.commit()
+        db.refresh(tp)
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(status_code=400, detail="Database integrity error (e.g., duplicate entry or missing foreign key)")
+    except Exception:
+        db.rollback()
+        raise HTTPException(status_code=500, detail="Internal server error")
     return tp
 
 
@@ -791,8 +883,15 @@ def update_target_property(
         if key == "status" and val:
             val = TargetPropertyStatus(val)
         setattr(tp, key, val)
-    db.commit()
-    db.refresh(tp)
+    try:
+        db.commit()
+        db.refresh(tp)
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(status_code=400, detail="Database integrity error (e.g., duplicate entry or missing foreign key)")
+    except Exception:
+        db.rollback()
+        raise HTTPException(status_code=500, detail="Internal server error")
     return tp
 
 
@@ -806,7 +905,14 @@ def delete_target_property(
     if not tp:
         raise HTTPException(status_code=404, detail="Target property not found")
     db.delete(tp)
-    db.commit()
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(status_code=400, detail="Database integrity error (e.g., duplicate entry or missing foreign key)")
+    except Exception:
+        db.rollback()
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.post("/target-properties/{target_property_id}/convert")
@@ -846,9 +952,16 @@ def convert_target_to_actual(
     # Link the target to the new property and mark as acquired
     tp.converted_property_id = prop.property_id
     tp.status = TargetPropertyStatus.acquired
-    db.commit()
-    db.refresh(prop)
-    db.refresh(tp)
+    try:
+        db.commit()
+        db.refresh(prop)
+        db.refresh(tp)
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(status_code=400, detail="Database integrity error (e.g., duplicate entry or missing foreign key)")
+    except Exception:
+        db.rollback()
+        raise HTTPException(status_code=500, detail="Internal server error")
 
     return {
         "message": "Target property converted to actual property",
@@ -1001,8 +1114,15 @@ def create_distribution_event(
         notes=payload.notes,
     )
     db.add(event)
-    db.commit()
-    db.refresh(event)
+    try:
+        db.commit()
+        db.refresh(event)
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(status_code=400, detail="Database integrity error (e.g., duplicate entry or missing foreign key)")
+    except Exception:
+        db.rollback()
+        raise HTTPException(status_code=500, detail="Internal server error")
     return event
 
 
@@ -1047,8 +1167,15 @@ def create_scope_assignment(
         permission_level=payload.permission_level,
     )
     db.add(scope)
-    db.commit()
-    db.refresh(scope)
+    try:
+        db.commit()
+        db.refresh(scope)
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(status_code=400, detail="Database integrity error (e.g., duplicate entry or missing foreign key)")
+    except Exception:
+        db.rollback()
+        raise HTTPException(status_code=500, detail="Internal server error")
     return scope
 
 
@@ -1062,7 +1189,14 @@ def delete_scope_assignment(
     if not scope:
         raise HTTPException(status_code=404, detail="Scope assignment not found")
     db.delete(scope)
-    db.commit()
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(status_code=400, detail="Database integrity error (e.g., duplicate entry or missing foreign key)")
+    except Exception:
+        db.rollback()
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 # ===========================================================================
@@ -1085,8 +1219,15 @@ def create_operator(
 ):
     op = OperatorEntity(**payload.model_dump())
     db.add(op)
-    db.commit()
-    db.refresh(op)
+    try:
+        db.commit()
+        db.refresh(op)
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(status_code=400, detail="Database integrity error (e.g., duplicate entry or missing foreign key)")
+    except Exception:
+        db.rollback()
+        raise HTTPException(status_code=500, detail="Internal server error")
     return op
 
 
@@ -1244,8 +1385,15 @@ def create_lp_fee_item(
     item = LPFeeItem(**payload.model_dump())
     item.lp_id = lp_id
     db.add(item)
-    db.commit()
-    db.refresh(item)
+    try:
+        db.commit()
+        db.refresh(item)
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(status_code=400, detail="Database integrity error (e.g., duplicate entry or missing foreign key)")
+    except Exception:
+        db.rollback()
+        raise HTTPException(status_code=500, detail="Internal server error")
     return item
 
 
@@ -1267,8 +1415,15 @@ def update_lp_fee_item(
     updates = payload.model_dump(exclude_unset=True)
     for key, val in updates.items():
         setattr(item, key, val)
-    db.commit()
-    db.refresh(item)
+    try:
+        db.commit()
+        db.refresh(item)
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(status_code=400, detail="Database integrity error (e.g., duplicate entry or missing foreign key)")
+    except Exception:
+        db.rollback()
+        raise HTTPException(status_code=500, detail="Internal server error")
     return item
 
 
@@ -1287,5 +1442,12 @@ def delete_lp_fee_item(
     if not item:
         raise HTTPException(status_code=404, detail="Fee item not found")
     db.delete(item)
-    db.commit()
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(status_code=400, detail="Database integrity error (e.g., duplicate entry or missing foreign key)")
+    except Exception:
+        db.rollback()
+        raise HTTPException(status_code=500, detail="Internal server error")
     return None

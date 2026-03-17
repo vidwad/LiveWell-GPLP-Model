@@ -1,6 +1,7 @@
 import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.core.deps import get_current_user, require_gp_ops_pm, require_gp_or_ops
@@ -41,8 +42,15 @@ def create_community(
 ):
     community = Community(**payload.model_dump())
     db.add(community)
-    db.commit()
-    db.refresh(community)
+    try:
+        db.commit()
+        db.refresh(community)
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(status_code=400, detail="Database integrity error (e.g., duplicate entry or missing foreign key)")
+    except Exception:
+        db.rollback()
+        raise HTTPException(status_code=500, detail="Internal server error")
     return community
 
 
@@ -70,8 +78,15 @@ def update_community(
         raise HTTPException(status_code=404, detail="Community not found")
     for k, v in payload.model_dump(exclude_unset=True).items():
         setattr(community, k, v)
-    db.commit()
-    db.refresh(community)
+    try:
+        db.commit()
+        db.refresh(community)
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(status_code=400, detail="Database integrity error (e.g., duplicate entry or missing foreign key)")
+    except Exception:
+        db.rollback()
+        raise HTTPException(status_code=500, detail="Internal server error")
     return community
 
 
@@ -146,8 +161,15 @@ def add_unit(
         raise HTTPException(status_code=404, detail="Community not found")
     unit = Unit(community_id=community_id, **payload.model_dump())
     db.add(unit)
-    db.commit()
-    db.refresh(unit)
+    try:
+        db.commit()
+        db.refresh(unit)
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(status_code=400, detail="Database integrity error (e.g., duplicate entry or missing foreign key)")
+    except Exception:
+        db.rollback()
+        raise HTTPException(status_code=500, detail="Internal server error")
     return unit
 
 
@@ -184,8 +206,15 @@ def add_bed(
     bed = Bed(unit_id=unit_id, bed_label=payload.bed_label,
               monthly_rent=payload.monthly_rent, rent_type=payload.rent_type)
     db.add(bed)
-    db.commit()
-    db.refresh(bed)
+    try:
+        db.commit()
+        db.refresh(bed)
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(status_code=400, detail="Database integrity error (e.g., duplicate entry or missing foreign key)")
+    except Exception:
+        db.rollback()
+        raise HTTPException(status_code=500, detail="Internal server error")
     return bed
 
 
@@ -200,7 +229,14 @@ def update_bed_status(
     if not bed:
         raise HTTPException(status_code=404, detail="Bed not found")
     bed.status = new_status
-    db.commit()
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(status_code=400, detail="Database integrity error (e.g., duplicate entry or missing foreign key)")
+    except Exception:
+        db.rollback()
+        raise HTTPException(status_code=500, detail="Internal server error")
     return {"bed_id": bed_id, "status": new_status.value}
 
 
@@ -242,8 +278,15 @@ def add_resident(
     resident = Resident(community_id=community_id, **payload.model_dump())
     unit.is_occupied = True
     db.add(resident)
-    db.commit()
-    db.refresh(resident)
+    try:
+        db.commit()
+        db.refresh(resident)
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(status_code=400, detail="Database integrity error (e.g., duplicate entry or missing foreign key)")
+    except Exception:
+        db.rollback()
+        raise HTTPException(status_code=500, detail="Internal server error")
     return resident
 
 
@@ -265,7 +308,14 @@ def remove_resident(
         if remaining == 0:
             unit.is_occupied = False
     db.delete(resident)
-    db.commit()
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(status_code=400, detail="Database integrity error (e.g., duplicate entry or missing foreign key)")
+    except Exception:
+        db.rollback()
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 # ---------------------------------------------------------------------------
@@ -302,8 +352,15 @@ def record_payment(
         **payload.model_dump(),
     )
     db.add(payment)
-    db.commit()
-    db.refresh(payment)
+    try:
+        db.commit()
+        db.refresh(payment)
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(status_code=400, detail="Database integrity error (e.g., duplicate entry or missing foreign key)")
+    except Exception:
+        db.rollback()
+        raise HTTPException(status_code=500, detail="Internal server error")
     return payment
 
 
@@ -334,8 +391,15 @@ def create_maintenance_request(
         **payload.model_dump(),
     )
     db.add(req)
-    db.commit()
-    db.refresh(req)
+    try:
+        db.commit()
+        db.refresh(req)
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(status_code=400, detail="Database integrity error (e.g., duplicate entry or missing foreign key)")
+    except Exception:
+        db.rollback()
+        raise HTTPException(status_code=500, detail="Internal server error")
     return req
 
 
@@ -356,8 +420,15 @@ def update_maintenance(
         req.resolved_at = payload.resolved_at
     elif payload.status == MaintenanceStatus.resolved:
         req.resolved_at = datetime.datetime.utcnow()
-    db.commit()
-    db.refresh(req)
+    try:
+        db.commit()
+        db.refresh(req)
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(status_code=400, detail="Database integrity error (e.g., duplicate entry or missing foreign key)")
+    except Exception:
+        db.rollback()
+        raise HTTPException(status_code=500, detail="Internal server error")
     return req
 
 

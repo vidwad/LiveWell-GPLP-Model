@@ -13,7 +13,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Heart } from "lucide-react";
+import { Heart, Loader2 } from "lucide-react";
 
 const ROLES: { value: UserRole; label: string }[] = [
   { value: "GP_ADMIN", label: "GP Admin" },
@@ -31,9 +31,11 @@ export default function RegisterPage() {
   const [fullName, setFullName] = useState("");
   const [role, setRole] = useState<UserRole>("GP_ADMIN");
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setError(null);
     setLoading(true);
     try {
       await apiClient.post("/api/auth/register", {
@@ -45,7 +47,9 @@ export default function RegisterPage() {
       await login(email, password);
       router.push("/dashboard");
     } catch (err: unknown) {
-      toast.error(getApiErrorMessage(err, "Registration failed"));
+      const message = getApiErrorMessage(err, "Registration failed");
+      setError(message);
+      toast.error(message);
     } finally {
       setLoading(false);
     }
@@ -109,8 +113,17 @@ export default function RegisterPage() {
                 </SelectContent>
               </Select>
             </div>
+            {error && (
+              <div className="rounded-md bg-destructive/10 border border-destructive/20 px-4 py-3 text-sm text-destructive">
+                {error}
+              </div>
+            )}
             <Button type="submit" className="w-full" disabled={loading}>
-              {loading ? "Creating account…" : "Create account"}
+              {loading ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                "Create account"
+              )}
             </Button>
           </form>
           <p className="mt-4 text-center text-sm text-muted-foreground">

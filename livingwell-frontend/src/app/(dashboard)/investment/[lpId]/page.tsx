@@ -1088,6 +1088,8 @@ export default function LPDetailPage() {
                       <Label className="text-xs mb-1">Distributable Amount ($)</Label>
                       <Input
                         type="number"
+                        min={0}
+                        step="0.01"
                         placeholder="e.g. 500000"
                         value={waterfallAmount}
                         onChange={(e) => setWaterfallAmount(e.target.value)}
@@ -1349,7 +1351,7 @@ export default function LPDetailPage() {
         <DialogContent className="sm:max-w-lg max-h-[85vh] overflow-y-auto">
           <DialogHeader><DialogTitle>Edit LP Fund</DialogTitle></DialogHeader>
           <div className="grid grid-cols-2 gap-3">
-            <Field label="Fund Name" className="col-span-2"><Input value={lpForm.form.name} onChange={(e) => lpForm.set("name", e.target.value)} /></Field>
+            <Field label="Fund Name" className="col-span-2"><Input required value={lpForm.form.name} onChange={(e) => lpForm.set("name", e.target.value)} /></Field>
             <Field label="Legal Name"><Input value={lpForm.form.legal_name} onChange={(e) => lpForm.set("legal_name", e.target.value)} /></Field>
             <Field label="LP Number"><Input value={lpForm.form.lp_number} onChange={(e) => lpForm.set("lp_number", e.target.value)} /></Field>
             <Field label="City Focus"><Input value={lpForm.form.city_focus} onChange={(e) => lpForm.set("city_focus", e.target.value)} /></Field>
@@ -1359,27 +1361,27 @@ export default function LPDetailPage() {
                 {["draft","under_review","approved","open_for_subscription","partially_funded","tranche_closed","fully_funded","operating","winding_down","dissolved"].map(s => <option key={s} value={s}>{statusLabel(s)}</option>)}
               </select>
             </Field>
-            <Field label="Unit Price"><Input type="number" value={lpForm.form.unit_price} onChange={(e) => lpForm.set("unit_price", e.target.value)} /></Field>
-            <Field label="Min Subscription"><Input type="number" value={lpForm.form.minimum_subscription} onChange={(e) => lpForm.set("minimum_subscription", e.target.value)} /></Field>
-            <Field label="Target Raise"><Input type="number" value={lpForm.form.target_raise} onChange={(e) => lpForm.set("target_raise", e.target.value)} /></Field>
-            <Field label="Min Raise"><Input type="number" value={lpForm.form.minimum_raise} onChange={(e) => lpForm.set("minimum_raise", e.target.value)} /></Field>
-            <Field label="Max Raise"><Input type="number" value={lpForm.form.maximum_raise} onChange={(e) => lpForm.set("maximum_raise", e.target.value)} /></Field>
+            <Field label="Unit Price"><Input type="number" min={0} step="0.01" value={lpForm.form.unit_price} onChange={(e) => lpForm.set("unit_price", e.target.value)} /></Field>
+            <Field label="Min Subscription"><Input type="number" min={0} step="0.01" value={lpForm.form.minimum_subscription} onChange={(e) => lpForm.set("minimum_subscription", e.target.value)} /></Field>
+            <Field label="Target Raise"><Input type="number" min={0} step="0.01" value={lpForm.form.target_raise} onChange={(e) => lpForm.set("target_raise", e.target.value)} /></Field>
+            <Field label="Min Raise"><Input type="number" min={0} step="0.01" value={lpForm.form.minimum_raise} onChange={(e) => lpForm.set("minimum_raise", e.target.value)} /></Field>
+            <Field label="Max Raise"><Input type="number" min={0} step="0.01" value={lpForm.form.maximum_raise} onChange={(e) => lpForm.set("maximum_raise", e.target.value)} /></Field>
             <Field label="Offering Date"><Input type="date" value={lpForm.form.offering_date} onChange={(e) => lpForm.set("offering_date", e.target.value)} /></Field>
             <Field label="Closing Date"><Input type="date" value={lpForm.form.closing_date} onChange={(e) => lpForm.set("closing_date", e.target.value)} /></Field>
-            <Field label="Formation Costs"><Input type="number" value={lpForm.form.formation_costs} onChange={(e) => lpForm.set("formation_costs", e.target.value)} /></Field>
-            <Field label="Offering Costs"><Input type="number" value={lpForm.form.offering_costs} onChange={(e) => lpForm.set("offering_costs", e.target.value)} /></Field>
-            <Field label="Reserve %"><Input type="number" step="0.1" value={lpForm.form.reserve_percent} onChange={(e) => lpForm.set("reserve_percent", e.target.value)} /></Field>
-            <Field label="Preferred Return %"><Input type="number" step="0.1" value={lpForm.form.preferred_return_rate} onChange={(e) => lpForm.set("preferred_return_rate", e.target.value)} /></Field>
-            <Field label="GP Promote %"><Input type="number" step="0.1" value={lpForm.form.gp_promote_percent} onChange={(e) => lpForm.set("gp_promote_percent", e.target.value)} /></Field>
-            <Field label="GP Catch-up %"><Input type="number" step="0.1" value={lpForm.form.gp_catchup_percent} onChange={(e) => lpForm.set("gp_catchup_percent", e.target.value)} /></Field>
-            <Field label="Asset Mgmt Fee %"><Input type="number" step="0.1" value={lpForm.form.asset_management_fee_percent} onChange={(e) => lpForm.set("asset_management_fee_percent", e.target.value)} /></Field>
-            <Field label="Acquisition Fee %"><Input type="number" step="0.1" value={lpForm.form.acquisition_fee_percent} onChange={(e) => lpForm.set("acquisition_fee_percent", e.target.value)} /></Field>
-            <Field label="Selling Commission %"><Input type="number" step="0.1" value={lpForm.form.selling_commission_percent} onChange={(e) => lpForm.set("selling_commission_percent", e.target.value)} /></Field>
-            <Field label="Construction Mgmt Fee %"><Input type="number" step="0.1" value={lpForm.form.construction_management_fee_percent} onChange={(e) => lpForm.set("construction_management_fee_percent", e.target.value)} /></Field>
-            <Field label="Refinancing Fee %"><Input type="number" step="0.1" value={lpForm.form.refinancing_fee_percent} onChange={(e) => lpForm.set("refinancing_fee_percent", e.target.value)} /></Field>
-            <Field label="Turnover Fee %"><Input type="number" step="0.1" value={lpForm.form.turnover_replacement_fee_percent} onChange={(e) => lpForm.set("turnover_replacement_fee_percent", e.target.value)} /></Field>
-            <Field label="LP Profit Share %"><Input type="number" step="0.1" value={lpForm.form.lp_profit_share_percent} onChange={(e) => lpForm.set("lp_profit_share_percent", e.target.value)} /></Field>
-            <Field label="GP Profit Share %"><Input type="number" step="0.1" value={lpForm.form.gp_profit_share_percent} onChange={(e) => lpForm.set("gp_profit_share_percent", e.target.value)} /></Field>
+            <Field label="Formation Costs"><Input type="number" min={0} step="0.01" value={lpForm.form.formation_costs} onChange={(e) => lpForm.set("formation_costs", e.target.value)} /></Field>
+            <Field label="Offering Costs"><Input type="number" min={0} step="0.01" value={lpForm.form.offering_costs} onChange={(e) => lpForm.set("offering_costs", e.target.value)} /></Field>
+            <Field label="Reserve %"><Input type="number" min={0} max={100} step="0.01" value={lpForm.form.reserve_percent} onChange={(e) => lpForm.set("reserve_percent", e.target.value)} /></Field>
+            <Field label="Preferred Return %"><Input type="number" min={0} max={100} step="0.01" value={lpForm.form.preferred_return_rate} onChange={(e) => lpForm.set("preferred_return_rate", e.target.value)} /></Field>
+            <Field label="GP Promote %"><Input type="number" min={0} max={100} step="0.01" value={lpForm.form.gp_promote_percent} onChange={(e) => lpForm.set("gp_promote_percent", e.target.value)} /></Field>
+            <Field label="GP Catch-up %"><Input type="number" min={0} max={100} step="0.01" value={lpForm.form.gp_catchup_percent} onChange={(e) => lpForm.set("gp_catchup_percent", e.target.value)} /></Field>
+            <Field label="Asset Mgmt Fee %"><Input type="number" min={0} max={100} step="0.01" value={lpForm.form.asset_management_fee_percent} onChange={(e) => lpForm.set("asset_management_fee_percent", e.target.value)} /></Field>
+            <Field label="Acquisition Fee %"><Input type="number" min={0} max={100} step="0.01" value={lpForm.form.acquisition_fee_percent} onChange={(e) => lpForm.set("acquisition_fee_percent", e.target.value)} /></Field>
+            <Field label="Selling Commission %"><Input type="number" min={0} max={100} step="0.01" value={lpForm.form.selling_commission_percent} onChange={(e) => lpForm.set("selling_commission_percent", e.target.value)} /></Field>
+            <Field label="Construction Mgmt Fee %"><Input type="number" min={0} max={100} step="0.01" value={lpForm.form.construction_management_fee_percent} onChange={(e) => lpForm.set("construction_management_fee_percent", e.target.value)} /></Field>
+            <Field label="Refinancing Fee %"><Input type="number" min={0} max={100} step="0.01" value={lpForm.form.refinancing_fee_percent} onChange={(e) => lpForm.set("refinancing_fee_percent", e.target.value)} /></Field>
+            <Field label="Turnover Fee %"><Input type="number" min={0} max={100} step="0.01" value={lpForm.form.turnover_replacement_fee_percent} onChange={(e) => lpForm.set("turnover_replacement_fee_percent", e.target.value)} /></Field>
+            <Field label="LP Profit Share %"><Input type="number" min={0} max={100} step="0.01" value={lpForm.form.lp_profit_share_percent} onChange={(e) => lpForm.set("lp_profit_share_percent", e.target.value)} /></Field>
+            <Field label="GP Profit Share %"><Input type="number" min={0} max={100} step="0.01" value={lpForm.form.gp_profit_share_percent} onChange={(e) => lpForm.set("gp_profit_share_percent", e.target.value)} /></Field>
             <Field label="Notes" className="col-span-2"><textarea className="w-full rounded-lg border border-input bg-transparent px-2.5 py-1 text-sm min-h-[60px]" value={lpForm.form.notes} onChange={(e) => lpForm.set("notes", e.target.value)} /></Field>
           </div>
           <DialogFooter>
@@ -1403,9 +1405,9 @@ export default function LPDetailPage() {
                 {["draft","open","closed","cancelled"].map(s => <option key={s} value={s}>{statusLabel(s)}</option>)}
               </select>
             </Field>
-            <Field label="Issue Price"><Input type="number" step="0.01" value={trancheForm.form.issue_price} onChange={(e) => trancheForm.set("issue_price", e.target.value)} /></Field>
-            <Field label="Target Amount"><Input type="number" value={trancheForm.form.target_amount} onChange={(e) => trancheForm.set("target_amount", e.target.value)} /></Field>
-            <Field label="Target Units"><Input type="number" value={trancheForm.form.target_units} onChange={(e) => trancheForm.set("target_units", e.target.value)} /></Field>
+            <Field label="Issue Price"><Input type="number" min={0} step="0.01" value={trancheForm.form.issue_price} onChange={(e) => trancheForm.set("issue_price", e.target.value)} /></Field>
+            <Field label="Target Amount"><Input type="number" min={0} step="0.01" value={trancheForm.form.target_amount} onChange={(e) => trancheForm.set("target_amount", e.target.value)} /></Field>
+            <Field label="Target Units"><Input type="number" min={0} value={trancheForm.form.target_units} onChange={(e) => trancheForm.set("target_units", e.target.value)} /></Field>
             <Field label="Notes" className="col-span-2"><textarea className="w-full rounded-lg border border-input bg-transparent px-2.5 py-1 text-sm min-h-[60px]" value={trancheForm.form.notes} onChange={(e) => trancheForm.set("notes", e.target.value)} /></Field>
           </div>
           <DialogFooter>
@@ -1423,7 +1425,7 @@ export default function LPDetailPage() {
           <DialogHeader><DialogTitle>{subForm.isEdit ? "Edit Subscription" : "Add Subscription"}</DialogTitle></DialogHeader>
           <div className="grid grid-cols-2 gap-3">
             <Field label="Investor" className="col-span-2">
-              <select className="h-8 w-full rounded-lg border border-input bg-transparent px-2.5 text-sm" value={subForm.form.investor_id} onChange={(e) => subForm.set("investor_id", e.target.value)}>
+              <select required className="h-8 w-full rounded-lg border border-input bg-transparent px-2.5 text-sm" value={subForm.form.investor_id} onChange={(e) => subForm.set("investor_id", e.target.value)}>
                 <option value="">Select investor...</option>
                 {investors?.map(inv => <option key={inv.investor_id} value={inv.investor_id}>{inv.name}</option>)}
               </select>
@@ -1439,10 +1441,10 @@ export default function LPDetailPage() {
                 {["draft","submitted","under_review","accepted","funded","issued","closed","rejected","withdrawn"].map(s => <option key={s} value={s}>{statusLabel(s)}</option>)}
               </select>
             </Field>
-            <Field label="Commitment Amount"><Input type="number" value={subForm.form.commitment_amount} onChange={(e) => subForm.set("commitment_amount", e.target.value)} /></Field>
-            <Field label="Funded Amount"><Input type="number" value={subForm.form.funded_amount} onChange={(e) => subForm.set("funded_amount", e.target.value)} /></Field>
-            <Field label="Issue Price"><Input type="number" step="0.01" value={subForm.form.issue_price} onChange={(e) => subForm.set("issue_price", e.target.value)} /></Field>
-            <Field label="Unit Quantity"><Input type="number" value={subForm.form.unit_quantity} onChange={(e) => subForm.set("unit_quantity", e.target.value)} /></Field>
+            <Field label="Commitment Amount"><Input required type="number" min={0} step="0.01" value={subForm.form.commitment_amount} onChange={(e) => subForm.set("commitment_amount", e.target.value)} /></Field>
+            <Field label="Funded Amount"><Input type="number" min={0} step="0.01" value={subForm.form.funded_amount} onChange={(e) => subForm.set("funded_amount", e.target.value)} /></Field>
+            <Field label="Issue Price"><Input type="number" min={0} step="0.01" value={subForm.form.issue_price} onChange={(e) => subForm.set("issue_price", e.target.value)} /></Field>
+            <Field label="Unit Quantity"><Input type="number" min={0} value={subForm.form.unit_quantity} onChange={(e) => subForm.set("unit_quantity", e.target.value)} /></Field>
             <Field label="Submitted Date"><Input type="date" value={subForm.form.submitted_date} onChange={(e) => subForm.set("submitted_date", e.target.value)} /></Field>
             <Field label="Notes" className="col-span-2"><textarea className="w-full rounded-lg border border-input bg-transparent px-2.5 py-1 text-sm min-h-[60px]" value={subForm.form.notes} onChange={(e) => subForm.set("notes", e.target.value)} /></Field>
           </div>
@@ -1461,17 +1463,17 @@ export default function LPDetailPage() {
           <DialogHeader><DialogTitle>{holdingForm.isEdit ? "Edit Holding" : "Add Holding"}</DialogTitle></DialogHeader>
           <div className="grid grid-cols-2 gap-3">
             <Field label="Investor" className="col-span-2">
-              <select className="h-8 w-full rounded-lg border border-input bg-transparent px-2.5 text-sm" value={holdingForm.form.investor_id} onChange={(e) => holdingForm.set("investor_id", e.target.value)}>
+              <select required className="h-8 w-full rounded-lg border border-input bg-transparent px-2.5 text-sm" value={holdingForm.form.investor_id} onChange={(e) => holdingForm.set("investor_id", e.target.value)}>
                 <option value="">Select investor...</option>
                 {investors?.map(inv => <option key={inv.investor_id} value={inv.investor_id}>{inv.name}</option>)}
               </select>
             </Field>
-            <Field label="Units Held"><Input type="number" value={holdingForm.form.units_held} onChange={(e) => holdingForm.set("units_held", e.target.value)} /></Field>
-            <Field label="Avg Issue Price"><Input type="number" step="0.01" value={holdingForm.form.average_issue_price} onChange={(e) => holdingForm.set("average_issue_price", e.target.value)} /></Field>
-            <Field label="Ownership %"><Input type="number" step="0.01" value={holdingForm.form.ownership_percent} onChange={(e) => holdingForm.set("ownership_percent", e.target.value)} /></Field>
-            <Field label="Cost Basis"><Input type="number" value={holdingForm.form.cost_basis} onChange={(e) => holdingForm.set("cost_basis", e.target.value)} /></Field>
-            <Field label="Unreturned Capital"><Input type="number" value={holdingForm.form.unreturned_capital} onChange={(e) => holdingForm.set("unreturned_capital", e.target.value)} /></Field>
-            <Field label="Unpaid Preferred"><Input type="number" value={holdingForm.form.unpaid_preferred} onChange={(e) => holdingForm.set("unpaid_preferred", e.target.value)} /></Field>
+            <Field label="Units Held"><Input type="number" min={0} value={holdingForm.form.units_held} onChange={(e) => holdingForm.set("units_held", e.target.value)} /></Field>
+            <Field label="Avg Issue Price"><Input type="number" min={0} step="0.01" value={holdingForm.form.average_issue_price} onChange={(e) => holdingForm.set("average_issue_price", e.target.value)} /></Field>
+            <Field label="Ownership %"><Input type="number" min={0} max={100} step="0.01" value={holdingForm.form.ownership_percent} onChange={(e) => holdingForm.set("ownership_percent", e.target.value)} /></Field>
+            <Field label="Cost Basis"><Input type="number" min={0} step="0.01" value={holdingForm.form.cost_basis} onChange={(e) => holdingForm.set("cost_basis", e.target.value)} /></Field>
+            <Field label="Unreturned Capital"><Input type="number" min={0} step="0.01" value={holdingForm.form.unreturned_capital} onChange={(e) => holdingForm.set("unreturned_capital", e.target.value)} /></Field>
+            <Field label="Unpaid Preferred"><Input type="number" min={0} step="0.01" value={holdingForm.form.unpaid_preferred} onChange={(e) => holdingForm.set("unpaid_preferred", e.target.value)} /></Field>
             <Field label="Issue Date"><Input type="date" value={holdingForm.form.initial_issue_date} onChange={(e) => holdingForm.set("initial_issue_date", e.target.value)} /></Field>
             <Field label="GP Holding?">
               <select className="h-8 w-full rounded-lg border border-input bg-transparent px-2.5 text-sm" value={holdingForm.form.is_gp} onChange={(e) => holdingForm.set("is_gp", e.target.value)}>
@@ -1497,7 +1499,7 @@ export default function LPDetailPage() {
             <div>
               <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Identity</h4>
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                <Field label="Address" className="col-span-2 sm:col-span-3"><Input value={tpForm.form.address} onChange={(e) => tpForm.set("address", e.target.value)} /></Field>
+                <Field label="Address" className="col-span-2 sm:col-span-3"><Input required value={tpForm.form.address} onChange={(e) => tpForm.set("address", e.target.value)} /></Field>
                 <Field label="City"><Input value={tpForm.form.city} onChange={(e) => tpForm.set("city", e.target.value)} /></Field>
                 <Field label="Province"><Input value={tpForm.form.province} onChange={(e) => tpForm.set("province", e.target.value)} /></Field>
                 <Field label="Community"><Input value={tpForm.form.intended_community} onChange={(e) => tpForm.set("intended_community", e.target.value)} /></Field>
@@ -1507,60 +1509,60 @@ export default function LPDetailPage() {
                   </select>
                 </Field>
                 <Field label="Zoning"><Input value={tpForm.form.zoning} onChange={(e) => tpForm.set("zoning", e.target.value)} /></Field>
-                <Field label="Lot Size (sqft)"><Input type="number" value={tpForm.form.lot_size} onChange={(e) => tpForm.set("lot_size", e.target.value)} /></Field>
+                <Field label="Lot Size (sqft)"><Input type="number" min={0} value={tpForm.form.lot_size} onChange={(e) => tpForm.set("lot_size", e.target.value)} /></Field>
               </div>
             </div>
             <div>
               <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Acquisition & Current State</h4>
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                <Field label="Est. Acquisition Price"><Input type="number" value={tpForm.form.estimated_acquisition_price} onChange={(e) => tpForm.set("estimated_acquisition_price", e.target.value)} /></Field>
-                <Field label="Current Sqft"><Input type="number" value={tpForm.form.current_sqft} onChange={(e) => tpForm.set("current_sqft", e.target.value)} /></Field>
-                <Field label="Bedrooms"><Input type="number" value={tpForm.form.current_bedrooms} onChange={(e) => tpForm.set("current_bedrooms", e.target.value)} /></Field>
-                <Field label="Bathrooms"><Input type="number" value={tpForm.form.current_bathrooms} onChange={(e) => tpForm.set("current_bathrooms", e.target.value)} /></Field>
+                <Field label="Est. Acquisition Price"><Input type="number" min={0} step="0.01" value={tpForm.form.estimated_acquisition_price} onChange={(e) => tpForm.set("estimated_acquisition_price", e.target.value)} /></Field>
+                <Field label="Current Sqft"><Input type="number" min={0} value={tpForm.form.current_sqft} onChange={(e) => tpForm.set("current_sqft", e.target.value)} /></Field>
+                <Field label="Bedrooms"><Input type="number" min={0} value={tpForm.form.current_bedrooms} onChange={(e) => tpForm.set("current_bedrooms", e.target.value)} /></Field>
+                <Field label="Bathrooms"><Input type="number" min={0} value={tpForm.form.current_bathrooms} onChange={(e) => tpForm.set("current_bathrooms", e.target.value)} /></Field>
                 <Field label="Condition"><Input value={tpForm.form.current_condition} onChange={(e) => tpForm.set("current_condition", e.target.value)} placeholder="good / fair / poor" /></Field>
-                <Field label="Assessed Value"><Input type="number" value={tpForm.form.current_assessed_value} onChange={(e) => tpForm.set("current_assessed_value", e.target.value)} /></Field>
+                <Field label="Assessed Value"><Input type="number" min={0} step="0.01" value={tpForm.form.current_assessed_value} onChange={(e) => tpForm.set("current_assessed_value", e.target.value)} /></Field>
               </div>
             </div>
             <div>
               <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Interim Operating</h4>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                <Field label="Monthly Revenue"><Input type="number" value={tpForm.form.interim_monthly_revenue} onChange={(e) => tpForm.set("interim_monthly_revenue", e.target.value)} /></Field>
-                <Field label="Monthly Expenses"><Input type="number" value={tpForm.form.interim_monthly_expenses} onChange={(e) => tpForm.set("interim_monthly_expenses", e.target.value)} /></Field>
-                <Field label="Occupancy %"><Input type="number" step="0.1" value={tpForm.form.interim_occupancy_percent} onChange={(e) => tpForm.set("interim_occupancy_percent", e.target.value)} /></Field>
-                <Field label="Hold Months"><Input type="number" value={tpForm.form.interim_hold_months} onChange={(e) => tpForm.set("interim_hold_months", e.target.value)} /></Field>
+                <Field label="Monthly Revenue"><Input type="number" min={0} step="0.01" value={tpForm.form.interim_monthly_revenue} onChange={(e) => tpForm.set("interim_monthly_revenue", e.target.value)} /></Field>
+                <Field label="Monthly Expenses"><Input type="number" min={0} step="0.01" value={tpForm.form.interim_monthly_expenses} onChange={(e) => tpForm.set("interim_monthly_expenses", e.target.value)} /></Field>
+                <Field label="Occupancy %"><Input type="number" min={0} max={100} step="0.01" value={tpForm.form.interim_occupancy_percent} onChange={(e) => tpForm.set("interim_occupancy_percent", e.target.value)} /></Field>
+                <Field label="Hold Months"><Input type="number" min={0} value={tpForm.form.interim_hold_months} onChange={(e) => tpForm.set("interim_hold_months", e.target.value)} /></Field>
               </div>
             </div>
             <div>
               <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Redevelopment</h4>
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                <Field label="Planned Units"><Input type="number" value={tpForm.form.planned_units} onChange={(e) => tpForm.set("planned_units", e.target.value)} /></Field>
-                <Field label="Planned Beds"><Input type="number" value={tpForm.form.planned_beds} onChange={(e) => tpForm.set("planned_beds", e.target.value)} /></Field>
-                <Field label="Planned Sqft"><Input type="number" value={tpForm.form.planned_sqft} onChange={(e) => tpForm.set("planned_sqft", e.target.value)} /></Field>
-                <Field label="Construction Budget"><Input type="number" value={tpForm.form.construction_budget} onChange={(e) => tpForm.set("construction_budget", e.target.value)} /></Field>
-                <Field label="Hard Costs"><Input type="number" value={tpForm.form.hard_costs} onChange={(e) => tpForm.set("hard_costs", e.target.value)} /></Field>
-                <Field label="Soft Costs"><Input type="number" value={tpForm.form.soft_costs} onChange={(e) => tpForm.set("soft_costs", e.target.value)} /></Field>
-                <Field label="Contingency %"><Input type="number" step="0.1" value={tpForm.form.contingency_percent} onChange={(e) => tpForm.set("contingency_percent", e.target.value)} /></Field>
-                <Field label="Duration (months)"><Input type="number" value={tpForm.form.construction_duration_months} onChange={(e) => tpForm.set("construction_duration_months", e.target.value)} /></Field>
+                <Field label="Planned Units"><Input type="number" min={0} value={tpForm.form.planned_units} onChange={(e) => tpForm.set("planned_units", e.target.value)} /></Field>
+                <Field label="Planned Beds"><Input type="number" min={0} value={tpForm.form.planned_beds} onChange={(e) => tpForm.set("planned_beds", e.target.value)} /></Field>
+                <Field label="Planned Sqft"><Input type="number" min={0} value={tpForm.form.planned_sqft} onChange={(e) => tpForm.set("planned_sqft", e.target.value)} /></Field>
+                <Field label="Construction Budget"><Input type="number" min={0} step="0.01" value={tpForm.form.construction_budget} onChange={(e) => tpForm.set("construction_budget", e.target.value)} /></Field>
+                <Field label="Hard Costs"><Input type="number" min={0} step="0.01" value={tpForm.form.hard_costs} onChange={(e) => tpForm.set("hard_costs", e.target.value)} /></Field>
+                <Field label="Soft Costs"><Input type="number" min={0} step="0.01" value={tpForm.form.soft_costs} onChange={(e) => tpForm.set("soft_costs", e.target.value)} /></Field>
+                <Field label="Contingency %"><Input type="number" min={0} max={100} step="0.01" value={tpForm.form.contingency_percent} onChange={(e) => tpForm.set("contingency_percent", e.target.value)} /></Field>
+                <Field label="Duration (months)"><Input type="number" min={0} value={tpForm.form.construction_duration_months} onChange={(e) => tpForm.set("construction_duration_months", e.target.value)} /></Field>
               </div>
             </div>
             <div>
               <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Stabilized Pro Forma</h4>
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                <Field label="Monthly Revenue"><Input type="number" value={tpForm.form.stabilized_monthly_revenue} onChange={(e) => tpForm.set("stabilized_monthly_revenue", e.target.value)} /></Field>
-                <Field label="Monthly Expenses"><Input type="number" value={tpForm.form.stabilized_monthly_expenses} onChange={(e) => tpForm.set("stabilized_monthly_expenses", e.target.value)} /></Field>
-                <Field label="Occupancy %"><Input type="number" step="0.1" value={tpForm.form.stabilized_occupancy_percent} onChange={(e) => tpForm.set("stabilized_occupancy_percent", e.target.value)} /></Field>
-                <Field label="Annual NOI"><Input type="number" value={tpForm.form.stabilized_annual_noi} onChange={(e) => tpForm.set("stabilized_annual_noi", e.target.value)} /></Field>
-                <Field label="Cap Rate %"><Input type="number" step="0.01" value={tpForm.form.stabilized_cap_rate} onChange={(e) => tpForm.set("stabilized_cap_rate", e.target.value)} /></Field>
-                <Field label="Stabilized Value"><Input type="number" value={tpForm.form.stabilized_value} onChange={(e) => tpForm.set("stabilized_value", e.target.value)} /></Field>
+                <Field label="Monthly Revenue"><Input type="number" min={0} step="0.01" value={tpForm.form.stabilized_monthly_revenue} onChange={(e) => tpForm.set("stabilized_monthly_revenue", e.target.value)} /></Field>
+                <Field label="Monthly Expenses"><Input type="number" min={0} step="0.01" value={tpForm.form.stabilized_monthly_expenses} onChange={(e) => tpForm.set("stabilized_monthly_expenses", e.target.value)} /></Field>
+                <Field label="Occupancy %"><Input type="number" min={0} max={100} step="0.01" value={tpForm.form.stabilized_occupancy_percent} onChange={(e) => tpForm.set("stabilized_occupancy_percent", e.target.value)} /></Field>
+                <Field label="Annual NOI"><Input type="number" min={0} step="0.01" value={tpForm.form.stabilized_annual_noi} onChange={(e) => tpForm.set("stabilized_annual_noi", e.target.value)} /></Field>
+                <Field label="Cap Rate %"><Input type="number" min={0} max={100} step="0.01" value={tpForm.form.stabilized_cap_rate} onChange={(e) => tpForm.set("stabilized_cap_rate", e.target.value)} /></Field>
+                <Field label="Stabilized Value"><Input type="number" min={0} step="0.01" value={tpForm.form.stabilized_value} onChange={(e) => tpForm.set("stabilized_value", e.target.value)} /></Field>
               </div>
             </div>
             <div>
               <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Debt Assumptions</h4>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                <Field label="LTV %"><Input type="number" step="0.1" value={tpForm.form.assumed_ltv_percent} onChange={(e) => tpForm.set("assumed_ltv_percent", e.target.value)} /></Field>
-                <Field label="Interest Rate %"><Input type="number" step="0.01" value={tpForm.form.assumed_interest_rate} onChange={(e) => tpForm.set("assumed_interest_rate", e.target.value)} /></Field>
-                <Field label="Amortization (mo)"><Input type="number" value={tpForm.form.assumed_amortization_months} onChange={(e) => tpForm.set("assumed_amortization_months", e.target.value)} /></Field>
-                <Field label="Debt Amount"><Input type="number" value={tpForm.form.assumed_debt_amount} onChange={(e) => tpForm.set("assumed_debt_amount", e.target.value)} /></Field>
+                <Field label="LTV %"><Input type="number" min={0} max={100} step="0.01" value={tpForm.form.assumed_ltv_percent} onChange={(e) => tpForm.set("assumed_ltv_percent", e.target.value)} /></Field>
+                <Field label="Interest Rate %"><Input type="number" min={0} max={100} step="0.01" value={tpForm.form.assumed_interest_rate} onChange={(e) => tpForm.set("assumed_interest_rate", e.target.value)} /></Field>
+                <Field label="Amortization (mo)"><Input type="number" min={0} value={tpForm.form.assumed_amortization_months} onChange={(e) => tpForm.set("assumed_amortization_months", e.target.value)} /></Field>
+                <Field label="Debt Amount"><Input type="number" min={0} step="0.01" value={tpForm.form.assumed_debt_amount} onChange={(e) => tpForm.set("assumed_debt_amount", e.target.value)} /></Field>
               </div>
             </div>
             <div>

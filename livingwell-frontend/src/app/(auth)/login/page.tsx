@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Heart } from "lucide-react";
+import { Heart, Loader2 } from "lucide-react";
 
 export default function LoginPage() {
   const { login } = useAuth();
@@ -17,15 +17,19 @@ export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setError(null);
     setLoading(true);
     try {
       await login(email, password);
       router.push("/dashboard");
     } catch {
-      toast.error("Invalid email or password");
+      const message = "Invalid email or password";
+      setError(message);
+      toast.error(message);
     } finally {
       setLoading(false);
     }
@@ -65,8 +69,17 @@ export default function LoginPage() {
                 required
               />
             </div>
+            {error && (
+              <div className="rounded-md bg-destructive/10 border border-destructive/20 px-4 py-3 text-sm text-destructive">
+                {error}
+              </div>
+            )}
             <Button type="submit" className="w-full" disabled={loading}>
-              {loading ? "Signing in…" : "Sign in"}
+              {loading ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                "Sign in"
+              )}
             </Button>
           </form>
           <p className="mt-4 text-center text-sm text-muted-foreground">

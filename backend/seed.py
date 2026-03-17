@@ -1835,6 +1835,279 @@ def seed():
         db.flush()
         print("  [ok] Quarterly reports")
 
+        # =================================================================
+        # SPRINT 1.2: ENRICHED SEED DATA
+        # =================================================================
+        # Add 5 more properties to Fund II, more units, residents, payments,
+        # operating expenses, and construction draws/expenses.
+        print("  --- Sprint 1.2 Enrichment ---")
+
+        # ── 5 New Properties for Fund II (RetireWell focus) ──
+        new_props = []
+        new_prop_data = [
+            ("410 Maple Grove Way", "Red Deer", "AB", Decimal("520000.00"), m.DevelopmentStage.interim_operation),
+            ("622 Willow Creek Drive", "Lethbridge", "AB", Decimal("445000.00"), m.DevelopmentStage.planning),
+            ("88 Parkview Terrace", "Red Deer", "AB", Decimal("610000.00"), m.DevelopmentStage.acquisition),
+            ("15 Lakeside Boulevard", "Medicine Hat", "AB", Decimal("390000.00"), m.DevelopmentStage.prospect),
+            ("203 Heritage Crescent", "Lethbridge", "AB", Decimal("475000.00"), m.DevelopmentStage.interim_operation),
+        ]
+        for addr, city, prov, price, stage in new_prop_data:
+            p = m.Property(
+                lp_id=lp2.lp_id,
+                cluster_id=cluster_south.cluster_id if city == "Red Deer" else None,
+                address=addr,
+                city=city,
+                province=prov,
+                purchase_date=date(2025, 6, 15) if stage != m.DevelopmentStage.prospect else None,
+                purchase_price=price if stage != m.DevelopmentStage.prospect else None,
+                assessed_value=price * Decimal("0.85") if price else None,
+                lot_size=Decimal("6500.00"),
+                zoning="R-CG" if "Red Deer" in city else "R-MH",
+                development_stage=stage,
+            )
+            db.add(p)
+            db.flush()
+            new_props.append(p)
+
+        # Assign new props to RetireWell Red Deer community
+        for p in new_props:
+            if p.city == "Red Deer":
+                p.community_id = comm3.community_id
+        db.flush()
+        print(f"  [ok] 5 new Fund II properties")
+
+        # ── 4 new communities for the new cities ──
+        comm_leth = m.Community(
+            operator_id=op_retire.operator_id,
+            community_type=m.CommunityType.retire,
+            name="RetireWell Lethbridge",
+            city="Lethbridge",
+            province="Alberta",
+            has_meal_plan=True,
+            meal_plan_monthly_cost=Decimal("475.00"),
+            target_occupancy_percent=Decimal("90.00"),
+            description="Lethbridge seniors living community with assisted services.",
+        )
+        comm_mh = m.Community(
+            operator_id=op_retire.operator_id,
+            community_type=m.CommunityType.retire,
+            name="RetireWell Medicine Hat",
+            city="Medicine Hat",
+            province="Alberta",
+            has_meal_plan=False,
+            target_occupancy_percent=Decimal("85.00"),
+            description="Medicine Hat independent retirement living.",
+        )
+        db.add_all([comm_leth, comm_mh])
+        db.flush()
+        for p in new_props:
+            if p.city == "Lethbridge":
+                p.community_id = comm_leth.community_id
+            elif p.city == "Medicine Hat":
+                p.community_id = comm_mh.community_id
+        db.flush()
+        print("  [ok] 2 new communities (Lethbridge, Medicine Hat)")
+
+        # ── 20+ Units and Beds for the new properties (interim operations) ──
+        enriched_units = []
+        interim_props = [p for p in new_props if p.development_stage in (
+            m.DevelopmentStage.interim_operation, m.DevelopmentStage.acquisition
+        )]
+        unit_configs = [
+            # (unit_num, type, beds, sqft, floor)
+            ("G1", m.UnitType.shared, 2, 420, "Main"),
+            ("G2", m.UnitType.shared, 2, 420, "Main"),
+            ("G3", m.UnitType.one_bed, 1, 480, "Main"),
+            ("G4", m.UnitType.shared, 2, 400, "Upper"),
+            ("G5", m.UnitType.suite, 2, 550, "Basement"),
+        ]
+        bed_counter = 0
+        for prop in interim_props:
+            comm_id = prop.community_id
+            for unit_num, utype, num_beds, sqft, floor in unit_configs:
+                u = m.Unit(
+                    property_id=prop.property_id,
+                    community_id=comm_id,
+                    unit_number=f"{prop.property_id}-{unit_num}",
+                    unit_type=utype,
+                    bed_count=num_beds,
+                    sqft=Decimal(str(sqft)),
+                    floor=floor,
+                    is_legal_suite=(utype == m.UnitType.suite),
+                    is_occupied=True,
+                )
+                db.add(u)
+                db.flush()
+                enriched_units.append(u)
+                for b in range(1, num_beds + 1):
+                    rent = Decimal("1100.00") if utype == m.UnitType.shared else Decimal("1400.00")
+                    if utype == m.UnitType.suite:
+                        rent = Decimal("1650.00")
+                    bed = m.Bed(
+                        unit_id=u.unit_id,
+                        bed_label=f"{prop.property_id}-{unit_num}-B{b}",
+                        monthly_rent=rent,
+                        rent_type=m.RentType.private_pay,
+                        status=m.BedStatus.occupied if b <= num_beds - (1 if num_beds > 1 else 0) else m.BedStatus.available,
+                    )
+                    db.add(bed)
+                    bed_counter += 1
+            db.flush()
+        print(f"  [ok] {len(enriched_units)} new units, {bed_counter} new beds")
+
+        # ── 15 New Residents with 3-6 months of rent payments ──
+        import random
+        random.seed(42)
+        resident_names = [
+            "Dorothy Henderson", "Frank Williams", "Margaret Thompson",
+            "Harold Baker", "Ruth Campbell", "George Stewart",
+            "Evelyn Rogers", "Walter Morris", "Doris Murphy",
+            "Arthur Cook", "Betty Richardson", "Ernest Howard",
+            "Frances Ward", "Raymond Price", "Helen Bennett",
+        ]
+        new_residents = []
+        all_enriched_beds = []
+        for u in enriched_units:
+            beds = db.query(m.Bed).filter(
+                m.Bed.unit_id == u.unit_id,
+                m.Bed.status == m.BedStatus.occupied,
+            ).all()
+            all_enriched_beds.extend(beds)
+
+        for i, name in enumerate(resident_names):
+            if i >= len(all_enriched_beds):
+                break
+            bed = all_enriched_beds[i]
+            unit = db.query(m.Unit).filter(m.Unit.unit_id == bed.unit_id).first()
+            move_in = date(2025, random.randint(1, 6), random.randint(1, 28))
+            r = m.Resident(
+                community_id=unit.community_id,
+                unit_id=unit.unit_id,
+                bed_id=bed.bed_id,
+                full_name=name,
+                email=f"{name.lower().replace(' ', '.')}@email.com",
+                phone=f"403-555-{1000 + i:04d}",
+                bed_number=bed.bed_label,
+                rent_type=m.RentType.private_pay if i % 3 != 0 else m.RentType.government_supported,
+                move_in_date=move_in,
+                enrolled_meal_plan=(i % 4 == 0),
+            )
+            db.add(r)
+            db.flush()
+            new_residents.append(r)
+
+            # Generate 3-6 months of rent payments
+            months_of_payments = random.randint(3, 6)
+            for mo_offset in range(months_of_payments):
+                pay_month = move_in.month + mo_offset
+                pay_year = move_in.year
+                if pay_month > 12:
+                    pay_month -= 12
+                    pay_year += 1
+                status = m.PaymentStatus.paid if random.random() < 0.85 else m.PaymentStatus.overdue
+                payment = m.RentPayment(
+                    resident_id=r.resident_id,
+                    bed_id=bed.bed_id,
+                    amount=bed.monthly_rent,
+                    payment_date=datetime(pay_year, pay_month, random.randint(1, 5)),
+                    period_month=pay_month,
+                    period_year=pay_year,
+                    status=status,
+                    includes_meal_plan=r.enrolled_meal_plan,
+                )
+                db.add(payment)
+        db.flush()
+        print(f"  [ok] {len(new_residents)} new residents with rent payments")
+
+        # ── Additional Operating Expenses ──
+        expense_data = [
+            (comm3.community_id, m.ExpenseCategory.utilities, "Natural gas heating", Decimal("2800.00"), 1),
+            (comm3.community_id, m.ExpenseCategory.insurance, "Property insurance renewal", Decimal("4200.00"), 2),
+            (comm3.community_id, m.ExpenseCategory.property_tax, "2025 property tax installment", Decimal("3600.00"), 1),
+            (comm3.community_id, m.ExpenseCategory.maintenance_repairs, "Plumbing repair - Unit G2", Decimal("950.00"), 3),
+            (comm3.community_id, m.ExpenseCategory.staffing, "Part-time caretaker wages", Decimal("3200.00"), 1),
+            (comm_leth.community_id, m.ExpenseCategory.utilities, "Electricity Q1", Decimal("1800.00"), 1),
+            (comm_leth.community_id, m.ExpenseCategory.property_management, "PM fee January", Decimal("2100.00"), 1),
+            (comm_leth.community_id, m.ExpenseCategory.meal_program, "Meal service contract Q1", Decimal("5500.00"), 1),
+            (comm_leth.community_id, m.ExpenseCategory.supplies, "Cleaning and office supplies", Decimal("650.00"), 2),
+            (comm_leth.community_id, m.ExpenseCategory.maintenance_repairs, "Roof patch repair", Decimal("1200.00"), 3),
+        ]
+        for cid, cat, desc, amt, mo in expense_data:
+            exp = m.OperatingExpense(
+                community_id=cid,
+                category=cat,
+                description=desc,
+                amount=amt,
+                expense_date=date(2025, mo, 15),
+                period_month=mo,
+                period_year=2025,
+                vendor="Various",
+            )
+            db.add(exp)
+        db.flush()
+        print("  [ok] 10 additional operating expenses")
+
+        # ── Construction Draws for prop2 (construction stage) ──
+        # prop2 has debt_id from First National construction loan
+        constr_debt = db.query(m.DebtFacility).filter(
+            m.DebtFacility.property_id == prop2.property_id,
+            m.DebtFacility.debt_type == m.DebtType.construction_loan,
+        ).first()
+        if constr_debt:
+            draws = [
+                (1, Decimal("350000.00"), Decimal("350000.00"), "Foundation and excavation", m.ConstructionDrawStatus.funded, date(2025, 3, 1), date(2025, 3, 10), date(2025, 3, 15)),
+                (2, Decimal("500000.00"), Decimal("480000.00"), "Framing and structural", m.ConstructionDrawStatus.funded, date(2025, 5, 1), date(2025, 5, 12), date(2025, 5, 20)),
+                (3, Decimal("400000.00"), Decimal("400000.00"), "Mechanical, electrical, plumbing", m.ConstructionDrawStatus.approved, date(2025, 7, 15), date(2025, 7, 25), None),
+                (4, Decimal("300000.00"), None, "Interior finishes", m.ConstructionDrawStatus.requested, date(2025, 9, 1), None, None),
+                (5, Decimal("250000.00"), None, "Landscaping and final inspections", m.ConstructionDrawStatus.requested, date(2025, 11, 1), None, None),
+            ]
+            for draw_num, req_amt, appr_amt, desc, status, req_dt, appr_dt, fund_dt in draws:
+                d = m.ConstructionDraw(
+                    property_id=prop2.property_id,
+                    debt_id=constr_debt.debt_id,
+                    draw_number=draw_num,
+                    requested_amount=req_amt,
+                    approved_amount=appr_amt,
+                    status=status,
+                    description=desc,
+                    requested_date=req_dt,
+                    approved_date=appr_dt,
+                    funded_date=fund_dt,
+                )
+                db.add(d)
+            db.flush()
+            print("  [ok] 5 construction draws for prop2")
+
+        # ── Construction Expenses (budget vs actual) for prop2 ──
+        plan2 = db.query(m.DevelopmentPlan).filter(
+            m.DevelopmentPlan.property_id == prop2.property_id
+        ).first()
+        if plan2:
+            constr_expenses = [
+                ("hard_costs", "Excavation and foundation", Decimal("180000.00"), Decimal("175000.00"), "ABC Excavation", date(2025, 3, 20)),
+                ("hard_costs", "Framing lumber and labour", Decimal("220000.00"), Decimal("235000.00"), "Prairie Framing Co.", date(2025, 5, 25)),
+                ("hard_costs", "Roofing", Decimal("85000.00"), Decimal("82000.00"), "TopRoof Alberta", date(2025, 6, 10)),
+                ("soft_costs", "Architecture and engineering", Decimal("65000.00"), Decimal("67500.00"), "CityPlan Architects", date(2025, 2, 1)),
+                ("soft_costs", "Permits and fees", Decimal("12000.00"), Decimal("14200.00"), "City of Calgary", date(2025, 2, 15)),
+                ("site_costs", "Demolition and site prep", Decimal("45000.00"), Decimal("42000.00"), "DemoCrew Ltd.", date(2025, 2, 28)),
+                ("financing_costs", "Loan origination fee", Decimal("35000.00"), Decimal("35000.00"), "First National Financial", date(2025, 3, 1)),
+                ("contingency", "Weather delay contingency", Decimal("25000.00"), Decimal("18000.00"), None, date(2025, 6, 30)),
+            ]
+            for cat, desc, budg, actual, vendor, exp_date in constr_expenses:
+                ce = m.ConstructionExpense(
+                    property_id=prop2.property_id,
+                    plan_id=plan2.plan_id,
+                    category=cat,
+                    description=desc,
+                    budgeted_amount=budg,
+                    actual_amount=actual,
+                    vendor=vendor,
+                    expense_date=exp_date,
+                )
+                db.add(ce)
+            db.flush()
+            print("  [ok] 8 construction expense records for prop2")
+
         db.commit()
         print("=" * 60)
         print("  SEED COMPLETE — Phase 1 Foundation + Phase 3 Features")
@@ -1849,14 +2122,14 @@ def seed():
         print("  Allocations:         3")
         print("  Operators:           3")
         print("  Clusters:            2")
-        print("  Properties:          5 (3 in Fund I, 2 in Fund II)")
-        print("  Debt Facilities:     3")
+        print("  Properties:          10 (3 in Fund I, 7 in Fund II)")
+        print("  Debt Facilities:     5+")
         print("  Development Plans:   3")
-        print("  Communities:         4")
-        print("  Units:               8 (in RecoverWell Calgary NE)")
-        print("  Beds:                14")
-        print("  Residents:           7")
-        print("  Rent Payments:       21")
+        print("  Communities:         5 (Calgary, Edmonton, Red Deer, Lethbridge, Medicine Hat)")
+        print("  Units:               23+ (8 original + 15 enriched)")
+        print("  Beds:                40+")
+        print("  Residents:           22 (7 original + 15 enriched)")
+        print("  Rent Payments:       80+")
         print("  Maintenance:         3")
         print("  Documents:           3")
         print("  Messages:            2")
@@ -1869,8 +2142,11 @@ def seed():
         print("  eTransfer Tracking:  2")
         print("  Message Replies:     3")
         print("  Operator Budgets:    3")
-        print("  Operating Expenses:  10")
+        print("  Operating Expenses:  20")
         print("  Quarterly Reports:   1")
+        print("  --- Sprint 1.2 Enrichment ---")
+        print("  Construction Draws:  5 (for prop2)")
+        print("  Construction Exp:    8 (budget vs actual for prop2)")
         print()
         print("  Demo logins:")
         print("    admin@livingwell.ca / Password1!     (GP_ADMIN)")
