@@ -9,11 +9,16 @@ import {
   MaintenanceStatus,
 } from "@/types/community";
 
+function unwrapPaginated<T>(data: { items: T[]; total: number } | T[]): T[] {
+  if (Array.isArray(data)) return data;
+  return data.items;
+}
+
 export function useCommunities() {
   return useQuery({
     queryKey: ["communities"],
     queryFn: () =>
-      apiClient.get<Community[]>("/api/community/communities").then((r) => r.data),
+      apiClient.get("/api/community/communities").then((r) => unwrapPaginated<Community>(r.data)),
   });
 }
 

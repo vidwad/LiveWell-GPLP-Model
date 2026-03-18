@@ -51,6 +51,12 @@ const NAV_ITEMS = [
     roles: ["GP_ADMIN", "OPERATIONS_MANAGER"] as UserRole[],
   },
   {
+    href: "/distributions",
+    label: "Distributions",
+    icon: DollarSign,
+    roles: ["GP_ADMIN"] as UserRole[],
+  },
+  {
     href: "/portfolio",
     label: "Properties",
     icon: Building2,
@@ -67,6 +73,12 @@ const NAV_ITEMS = [
     label: "Investors",
     icon: TrendingUp,
     roles: ["GP_ADMIN", "OPERATIONS_MANAGER", "INVESTOR"] as UserRole[],
+  },
+  {
+    href: "/investor-onboarding",
+    label: "Onboarding",
+    icon: Users,
+    roles: ["GP_ADMIN", "OPERATIONS_MANAGER"] as UserRole[],
   },
   {
     href: "/maintenance",

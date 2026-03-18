@@ -14,6 +14,7 @@ import {
   useRecordPayment,
 } from "@/hooks/useCommunities";
 import { useAuth } from "@/providers/AuthProvider";
+import { TrendChart } from "@/components/charts/TrendChart";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { LinkButton } from "@/components/ui/link-button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -495,6 +496,22 @@ export default function CommunityDetailPage({
           </Card>
         </TabsContent>
       </Tabs>
+
+      {/* Trend Charts */}
+      <div className="grid gap-4 lg:grid-cols-2 mt-6">
+        <TrendChart
+          entityType="community"
+          entityId={Number(params.id)}
+          title="Occupancy & Revenue Trend"
+          metrics={["occupancy_rate", "collected_revenue"]}
+        />
+        <TrendChart
+          entityType="community"
+          entityId={Number(params.id)}
+          title="NOI & Expenses Trend"
+          metrics={["noi", "total_expenses"]}
+        />
+      </div>
     </div>
   );
 }

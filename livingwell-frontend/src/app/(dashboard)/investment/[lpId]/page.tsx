@@ -3,6 +3,7 @@
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import React, { useState, useCallback, useEffect } from "react";
+import { TrendChart } from "@/components/charts/TrendChart";
 import {
   ArrowLeft,
   Landmark,
@@ -1660,6 +1661,22 @@ function OwnedPropertiesSection({ lpId }: { lpId: number }) {
           })}
         </div>
       )}
+
+      {/* LP Trend Charts */}
+      <div className="grid gap-4 lg:grid-cols-2 mt-6">
+        <TrendChart
+          entityType="lp"
+          entityId={Number(params.lpId)}
+          title="NAV & Capital Trend"
+          metrics={["nav", "total_funded", "capital_deployed"]}
+        />
+        <TrendChart
+          entityType="lp"
+          entityId={Number(params.lpId)}
+          title="Debt & Distributions"
+          metrics={["total_debt", "total_distributions"]}
+        />
+      </div>
     </div>
   );
 }
