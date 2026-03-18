@@ -27,6 +27,8 @@ class Settings(BaseSettings):
 
     # External APIs
     OPENAI_API_KEY: str = Field("", validation_alias="OPENAI_API_KEY")
+    ANTHROPIC_API_KEY: str = Field("", validation_alias="ANTHROPIC_API_KEY")
+    CLAUDE_MODEL: str = Field("claude-sonnet-4-20250514", validation_alias="CLAUDE_MODEL")
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
 
