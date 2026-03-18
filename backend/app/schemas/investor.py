@@ -43,6 +43,11 @@ class InvestorOut(BaseModel):
     address: str | None
     entity_type: str | None
     accredited_status: str
+    onboarding_status: str | None = "lead"
+    onboarding_started_at: Optional[datetime.datetime] = None
+    onboarding_completed_at: Optional[datetime.datetime] = None
+    invited_at: Optional[datetime.datetime] = None
+    approved_at: Optional[datetime.datetime] = None
 
     model_config = {"from_attributes": True}
 
@@ -166,3 +171,43 @@ class WaterfallResultSchema(BaseModel):
     tier_3_gp: Decimal
     unpaid_pref_balance: Decimal
     unreturned_capital: Decimal
+
+
+# ---------------------------------------------------------------------------
+# Onboarding
+# ---------------------------------------------------------------------------
+
+class OnboardingChecklistItemOut(BaseModel):
+    item_id: int
+    investor_id: int
+    step_name: str
+    step_label: str
+    is_required: bool
+    is_completed: bool
+    completed_at: Optional[datetime.datetime] = None
+    document_id: int | None = None
+    notes: str | None = None
+    sort_order: int = 0
+
+    model_config = {"from_attributes": True}
+
+
+class OnboardingChecklistItemUpdate(BaseModel):
+    is_completed: bool | None = None
+    document_id: int | None = None
+    notes: str | None = None
+
+
+class OnboardingStatusTransition(BaseModel):
+    new_status: str
+    notes: str | None = None
+
+
+class InvestorOnboardingDetail(BaseModel):
+    investor: InvestorOut
+    checklist: List[OnboardingChecklistItemOut] = []
+    completed_steps: int = 0
+    total_steps: int = 0
+    required_steps: int = 0
+    completed_required: int = 0
+    is_ready_for_approval: bool = False

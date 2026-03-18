@@ -15,6 +15,7 @@ from app.core.deps import get_current_user, require_gp_admin, require_gp_or_ops,
 from app.db.models import (
     Investor, InvestorDocument, InvestorMessage, User, UserRole,
     Subscription, Holding, DistributionAllocation, DistributionEvent, LPEntity,
+    OnboardingStatus, OnboardingChecklistItem,
 )
 from app.db.session import get_db
 from app.schemas.investor import (
@@ -23,6 +24,8 @@ from app.schemas.investor import (
     InvestorDistributionHistory, InvestorDistributionItem,
     MessageCreate, MessageOut,
     WaterfallInput, WaterfallResultSchema,
+    OnboardingChecklistItemOut, OnboardingChecklistItemUpdate,
+    OnboardingStatusTransition, InvestorOnboardingDetail,
 )
 from app.schemas.investment import SubscriptionOut
 from app.services.waterfall import WaterfallEngine
@@ -437,3 +440,215 @@ def investor_statement_pdf(
         media_type="application/pdf",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
+
+
+# ===========================================================================
+# Investor Onboarding Workflow
+# ===========================================================================
+
+# Default checklist steps created for every new investor
+_DEFAULT_CHECKLIST = [
+    ("kyc_identity", "KYC — Government-issued photo ID", True, 1),
+    ("kyc_address", "KYC — Proof of address (utility bill or bank statement)", True, 2),
+    ("accreditation_cert", "Accreditation certificate or self-certification", True, 3),
+    ("subscription_agreement", "Signed subscription agreement", True, 4),
+    ("banking_info", "Banking / eTransfer information", True, 5),
+    ("tax_form", "Tax form (T5013 consent or W-8BEN)", True, 6),
+    ("aml_screening", "AML/KYC screening completed", True, 7),
+    ("welcome_call", "Welcome call with GP", False, 8),
+]
+
+
+def _ensure_checklist(db: Session, investor_id: int):
+    """Create default onboarding checklist if none exists."""
+    existing = db.query(OnboardingChecklistItem).filter(
+        OnboardingChecklistItem.investor_id == investor_id
+    ).count()
+    if existing > 0:
+        return
+    for step_name, step_label, is_required, sort_order in _DEFAULT_CHECKLIST:
+        db.add(OnboardingChecklistItem(
+            investor_id=investor_id,
+            step_name=step_name,
+            step_label=step_label,
+            is_required=is_required,
+            sort_order=sort_order,
+        ))
+    db.flush()
+
+
+@router.get("/investors/{investor_id}/onboarding", response_model=InvestorOnboardingDetail)
+def get_investor_onboarding(
+    investor_id: int,
+    db: Session = Depends(get_db),
+    _: User = Depends(require_gp_or_ops),
+):
+    """Get investor onboarding status and checklist."""
+    inv = db.query(Investor).filter(Investor.investor_id == investor_id).first()
+    if not inv:
+        raise HTTPException(status_code=404, detail="Investor not found")
+
+    _ensure_checklist(db, investor_id)
+    db.commit()
+
+    items = (
+        db.query(OnboardingChecklistItem)
+        .filter(OnboardingChecklistItem.investor_id == investor_id)
+        .order_by(OnboardingChecklistItem.sort_order)
+        .all()
+    )
+
+    total = len(items)
+    completed = sum(1 for i in items if i.is_completed)
+    required = sum(1 for i in items if i.is_required)
+    completed_required = sum(1 for i in items if i.is_required and i.is_completed)
+    is_ready = completed_required >= required and required > 0
+
+    return InvestorOnboardingDetail(
+        investor=inv,
+        checklist=items,
+        completed_steps=completed,
+        total_steps=total,
+        required_steps=required,
+        completed_required=completed_required,
+        is_ready_for_approval=is_ready,
+    )
+
+
+@router.patch("/investors/{investor_id}/onboarding/status")
+def transition_onboarding_status(
+    investor_id: int,
+    payload: OnboardingStatusTransition,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_gp_or_ops),
+):
+    """Transition investor onboarding status with validation."""
+    inv = db.query(Investor).filter(Investor.investor_id == investor_id).first()
+    if not inv:
+        raise HTTPException(status_code=404, detail="Investor not found")
+
+    current = inv.onboarding_status.value if inv.onboarding_status else "lead"
+    new = payload.new_status
+
+    # Validate transitions
+    allowed_transitions = {
+        "lead": ["invited", "documents_pending", "rejected"],
+        "invited": ["documents_pending", "rejected"],
+        "documents_pending": ["under_review", "rejected"],
+        "under_review": ["approved", "documents_pending", "rejected"],
+        "approved": ["active", "suspended"],
+        "active": ["suspended"],
+        "suspended": ["active", "approved"],
+        "rejected": ["lead"],  # allow re-opening
+    }
+
+    if new not in allowed_transitions.get(current, []):
+        raise HTTPException(
+            status_code=400,
+            detail=f"Cannot transition from '{current}' to '{new}'. "
+                   f"Allowed: {allowed_transitions.get(current, [])}",
+        )
+
+    # Approval requires all required checklist items completed
+    if new == "approved":
+        _ensure_checklist(db, investor_id)
+        items = db.query(OnboardingChecklistItem).filter(
+            OnboardingChecklistItem.investor_id == investor_id,
+            OnboardingChecklistItem.is_required == True,
+        ).all()
+        incomplete = [i.step_label for i in items if not i.is_completed]
+        if incomplete:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Cannot approve: {len(incomplete)} required steps incomplete: "
+                       + ", ".join(incomplete[:3]) + ("..." if len(incomplete) > 3 else ""),
+            )
+
+    inv.onboarding_status = OnboardingStatus(new)
+
+    # Track timestamps
+    now = datetime.datetime.utcnow()
+    if new == "invited":
+        inv.invited_at = now
+    elif new == "documents_pending" and not inv.onboarding_started_at:
+        inv.onboarding_started_at = now
+    elif new == "approved":
+        inv.approved_at = now
+        inv.approved_by = current_user.user_id
+    elif new == "active":
+        inv.onboarding_completed_at = now
+
+    db.commit()
+    db.refresh(inv)
+
+    return {
+        "investor_id": inv.investor_id,
+        "name": inv.name,
+        "previous_status": current,
+        "new_status": new,
+        "message": f"Onboarding status changed to '{new}'",
+    }
+
+
+@router.patch("/investors/{investor_id}/onboarding/checklist/{item_id}")
+def update_checklist_item(
+    investor_id: int,
+    item_id: int,
+    payload: OnboardingChecklistItemUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_gp_or_ops),
+):
+    """Mark a checklist item as complete/incomplete, attach a document."""
+    item = db.query(OnboardingChecklistItem).filter(
+        OnboardingChecklistItem.item_id == item_id,
+        OnboardingChecklistItem.investor_id == investor_id,
+    ).first()
+    if not item:
+        raise HTTPException(status_code=404, detail="Checklist item not found")
+
+    if payload.is_completed is not None:
+        item.is_completed = payload.is_completed
+        if payload.is_completed:
+            item.completed_at = datetime.datetime.utcnow()
+            item.completed_by = current_user.user_id
+        else:
+            item.completed_at = None
+            item.completed_by = None
+    if payload.document_id is not None:
+        item.document_id = payload.document_id
+    if payload.notes is not None:
+        item.notes = payload.notes
+
+    db.commit()
+    db.refresh(item)
+    return item
+
+
+@router.post("/investors/{investor_id}/onboarding/initialize")
+def initialize_onboarding(
+    investor_id: int,
+    db: Session = Depends(get_db),
+    _: User = Depends(require_gp_or_ops),
+):
+    """Initialize onboarding for an investor — creates checklist and sets status to invited."""
+    inv = db.query(Investor).filter(Investor.investor_id == investor_id).first()
+    if not inv:
+        raise HTTPException(status_code=404, detail="Investor not found")
+
+    _ensure_checklist(db, investor_id)
+
+    if inv.onboarding_status in (None, OnboardingStatus.lead):
+        inv.onboarding_status = OnboardingStatus.invited
+        inv.invited_at = datetime.datetime.utcnow()
+
+    db.commit()
+    db.refresh(inv)
+
+    return {
+        "investor_id": inv.investor_id,
+        "onboarding_status": inv.onboarding_status.value,
+        "checklist_items_created": db.query(OnboardingChecklistItem).filter(
+            OnboardingChecklistItem.investor_id == investor_id
+        ).count(),
+        "message": "Onboarding initialized",
+    }

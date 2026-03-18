@@ -416,6 +416,18 @@ class LPEntity(Base):
 # Investor — Subscription & Holding
 # ---------------------------------------------------------------------------
 
+class OnboardingStatus(str, enum.Enum):
+    """Investor onboarding pipeline status."""
+    lead = "lead"                         # Initial contact / expression of interest
+    invited = "invited"                   # Invitation sent to submit documents
+    documents_pending = "documents_pending"  # Awaiting document submission
+    under_review = "under_review"         # GP reviewing submitted documents
+    approved = "approved"                 # Cleared to invest
+    active = "active"                     # Has at least one active subscription
+    suspended = "suspended"               # Temporarily blocked
+    rejected = "rejected"                 # Did not pass review
+
+
 class Investor(Base):
     __tablename__ = "investors"
 
@@ -432,6 +444,17 @@ class Investor(Base):
     tax_id = Column(String(64), nullable=True)          # SIN, BN, or other tax ID
     banking_info = Column(Text, nullable=True)          # encrypted or reference
     notes = Column(Text, nullable=True)
+
+    # Onboarding
+    onboarding_status = Column(
+        _enum(OnboardingStatus), nullable=False, default=OnboardingStatus.lead
+    )
+    onboarding_started_at = Column(DateTime, nullable=True)
+    onboarding_completed_at = Column(DateTime, nullable=True)
+    invited_at = Column(DateTime, nullable=True)
+    approved_at = Column(DateTime, nullable=True)
+    approved_by = Column(Integer, ForeignKey("users.user_id"), nullable=True)
+
     created_at = Column(DateTime, nullable=True, default=func.now())
     updated_at = Column(DateTime, nullable=True, default=func.now(), onupdate=func.now())
 
@@ -447,6 +470,30 @@ class Investor(Base):
     messages = relationship(
         "InvestorMessage", back_populates="investor", cascade="all, delete-orphan"
     )
+    onboarding_checklist = relationship(
+        "OnboardingChecklistItem", back_populates="investor", cascade="all, delete-orphan"
+    )
+
+
+class OnboardingChecklistItem(Base):
+    """Tracks required onboarding steps for each investor."""
+    __tablename__ = "onboarding_checklist"
+
+    item_id = Column(Integer, primary_key=True, index=True)
+    investor_id = Column(Integer, ForeignKey("investors.investor_id"), nullable=False, index=True)
+    step_name = Column(String(128), nullable=False)    # e.g. "kyc_identity", "accreditation_cert"
+    step_label = Column(String(256), nullable=False)   # e.g. "KYC Identity Verification"
+    is_required = Column(Boolean, default=True, nullable=False)
+    is_completed = Column(Boolean, default=False, nullable=False)
+    completed_at = Column(DateTime, nullable=True)
+    completed_by = Column(Integer, ForeignKey("users.user_id"), nullable=True)
+    document_id = Column(Integer, ForeignKey("investor_documents.document_id"), nullable=True)
+    notes = Column(Text, nullable=True)
+    sort_order = Column(Integer, nullable=False, default=0)
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+
+    investor = relationship("Investor", back_populates="onboarding_checklist")
+    document = relationship("InvestorDocument")
 
 
 class Subscription(Base):
