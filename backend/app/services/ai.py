@@ -435,37 +435,99 @@ def chat_with_context(
     user_message: str,
     conversation_history: list,
     platform_context: Optional[str] = None,
-) -> str:
-    """Multi-turn conversation with platform data context.
+    db=None,
+) -> dict:
+    """Multi-turn conversation with tool use.
 
-    Args:
-        user_message: The user's question
-        conversation_history: List of {"role": "user"|"assistant", "content": str}
-        platform_context: Optional data context to prepend to system prompt
+    When db is provided, Claude can call platform tools to fetch live data.
+    Returns {"response": str, "tools_used": list[str]}.
     """
+    from app.services.ai_tools import get_tool_definitions, execute_tool
+
     system = SYSTEM_PROMPT
     if platform_context:
         system += f"\n\nCurrent Platform Data:\n{platform_context}"
 
+    if not _HAS_CLAUDE:
+        return {
+            "response": (
+                "Claude AI is not configured. Set ANTHROPIC_API_KEY in your environment "
+                "to enable intelligent analysis. In the meantime, you can explore the "
+                "platform's built-in analytics: Portfolio Analytics, LP P&L, NAV calculations, "
+                "Pro Forma builder, and Trend Data."
+            ),
+            "tools_used": [],
+        }
+
     messages = list(conversation_history)
     messages.append({"role": "user", "content": user_message})
 
-    if not _HAS_CLAUDE:
-        return (
-            "Claude AI is not configured. Set ANTHROPIC_API_KEY in your environment "
-            "to enable intelligent analysis. In the meantime, you can explore the "
-            "platform's built-in analytics: Portfolio Analytics, LP P&L, NAV calculations, "
-            "Pro Forma builder, and Trend Data."
-        )
+    tools = get_tool_definitions() if db else []
+    tools_used = []
+    max_rounds = 5  # prevent infinite tool loops
 
     try:
-        response = _client.messages.create(
-            model=settings.CLAUDE_MODEL,
-            max_tokens=2048,
-            system=system,
-            messages=messages,
-        )
-        return response.content[0].text
+        for _ in range(max_rounds):
+            kwargs = {
+                "model": settings.CLAUDE_MODEL,
+                "max_tokens": 4096,
+                "system": system,
+                "messages": messages,
+            }
+            if tools:
+                kwargs["tools"] = tools
+
+            response = _client.messages.create(**kwargs)
+
+            # Check if Claude wants to use tools
+            if response.stop_reason == "tool_use":
+                # Build the assistant message with all content blocks
+                assistant_content = []
+                for block in response.content:
+                    if block.type == "text":
+                        assistant_content.append({"type": "text", "text": block.text})
+                    elif block.type == "tool_use":
+                        assistant_content.append({
+                            "type": "tool_use",
+                            "id": block.id,
+                            "name": block.name,
+                            "input": block.input,
+                        })
+
+                messages.append({"role": "assistant", "content": assistant_content})
+
+                # Execute each tool call and add results
+                tool_results = []
+                for block in response.content:
+                    if block.type == "tool_use":
+                        logger.info("Tool call: %s(%s)", block.name, json.dumps(block.input)[:100])
+                        tools_used.append(block.name)
+                        result_str = execute_tool(db, block.name, block.input)
+                        tool_results.append({
+                            "type": "tool_result",
+                            "tool_use_id": block.id,
+                            "content": result_str,
+                        })
+
+                messages.append({"role": "user", "content": tool_results})
+                continue  # Let Claude process the tool results
+
+            # No tool use — extract text response
+            text = ""
+            for block in response.content:
+                if block.type == "text":
+                    text += block.text
+            return {"response": text, "tools_used": tools_used}
+
+        # Exhausted max rounds
+        return {
+            "response": "I needed to look up a lot of data to answer that. Here's what I found so far — could you try a more specific question?",
+            "tools_used": tools_used,
+        }
+
     except Exception as e:
         logger.error("Claude chat error: %s", e)
-        return f"I encountered an error processing your request. Please try again. ({type(e).__name__})"
+        return {
+            "response": f"I encountered an error processing your request. Please try again. ({type(e).__name__})",
+            "tools_used": tools_used,
+        }

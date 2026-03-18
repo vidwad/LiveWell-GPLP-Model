@@ -338,22 +338,25 @@ def ai_chat(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_investor_or_above),
 ):
-    """Conversational AI assistant with platform data context.
+    """Conversational AI assistant with tool use.
 
-    The assistant has access to portfolio-wide data and can answer questions
-    about properties, LPs, investors, occupancy, financials, and more.
+    Claude can call 15+ platform tools to fetch live data — LP summaries,
+    property details, occupancy, pro formas, waterfall simulations, trends, etc.
+    Ask it anything about the portfolio and it will look up the answer.
     """
     context = None
     if payload.include_portfolio_context:
         context = _get_portfolio_context(db)
 
-    response = chat_with_context(
+    result = chat_with_context(
         user_message=payload.message,
         conversation_history=payload.conversation_history,
         platform_context=context,
+        db=db,
     )
 
     return {
-        "response": response,
-        "model": "claude" if response and "not configured" not in response else "fallback",
+        "response": result["response"],
+        "tools_used": result.get("tools_used", []),
+        "model": "claude" if result["response"] and "not configured" not in result["response"] else "fallback",
     }
