@@ -284,9 +284,9 @@ class ScopeAssignment(Base):
     __tablename__ = "scope_assignments"
 
     assignment_id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, ForeignKey("users.user_id"), nullable=False)
+    user_id = Column(Integer, ForeignKey("users.user_id"), nullable=False, index=True)
     entity_type = Column(_enum(ScopeEntityType), nullable=False)
-    entity_id = Column(Integer, nullable=False)  # polymorphic FK
+    entity_id = Column(Integer, nullable=False, index=True)  # polymorphic FK
     permission_level = Column(
         _enum(ScopePermissionLevel), nullable=False, default=ScopePermissionLevel.view
     )
@@ -332,7 +332,7 @@ class LPEntity(Base):
     __tablename__ = "lp_entities"
 
     lp_id = Column(Integer, primary_key=True, index=True)
-    gp_id = Column(Integer, ForeignKey("gp_entities.gp_id"), nullable=False)
+    gp_id = Column(Integer, ForeignKey("gp_entities.gp_id"), nullable=False, index=True)
 
     # Identity
     name = Column(String(256), nullable=False)              # display name
@@ -454,9 +454,9 @@ class Subscription(Base):
     __tablename__ = "subscriptions"
 
     subscription_id = Column(Integer, primary_key=True, index=True)
-    investor_id = Column(Integer, ForeignKey("investors.investor_id"), nullable=False)
-    lp_id = Column(Integer, ForeignKey("lp_entities.lp_id"), nullable=False)
-    tranche_id = Column(Integer, ForeignKey("lp_tranches.tranche_id"), nullable=True)
+    investor_id = Column(Integer, ForeignKey("investors.investor_id"), nullable=False, index=True)
+    lp_id = Column(Integer, ForeignKey("lp_entities.lp_id"), nullable=False, index=True)
+    tranche_id = Column(Integer, ForeignKey("lp_tranches.tranche_id"), nullable=True, index=True)
 
     commitment_amount = Column(Numeric(14, 2), nullable=False)  # subscription amount
     funded_amount = Column(Numeric(14, 2), nullable=False, default=0)
@@ -484,9 +484,9 @@ class Holding(Base):
     __tablename__ = "holdings"
 
     holding_id = Column(Integer, primary_key=True, index=True)
-    investor_id = Column(Integer, ForeignKey("investors.investor_id"), nullable=False)
-    lp_id = Column(Integer, ForeignKey("lp_entities.lp_id"), nullable=False)
-    subscription_id = Column(Integer, ForeignKey("subscriptions.subscription_id"), nullable=True)
+    investor_id = Column(Integer, ForeignKey("investors.investor_id"), nullable=False, index=True)
+    lp_id = Column(Integer, ForeignKey("lp_entities.lp_id"), nullable=False, index=True)
+    subscription_id = Column(Integer, ForeignKey("subscriptions.subscription_id"), nullable=True, index=True)
 
     # Unit-based position (PRIMARY equity tracking)
     units_held = Column(Numeric(14, 4), nullable=False)           # total LP units held
@@ -530,7 +530,7 @@ class DebtFacility(Base):
     __tablename__ = "debt_facilities"
 
     debt_id = Column(Integer, primary_key=True, index=True)
-    property_id = Column(Integer, ForeignKey("properties.property_id"), nullable=False)
+    property_id = Column(Integer, ForeignKey("properties.property_id"), nullable=False, index=True)
     lender_name = Column(String(200), nullable=False)
     debt_type = Column(_enum(DebtType), nullable=False)
     status = Column(_enum(DebtStatus), default=DebtStatus.pending)
@@ -580,7 +580,7 @@ class DistributionEvent(Base):
     __tablename__ = "distribution_events"
 
     event_id = Column(Integer, primary_key=True, index=True)
-    lp_id = Column(Integer, ForeignKey("lp_entities.lp_id"), nullable=False)
+    lp_id = Column(Integer, ForeignKey("lp_entities.lp_id"), nullable=False, index=True)
     period_label = Column(String(64), nullable=False)  # e.g. "Q1 2026"
     total_distributable = Column(Numeric(16, 2), nullable=False)
     status = Column(
@@ -603,8 +603,8 @@ class DistributionAllocation(Base):
     __tablename__ = "distribution_allocations"
 
     allocation_id = Column(Integer, primary_key=True, index=True)
-    event_id = Column(Integer, ForeignKey("distribution_events.event_id"), nullable=False)
-    holding_id = Column(Integer, ForeignKey("holdings.holding_id"), nullable=False)
+    event_id = Column(Integer, ForeignKey("distribution_events.event_id"), nullable=False, index=True)
+    holding_id = Column(Integer, ForeignKey("holdings.holding_id"), nullable=False, index=True)
     amount = Column(Numeric(14, 2), nullable=False)
     distribution_type = Column(_enum(DistributionType), nullable=False)
     method = Column(_enum(DistributionMethod), nullable=True)
@@ -624,7 +624,7 @@ class LPTranche(Base):
     __tablename__ = "lp_tranches"
 
     tranche_id = Column(Integer, primary_key=True, index=True)
-    lp_id = Column(Integer, ForeignKey("lp_entities.lp_id"), nullable=False)
+    lp_id = Column(Integer, ForeignKey("lp_entities.lp_id"), nullable=False, index=True)
     tranche_number = Column(Integer, nullable=False, default=1)
     tranche_name = Column(String(128), nullable=True)       # e.g. "First Close"
     opening_date = Column(Date, nullable=True)
@@ -649,7 +649,7 @@ class TargetProperty(Base):
     __tablename__ = "target_properties"
 
     target_property_id = Column(Integer, primary_key=True, index=True)
-    lp_id = Column(Integer, ForeignKey("lp_entities.lp_id"), nullable=False)
+    lp_id = Column(Integer, ForeignKey("lp_entities.lp_id"), nullable=False, index=True)
 
     # Identity
     address = Column(String(256), nullable=True)            # address or target identifier
@@ -738,8 +738,8 @@ class Property(Base):
     __tablename__ = "properties"
 
     property_id = Column(Integer, primary_key=True, index=True)
-    lp_id = Column(Integer, ForeignKey("lp_entities.lp_id"), nullable=True)  # LP ownership
-    cluster_id = Column(Integer, ForeignKey("property_clusters.cluster_id"), nullable=True)
+    lp_id = Column(Integer, ForeignKey("lp_entities.lp_id"), nullable=True, index=True)  # LP ownership
+    cluster_id = Column(Integer, ForeignKey("property_clusters.cluster_id"), nullable=True, index=True)
 
     address = Column(String(256), nullable=False)
     city = Column(String(128), nullable=False)
@@ -771,9 +771,9 @@ class Property(Base):
     development_plans = relationship(
         "DevelopmentPlan", back_populates="property", cascade="all, delete-orphan"
     )
-    community_id = Column(Integer, ForeignKey("communities.community_id"), nullable=True)
+    community_id = Column(Integer, ForeignKey("communities.community_id"), nullable=True, index=True)
     community = relationship("Community", back_populates="properties")
-    pm_id = Column(Integer, ForeignKey("property_managers.pm_id"), nullable=True)
+    pm_id = Column(Integer, ForeignKey("property_managers.pm_id"), nullable=True, index=True)
     property_manager = relationship("PropertyManagerEntity", back_populates="properties")
     maintenance_requests = relationship(
         "MaintenanceRequest", back_populates="property", cascade="all, delete-orphan"
@@ -798,7 +798,7 @@ class DevelopmentPlan(Base):
     __tablename__ = "development_plans"
 
     plan_id = Column(Integer, primary_key=True, index=True)
-    property_id = Column(Integer, ForeignKey("properties.property_id"), nullable=False)
+    property_id = Column(Integer, ForeignKey("properties.property_id"), nullable=False, index=True)
     version = Column(Integer, nullable=False, default=1)
     plan_name = Column(String(256), nullable=True)  # human-readable label e.g. "8-Plex Conversion"
     status = Column(
@@ -915,8 +915,8 @@ class Unit(Base):
     __tablename__ = "units"
 
     unit_id = Column(Integer, primary_key=True, index=True)
-    property_id = Column(Integer, ForeignKey("properties.property_id"), nullable=False)
-    community_id = Column(Integer, ForeignKey("communities.community_id"), nullable=True)
+    property_id = Column(Integer, ForeignKey("properties.property_id"), nullable=False, index=True)
+    community_id = Column(Integer, ForeignKey("communities.community_id"), nullable=True, index=True)
     unit_number = Column(String(32), nullable=False)
     unit_type = Column(_enum(UnitType), nullable=False)
     bed_count = Column(Integer, nullable=False)
@@ -948,7 +948,7 @@ class Bed(Base):
     __tablename__ = "beds"
 
     bed_id = Column(Integer, primary_key=True, index=True)
-    unit_id = Column(Integer, ForeignKey("units.unit_id"), nullable=False)
+    unit_id = Column(Integer, ForeignKey("units.unit_id"), nullable=False, index=True)
     bed_label = Column(String(16), nullable=False)
     monthly_rent = Column(Numeric(10, 2), nullable=False)
     rent_type = Column(_enum(RentType), nullable=False, default=RentType.private_pay)
@@ -964,9 +964,9 @@ class Resident(Base):
     __tablename__ = "residents"
 
     resident_id = Column(Integer, primary_key=True, index=True)
-    community_id = Column(Integer, ForeignKey("communities.community_id"), nullable=False)
-    unit_id = Column(Integer, ForeignKey("units.unit_id"), nullable=False)
-    bed_id = Column(Integer, ForeignKey("beds.bed_id"), nullable=True)
+    community_id = Column(Integer, ForeignKey("communities.community_id"), nullable=False, index=True)
+    unit_id = Column(Integer, ForeignKey("units.unit_id"), nullable=False, index=True)
+    bed_id = Column(Integer, ForeignKey("beds.bed_id"), nullable=True, index=True)
     full_name = Column(String(256), nullable=False)
     email = Column(String(256), nullable=True)
     phone = Column(String(64), nullable=True)
@@ -991,7 +991,7 @@ class RentPayment(Base):
     __tablename__ = "rent_payments"
 
     payment_id = Column(Integer, primary_key=True, index=True)
-    resident_id = Column(Integer, ForeignKey("residents.resident_id"), nullable=False)
+    resident_id = Column(Integer, ForeignKey("residents.resident_id"), nullable=False, index=True)
     bed_id = Column(Integer, ForeignKey("beds.bed_id"), nullable=True)
     amount = Column(Numeric(12, 2), nullable=False)
     payment_date = Column(DateTime, nullable=False)
@@ -1007,8 +1007,8 @@ class MaintenanceRequest(Base):
     __tablename__ = "maintenance_requests"
 
     request_id = Column(Integer, primary_key=True, index=True)
-    property_id = Column(Integer, ForeignKey("properties.property_id"), nullable=False)
-    resident_id = Column(Integer, ForeignKey("residents.resident_id"), nullable=True)
+    property_id = Column(Integer, ForeignKey("properties.property_id"), nullable=False, index=True)
+    resident_id = Column(Integer, ForeignKey("residents.resident_id"), nullable=True, index=True)
     description = Column(Text, nullable=False)
     status = Column(
         _enum(MaintenanceStatus), nullable=False, default=MaintenanceStatus.open
@@ -1065,7 +1065,7 @@ class PropertyStageTransition(Base):
     __tablename__ = "property_stage_transitions"
 
     transition_id = Column(Integer, primary_key=True, index=True)
-    property_id = Column(Integer, ForeignKey("properties.property_id"), nullable=False)
+    property_id = Column(Integer, ForeignKey("properties.property_id"), nullable=False, index=True)
     from_stage = Column(_enum(DevelopmentStage), nullable=False)
     to_stage = Column(_enum(DevelopmentStage), nullable=False)
     transitioned_by = Column(Integer, ForeignKey("users.user_id"), nullable=False)
@@ -1083,7 +1083,7 @@ class PropertyMilestone(Base):
     __tablename__ = "property_milestones"
 
     milestone_id = Column(Integer, primary_key=True, index=True)
-    property_id = Column(Integer, ForeignKey("properties.property_id"), nullable=False)
+    property_id = Column(Integer, ForeignKey("properties.property_id"), nullable=False, index=True)
     title = Column(String(256), nullable=False)
     description = Column(Text, nullable=True)
     target_date = Column(Date, nullable=True)
@@ -1105,7 +1105,7 @@ class QuarterlyReport(Base):
     __tablename__ = "quarterly_reports"
 
     report_id = Column(Integer, primary_key=True, index=True)
-    lp_id = Column(Integer, ForeignKey("lp_entities.lp_id"), nullable=False)
+    lp_id = Column(Integer, ForeignKey("lp_entities.lp_id"), nullable=False, index=True)
     period_label = Column(String(32), nullable=False)  # e.g. "Q1 2026"
     quarter = Column(Integer, nullable=False)  # 1-4
     year = Column(Integer, nullable=False)
@@ -1183,8 +1183,8 @@ class OperatorBudget(Base):
     __tablename__ = "operator_budgets"
 
     budget_id = Column(Integer, primary_key=True, index=True)
-    operator_id = Column(Integer, ForeignKey("operator_entities.operator_id"), nullable=False)
-    community_id = Column(Integer, ForeignKey("communities.community_id"), nullable=False)
+    operator_id = Column(Integer, ForeignKey("operator_entities.operator_id"), nullable=False, index=True)
+    community_id = Column(Integer, ForeignKey("communities.community_id"), nullable=False, index=True)
     period_type = Column(_enum(BudgetPeriodType), nullable=False, default=BudgetPeriodType.annual)
     period_label = Column(String(32), nullable=False)  # e.g. "2026" or "Q1 2026"
     year = Column(Integer, nullable=False)
@@ -1213,8 +1213,8 @@ class OperatingExpense(Base):
     __tablename__ = "operating_expenses"
 
     expense_id = Column(Integer, primary_key=True, index=True)
-    community_id = Column(Integer, ForeignKey("communities.community_id"), nullable=False)
-    budget_id = Column(Integer, ForeignKey("operator_budgets.budget_id"), nullable=True)
+    community_id = Column(Integer, ForeignKey("communities.community_id"), nullable=False, index=True)
+    budget_id = Column(Integer, ForeignKey("operator_budgets.budget_id"), nullable=True, index=True)
     category = Column(_enum(ExpenseCategory), nullable=False)
     description = Column(String(512), nullable=False)
     amount = Column(Numeric(12, 2), nullable=False)
@@ -1248,7 +1248,7 @@ class Notification(Base):
     __tablename__ = "notifications"
 
     notification_id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, ForeignKey("users.user_id"), nullable=False)
+    user_id = Column(Integer, ForeignKey("users.user_id"), nullable=False, index=True)
     title = Column(String(256), nullable=False)
     message = Column(Text, nullable=False)
     type = Column(_enum(NotificationType), nullable=False, default=NotificationType.general)
@@ -1430,7 +1430,7 @@ class ValuationHistory(Base):
     __tablename__ = "valuation_history"
 
     valuation_id = Column(Integer, primary_key=True, index=True)
-    property_id = Column(Integer, ForeignKey("properties.property_id"), nullable=False)
+    property_id = Column(Integer, ForeignKey("properties.property_id"), nullable=False, index=True)
     valuation_date = Column(Date, nullable=False)
     value = Column(Numeric(16, 2), nullable=False)
     method = Column(_enum(ValuationMethod), nullable=False, default=ValuationMethod.internal_estimate)
@@ -1453,8 +1453,8 @@ class ConstructionExpense(Base):
     __tablename__ = "construction_expenses"
 
     expense_id = Column(Integer, primary_key=True, index=True)
-    property_id = Column(Integer, ForeignKey("properties.property_id"), nullable=False)
-    plan_id = Column(Integer, ForeignKey("development_plans.plan_id"), nullable=False)
+    property_id = Column(Integer, ForeignKey("properties.property_id"), nullable=False, index=True)
+    plan_id = Column(Integer, ForeignKey("development_plans.plan_id"), nullable=False, index=True)
     category = Column(String(100), nullable=False)  # hard_costs, soft_costs, site_costs, financing_costs, contingency
     description = Column(String(512), nullable=True)
     budgeted_amount = Column(Numeric(16, 2), nullable=False, default=0)
@@ -1486,8 +1486,8 @@ class ConstructionDraw(Base):
     __tablename__ = "construction_draws"
 
     draw_id = Column(Integer, primary_key=True, index=True)
-    property_id = Column(Integer, ForeignKey("properties.property_id"), nullable=False)
-    debt_id = Column(Integer, ForeignKey("debt_facilities.debt_id"), nullable=False)
+    property_id = Column(Integer, ForeignKey("properties.property_id"), nullable=False, index=True)
+    debt_id = Column(Integer, ForeignKey("debt_facilities.debt_id"), nullable=False, index=True)
     draw_number = Column(Integer, nullable=False)
     requested_amount = Column(Numeric(16, 2), nullable=False)
     approved_amount = Column(Numeric(16, 2), nullable=True)
@@ -1535,7 +1535,7 @@ class LPFeeItem(Base):
     __tablename__ = "lp_fee_items"
 
     fee_item_id = Column(Integer, primary_key=True, index=True)
-    lp_id = Column(Integer, ForeignKey("lp_entities.lp_id"), nullable=False)
+    lp_id = Column(Integer, ForeignKey("lp_entities.lp_id"), nullable=False, index=True)
 
     # Identity
     fee_name = Column(String(128), nullable=False)            # e.g. "Selling Commission"

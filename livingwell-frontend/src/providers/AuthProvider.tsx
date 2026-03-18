@@ -43,16 +43,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const login = async (email: string, password: string) => {
     const { data } = await apiClient.post("/api/auth/login", { email, password });
+    // Server sets httpOnly cookies; also store in localStorage as fallback
     localStorage.setItem("lwc_access_token", data.access_token);
     localStorage.setItem("lwc_refresh_token", data.refresh_token);
-    // Set a non-sensitive cookie for middleware route protection
-    document.cookie = "lwc_token_present=1; path=/; SameSite=Lax";
     const me = await apiClient.get<User>("/api/auth/me");
     setUser(me.data);
   };
 
-  const logout = () => {
-    localStorage.clear();
+  const logout = async () => {
+    try {
+      // Server clears httpOnly cookies
+      await apiClient.post("/api/auth/logout");
+    } catch {
+      // Ignore errors — clear client state regardless
+    }
+    localStorage.removeItem("lwc_access_token");
+    localStorage.removeItem("lwc_refresh_token");
     document.cookie =
       "lwc_token_present=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
     setUser(null);

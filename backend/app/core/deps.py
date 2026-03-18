@@ -14,15 +14,17 @@ from app.db.models import (
 )
 from app.db.session import get_db
 
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login")
+# auto_error=False so missing header doesn't 401 — we'll check cookie as fallback
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login", auto_error=False)
 
 
 # ---------------------------------------------------------------------------
-# Current User
+# Current User (Authorization header → httpOnly cookie fallback)
 # ---------------------------------------------------------------------------
 
 def get_current_user(
-    token: str = Depends(oauth2_scheme),
+    request: Request,
+    token: str | None = Depends(oauth2_scheme),
     db: Session = Depends(get_db),
 ) -> User:
     credentials_exc = HTTPException(
@@ -30,8 +32,15 @@ def get_current_user(
         detail="Could not validate credentials",
         headers={"WWW-Authenticate": "Bearer"},
     )
+
+    # 1. Try Bearer token from Authorization header
+    # 2. Fall back to httpOnly cookie
+    jwt_token = token or request.cookies.get("lwc_access_token")
+    if not jwt_token:
+        raise credentials_exc
+
     try:
-        payload = decode_token(token)
+        payload = decode_token(jwt_token)
         if payload.get("type") != "access":
             raise credentials_exc
         user_id: str = payload.get("sub")
@@ -273,3 +282,48 @@ def filter_by_property_scope(
             return query.filter(property_id_column.in_(prop_ids))
 
     return query.filter(property_id_column == -1)
+
+
+# ---------------------------------------------------------------------------
+# Pagination
+# ---------------------------------------------------------------------------
+
+from fastapi import Query as _Query
+
+
+class PaginationParams:
+    """Reusable pagination dependency.
+
+    Usage in route:
+        def list_things(pg: PaginationParams = Depends(PaginationParams)):
+            query = db.query(Thing)
+            return pg.paginate(query)
+    """
+
+    MAX_LIMIT = 500
+    DEFAULT_LIMIT = 100
+
+    def __init__(
+        self,
+        skip: int = _Query(0, ge=0, description="Number of records to skip"),
+        limit: int = _Query(100, ge=1, le=500, description="Max records to return (1-500)"),
+    ):
+        self.skip = skip
+        self.limit = min(limit, self.MAX_LIMIT)
+
+    def paginate(self, query, *, transform=None):
+        """Apply pagination and return { items, total, skip, limit }.
+
+        Args:
+            query: SQLAlchemy query object
+            transform: optional callable to transform each row (e.g., _property_to_out)
+        """
+        total = query.count()
+        rows = query.offset(self.skip).limit(self.limit).all()
+        items = [transform(r) for r in rows] if transform else rows
+        return {
+            "items": items,
+            "total": total,
+            "skip": self.skip,
+            "limit": self.limit,
+        }

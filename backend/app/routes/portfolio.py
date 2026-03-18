@@ -13,6 +13,7 @@ from app.core.deps import (
     get_current_user, require_gp_ops_pm, require_gp_or_ops,
     require_investor_or_above, get_user_entity_ids,
     filter_by_lp_scope, filter_by_property_scope,
+    PaginationParams,
 )
 from app.db.models import (
     DevelopmentPlan, LPEntity, Property, PropertyCluster, User, UserRole,
@@ -67,9 +68,10 @@ def _property_to_out(prop: Property) -> PropertyOut:
 # Properties
 # ---------------------------------------------------------------------------
 
-@router.get("/properties", response_model=list[PropertyOut])
+@router.get("/properties")
 def list_properties(
     lp_id: int | None = None,
+    pg: PaginationParams = Depends(),
     db: Session = Depends(get_db),
     current_user: User = Depends(require_investor_or_above),
 ):
@@ -78,8 +80,7 @@ def list_properties(
     query = filter_by_lp_scope(query, current_user, db, Property.lp_id)
     if lp_id is not None:
         query = query.filter(Property.lp_id == lp_id)
-    props = query.all()
-    return [_property_to_out(p) for p in props]
+    return pg.paginate(query, transform=_property_to_out)
 
 
 @router.post("/properties", response_model=PropertyOut, status_code=status.HTTP_201_CREATED)

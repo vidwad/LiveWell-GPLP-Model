@@ -13,7 +13,7 @@ from sqlalchemy import func as sa_func
 
 from app.core.deps import (
     get_current_user, require_gp_admin, require_gp_or_ops, require_investor_or_above,
-    check_entity_access, filter_by_lp_scope,
+    check_entity_access, filter_by_lp_scope, PaginationParams,
 )
 from app.db.models import (
     User, UserRole, GPEntity, LPEntity, LPTranche, Investor, Subscription,
@@ -107,12 +107,13 @@ def _holding_out(h: Holding) -> HoldingOut:
 # GP Entities
 # ===========================================================================
 
-@router.get("/gp", response_model=List[GPEntityOut])
+@router.get("/gp")
 def list_gp_entities(
+    pg: PaginationParams = Depends(),
     db: Session = Depends(get_db),
     current_user: User = Depends(require_gp_or_ops),
 ):
-    return db.query(GPEntity).all()
+    return pg.paginate(db.query(GPEntity))
 
 
 @router.post("/gp", response_model=GPEntityOut, status_code=status.HTTP_201_CREATED)
@@ -175,13 +176,14 @@ def update_gp_entity(
 # LP Entities
 # ===========================================================================
 
-@router.get("/lp", response_model=List[LPEntityOut])
+@router.get("/lp")
 def list_lp_entities(
+    pg: PaginationParams = Depends(),
     db: Session = Depends(get_db),
     current_user: User = Depends(require_investor_or_above),
 ):
     if current_user.role == UserRole.GP_ADMIN:
-        return db.query(LPEntity).all()
+        return pg.paginate(db.query(LPEntity))
 
     scope_ids = [
         s.entity_id for s in
@@ -191,8 +193,8 @@ def list_lp_entities(
         ).all()
     ]
     if not scope_ids:
-        return []
-    return db.query(LPEntity).filter(LPEntity.lp_id.in_(scope_ids)).all()
+        return {"items": [], "total": 0, "skip": pg.skip, "limit": pg.limit}
+    return pg.paginate(db.query(LPEntity).filter(LPEntity.lp_id.in_(scope_ids)))
 
 
 @router.post("/lp", response_model=LPEntityOut, status_code=status.HTTP_201_CREATED)
@@ -471,12 +473,13 @@ def update_tranche(
 # Investors (CRUD)
 # ===========================================================================
 
-@router.get("/investors", response_model=List[InvestorOut])
+@router.get("/investors")
 def list_investors(
+    pg: PaginationParams = Depends(),
     db: Session = Depends(get_db),
     current_user: User = Depends(require_gp_or_ops),
 ):
-    return db.query(Investor).order_by(Investor.name).all()
+    return pg.paginate(db.query(Investor).order_by(Investor.name))
 
 
 @router.post("/investors", response_model=InvestorOut, status_code=status.HTTP_201_CREATED)
@@ -542,9 +545,10 @@ def update_investor(
 # Subscriptions
 # ===========================================================================
 
-@router.get("/lp/{lp_id}/subscriptions", response_model=List[SubscriptionOut])
+@router.get("/lp/{lp_id}/subscriptions")
 def list_subscriptions(
     lp_id: int,
+    pg: PaginationParams = Depends(),
     db: Session = Depends(get_db),
     current_user: User = Depends(require_investor_or_above),
 ):
@@ -557,10 +561,10 @@ def list_subscriptions(
     if current_user.role == UserRole.INVESTOR:
         investor = db.query(Investor).filter(Investor.user_id == current_user.user_id).first()
         if not investor:
-            return []
+            return {"items": [], "total": 0, "skip": pg.skip, "limit": pg.limit}
         query = query.filter(Subscription.investor_id == investor.investor_id)
 
-    return [_sub_out(s) for s in query.all()]
+    return pg.paginate(query, transform=_sub_out)
 
 
 @router.post("/lp/{lp_id}/subscriptions", response_model=SubscriptionOut, status_code=status.HTTP_201_CREATED)
@@ -697,9 +701,10 @@ def update_subscription(
 # Holdings
 # ===========================================================================
 
-@router.get("/lp/{lp_id}/holdings", response_model=List[HoldingOut])
+@router.get("/lp/{lp_id}/holdings")
 def list_holdings(
     lp_id: int,
+    pg: PaginationParams = Depends(),
     db: Session = Depends(get_db),
     current_user: User = Depends(require_investor_or_above),
 ):
@@ -714,10 +719,13 @@ def list_holdings(
     if current_user.role == UserRole.INVESTOR:
         investor = db.query(Investor).filter(Investor.user_id == current_user.user_id).first()
         if not investor:
-            return []
+            return {"items": [], "total": 0, "skip": pg.skip, "limit": pg.limit}
         holdings_data = [h for h in holdings_data if h["investor_id"] == investor.investor_id]
 
-    return [HoldingOut(**h) for h in holdings_data]
+    # Manual pagination on the in-memory list
+    total = len(holdings_data)
+    items = [HoldingOut(**h) for h in holdings_data[pg.skip:pg.skip + pg.limit]]
+    return {"items": items, "total": total, "skip": pg.skip, "limit": pg.limit}
 
 
 @router.post("/lp/{lp_id}/holdings", response_model=HoldingOut, status_code=status.HTTP_201_CREATED)
@@ -811,10 +819,11 @@ def update_holding(
 # Target / Pipeline Properties
 # ===========================================================================
 
-@router.get("/lp/{lp_id}/target-properties", response_model=List[TargetPropertyOut])
+@router.get("/lp/{lp_id}/target-properties")
 def list_target_properties(
     lp_id: int,
     status_filter: Optional[str] = Query(None, alias="status"),
+    pg: PaginationParams = Depends(),
     db: Session = Depends(get_db),
     current_user: User = Depends(require_investor_or_above),
 ):
@@ -825,7 +834,7 @@ def list_target_properties(
     query = db.query(TargetProperty).filter(TargetProperty.lp_id == lp_id)
     if status_filter:
         query = query.filter(TargetProperty.status == TargetPropertyStatus(status_filter))
-    return query.order_by(TargetProperty.target_property_id).all()
+    return pg.paginate(query.order_by(TargetProperty.target_property_id))
 
 
 @router.post("/lp/{lp_id}/target-properties", response_model=TargetPropertyOut, status_code=status.HTTP_201_CREATED)
@@ -1081,9 +1090,10 @@ def run_waterfall(
 # Distribution Events
 # ===========================================================================
 
-@router.get("/lp/{lp_id}/distributions", response_model=List[DistributionEventOut])
+@router.get("/lp/{lp_id}/distributions")
 def list_distribution_events(
     lp_id: int,
+    pg: PaginationParams = Depends(),
     db: Session = Depends(get_db),
     current_user: User = Depends(require_investor_or_above),
 ):
@@ -1091,8 +1101,8 @@ def list_distribution_events(
     if current_user.role not in (UserRole.GP_ADMIN, UserRole.OPERATIONS_MANAGER):
         if not check_entity_access(current_user, db, ScopeEntityType.lp, lp_id):
             raise HTTPException(status_code=403, detail="Access denied")
-    events = db.query(DistributionEvent).filter(DistributionEvent.lp_id == lp_id).all()
-    return events
+    query = db.query(DistributionEvent).filter(DistributionEvent.lp_id == lp_id)
+    return pg.paginate(query)
 
 
 @router.post("/lp/{lp_id}/distributions", response_model=DistributionEventOut, status_code=status.HTTP_201_CREATED)
@@ -1136,6 +1146,301 @@ def get_distribution_event(
     if not event:
         raise HTTPException(status_code=404, detail="Distribution event not found")
     return event
+
+
+# ===========================================================================
+# Distribution Workflow (create-from-waterfall → approve → pay → publish)
+# ===========================================================================
+
+class CreateFromWaterfallRequest(_BM):
+    distributable_amount: Decimal
+    period_label: str
+    notes: str | None = None
+
+
+@router.post("/lp/{lp_id}/distributions/create-from-waterfall", status_code=status.HTTP_201_CREATED)
+def create_distribution_from_waterfall(
+    lp_id: int,
+    payload: CreateFromWaterfallRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_gp_admin),
+):
+    """Run the waterfall and save results as a draft DistributionEvent with allocations.
+
+    This is the first step of the distribution workflow:
+    1. create-from-waterfall (this) → creates draft event + allocations
+    2. approve → GP reviews and approves
+    3. pay → marks as paid, updates holding capital accounts
+    4. publish → makes visible to investors
+    """
+    from app.db.models import DistributionType
+
+    lp = db.query(LPEntity).filter(LPEntity.lp_id == lp_id).first()
+    if not lp:
+        raise HTTPException(status_code=404, detail="LP entity not found")
+
+    # Run waterfall computation
+    result = compute_waterfall(db, lp_id, payload.distributable_amount)
+    if "error" in result:
+        raise HTTPException(status_code=400, detail=result["error"])
+
+    # Create the distribution event
+    event = DistributionEvent(
+        lp_id=lp_id,
+        period_label=payload.period_label,
+        total_distributable=payload.distributable_amount,
+        status=DistributionEventStatus.calculated,
+        notes=payload.notes,
+    )
+    db.add(event)
+    db.flush()  # get event_id
+
+    # Create allocations from waterfall results
+    allocations_created = 0
+    for alloc_data in result.get("allocations", []):
+        total = alloc_data.get("total", Decimal("0"))
+        if total <= 0:
+            continue
+
+        holding_id = alloc_data["holding_id"]
+
+        # Determine distribution type based on which tier contributed most
+        tier1 = alloc_data.get("tier1_roc", Decimal("0"))
+        tier2 = alloc_data.get("tier2_preferred", Decimal("0"))
+        tier3 = alloc_data.get("tier3_catchup", Decimal("0"))
+        tier4 = alloc_data.get("tier4_carry", Decimal("0"))
+
+        # Create separate allocations per tier (for transparency)
+        if tier1 > 0:
+            db.add(DistributionAllocation(
+                event_id=event.event_id,
+                holding_id=holding_id,
+                amount=tier1,
+                distribution_type=DistributionType.return_of_capital,
+                notes="Tier 1: Return of Capital",
+            ))
+            allocations_created += 1
+
+        if tier2 > 0:
+            db.add(DistributionAllocation(
+                event_id=event.event_id,
+                holding_id=holding_id,
+                amount=tier2,
+                distribution_type=DistributionType.preferred_return,
+                notes="Tier 2: Preferred Return",
+            ))
+            allocations_created += 1
+
+        if tier3 > 0:
+            dist_type = DistributionType.profit_share if alloc_data.get("is_gp") else DistributionType.preferred_return
+            db.add(DistributionAllocation(
+                event_id=event.event_id,
+                holding_id=holding_id,
+                amount=tier3,
+                distribution_type=dist_type,
+                notes="Tier 3: GP Catch-up" if alloc_data.get("is_gp") else "Tier 3: LP Catch-up Share",
+            ))
+            allocations_created += 1
+
+        if tier4 > 0:
+            db.add(DistributionAllocation(
+                event_id=event.event_id,
+                holding_id=holding_id,
+                amount=tier4,
+                distribution_type=DistributionType.profit_share,
+                notes="Tier 4: Carried Interest",
+            ))
+            allocations_created += 1
+
+    try:
+        db.commit()
+        db.refresh(event)
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(status_code=400, detail="Database integrity error")
+    except Exception:
+        db.rollback()
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+    return {
+        "event_id": event.event_id,
+        "status": event.status.value,
+        "period_label": event.period_label,
+        "total_distributable": str(event.total_distributable),
+        "allocations_created": allocations_created,
+        "waterfall_summary": {
+            "tier1_roc": str(result.get("tier1_total", 0)),
+            "tier2_preferred": str(result.get("tier2_total", 0)),
+            "tier3_catchup": str(result.get("tier3_total", 0)),
+            "tier4_carry": str(result.get("tier4_total", 0)),
+        },
+        "message": "Distribution event created with allocations. Review and approve to proceed.",
+    }
+
+
+@router.patch("/distributions/{event_id}/approve")
+def approve_distribution(
+    event_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_gp_admin),
+):
+    """Approve a calculated distribution event. Moves status from calculated → approved."""
+    event = db.query(DistributionEvent).filter(DistributionEvent.event_id == event_id).first()
+    if not event:
+        raise HTTPException(status_code=404, detail="Distribution event not found")
+
+    if event.status not in (DistributionEventStatus.draft, DistributionEventStatus.calculated):
+        raise HTTPException(
+            status_code=400,
+            detail=f"Cannot approve: event is already {event.status.value}",
+        )
+
+    # Verify allocations exist
+    alloc_count = db.query(DistributionAllocation).filter(
+        DistributionAllocation.event_id == event_id
+    ).count()
+    if alloc_count == 0:
+        raise HTTPException(status_code=400, detail="Cannot approve: no allocations found")
+
+    event.status = DistributionEventStatus.approved
+    event.approved_date = datetime.utcnow()
+
+    try:
+        db.commit()
+        db.refresh(event)
+    except Exception:
+        db.rollback()
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+    return {
+        "event_id": event.event_id,
+        "status": event.status.value,
+        "approved_date": str(event.approved_date),
+        "allocation_count": alloc_count,
+        "message": "Distribution approved. Use /pay to execute payment and update capital accounts.",
+    }
+
+
+@router.patch("/distributions/{event_id}/pay")
+def pay_distribution(
+    event_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_gp_admin),
+):
+    """Execute payment of an approved distribution.
+
+    This is the critical step that:
+    1. Marks the event as paid
+    2. Updates each holding's unreturned_capital and unpaid_preferred
+    3. Creates an audit log entry
+    """
+    from app.db.models import AuditLog, DistributionType
+
+    event = db.query(DistributionEvent).filter(DistributionEvent.event_id == event_id).first()
+    if not event:
+        raise HTTPException(status_code=404, detail="Distribution event not found")
+
+    if event.status != DistributionEventStatus.approved:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Cannot pay: event must be approved first (current: {event.status.value})",
+        )
+
+    allocations = db.query(DistributionAllocation).filter(
+        DistributionAllocation.event_id == event_id
+    ).all()
+
+    if not allocations:
+        raise HTTPException(status_code=400, detail="Cannot pay: no allocations found")
+
+    # Update holding capital accounts based on allocation types
+    holdings_updated = set()
+    for alloc in allocations:
+        holding = db.query(Holding).filter(Holding.holding_id == alloc.holding_id).first()
+        if not holding:
+            continue
+
+        amount = Decimal(str(alloc.amount))
+
+        if alloc.distribution_type == DistributionType.return_of_capital:
+            # ROC reduces unreturned capital
+            holding.unreturned_capital = max(
+                Decimal("0"),
+                Decimal(str(holding.unreturned_capital or 0)) - amount,
+            )
+        elif alloc.distribution_type == DistributionType.preferred_return:
+            # Preferred return reduces unpaid preferred
+            holding.unpaid_preferred = max(
+                Decimal("0"),
+                Decimal(str(holding.unpaid_preferred or 0)) - amount,
+            )
+        # profit_share, refinancing, sale_proceeds don't reduce capital accounts
+
+        holdings_updated.add(holding.holding_id)
+
+    # Mark event as paid
+    event.status = DistributionEventStatus.paid
+    event.paid_date = datetime.utcnow()
+
+    # Audit log
+    db.add(AuditLog(
+        user_id=current_user.user_id,
+        action="distribution.paid",
+        entity_type="DistributionEvent",
+        entity_id=event.event_id,
+        details=f"Paid {len(allocations)} allocations totaling ${event.total_distributable:,.2f}. "
+                f"Updated {len(holdings_updated)} holdings.",
+    ))
+
+    try:
+        db.commit()
+        db.refresh(event)
+    except Exception:
+        db.rollback()
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+    return {
+        "event_id": event.event_id,
+        "status": event.status.value,
+        "paid_date": str(event.paid_date),
+        "allocations_paid": len(allocations),
+        "holdings_updated": len(holdings_updated),
+        "total_distributed": str(event.total_distributable),
+        "message": "Distribution paid. Holding capital accounts updated. Use /publish to make visible to investors.",
+    }
+
+
+@router.patch("/distributions/{event_id}/publish")
+def publish_distribution(
+    event_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_gp_admin),
+):
+    """Publish a paid distribution (make visible to investors)."""
+    event = db.query(DistributionEvent).filter(DistributionEvent.event_id == event_id).first()
+    if not event:
+        raise HTTPException(status_code=404, detail="Distribution event not found")
+
+    if event.status != DistributionEventStatus.paid:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Cannot publish: event must be paid first (current: {event.status.value})",
+        )
+
+    event.status = DistributionEventStatus.published
+
+    try:
+        db.commit()
+        db.refresh(event)
+    except Exception:
+        db.rollback()
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+    return {
+        "event_id": event.event_id,
+        "status": event.status.value,
+        "message": "Distribution published and visible to investors.",
+    }
 
 
 # ===========================================================================
@@ -1203,12 +1508,13 @@ def delete_scope_assignment(
 # Operator Entities
 # ===========================================================================
 
-@router.get("/operators", response_model=List[OperatorEntityOut])
+@router.get("/operators")
 def list_operators(
+    pg: PaginationParams = Depends(),
     db: Session = Depends(get_db),
     current_user: User = Depends(require_gp_or_ops),
 ):
-    return db.query(OperatorEntity).all()
+    return pg.paginate(db.query(OperatorEntity))
 
 
 @router.post("/operators", response_model=OperatorEntityOut, status_code=status.HTTP_201_CREATED)

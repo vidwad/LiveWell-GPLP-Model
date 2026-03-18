@@ -5,12 +5,19 @@ import type { Investor, InvestorCreate, InvestorSummary, InvestorDashboard, Inve
 
 const BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
-export const apiClient = axios.create({ baseURL: BASE_URL });
+export const apiClient = axios.create({
+  baseURL: BASE_URL,
+  withCredentials: true,  // send httpOnly cookies with every request
+});
 
 apiClient.interceptors.request.use((config) => {
   if (typeof window !== "undefined") {
+    // Fallback: if we have a token in localStorage (e.g., from Swagger or mobile),
+    // attach it as a Bearer header. The httpOnly cookie takes priority server-side.
     const token = localStorage.getItem("lwc_access_token");
-    if (token) config.headers.Authorization = `Bearer ${token}`;
+    if (token && !config.headers.Authorization) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
   }
   return config;
 });
@@ -21,25 +28,28 @@ apiClient.interceptors.response.use(
     const original = error.config;
     if (error.response?.status === 401 && !original._retry) {
       original._retry = true;
-      const refreshToken =
-        typeof window !== "undefined"
-          ? localStorage.getItem("lwc_refresh_token")
-          : null;
-      if (!refreshToken) {
-        if (typeof window !== "undefined") window.location.href = "/login";
-        return Promise.reject(error);
-      }
       try {
-        const { data } = await axios.post(`${BASE_URL}/api/auth/refresh`, {
-          refresh_token: refreshToken,
-        });
+        // Try cookie-based refresh first (server reads httpOnly cookie),
+        // fall back to localStorage refresh token
+        const refreshToken =
+          typeof window !== "undefined"
+            ? localStorage.getItem("lwc_refresh_token")
+            : null;
+        const { data } = await axios.post(
+          `${BASE_URL}/api/auth/refresh`,
+          refreshToken ? { refresh_token: refreshToken } : {},
+          { withCredentials: true },
+        );
+        // Server sets new httpOnly cookies; also update localStorage as fallback
         localStorage.setItem("lwc_access_token", data.access_token);
         localStorage.setItem("lwc_refresh_token", data.refresh_token);
         original.headers.Authorization = `Bearer ${data.access_token}`;
         return apiClient(original);
       } catch {
         if (typeof window !== "undefined") {
-          localStorage.clear();
+          localStorage.removeItem("lwc_access_token");
+          localStorage.removeItem("lwc_refresh_token");
+          // Server clears httpOnly cookies on logout; clear the flag cookie
           document.cookie =
             "lwc_token_present=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
           window.location.href = "/login";
@@ -51,8 +61,14 @@ apiClient.interceptors.response.use(
 );
 
 // ── Portfolio ────────────────────────────────────────────────────────
+// Helper to unwrap paginated responses — returns items array for backward compat
+function unwrapPaginated<T>(data: { items: T[]; total: number } | T[]): T[] {
+  if (Array.isArray(data)) return data;
+  return data.items;
+}
+
 export const portfolio = {
-  getProperties: (lpId?: number) => apiClient.get<Property[]>("/api/portfolio/properties", { params: lpId ? { lp_id: lpId } : {} }).then(r => r.data),
+  getProperties: (lpId?: number) => apiClient.get("/api/portfolio/properties", { params: lpId ? { lp_id: lpId } : {} }).then(r => unwrapPaginated<Property>(r.data)),
   getProperty: (id: number) => apiClient.get<Property>(`/api/portfolio/properties/${id}`).then(r => r.data),
   createProperty: (data: PropertyCreate) => apiClient.post<Property>("/api/portfolio/properties", data).then(r => r.data),
   getDevelopmentPlans: (propertyId: number) => apiClient.get<DevelopmentPlan[]>(`/api/portfolio/properties/${propertyId}/plans`).then(r => r.data),
@@ -118,12 +134,12 @@ export const portfolio = {
 // ── Investment (GP / LP / Tranche / Subscription / Holding / Target / Distribution) ─────
 export const investment = {
   // GP
-  getGPs: () => apiClient.get<GPEntity[]>("/api/investment/gp").then(r => r.data),
+  getGPs: () => apiClient.get("/api/investment/gp").then(r => unwrapPaginated<GPEntity>(r.data)),
   createGP: (data: Partial<GPEntity>) => apiClient.post<GPEntity>("/api/investment/gp", data).then(r => r.data),
   updateGP: (id: number, data: Partial<GPEntity>) => apiClient.patch<GPEntity>(`/api/investment/gp/${id}`, data).then(r => r.data),
 
   // LP
-  getLPs: () => apiClient.get<LPEntity[]>("/api/investment/lp").then(r => r.data),
+  getLPs: () => apiClient.get("/api/investment/lp").then(r => unwrapPaginated<LPEntity>(r.data)),
   getLP: (id: number) => apiClient.get<LPDetail>(`/api/investment/lp/${id}`).then(r => r.data),
   createLP: (data: LPCreate) => apiClient.post<LPEntity>("/api/investment/lp", data).then(r => r.data),
   updateLP: (id: number, data: Partial<LPCreate>) => apiClient.patch<LPEntity>(`/api/investment/lp/${id}`, data).then(r => r.data),
@@ -134,22 +150,26 @@ export const investment = {
   updateTranche: (trancheId: number, data: Partial<LPTrancheCreate>) => apiClient.patch<LPTranche>(`/api/investment/tranches/${trancheId}`, data).then(r => r.data),
 
   // Investors
-  getInvestors: () => apiClient.get<InvInvestor[]>("/api/investment/investors").then(r => r.data),
+  getInvestors: () => apiClient.get("/api/investment/investors").then(r => unwrapPaginated<InvInvestor>(r.data)),
   createInvestor: (data: Partial<InvInvestor>) => apiClient.post<InvInvestor>("/api/investment/investors", data).then(r => r.data),
   updateInvestor: (id: number, data: Partial<InvInvestor>) => apiClient.patch<InvInvestor>(`/api/investment/investors/${id}`, data).then(r => r.data),
 
   // Subscriptions
-  getSubscriptions: (lpId: number) => apiClient.get<Subscription[]>(`/api/investment/lp/${lpId}/subscriptions`).then(r => r.data),
+  getSubscriptions: (lpId: number) => apiClient.get(`/api/investment/lp/${lpId}/subscriptions`).then(r => unwrapPaginated<Subscription>(r.data)),
   createSubscription: (lpId: number, data: SubscriptionCreate) => apiClient.post<Subscription>(`/api/investment/lp/${lpId}/subscriptions`, data).then(r => r.data),
   updateSubscription: (subId: number, data: Partial<SubscriptionCreate>) => apiClient.patch<Subscription>(`/api/investment/subscriptions/${subId}`, data).then(r => r.data),
 
   // Holdings
-  getHoldings: (lpId: number) => apiClient.get<Holding[]>(`/api/investment/lp/${lpId}/holdings`).then(r => r.data),
+  getHoldings: (lpId: number) => apiClient.get(`/api/investment/lp/${lpId}/holdings`).then(r => {
+    const data = r.data;
+    if (Array.isArray(data)) return data;
+    return data.items;
+  }),
   createHolding: (lpId: number, data: Partial<Holding>) => apiClient.post<Holding>(`/api/investment/lp/${lpId}/holdings`, data).then(r => r.data),
   updateHolding: (holdingId: number, data: Partial<Holding>) => apiClient.patch<Holding>(`/api/investment/holdings/${holdingId}`, data).then(r => r.data),
 
   // Target Properties
-  getTargetProperties: (lpId: number) => apiClient.get<TargetProperty[]>(`/api/investment/lp/${lpId}/target-properties`).then(r => r.data),
+  getTargetProperties: (lpId: number) => apiClient.get(`/api/investment/lp/${lpId}/target-properties`).then(r => unwrapPaginated<TargetProperty>(r.data)),
   createTargetProperty: (lpId: number, data: Partial<TargetProperty>) => apiClient.post<TargetProperty>(`/api/investment/lp/${lpId}/target-properties`, data).then(r => r.data),
   updateTargetProperty: (tpId: number, data: Partial<TargetProperty>) => apiClient.patch<TargetProperty>(`/api/investment/target-properties/${tpId}`, data).then(r => r.data),
   deleteTargetProperty: (tpId: number) => apiClient.delete(`/api/investment/target-properties/${tpId}`).then(r => r.data),
@@ -159,7 +179,7 @@ export const investment = {
   getPortfolioRollup: (lpId: number) => apiClient.get<LPPortfolioRollup>(`/api/investment/lp/${lpId}/portfolio-rollup`).then(r => r.data),
 
   // Distributions
-  getDistributions: (lpId: number) => apiClient.get<DistributionEvent[]>(`/api/investment/lp/${lpId}/distributions`).then(r => r.data),
+  getDistributions: (lpId: number) => apiClient.get(`/api/investment/lp/${lpId}/distributions`).then(r => unwrapPaginated<DistributionEvent>(r.data)),
 
   // P&L
   getLpPnl: (lpId: number, year: number, month?: number) =>
@@ -197,7 +217,7 @@ export const investors = {
 
 // ── Communities ──────────────────────────────────────────────────────
 export const communities = {
-  getAll: () => apiClient.get("/api/community/communities").then(r => r.data),
+  getAll: () => apiClient.get("/api/community/communities").then(r => unwrapPaginated(r.data)),
   get: (id: number) => apiClient.get(`/api/community/communities/${id}`).then(r => r.data),
   getUnits: (communityId: number) => apiClient.get(`/api/community/communities/${communityId}/units`).then(r => r.data),
   getResidents: (communityId: number) => apiClient.get(`/api/community/communities/${communityId}/residents`).then(r => r.data),

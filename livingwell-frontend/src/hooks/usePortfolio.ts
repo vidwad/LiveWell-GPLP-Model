@@ -10,11 +10,16 @@ import {
   ModelingResult,
 } from "@/types/portfolio";
 
+function unwrapPaginated<T>(data: { items: T[]; total: number } | T[]): T[] {
+  if (Array.isArray(data)) return data;
+  return data.items;
+}
+
 export function useProperties() {
   return useQuery({
     queryKey: ["properties"],
     queryFn: () =>
-      apiClient.get<Property[]>("/api/portfolio/properties").then((r) => r.data),
+      apiClient.get("/api/portfolio/properties").then((r) => unwrapPaginated<Property>(r.data)),
   });
 }
 
@@ -22,7 +27,7 @@ export function usePropertiesByLp(lpId: number) {
   return useQuery({
     queryKey: ["properties", "lp", lpId],
     queryFn: () =>
-      apiClient.get<Property[]>("/api/portfolio/properties", { params: { lp_id: lpId } }).then((r) => r.data),
+      apiClient.get("/api/portfolio/properties", { params: { lp_id: lpId } }).then((r) => unwrapPaginated<Property>(r.data)),
     enabled: !!lpId,
   });
 }

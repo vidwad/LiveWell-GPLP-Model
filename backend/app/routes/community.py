@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from app.core.deps import get_current_user, require_gp_ops_pm, require_gp_or_ops
+from app.core.deps import get_current_user, require_gp_ops_pm, require_gp_or_ops, PaginationParams
 from app.db.models import (
     Bed, BedStatus, Community, MaintenanceRequest, MaintenanceStatus, Property, Resident,
     RentPayment, PaymentStatus, RenovationPhase, Unit, User,
@@ -26,12 +26,13 @@ router = APIRouter()
 # Communities
 # ---------------------------------------------------------------------------
 
-@router.get("/communities", response_model=list[CommunityOut])
+@router.get("/communities")
 def list_communities(
+    pg: PaginationParams = Depends(),
     db: Session = Depends(get_db),
     _: User = Depends(get_current_user),
 ):
-    return db.query(Community).all()
+    return pg.paginate(db.query(Community))
 
 
 @router.post("/communities", response_model=CommunityOut, status_code=status.HTTP_201_CREATED)
