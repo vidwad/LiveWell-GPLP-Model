@@ -550,3 +550,138 @@ def draft_bulk_communications(
         "drafts_generated": len(drafts),
         "drafts": drafts,
     }
+
+
+# ── Decision Memory ──────────────────────────────────────────────────────
+
+from app.services.decision_memory import log_decision, search_decisions
+import datetime as _dt
+
+
+class LogDecisionRequest(BaseModel):
+    category: str
+    title: str
+    description: str
+    property_id: Optional[int] = None
+    lp_id: Optional[int] = None
+    investor_id: Optional[int] = None
+    amount: Optional[float] = None
+    outcome: str = "pending"
+    outcome_notes: Optional[str] = None
+    lessons_learned: Optional[str] = None
+    tags: Optional[list[str]] = None
+
+
+class UpdateDecisionOutcomeRequest(BaseModel):
+    outcome: str  # positive, neutral, negative
+    outcome_notes: Optional[str] = None
+    lessons_learned: Optional[str] = None
+
+
+@router.post("/decisions", status_code=201)
+def create_decision(
+    payload: LogDecisionRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_gp_or_ops),
+):
+    """Log a business decision to institutional memory."""
+    d = log_decision(
+        db,
+        category=payload.category,
+        title=payload.title,
+        description=payload.description,
+        decision_date=_dt.date.today(),
+        decision_maker_id=current_user.user_id,
+        property_id=payload.property_id,
+        lp_id=payload.lp_id,
+        investor_id=payload.investor_id,
+        amount=payload.amount,
+        outcome=payload.outcome,
+        outcome_notes=payload.outcome_notes,
+        lessons_learned=payload.lessons_learned,
+        tags=payload.tags,
+    )
+    db.commit()
+    return {
+        "decision_id": d.decision_id,
+        "title": d.title,
+        "category": d.category.value,
+        "message": "Decision logged to institutional memory.",
+    }
+
+
+@router.get("/decisions")
+def list_decisions(
+    category: Optional[str] = None,
+    property_id: Optional[int] = None,
+    lp_id: Optional[int] = None,
+    city: Optional[str] = None,
+    limit: int = 20,
+    db: Session = Depends(get_db),
+    _: User = Depends(require_gp_or_ops),
+):
+    """Search institutional memory for past decisions."""
+    return search_decisions(
+        db, category=category, property_id=property_id,
+        lp_id=lp_id, city=city, limit=limit,
+    )
+
+
+@router.get("/decisions/{decision_id}")
+def get_decision(
+    decision_id: int,
+    db: Session = Depends(get_db),
+    _: User = Depends(require_gp_or_ops),
+):
+    """Get a single decision with full detail."""
+    from app.db.models import DecisionLog
+    d = db.query(DecisionLog).filter(DecisionLog.decision_id == decision_id).first()
+    if not d:
+        raise HTTPException(404, "Decision not found")
+    import json
+    return {
+        "decision_id": d.decision_id,
+        "category": d.category.value if d.category else None,
+        "title": d.title,
+        "description": d.description,
+        "decision_date": str(d.decision_date) if d.decision_date else None,
+        "amount": float(d.amount) if d.amount else None,
+        "outcome": d.outcome.value if d.outcome else "pending",
+        "outcome_notes": d.outcome_notes,
+        "lessons_learned": d.lessons_learned,
+        "tags": d.tags.split(",") if d.tags else [],
+        "context_snapshot": json.loads(d.context_snapshot) if d.context_snapshot else None,
+        "property_address": d.property.address if d.property else None,
+        "lp_name": d.lp.name if d.lp else None,
+        "investor_name": d.investor.name if d.investor else None,
+        "created_at": str(d.created_at) if d.created_at else None,
+    }
+
+
+@router.patch("/decisions/{decision_id}/outcome")
+def update_decision_outcome(
+    decision_id: int,
+    payload: UpdateDecisionOutcomeRequest,
+    db: Session = Depends(get_db),
+    _: User = Depends(require_gp_or_ops),
+):
+    """Update the outcome of a past decision — record what actually happened."""
+    from app.db.models import DecisionLog, DecisionOutcome
+    d = db.query(DecisionLog).filter(DecisionLog.decision_id == decision_id).first()
+    if not d:
+        raise HTTPException(404, "Decision not found")
+
+    d.outcome = DecisionOutcome(payload.outcome)
+    d.outcome_notes = payload.outcome_notes
+    d.outcome_date = _dt.date.today()
+    if payload.lessons_learned:
+        d.lessons_learned = payload.lessons_learned
+    db.commit()
+    db.refresh(d)
+
+    return {
+        "decision_id": d.decision_id,
+        "title": d.title,
+        "outcome": d.outcome.value,
+        "message": "Decision outcome updated.",
+    }

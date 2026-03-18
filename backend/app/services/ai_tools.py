@@ -186,6 +186,48 @@ TOOL_DEFINITIONS = [
             "required": ["property_id"],
         },
     },
+    {
+        "name": "recall_past_decisions",
+        "description": "Search institutional memory for relevant past decisions. Use when the user asks about past experiences, precedents, or 'what happened last time'. Returns decisions with outcomes and lessons learned.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "category": {
+                    "type": "string",
+                    "enum": ["acquisition", "disposition", "distribution", "refinancing", "construction", "subscription", "stage_transition", "operational", "strategic"],
+                    "description": "Decision category to search",
+                },
+                "city": {"type": "string", "description": "Filter by city name (e.g. 'Red Deer', 'Calgary')"},
+                "lp_id": {"type": "integer", "description": "Filter by LP fund ID"},
+                "property_id": {"type": "integer", "description": "Filter by property ID"},
+                "limit": {"type": "integer", "description": "Max results (default 5)"},
+            },
+            "required": [],
+        },
+    },
+    {
+        "name": "log_decision",
+        "description": "Record a business decision to institutional memory. Use when the user says 'remember this', 'log this decision', or wants to record an outcome or lesson learned.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "category": {
+                    "type": "string",
+                    "enum": ["acquisition", "disposition", "distribution", "refinancing", "construction", "subscription", "stage_transition", "operational", "strategic", "other"],
+                    "description": "Decision category",
+                },
+                "title": {"type": "string", "description": "Short title for the decision"},
+                "description": {"type": "string", "description": "Detailed description of the decision and reasoning"},
+                "property_id": {"type": "integer", "description": "Related property ID (if applicable)"},
+                "lp_id": {"type": "integer", "description": "Related LP fund ID (if applicable)"},
+                "amount": {"type": "number", "description": "Dollar amount involved (if applicable)"},
+                "outcome": {"type": "string", "enum": ["positive", "neutral", "negative", "pending"], "description": "Decision outcome"},
+                "lessons_learned": {"type": "string", "description": "Key lessons or takeaways"},
+                "tags": {"type": "array", "items": {"type": "string"}, "description": "Tags for future retrieval (e.g. ['red_deer', 'over_budget'])"},
+            },
+            "required": ["category", "title", "description"],
+        },
+    },
 ]
 
 
@@ -377,6 +419,36 @@ def _dispatch_tool(db: Session, name: str, inp: dict) -> Any:
             "amort_months": d.amortization_months,
             "io_months": d.io_period_months,
         } for d in debts]
+
+    elif name == "recall_past_decisions":
+        from app.services.decision_memory import search_decisions
+        return search_decisions(
+            db,
+            category=inp.get("category"),
+            property_id=inp.get("property_id"),
+            lp_id=inp.get("lp_id"),
+            city=inp.get("city"),
+            limit=inp.get("limit", 5),
+        )
+
+    elif name == "log_decision":
+        from app.services.decision_memory import log_decision
+        from datetime import date
+        d = log_decision(
+            db,
+            category=inp["category"],
+            title=inp["title"],
+            description=inp["description"],
+            decision_date=date.today(),
+            property_id=inp.get("property_id"),
+            lp_id=inp.get("lp_id"),
+            amount=inp.get("amount"),
+            outcome=inp.get("outcome", "pending"),
+            lessons_learned=inp.get("lessons_learned"),
+            tags=inp.get("tags"),
+        )
+        db.commit()
+        return {"decision_id": d.decision_id, "title": d.title, "message": "Decision logged to institutional memory."}
 
     else:
         return {"error": f"Unknown tool: {name}"}

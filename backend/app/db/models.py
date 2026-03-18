@@ -1751,3 +1751,74 @@ class PeriodicSnapshot(Base):
         # (SQLAlchemy UniqueConstraint)
         {},
     )
+
+
+# ---------------------------------------------------------------------------
+# Decision Memory — Institutional Knowledge
+# ---------------------------------------------------------------------------
+
+class DecisionCategory(str, enum.Enum):
+    acquisition = "acquisition"
+    disposition = "disposition"
+    distribution = "distribution"
+    refinancing = "refinancing"
+    construction = "construction"
+    subscription = "subscription"
+    stage_transition = "stage_transition"
+    budget_approval = "budget_approval"
+    investor_onboarding = "investor_onboarding"
+    operational = "operational"
+    strategic = "strategic"
+    other = "other"
+
+
+class DecisionOutcome(str, enum.Enum):
+    positive = "positive"
+    neutral = "neutral"
+    negative = "negative"
+    pending = "pending"
+
+
+class DecisionLog(Base):
+    """Institutional memory — logs major business decisions with context and outcomes.
+
+    Enables AI to retrieve relevant past decisions when advising on similar situations.
+    E.g., 'Last time we acquired in Red Deer at this price, construction ran 15% over.'
+    """
+    __tablename__ = "decision_log"
+
+    decision_id = Column(Integer, primary_key=True, index=True)
+    category = Column(_enum(DecisionCategory), nullable=False, index=True)
+    title = Column(String(512), nullable=False)
+    description = Column(Text, nullable=False)
+
+    # Context snapshot (JSON) — captures relevant data at time of decision
+    context_snapshot = Column(Text, nullable=True)  # JSON string
+
+    # Entity linkage (optional — which property/LP/investor this relates to)
+    property_id = Column(Integer, ForeignKey("properties.property_id"), nullable=True, index=True)
+    lp_id = Column(Integer, ForeignKey("lp_entities.lp_id"), nullable=True, index=True)
+    investor_id = Column(Integer, ForeignKey("investors.investor_id"), nullable=True, index=True)
+
+    # Decision details
+    decision_maker = Column(Integer, ForeignKey("users.user_id"), nullable=True)
+    decision_date = Column(Date, nullable=False)
+    amount = Column(Numeric(16, 2), nullable=True)  # dollar amount involved
+
+    # Outcome tracking (updated later)
+    outcome = Column(_enum(DecisionOutcome), nullable=False, default=DecisionOutcome.pending)
+    outcome_notes = Column(Text, nullable=True)
+    outcome_date = Column(Date, nullable=True)
+    lessons_learned = Column(Text, nullable=True)
+
+    # Tags for retrieval
+    tags = Column(String(512), nullable=True)  # comma-separated: "red_deer,construction,over_budget"
+
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    updated_at = Column(DateTime, nullable=True, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    # Relationships
+    property = relationship("Property")
+    lp = relationship("LPEntity")
+    investor = relationship("Investor")
+    maker = relationship("User")

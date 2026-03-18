@@ -2416,6 +2416,92 @@ def seed():
         db.flush()
         print("  [ok] 48 periodic snapshots (12 months × 2 communities + 2 LPs)")
 
+        # ── Decision Memory (institutional knowledge) ──
+        decisions = [
+            m.DecisionLog(
+                category=m.DecisionCategory.acquisition,
+                title="Acquired 123 Recovery Road NE at $650K",
+                description="Purchased 4-bedroom bungalow in Calgary NE for RecoverWell sober living. Below-market price due to estate sale. Zoning R-CG supports 8-plex conversion.",
+                property_id=prop1.property_id,
+                lp_id=lp1.lp_id,
+                decision_maker=users["admin"].user_id,
+                decision_date=date(2024, 8, 1),
+                amount=Decimal("650000"),
+                outcome=m.DecisionOutcome.positive,
+                outcome_notes="Property stabilized ahead of schedule. Interim revenue covered carrying costs.",
+                lessons_learned="Estate sales in Calgary NE offer 10-15% below market. Move quickly — competition from other developers is increasing.",
+                tags="calgary,acquisition,estate_sale,below_market",
+            ),
+            m.DecisionLog(
+                category=m.DecisionCategory.construction,
+                title="8-plex conversion at 456 Healing Ave — $1.58M budget",
+                description="Approved 6-unit to 8-unit conversion plan. Hard costs $800K, soft costs $180K. 18-month timeline. Selected Prairie Framing Co. as GC after 3 bids.",
+                property_id=prop2.property_id,
+                lp_id=lp1.lp_id,
+                decision_maker=users["admin"].user_id,
+                decision_date=date(2025, 1, 15),
+                amount=Decimal("1583505"),
+                outcome=m.DecisionOutcome.neutral,
+                outcome_notes="Construction underway. Framing 8% over budget due to lumber price spike. Timeline on track.",
+                lessons_learned="Lock in lumber prices at permit stage. Alberta lumber costs swing 5-15% seasonally — buy in Q4 when demand is lowest.",
+                tags="calgary,construction,over_budget,lumber,framing",
+            ),
+            m.DecisionLog(
+                category=m.DecisionCategory.distribution,
+                title="Q4 2025 distribution — $50K from Fund I",
+                description="First distribution from Fund I. Waterfall: 100% return of capital (Tier 1). No preferred return or carried interest paid yet — all capital still unreturned.",
+                lp_id=lp1.lp_id,
+                decision_maker=users["admin"].user_id,
+                decision_date=date(2025, 12, 28),
+                amount=Decimal("50000"),
+                outcome=m.DecisionOutcome.positive,
+                outcome_notes="All 3 investors received eTransfers within 48 hours. Positive investor feedback.",
+                lessons_learned="Send distribution notices 5 business days before payment. Investors appreciate the advance notice for tax planning.",
+                tags="distribution,fund_i,etransfer,investor_relations",
+            ),
+            m.DecisionLog(
+                category=m.DecisionCategory.acquisition,
+                title="Acquired 321 Sunset Blvd, Red Deer at $480K",
+                description="First Red Deer acquisition for Fund II. R-2 zoning limits to duplex initially but city indicated R-CG redesignation likely within 6 months. Higher risk but 15% below assessed value.",
+                property_id=prop4.property_id,
+                lp_id=lp2.lp_id,
+                decision_maker=users["admin"].user_id,
+                decision_date=date(2025, 3, 1),
+                amount=Decimal("480000"),
+                outcome=m.DecisionOutcome.pending,
+                outcome_notes="Rezoning application submitted. Awaiting council decision in Q2 2026.",
+                lessons_learned="Red Deer council is more conservative on rezoning than Calgary. Budget 6-9 months for the process, not 3-4.",
+                tags="red_deer,acquisition,rezoning_risk,fund_ii",
+            ),
+            m.DecisionLog(
+                category=m.DecisionCategory.refinancing,
+                title="Explored CMHC MLI Select refinance for 123 Recovery Road",
+                description="Applied for CMHC MLI Select insured mortgage at stabilized value. $2.8M commitment at 4.25% for 10-year term. Requires 12-month stabilized NOI track record.",
+                property_id=prop1.property_id,
+                lp_id=lp1.lp_id,
+                decision_maker=users["admin"].user_id,
+                decision_date=date(2025, 9, 1),
+                amount=Decimal("2800000"),
+                outcome=m.DecisionOutcome.pending,
+                lessons_learned="CMHC MLI Select requires minimum 1.1x DSCR and 12 months of stabilized operations. Start the application 3 months before maturity of construction loan.",
+                tags="refinancing,cmhc,mli_select,calgary",
+            ),
+            m.DecisionLog(
+                category=m.DecisionCategory.operational,
+                title="Switched to bed-level rent pricing for RecoverWell",
+                description="Changed from per-unit to per-bed pricing model across all RecoverWell communities. Increases revenue density by 25-30% per property. Better matches sober living market where residents rent beds, not apartments.",
+                decision_maker=users["admin"].user_id,
+                decision_date=date(2025, 4, 1),
+                outcome=m.DecisionOutcome.positive,
+                outcome_notes="Average revenue per property increased from $6,200/mo to $8,100/mo. Occupancy rate maintained above 85%.",
+                lessons_learned="Bed-level pricing is the standard for shared living. Per-unit pricing leaves 25-30% revenue on the table. Implement from day one on new properties.",
+                tags="pricing,bed_level,revenue_optimization,recoverwell",
+            ),
+        ]
+        db.add_all(decisions)
+        db.flush()
+        print("  [ok] 6 decision memory records")
+
         db.commit()
         print("=" * 60)
         print("  SEED COMPLETE — Phase 1 Foundation + Phase 3 Features")
@@ -2464,6 +2550,7 @@ def seed():
         print("  Unit Turnovers:      3")
         print("  Valuation History:   5")
         print("  Periodic Snapshots:  48 (12 months × 4 entities)")
+        print("  Decision Memory:     6 (institutional knowledge)")
         print()
         print("  Demo logins:")
         print("    admin@livingwell.ca / Password1!     (GP_ADMIN)")

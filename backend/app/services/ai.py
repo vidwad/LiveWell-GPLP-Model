@@ -464,7 +464,7 @@ def chat_with_context(
 
     tools = get_tool_definitions() if db else []
     tools_used = []
-    max_rounds = 5  # prevent infinite tool loops
+    max_rounds = 8  # allow complex multi-tool queries
 
     try:
         for _ in range(max_rounds):
