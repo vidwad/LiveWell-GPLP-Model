@@ -2,6 +2,7 @@
 
 import React, { useState } from "react";
 import { useRouter } from "next/navigation";
+import { ProFormaTab } from "@/components/property/ProFormaTab";
 import { toast } from "sonner";
 import {
   ArrowLeft,
@@ -858,6 +859,7 @@ export default function PropertyDetailPage({ params }: { params: { id: string } 
             <TabsTrigger value="debt"><Landmark className="h-4 w-4 sm:mr-1.5" /><span className="hidden sm:inline">Debt & Financing</span></TabsTrigger>
             <TabsTrigger value="projections"><BarChart3 className="h-4 w-4 sm:mr-1.5" /><span className="hidden sm:inline">Projections</span></TabsTrigger>
             <TabsTrigger value="exit"><TrendingUp className="h-4 w-4 sm:mr-1.5" /><span className="hidden sm:inline">Exit Scenarios</span></TabsTrigger>
+            <TabsTrigger value="proforma"><Calculator className="h-4 w-4 sm:mr-1.5" /><span className="hidden sm:inline">Pro Forma</span></TabsTrigger>
           </TabsList>
         </div>
 
@@ -4424,6 +4426,11 @@ export default function PropertyDetailPage({ params }: { params: { id: string } 
               </div>
             </div>
           </section>
+        </TabsContent>
+
+        {/* ── Pro Forma Tab ── */}
+        <TabsContent value="proforma" className="mt-4">
+          <ProFormaTab propertyId={propertyId} />
         </TabsContent>
       </Tabs>
     </div>
