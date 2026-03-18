@@ -1619,6 +1619,82 @@ class LPFeeItem(Base):
 
 
 # ---------------------------------------------------------------------------
+# Stabilized Pro Forma
+# ---------------------------------------------------------------------------
+
+class ProFormaStatus(str, enum.Enum):
+    draft = "draft"
+    active = "active"
+    archived = "archived"
+
+
+class ProForma(Base):
+    """Saved stabilized pro forma for a property — ties together rent roll,
+    expenses, debt service, and valuation into a single snapshot."""
+    __tablename__ = "pro_formas"
+
+    proforma_id = Column(Integer, primary_key=True, index=True)
+    property_id = Column(Integer, ForeignKey("properties.property_id"), nullable=False, index=True)
+    plan_id = Column(Integer, ForeignKey("development_plans.plan_id"), nullable=True, index=True)
+    label = Column(String(256), nullable=False)
+    status = Column(_enum(ProFormaStatus), nullable=False, default=ProFormaStatus.draft)
+
+    # Revenue
+    gross_potential_rent = Column(Numeric(14, 2), nullable=False, default=0)
+    other_income = Column(Numeric(14, 2), nullable=True, default=0)
+    vacancy_rate = Column(Numeric(5, 2), nullable=True)  # percentage
+    vacancy_loss = Column(Numeric(14, 2), nullable=True)
+    effective_gross_income = Column(Numeric(14, 2), nullable=True)
+
+    # Expenses
+    operating_expenses = Column(Numeric(14, 2), nullable=True, default=0)
+    property_tax = Column(Numeric(14, 2), nullable=True, default=0)
+    insurance = Column(Numeric(14, 2), nullable=True, default=0)
+    management_fee = Column(Numeric(14, 2), nullable=True, default=0)
+    management_fee_rate = Column(Numeric(5, 4), nullable=True)  # decimal
+    replacement_reserves = Column(Numeric(14, 2), nullable=True, default=0)
+    total_expenses = Column(Numeric(14, 2), nullable=True)
+
+    # NOI
+    noi = Column(Numeric(14, 2), nullable=True)
+    expense_ratio = Column(Numeric(5, 2), nullable=True)  # percentage
+
+    # Debt Service
+    annual_debt_service = Column(Numeric(14, 2), nullable=True, default=0)
+    cash_flow_after_debt = Column(Numeric(14, 2), nullable=True)
+
+    # Ratios
+    dscr = Column(Numeric(6, 4), nullable=True)
+    cap_rate = Column(Numeric(5, 2), nullable=True)  # percentage
+    ltv = Column(Numeric(5, 2), nullable=True)  # percentage
+
+    # Valuation
+    total_debt = Column(Numeric(16, 2), nullable=True, default=0)
+    property_value = Column(Numeric(16, 2), nullable=True)  # current/estimated
+    implied_value_at_cap = Column(Numeric(16, 2), nullable=True)  # NOI / cap_rate
+
+    # Equity
+    total_equity = Column(Numeric(16, 2), nullable=True)
+    cash_on_cash = Column(Numeric(5, 2), nullable=True)  # percentage
+
+    # Units
+    total_units = Column(Integer, nullable=True)
+    total_beds = Column(Integer, nullable=True)
+    total_sqft = Column(Numeric(14, 2), nullable=True)
+    noi_per_unit = Column(Numeric(10, 2), nullable=True)
+    noi_per_bed = Column(Numeric(10, 2), nullable=True)
+    noi_per_sqft = Column(Numeric(10, 2), nullable=True)
+
+    notes = Column(Text, nullable=True)
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    created_by = Column(Integer, ForeignKey("users.user_id"), nullable=True)
+
+    property = relationship("Property")
+    plan = relationship("DevelopmentPlan")
+    creator = relationship("User")
+
+
+# ---------------------------------------------------------------------------
 # Periodic Snapshots — Time-Series Metrics
 # ---------------------------------------------------------------------------
 
