@@ -531,3 +531,112 @@ def chat_with_context(
             "response": f"I encountered an error processing your request. Please try again. ({type(e).__name__})",
             "tools_used": tools_used,
         }
+
+
+# ── Investor Communication Drafts ────────────────────────────────────────
+
+COMM_TYPES = {
+    "distribution_notice": {
+        "label": "Distribution Notice",
+        "description": "Notify an investor about an upcoming or completed distribution payment.",
+        "tone": "Professional and clear. Include the exact amount, period, payment method, and breakdown by tier if available.",
+    },
+    "quarterly_update": {
+        "label": "Quarterly Update",
+        "description": "Personalized quarterly portfolio update for an investor.",
+        "tone": "Warm but professional. Highlight their specific holdings, any distributions received, property milestones relevant to their fund, and forward outlook.",
+    },
+    "welcome_letter": {
+        "label": "Welcome Letter",
+        "description": "Welcome a new investor after their subscription is funded.",
+        "tone": "Warm and welcoming. Introduce the team, explain what to expect (quarterly reports, distributions, portal access), and thank them for their trust.",
+    },
+    "capital_confirmation": {
+        "label": "Capital Receipt Confirmation",
+        "description": "Confirm receipt of an investor's capital contribution.",
+        "tone": "Formal and precise. Confirm the exact amount, unit price, units issued, and subscription details.",
+    },
+    "year_end_summary": {
+        "label": "Year-End Summary",
+        "description": "Annual summary of an investor's position, distributions received, and tax information.",
+        "tone": "Comprehensive and clear. Summarize the year's activity: total distributions, current holdings value, capital account changes, and note that T5013 will follow.",
+    },
+    "milestone_update": {
+        "label": "Property Milestone Update",
+        "description": "Inform an investor about a significant property milestone (construction complete, occupancy target reached, refinance, etc.).",
+        "tone": "Enthusiastic but factual. Explain the milestone, its impact on the fund, and what comes next.",
+    },
+    "custom": {
+        "label": "Custom Communication",
+        "description": "Free-form investor communication with AI assistance.",
+        "tone": "Match the tone specified in the additional context.",
+    },
+}
+
+
+def draft_investor_communication(
+    comm_type: str,
+    investor_data: dict,
+    holdings_data: Optional[list] = None,
+    distribution_data: Optional[dict] = None,
+    lp_data: Optional[dict] = None,
+    milestones: Optional[list] = None,
+    additional_context: Optional[str] = None,
+) -> dict:
+    """Draft a personalized investor communication.
+
+    Returns: {"subject": str, "body": str, "comm_type": str}
+    """
+    type_info = COMM_TYPES.get(comm_type, COMM_TYPES["custom"])
+
+    context_parts = [
+        f"Communication Type: {type_info['label']}",
+        f"Purpose: {type_info['description']}",
+        f"Tone: {type_info['tone']}",
+        f"\nInvestor Details:\n{json.dumps(investor_data, indent=2, default=str)}",
+    ]
+
+    if holdings_data:
+        context_parts.append(f"\nHoldings:\n{json.dumps(holdings_data, indent=2, default=str)}")
+    if distribution_data:
+        context_parts.append(f"\nDistribution Details:\n{json.dumps(distribution_data, indent=2, default=str)}")
+    if lp_data:
+        context_parts.append(f"\nLP Fund Info:\n{json.dumps(lp_data, indent=2, default=str)}")
+    if milestones:
+        context_parts.append(f"\nRecent Milestones:\n{json.dumps(milestones, indent=2, default=str)}")
+    if additional_context:
+        context_parts.append(f"\nAdditional Context: {additional_context}")
+
+    context = "\n".join(context_parts)
+
+    prompt = f"""Draft a professional investor communication for Living Well Communities.
+
+{context}
+
+Return JSON with these exact keys:
+- subject (string — email subject line, concise and clear)
+- body (string — full email body in plain text, with proper greeting and sign-off)
+
+The communication should be from "Living Well Communities GP" signed by "The Living Well Team".
+Address the investor by their first name.
+Include specific dollar amounts, dates, and percentages from the data provided.
+Do NOT use markdown formatting in the body — use plain text with line breaks."""
+
+    result = _call_claude_json(prompt, max_tokens=2000)
+    if result and "subject" in result:
+        result["comm_type"] = comm_type
+        return result
+
+    # Fallback
+    name = investor_data.get("name", "Investor")
+    first_name = name.split()[0] if name else "Investor"
+    return {
+        "subject": f"{type_info['label']} — Living Well Communities",
+        "body": (
+            f"Dear {first_name},\n\n"
+            f"This is a {type_info['label'].lower()} from Living Well Communities.\n\n"
+            f"Configure ANTHROPIC_API_KEY for AI-generated personalized communications.\n\n"
+            f"Regards,\nThe Living Well Team"
+        ),
+        "comm_type": comm_type,
+    }

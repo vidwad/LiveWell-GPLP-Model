@@ -360,3 +360,193 @@ def ai_chat(
         "tools_used": result.get("tools_used", []),
         "model": "claude" if result["response"] and "not configured" not in result["response"] else "fallback",
     }
+
+
+# ── Investor Communication Drafts ────────────────────────────────────────
+
+from app.services.ai import draft_investor_communication, COMM_TYPES
+
+
+class InvestorCommRequest(BaseModel):
+    investor_id: int
+    comm_type: str  # distribution_notice, quarterly_update, welcome_letter, etc.
+    lp_id: Optional[int] = None
+    distribution_event_id: Optional[int] = None
+    additional_context: Optional[str] = None
+
+
+@router.get("/communication-types")
+def list_communication_types(
+    _: User = Depends(require_gp_or_ops),
+):
+    """List available investor communication types."""
+    return [
+        {"type": k, "label": v["label"], "description": v["description"]}
+        for k, v in COMM_TYPES.items()
+    ]
+
+
+@router.post("/draft-investor-communication")
+def draft_communication(
+    payload: InvestorCommRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_gp_or_ops),
+):
+    """Draft a personalized investor communication using AI.
+
+    Gathers the investor's holdings, distributions, and LP data to produce
+    a tailored email with subject line and body text.
+    """
+    from app.db.models import (
+        Investor, Holding, DistributionAllocation, DistributionEvent,
+        PropertyMilestone, MilestoneStatus,
+    )
+
+    inv = db.query(Investor).filter(Investor.investor_id == payload.investor_id).first()
+    if not inv:
+        raise HTTPException(404, "Investor not found")
+
+    investor_data = {
+        "name": inv.name,
+        "email": inv.email,
+        "entity_type": inv.entity_type,
+        "accredited_status": inv.accredited_status,
+    }
+
+    # Holdings
+    holdings = db.query(Holding).filter(Holding.investor_id == inv.investor_id).all()
+    holdings_data = [{
+        "lp_name": h.lp.name if h.lp else None,
+        "units_held": float(h.units_held),
+        "total_capital": float(h.total_capital_contributed),
+        "unreturned_capital": float(h.unreturned_capital),
+        "is_gp": h.is_gp,
+    } for h in holdings]
+
+    # Distribution data (for distribution_notice type)
+    distribution_data = None
+    if payload.distribution_event_id:
+        event = db.query(DistributionEvent).filter(
+            DistributionEvent.event_id == payload.distribution_event_id
+        ).first()
+        if event:
+            # Get this investor's allocations from this event
+            holding_ids = [h.holding_id for h in holdings]
+            allocs = db.query(DistributionAllocation).filter(
+                DistributionAllocation.event_id == event.event_id,
+                DistributionAllocation.holding_id.in_(holding_ids),
+            ).all()
+            total_amount = sum(float(a.amount) for a in allocs)
+            distribution_data = {
+                "period": event.period_label,
+                "total_distributed": float(event.total_distributable),
+                "investor_amount": total_amount,
+                "status": event.status.value if event.status else "draft",
+                "paid_date": str(event.paid_date) if event.paid_date else None,
+                "allocations": [{
+                    "amount": float(a.amount),
+                    "type": a.distribution_type.value if a.distribution_type else "unknown",
+                } for a in allocs],
+            }
+
+    # LP context
+    lp_data = None
+    if payload.lp_id:
+        lp_data = _get_lp_context(db, payload.lp_id)
+    elif holdings:
+        # Use the first LP
+        lp_data = _get_lp_context(db, holdings[0].lp_id)
+
+    # Recent milestones (for milestone_update and quarterly_update types)
+    milestones = None
+    if payload.comm_type in ("milestone_update", "quarterly_update"):
+        lp_ids = list(set(h.lp_id for h in holdings))
+        from app.db.models import Property
+        props = db.query(Property).filter(Property.lp_id.in_(lp_ids)).all()
+        milestone_list = []
+        for p in props:
+            ms = db.query(PropertyMilestone).filter(
+                PropertyMilestone.property_id == p.property_id,
+                PropertyMilestone.status == MilestoneStatus.completed,
+            ).order_by(PropertyMilestone.actual_date.desc()).limit(3).all()
+            for m in ms:
+                milestone_list.append({
+                    "property": p.address,
+                    "milestone": m.title,
+                    "date": str(m.actual_date) if m.actual_date else None,
+                })
+        if milestone_list:
+            milestones = milestone_list
+
+    result = draft_investor_communication(
+        comm_type=payload.comm_type,
+        investor_data=investor_data,
+        holdings_data=holdings_data,
+        distribution_data=distribution_data,
+        lp_data=lp_data,
+        milestones=milestones,
+        additional_context=payload.additional_context,
+    )
+
+    return result
+
+
+class BulkCommRequest(BaseModel):
+    lp_id: int
+    comm_type: str
+    distribution_event_id: Optional[int] = None
+    additional_context: Optional[str] = None
+
+
+@router.post("/draft-bulk-communications")
+def draft_bulk_communications(
+    payload: BulkCommRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_gp_or_ops),
+):
+    """Draft communications for ALL investors in an LP fund.
+
+    Returns a list of drafts, one per investor, each personalized with
+    their specific holdings and distribution amounts.
+    """
+    from app.db.models import Investor, Subscription
+
+    lp = db.query(LPEntity).filter(LPEntity.lp_id == payload.lp_id).first()
+    if not lp:
+        raise HTTPException(404, "LP not found")
+
+    # Get unique investors with subscriptions in this LP
+    subs = db.query(Subscription).filter(Subscription.lp_id == payload.lp_id).all()
+    investor_ids = list(set(s.investor_id for s in subs))
+
+    drafts = []
+    for inv_id in investor_ids:
+        req = InvestorCommRequest(
+            investor_id=inv_id,
+            comm_type=payload.comm_type,
+            lp_id=payload.lp_id,
+            distribution_event_id=payload.distribution_event_id,
+            additional_context=payload.additional_context,
+        )
+        try:
+            result = draft_communication.__wrapped__(req, db, current_user) if hasattr(draft_communication, '__wrapped__') else None
+            if not result:
+                # Call the function directly with assembled data
+                inv = db.query(Investor).filter(Investor.investor_id == inv_id).first()
+                result = draft_investor_communication(
+                    comm_type=payload.comm_type,
+                    investor_data={"name": inv.name, "email": inv.email, "entity_type": inv.entity_type},
+                    lp_data=_get_lp_context(db, payload.lp_id),
+                    additional_context=payload.additional_context,
+                )
+            drafts.append({"investor_id": inv_id, "investor_name": inv.name, **result})
+        except Exception as e:
+            drafts.append({"investor_id": inv_id, "error": str(e)})
+
+    return {
+        "lp_id": payload.lp_id,
+        "lp_name": lp.name,
+        "comm_type": payload.comm_type,
+        "drafts_generated": len(drafts),
+        "drafts": drafts,
+    }
