@@ -1054,6 +1054,35 @@ def get_lp_nav(
 
 
 # ===========================================================================
+# LP Trend Data (Time-Series Snapshots)
+# ===========================================================================
+
+@router.get("/lp/{lp_id}/trend")
+def get_lp_trend(
+    lp_id: int,
+    months: int = 12,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_investor_or_above),
+):
+    """Get time-series trend data for an LP (NAV, funded capital, distributions over time)."""
+    if current_user.role not in (UserRole.GP_ADMIN, UserRole.OPERATIONS_MANAGER):
+        if not check_entity_access(current_user, db, ScopeEntityType.lp, lp_id):
+            raise HTTPException(status_code=403, detail="Access denied")
+    lp = db.query(LPEntity).filter(LPEntity.lp_id == lp_id).first()
+    if not lp:
+        raise HTTPException(status_code=404, detail="LP entity not found")
+
+    from app.services.snapshot_service import get_trend
+    data = get_trend(db, "lp", lp_id, months)
+    return {
+        "lp_id": lp_id,
+        "lp_name": lp.name,
+        "periods": len(data),
+        "data": data,
+    }
+
+
+# ===========================================================================
 # Distribution Waterfall (European-style, 4-tier)
 # ===========================================================================
 

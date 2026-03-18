@@ -196,6 +196,10 @@ export const investment = {
   // Portfolio Analytics
   getPortfolioAnalytics: () =>
     apiClient.get("/api/investment/portfolio-analytics").then(r => r.data),
+
+  // LP Trend
+  getLpTrend: (lpId: number, months?: number) =>
+    apiClient.get(`/api/investment/lp/${lpId}/trend`, { params: months ? { months } : {} }).then(r => r.data),
 };
 
 // ── Investors ────────────────────────────────────────────────────────
@@ -226,6 +230,8 @@ export const communities = {
   getMaintenance: () => apiClient.get("/api/community/maintenance").then(r => r.data),
   getVacancyAlerts: (thresholdDays?: number) =>
     apiClient.get("/api/community/operations/vacancy-alerts", { params: thresholdDays ? { threshold_days: thresholdDays } : {} }).then(r => r.data),
+  getCommunityTrend: (communityId: number, months?: number) =>
+    apiClient.get(`/api/community/communities/${communityId}/trend`, { params: months ? { months } : {} }).then(r => r.data),
 };
 
 // ── Reports ──────────────────────────────────────────────────────────

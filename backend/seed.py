@@ -2351,6 +2351,71 @@ def seed():
         db.flush()
         print("  [ok] 5 valuation history records")
 
+        # ── Periodic Snapshots (12 months of trend data) ──
+        import random
+        random.seed(42)
+
+        for month_offset in range(12):
+            yr = 2025 if month_offset < 7 else 2026
+            mo = (month_offset + 4)  # Start from April 2025
+            if mo > 12:
+                mo -= 12
+
+            # Community snapshots — simulate gradual occupancy ramp-up
+            for ci, cid in enumerate([comm1.community_id, comm2.community_id]):
+                base_occ = 60 + ci * 10  # comm1 starts at 60%, comm2 at 70%
+                occ_rate = min(98, base_occ + month_offset * 3 + random.randint(-2, 4))
+                total_beds_c = 14 if ci == 0 else 8
+                occ_beds = int(total_beds_c * occ_rate / 100)
+                base_rev = 8000 + ci * 2000
+                monthly_rev = base_rev + month_offset * 200 + random.randint(-300, 500)
+                monthly_exp = monthly_rev * (0.55 + random.uniform(-0.05, 0.05))
+
+                snap = m.PeriodicSnapshot(
+                    entity_type=m.SnapshotEntityType.community,
+                    entity_id=cid,
+                    year=yr,
+                    month=mo,
+                    total_beds=total_beds_c,
+                    occupied_beds=occ_beds,
+                    occupancy_rate=Decimal(str(occ_rate)),
+                    gross_revenue=Decimal(str(round(monthly_rev, 2))),
+                    collected_revenue=Decimal(str(round(monthly_rev * 0.92, 2))),
+                    total_expenses=Decimal(str(round(monthly_exp, 2))),
+                    noi=Decimal(str(round(monthly_rev * 0.92 - monthly_exp, 2))),
+                )
+                db.add(snap)
+
+            # LP snapshots — simulate fund lifecycle
+            for li, lid in enumerate([lp1.lp_id, lp2.lp_id]):
+                base_funded = 950000 if li == 0 else 150000
+                base_nav = 800000 if li == 0 else 120000
+                funded = base_funded + (month_offset * 10000 if li == 1 else 0)
+                deployed = base_funded * 0.7 + month_offset * 15000
+                nav = base_nav + month_offset * 20000 + random.randint(-10000, 15000)
+                units = 1000 if li == 0 else 150
+                dist_total = 50000 if li == 0 and month_offset >= 6 else 0
+
+                snap = m.PeriodicSnapshot(
+                    entity_type=m.SnapshotEntityType.lp,
+                    entity_id=lid,
+                    year=yr,
+                    month=mo,
+                    total_funded=Decimal(str(funded)),
+                    capital_deployed=Decimal(str(round(deployed, 2))),
+                    nav=Decimal(str(round(nav, 2))),
+                    nav_per_unit=Decimal(str(round(nav / units, 2))),
+                    total_distributions=Decimal(str(dist_total)),
+                    total_debt=Decimal(str(round(deployed * 0.65, 2))),
+                    portfolio_ltv=Decimal("65.00"),
+                    property_count=3 if li == 0 else 2 + (1 if month_offset > 4 else 0),
+                    investor_count=3 if li == 0 else 1 + (1 if month_offset > 2 else 0),
+                )
+                db.add(snap)
+
+        db.flush()
+        print("  [ok] 48 periodic snapshots (12 months × 2 communities + 2 LPs)")
+
         db.commit()
         print("=" * 60)
         print("  SEED COMPLETE — Phase 1 Foundation + Phase 3 Features")
@@ -2398,6 +2463,7 @@ def seed():
         print("  Sale Scenarios:      2")
         print("  Unit Turnovers:      3")
         print("  Valuation History:   5")
+        print("  Periodic Snapshots:  48 (12 months × 4 entities)")
         print()
         print("  Demo logins:")
         print("    admin@livingwell.ca / Password1!     (GP_ADMIN)")

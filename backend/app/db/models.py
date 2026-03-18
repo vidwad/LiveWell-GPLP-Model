@@ -1616,3 +1616,62 @@ class LPFeeItem(Base):
     updated_at = Column(DateTime, nullable=True, default=func.now(), onupdate=func.now())
 
     lp = relationship("LPEntity", back_populates="fee_items")
+
+
+# ---------------------------------------------------------------------------
+# Periodic Snapshots — Time-Series Metrics
+# ---------------------------------------------------------------------------
+
+class SnapshotEntityType(str, enum.Enum):
+    community = "community"
+    lp = "lp"
+
+
+class PeriodicSnapshot(Base):
+    """Monthly/quarterly snapshot of key metrics for trend analysis.
+
+    Each row captures a point-in-time snapshot of financial and operational
+    metrics for either a community or an LP. Enables time-series charting
+    of occupancy, revenue, NOI, NAV, etc.
+    """
+    __tablename__ = "periodic_snapshots"
+
+    snapshot_id = Column(Integer, primary_key=True, index=True)
+    entity_type = Column(_enum(SnapshotEntityType), nullable=False)
+    entity_id = Column(Integer, nullable=False, index=True)  # community_id or lp_id
+    year = Column(Integer, nullable=False)
+    month = Column(Integer, nullable=False)  # 1-12
+
+    # Occupancy (community snapshots)
+    total_beds = Column(Integer, nullable=True)
+    occupied_beds = Column(Integer, nullable=True)
+    occupancy_rate = Column(Numeric(5, 1), nullable=True)
+
+    # Revenue & Expenses
+    gross_revenue = Column(Numeric(14, 2), nullable=True)
+    collected_revenue = Column(Numeric(14, 2), nullable=True)
+    total_expenses = Column(Numeric(14, 2), nullable=True)
+    noi = Column(Numeric(14, 2), nullable=True)
+
+    # LP-specific
+    total_funded = Column(Numeric(16, 2), nullable=True)
+    capital_deployed = Column(Numeric(16, 2), nullable=True)
+    nav = Column(Numeric(16, 2), nullable=True)
+    nav_per_unit = Column(Numeric(14, 2), nullable=True)
+    total_distributions = Column(Numeric(16, 2), nullable=True)
+
+    # Debt
+    total_debt = Column(Numeric(16, 2), nullable=True)
+    portfolio_ltv = Column(Numeric(5, 2), nullable=True)
+
+    # Property count
+    property_count = Column(Integer, nullable=True)
+    investor_count = Column(Integer, nullable=True)
+
+    captured_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+
+    __table_args__ = (
+        # Ensure one snapshot per entity per month
+        # (SQLAlchemy UniqueConstraint)
+        {},
+    )

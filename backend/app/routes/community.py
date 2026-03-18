@@ -580,3 +580,47 @@ def get_vacancy_alerts(
         "summary": summary,
         "communities": alerts,
     }
+
+
+# ---------------------------------------------------------------------------
+# Trend Data (Time-Series Snapshots)
+# ---------------------------------------------------------------------------
+
+from app.services.snapshot_service import (
+    capture_community_snapshot, capture_all_snapshots, get_trend,
+)
+
+
+@router.get("/communities/{community_id}/trend")
+def get_community_trend(
+    community_id: int,
+    months: int = 12,
+    db: Session = Depends(get_db),
+    _: User = Depends(get_current_user),
+):
+    """Get time-series trend data for a community (occupancy, revenue, NOI over time)."""
+    comm = db.query(Community).filter(Community.community_id == community_id).first()
+    if not comm:
+        raise HTTPException(status_code=404, detail="Community not found")
+    data = get_trend(db, "community", community_id, months)
+    return {
+        "community_id": community_id,
+        "community_name": comm.name,
+        "periods": len(data),
+        "data": data,
+    }
+
+
+@router.post("/operations/capture-snapshots")
+def capture_snapshots(
+    year: int,
+    month: int,
+    db: Session = Depends(get_db),
+    _: User = Depends(require_gp_or_ops),
+):
+    """Capture monthly snapshots for all communities and LPs.
+
+    Call this monthly (or on-demand) to build the trend dataset.
+    """
+    result = capture_all_snapshots(db, year, month)
+    return result
