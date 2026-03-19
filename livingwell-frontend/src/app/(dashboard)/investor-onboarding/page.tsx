@@ -116,6 +116,8 @@ function updateChecklistItem(investorId: number, itemId: number, isCompleted: bo
 export default function InvestorOnboardingPage() {
   const queryClient = useQueryClient();
   const [selectedInvestorId, setSelectedInvestorId] = useState<number | null>(null);
+  const [showAddLead, setShowAddLead] = useState(false);
+  const [leadForm, setLeadForm] = useState({ name: "", email: "", phone: "", lp_id: "", indicated_amount: "", source: "", notes: "" });
 
   // Fetch all investors
   const { data: investors, isLoading: investorsLoading } = useQuery({
@@ -137,6 +139,26 @@ export default function InvestorOnboardingPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["onboarding-investors"] });
       queryClient.invalidateQueries({ queryKey: ["onboarding-detail"] });
+    },
+  });
+
+  // LP list for IOI dropdown
+  const { data: lps } = useQuery({
+    queryKey: ["lps-for-ioi"],
+    queryFn: () => apiClient.get("/api/investment/lp").then(r => {
+      const d = r.data;
+      return Array.isArray(d) ? d : d.items;
+    }),
+  });
+
+  // Quick-add lead mutation
+  const addLeadMutation = useMutation({
+    mutationFn: (params: Record<string, string | number>) =>
+      apiClient.post("/api/investor/leads/quick-add", null, { params }).then(r => r.data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["onboarding-investors"] });
+      setLeadForm({ name: "", email: "", phone: "", lp_id: "", indicated_amount: "", source: "", notes: "" });
+      setShowAddLead(false);
     },
   });
 
@@ -199,10 +221,104 @@ export default function InvestorOnboardingPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div>
-        <h1 className="text-2xl font-bold">Investor Onboarding</h1>
-        <p className="text-muted-foreground">Manage the investor onboarding pipeline</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold">Investor CRM & Onboarding</h1>
+          <p className="text-muted-foreground">Pipeline from lead capture through to active investor</p>
+        </div>
+        <Button onClick={() => setShowAddLead(!showAddLead)} variant={showAddLead ? "secondary" : "default"}>
+          <UserPlus className="h-4 w-4 mr-2" />
+          {showAddLead ? "Cancel" : "Add Lead"}
+        </Button>
       </div>
+
+      {/* Quick-Add Lead Form */}
+      {showAddLead && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base flex items-center gap-2">
+              <UserPlus className="h-4 w-4" />
+              Quick-Add Lead
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              <div>
+                <label className="text-xs font-medium text-muted-foreground">Name *</label>
+                <input type="text" value={leadForm.name} onChange={e => setLeadForm(f => ({...f, name: e.target.value}))}
+                  className="w-full mt-1 rounded-md border px-3 py-2 text-sm" placeholder="Full name" />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-muted-foreground">Email *</label>
+                <input type="email" value={leadForm.email} onChange={e => setLeadForm(f => ({...f, email: e.target.value}))}
+                  className="w-full mt-1 rounded-md border px-3 py-2 text-sm" placeholder="email@example.com" />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-muted-foreground">Phone</label>
+                <input type="tel" value={leadForm.phone} onChange={e => setLeadForm(f => ({...f, phone: e.target.value}))}
+                  className="w-full mt-1 rounded-md border px-3 py-2 text-sm" placeholder="403-555-1234" />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-muted-foreground">Source</label>
+                <select value={leadForm.source} onChange={e => setLeadForm(f => ({...f, source: e.target.value}))}
+                  className="w-full mt-1 rounded-md border px-3 py-2 text-sm">
+                  <option value="">Select...</option>
+                  <option value="referral">Referral</option>
+                  <option value="website">Website</option>
+                  <option value="event">Event</option>
+                  <option value="cold_outreach">Cold Outreach</option>
+                  <option value="existing_investor">Existing Investor</option>
+                </select>
+              </div>
+              <div>
+                <label className="text-xs font-medium text-muted-foreground">Interested LP</label>
+                <select value={leadForm.lp_id} onChange={e => setLeadForm(f => ({...f, lp_id: e.target.value}))}
+                  className="w-full mt-1 rounded-md border px-3 py-2 text-sm">
+                  <option value="">No LP yet</option>
+                  {(lps || []).map((lp: { lp_id: number; name: string }) => (
+                    <option key={lp.lp_id} value={lp.lp_id}>{lp.name}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="text-xs font-medium text-muted-foreground">Indicated Amount ($)</label>
+                <input type="number" step="any" value={leadForm.indicated_amount}
+                  onChange={e => setLeadForm(f => ({...f, indicated_amount: e.target.value}))}
+                  className="w-full mt-1 rounded-md border px-3 py-2 text-sm" placeholder="250,000" />
+              </div>
+              <div className="md:col-span-2">
+                <label className="text-xs font-medium text-muted-foreground">Notes</label>
+                <input type="text" value={leadForm.notes} onChange={e => setLeadForm(f => ({...f, notes: e.target.value}))}
+                  className="w-full mt-1 rounded-md border px-3 py-2 text-sm" placeholder="How did they hear about us?" />
+              </div>
+            </div>
+            <div className="flex gap-2 mt-3">
+              <Button
+                onClick={() => {
+                  const params: Record<string, string | number> = { name: leadForm.name, email: leadForm.email };
+                  if (leadForm.phone) params.phone = leadForm.phone;
+                  if (leadForm.source) params.source = leadForm.source;
+                  if (leadForm.notes) params.notes = leadForm.notes;
+                  if (leadForm.lp_id) params.lp_id = parseInt(leadForm.lp_id);
+                  if (leadForm.indicated_amount) params.indicated_amount = parseFloat(leadForm.indicated_amount);
+                  addLeadMutation.mutate(params);
+                }}
+                disabled={!leadForm.name || !leadForm.email || addLeadMutation.isPending}
+                size="sm"
+              >
+                {addLeadMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <UserPlus className="h-4 w-4 mr-1" />}
+                Add Lead{leadForm.indicated_amount ? ` with $${parseInt(leadForm.indicated_amount).toLocaleString()} IOI` : ""}
+              </Button>
+              {addLeadMutation.isSuccess && (
+                <span className="text-sm text-green-600 flex items-center"><CheckCircle2 className="h-4 w-4 mr-1" /> Lead added!</span>
+              )}
+              {addLeadMutation.isError && (
+                <span className="text-sm text-red-600">Error adding lead. Check if email already exists.</span>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Pipeline Summary Bar */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-7">

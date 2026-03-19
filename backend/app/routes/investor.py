@@ -15,7 +15,7 @@ from app.core.deps import get_current_user, require_gp_admin, require_gp_or_ops,
 from app.db.models import (
     Investor, InvestorDocument, InvestorMessage, User, UserRole,
     Subscription, Holding, DistributionAllocation, DistributionEvent, LPEntity,
-    OnboardingStatus, OnboardingChecklistItem,
+    OnboardingStatus, OnboardingChecklistItem, IndicationOfInterest, IOIStatus,
 )
 from app.db.session import get_db
 from app.schemas.investor import (
@@ -26,6 +26,7 @@ from app.schemas.investor import (
     WaterfallInput, WaterfallResultSchema,
     OnboardingChecklistItemOut, OnboardingChecklistItemUpdate,
     OnboardingStatusTransition, InvestorOnboardingDetail,
+    IOICreate, IOIUpdate, IOIOut, LPIOISummary,
 )
 from app.schemas.investment import SubscriptionOut
 from app.services.waterfall import WaterfallEngine
@@ -651,4 +652,268 @@ def initialize_onboarding(
             OnboardingChecklistItem.investor_id == investor_id
         ).count(),
         "message": "Onboarding initialized",
+    }
+
+
+# ===========================================================================
+# Indications of Interest (IOI) — CRM Pipeline
+# ===========================================================================
+
+def _ioi_out(ioi: IndicationOfInterest) -> IOIOut:
+    return IOIOut(
+        ioi_id=ioi.ioi_id,
+        investor_id=ioi.investor_id,
+        lp_id=ioi.lp_id,
+        indicated_amount=ioi.indicated_amount,
+        status=ioi.status.value if ioi.status else "expressed",
+        source=ioi.source,
+        notes=ioi.notes,
+        follow_up_date=ioi.follow_up_date,
+        last_contact_date=ioi.last_contact_date,
+        subscription_id=ioi.subscription_id,
+        converted_at=ioi.converted_at,
+        created_at=ioi.created_at,
+        investor_name=ioi.investor.name if ioi.investor else None,
+        lp_name=ioi.lp.name if ioi.lp else None,
+    )
+
+
+@router.get("/ioi", response_model=list[IOIOut])
+def list_iois(
+    lp_id: int | None = None,
+    investor_id: int | None = None,
+    status_filter: str | None = None,
+    db: Session = Depends(get_db),
+    _: User = Depends(require_gp_or_ops),
+):
+    """List all indications of interest, optionally filtered by LP or investor."""
+    query = db.query(IndicationOfInterest).order_by(IndicationOfInterest.created_at.desc())
+    if lp_id:
+        query = query.filter(IndicationOfInterest.lp_id == lp_id)
+    if investor_id:
+        query = query.filter(IndicationOfInterest.investor_id == investor_id)
+    if status_filter:
+        query = query.filter(IndicationOfInterest.status == IOIStatus(status_filter))
+    return [_ioi_out(i) for i in query.all()]
+
+
+@router.post("/ioi", response_model=IOIOut, status_code=201)
+def create_ioi(
+    payload: IOICreate,
+    db: Session = Depends(get_db),
+    _: User = Depends(require_gp_or_ops),
+):
+    """Create an indication of interest for an investor in an LP."""
+    inv = db.query(Investor).filter(Investor.investor_id == payload.investor_id).first()
+    if not inv:
+        raise HTTPException(404, "Investor not found")
+    lp = db.query(LPEntity).filter(LPEntity.lp_id == payload.lp_id).first()
+    if not lp:
+        raise HTTPException(404, "LP not found")
+
+    ioi = IndicationOfInterest(
+        investor_id=payload.investor_id,
+        lp_id=payload.lp_id,
+        indicated_amount=payload.indicated_amount,
+        source=payload.source,
+        notes=payload.notes,
+        follow_up_date=payload.follow_up_date,
+    )
+    db.add(ioi)
+    db.commit()
+    db.refresh(ioi)
+    return _ioi_out(ioi)
+
+
+@router.patch("/ioi/{ioi_id}", response_model=IOIOut)
+def update_ioi(
+    ioi_id: int,
+    payload: IOIUpdate,
+    db: Session = Depends(get_db),
+    _: User = Depends(require_gp_or_ops),
+):
+    """Update an IOI — change amount, status, add notes, log contact."""
+    ioi = db.query(IndicationOfInterest).filter(IndicationOfInterest.ioi_id == ioi_id).first()
+    if not ioi:
+        raise HTTPException(404, "IOI not found")
+    data = payload.model_dump(exclude_unset=True)
+    if "status" in data and data["status"]:
+        data["status"] = IOIStatus(data["status"])
+    for k, v in data.items():
+        setattr(ioi, k, v)
+    db.commit()
+    db.refresh(ioi)
+    return _ioi_out(ioi)
+
+
+@router.post("/ioi/{ioi_id}/convert")
+def convert_ioi_to_subscription(
+    ioi_id: int,
+    db: Session = Depends(get_db),
+    _: User = Depends(require_gp_or_ops),
+):
+    """Convert an IOI into a draft subscription.
+
+    Creates a subscription with the IOI amount and links them.
+    The subscription still needs to go through the normal funding workflow.
+    """
+    ioi = db.query(IndicationOfInterest).filter(IndicationOfInterest.ioi_id == ioi_id).first()
+    if not ioi:
+        raise HTTPException(404, "IOI not found")
+    if ioi.status == IOIStatus.converted:
+        raise HTTPException(400, "IOI already converted to subscription")
+    if ioi.status in (IOIStatus.withdrawn, IOIStatus.expired):
+        raise HTTPException(400, f"Cannot convert IOI with status '{ioi.status.value}'")
+
+    lp = db.query(LPEntity).filter(LPEntity.lp_id == ioi.lp_id).first()
+    issue_price = lp.unit_price if lp else None
+    unit_qty = (ioi.indicated_amount / issue_price) if issue_price and issue_price > 0 else None
+
+    from app.db.models import SubscriptionStatus
+    sub = Subscription(
+        investor_id=ioi.investor_id,
+        lp_id=ioi.lp_id,
+        commitment_amount=ioi.indicated_amount,
+        funded_amount=0,
+        issue_price=issue_price or 0,
+        unit_quantity=unit_qty or 0,
+        status=SubscriptionStatus.draft,
+        notes=f"Converted from IOI #{ioi.ioi_id}. Source: {ioi.source or 'N/A'}",
+    )
+    db.add(sub)
+    db.flush()
+
+    ioi.status = IOIStatus.converted
+    ioi.subscription_id = sub.subscription_id
+    ioi.converted_at = datetime.datetime.utcnow()
+    db.commit()
+
+    return {
+        "ioi_id": ioi.ioi_id,
+        "subscription_id": sub.subscription_id,
+        "investor_name": ioi.investor.name,
+        "lp_name": ioi.lp.name,
+        "amount": float(ioi.indicated_amount),
+        "message": "IOI converted to draft subscription. Complete the subscription workflow to fund.",
+    }
+
+
+@router.delete("/ioi/{ioi_id}", status_code=204)
+def delete_ioi(
+    ioi_id: int,
+    db: Session = Depends(get_db),
+    _: User = Depends(require_gp_or_ops),
+):
+    ioi = db.query(IndicationOfInterest).filter(IndicationOfInterest.ioi_id == ioi_id).first()
+    if not ioi:
+        raise HTTPException(404, "IOI not found")
+    db.delete(ioi)
+    db.commit()
+
+
+@router.get("/ioi/lp-summary/{lp_id}", response_model=LPIOISummary)
+def get_lp_ioi_summary(
+    lp_id: int,
+    db: Session = Depends(get_db),
+    _: User = Depends(require_gp_or_ops),
+):
+    """Get IOI pipeline summary for an LP — total interest, conversion rate, coverage ratio."""
+    from decimal import Decimal
+
+    lp = db.query(LPEntity).filter(LPEntity.lp_id == lp_id).first()
+    if not lp:
+        raise HTTPException(404, "LP not found")
+
+    iois = db.query(IndicationOfInterest).filter(IndicationOfInterest.lp_id == lp_id).all()
+
+    total_expressed = sum(float(i.indicated_amount) for i in iois if i.status in (IOIStatus.expressed, IOIStatus.confirmed, IOIStatus.converted))
+    total_confirmed = sum(float(i.indicated_amount) for i in iois if i.status in (IOIStatus.confirmed, IOIStatus.converted))
+    converted_count = sum(1 for i in iois if i.status == IOIStatus.converted)
+
+    # Subscription totals
+    subs = db.query(Subscription).filter(Subscription.lp_id == lp_id).all()
+    total_subscribed = sum(float(s.commitment_amount) for s in subs)
+    total_funded = sum(float(s.funded_amount) for s in subs)
+
+    target = float(lp.target_raise) if lp.target_raise else None
+    ioi_count = len([i for i in iois if i.status not in (IOIStatus.withdrawn, IOIStatus.expired)])
+
+    conversion_rate = (converted_count / ioi_count * 100) if ioi_count > 0 else None
+    coverage_ratio = (total_expressed / target * 100) if target and target > 0 else None
+
+    return LPIOISummary(
+        lp_id=lp_id,
+        lp_name=lp.name,
+        target_raise=lp.target_raise,
+        total_ioi_expressed=Decimal(str(total_expressed)),
+        total_ioi_confirmed=Decimal(str(total_confirmed)),
+        total_subscribed=Decimal(str(total_subscribed)),
+        total_funded=Decimal(str(total_funded)),
+        ioi_count=ioi_count,
+        conversion_rate=round(conversion_rate, 1) if conversion_rate else None,
+        coverage_ratio=round(coverage_ratio, 1) if coverage_ratio else None,
+    )
+
+
+@router.post("/leads/quick-add", status_code=201)
+def quick_add_lead(
+    name: str,
+    email: str,
+    lp_id: int | None = None,
+    indicated_amount: float | None = None,
+    phone: str | None = None,
+    source: str | None = None,
+    notes: str | None = None,
+    db: Session = Depends(get_db),
+    _: User = Depends(require_gp_or_ops),
+):
+    """Quick-add a new lead — creates investor record + optional IOI in one call.
+
+    This is the CRM entry point: captures a potential investor and their
+    interest in a specific LP, all in one step.
+    """
+    from decimal import Decimal
+
+    # Check for existing investor
+    existing = db.query(Investor).filter(Investor.email == email).first()
+    if existing:
+        inv = existing
+    else:
+        inv = Investor(
+            name=name,
+            email=email,
+            phone=phone,
+            accredited_status="pending",
+            onboarding_status=OnboardingStatus.lead,
+            notes=notes,
+        )
+        db.add(inv)
+        db.flush()
+
+    # Create IOI if LP and amount provided
+    ioi = None
+    if lp_id and indicated_amount:
+        lp = db.query(LPEntity).filter(LPEntity.lp_id == lp_id).first()
+        if lp:
+            ioi = IndicationOfInterest(
+                investor_id=inv.investor_id,
+                lp_id=lp_id,
+                indicated_amount=Decimal(str(indicated_amount)),
+                source=source,
+                notes=notes,
+            )
+            db.add(ioi)
+            db.flush()
+
+    db.commit()
+
+    return {
+        "investor_id": inv.investor_id,
+        "name": inv.name,
+        "is_new": not existing,
+        "onboarding_status": inv.onboarding_status.value if inv.onboarding_status else "lead",
+        "ioi_id": ioi.ioi_id if ioi else None,
+        "ioi_amount": float(ioi.indicated_amount) if ioi else None,
+        "message": f"{'New lead' if not existing else 'Existing investor'} '{name}' added"
+                   + (f" with ${indicated_amount:,.0f} IOI" if ioi else ""),
     }

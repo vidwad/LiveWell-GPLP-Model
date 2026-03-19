@@ -495,6 +495,47 @@ class OnboardingChecklistItem(Base):
     document = relationship("InvestorDocument")
 
 
+class IOIStatus(str, enum.Enum):
+    """Status of an Indication of Interest."""
+    expressed = "expressed"       # Verbal or informal interest
+    confirmed = "confirmed"       # Written/formal confirmation
+    converted = "converted"       # Converted to subscription
+    withdrawn = "withdrawn"       # Investor withdrew interest
+    expired = "expired"           # Interest expired (past deadline)
+
+
+class IndicationOfInterest(Base):
+    """Tracks investor interest in an LP before formal subscription.
+
+    The IOI pipeline feeds the subscription workflow:
+    Lead → IOI expressed → IOI confirmed → Subscription created → Funded
+    """
+    __tablename__ = "indications_of_interest"
+
+    ioi_id = Column(Integer, primary_key=True, index=True)
+    investor_id = Column(Integer, ForeignKey("investors.investor_id"), nullable=False, index=True)
+    lp_id = Column(Integer, ForeignKey("lp_entities.lp_id"), nullable=False, index=True)
+
+    indicated_amount = Column(Numeric(14, 2), nullable=False)  # how much they want to invest
+    status = Column(_enum(IOIStatus), nullable=False, default=IOIStatus.expressed)
+
+    # CRM fields
+    source = Column(String(128), nullable=True)       # referral, website, event, cold_outreach
+    notes = Column(Text, nullable=True)
+    follow_up_date = Column(Date, nullable=True)
+    last_contact_date = Column(Date, nullable=True)
+
+    # Conversion tracking
+    subscription_id = Column(Integer, ForeignKey("subscriptions.subscription_id"), nullable=True)
+    converted_at = Column(DateTime, nullable=True)
+
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    updated_at = Column(DateTime, nullable=True, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    investor = relationship("Investor")
+    lp = relationship("LPEntity")
+
+
 class Subscription(Base):
     """An investor's commitment to invest in a specific LP."""
     __tablename__ = "subscriptions"

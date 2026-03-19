@@ -1666,13 +1666,13 @@ function OwnedPropertiesSection({ lpId }: { lpId: number }) {
       <div className="grid gap-4 lg:grid-cols-2 mt-6">
         <TrendChart
           entityType="lp"
-          entityId={Number(params.lpId)}
+          entityId={lpId}
           title="NAV & Capital Trend"
           metrics={["nav", "total_funded", "capital_deployed"]}
         />
         <TrendChart
           entityType="lp"
-          entityId={Number(params.lpId)}
+          entityId={lpId}
           title="Debt & Distributions"
           metrics={["total_debt", "total_distributions"]}
         />

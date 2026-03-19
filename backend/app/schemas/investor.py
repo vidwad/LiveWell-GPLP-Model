@@ -159,6 +159,62 @@ class WaterfallInput(BaseModel):
     gp_promote_share: Decimal = Decimal("0.20")
 
 
+# ---------------------------------------------------------------------------
+# Indication of Interest (IOI)
+# ---------------------------------------------------------------------------
+
+class IOICreate(BaseModel):
+    investor_id: int
+    lp_id: int
+    indicated_amount: Decimal
+    source: Optional[str] = None
+    notes: Optional[str] = None
+    follow_up_date: Optional[datetime.date] = None
+
+
+class IOIUpdate(BaseModel):
+    indicated_amount: Optional[Decimal] = None
+    status: Optional[str] = None
+    source: Optional[str] = None
+    notes: Optional[str] = None
+    follow_up_date: Optional[datetime.date] = None
+    last_contact_date: Optional[datetime.date] = None
+
+
+class IOIOut(BaseModel):
+    ioi_id: int
+    investor_id: int
+    lp_id: int
+    indicated_amount: Decimal
+    status: str
+    source: Optional[str] = None
+    notes: Optional[str] = None
+    follow_up_date: Optional[datetime.date] = None
+    last_contact_date: Optional[datetime.date] = None
+    subscription_id: Optional[int] = None
+    converted_at: Optional[datetime.datetime] = None
+    created_at: Optional[datetime.datetime] = None
+    # Joined fields
+    investor_name: Optional[str] = None
+    lp_name: Optional[str] = None
+
+    model_config = {"from_attributes": True}
+
+
+class LPIOISummary(BaseModel):
+    """IOI pipeline summary for an LP fund."""
+    lp_id: int
+    lp_name: str
+    target_raise: Optional[Decimal] = None
+    total_ioi_expressed: Decimal = Decimal("0")
+    total_ioi_confirmed: Decimal = Decimal("0")
+    total_subscribed: Decimal = Decimal("0")
+    total_funded: Decimal = Decimal("0")
+    ioi_count: int = 0
+    conversion_rate: Optional[float] = None  # % of IOI converted to subscriptions
+    coverage_ratio: Optional[float] = None   # total IOI / target raise
+
+
 class WaterfallResultSchema(BaseModel):
     total_distribution: Decimal
     lp_distribution: Decimal
