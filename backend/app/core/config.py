@@ -60,8 +60,13 @@ class Settings(BaseSettings):
             if "vercel.app" in self.FRONTEND_URL:
                 origins.append("https://*.vercel.app")
             return origins
-        # In development, allow everything
-        return ["*"]
+        # In development, allow specific localhost origins
+        # (wildcard '*' is incompatible with withCredentials: true)
+        return [
+            "http://localhost:3000",
+            "http://127.0.0.1:3000",
+            self.FRONTEND_URL,
+        ]
 
 
 settings = Settings()
