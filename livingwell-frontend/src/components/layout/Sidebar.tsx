@@ -35,13 +35,15 @@ import { useAuth } from "@/providers/AuthProvider";
 import { UserRole } from "@/types/auth";
 import { NotificationBell } from "@/components/notifications/NotificationBell";
 
-const ALL_ROLES: UserRole[] = [
-  "GP_ADMIN",
-  "OPERATIONS_MANAGER",
-  "PROPERTY_MANAGER",
-  "INVESTOR",
-  "RESIDENT",
-];
+// Roles that access this platform (RESIDENT will have separate app)
+type PlatformRole = "GP_ADMIN" | "OPERATIONS_MANAGER" | "PROPERTY_MANAGER" | "INVESTOR";
+
+const GP = "GP_ADMIN" as UserRole;
+const OP = "OPERATIONS_MANAGER" as UserRole;  // Operator role
+const PM = "PROPERTY_MANAGER" as UserRole;
+const INV = "INVESTOR" as UserRole;
+
+const ALL_PLATFORM: UserRole[] = [GP, OP, PM, INV];
 
 // ── Grouped Navigation ──────────────────────────────────────────
 
@@ -54,71 +56,84 @@ interface NavItem {
 
 interface NavSection {
   section: string;
-  roles: UserRole[]; // section header visible to these roles
+  roles: UserRole[];
   items: NavItem[];
 }
 
 const NAV_SECTIONS: NavSection[] = [
+  // ── Everyone gets Dashboard ──
   {
     section: "",
-    roles: ALL_ROLES,
+    roles: ALL_PLATFORM,
     items: [
-      { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard, roles: ALL_ROLES },
+      { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard, roles: ALL_PLATFORM },
     ],
   },
+
+  // ── GP Admin: Investment Management ──
   {
     section: "Investment",
-    roles: ["GP_ADMIN", "OPERATIONS_MANAGER", "INVESTOR"],
+    roles: [GP, INV],
     items: [
-      { href: "/investment", label: "LP Funds", icon: Landmark, roles: ["GP_ADMIN", "OPERATIONS_MANAGER"] },
-      { href: "/distributions", label: "Distributions", icon: DollarSign, roles: ["GP_ADMIN"] },
-      { href: "/investors", label: "Investors", icon: TrendingUp, roles: ["GP_ADMIN", "OPERATIONS_MANAGER", "INVESTOR"] },
-      { href: "/investor-onboarding", label: "CRM & Onboarding", icon: UserPlus, roles: ["GP_ADMIN", "OPERATIONS_MANAGER"] },
+      { href: "/investment", label: "LP Funds", icon: Landmark, roles: [GP] },
+      { href: "/distributions", label: "Distributions", icon: DollarSign, roles: [GP] },
+      { href: "/investors", label: "Investors", icon: TrendingUp, roles: [GP, INV] },
+      { href: "/investor-onboarding", label: "CRM & Onboarding", icon: UserPlus, roles: [GP] },
     ],
   },
+
+  // ── GP Admin + PM: Portfolio ──
   {
     section: "Portfolio",
-    roles: ["GP_ADMIN", "OPERATIONS_MANAGER", "PROPERTY_MANAGER"],
+    roles: [GP, PM],
     items: [
-      { href: "/portfolio", label: "Properties", icon: Building2, roles: ["GP_ADMIN", "OPERATIONS_MANAGER", "PROPERTY_MANAGER"] },
-      { href: "/lifecycle", label: "Lifecycle", icon: GitBranch, roles: ["GP_ADMIN", "OPERATIONS_MANAGER", "PROPERTY_MANAGER"] },
-      { href: "/analytics", label: "Portfolio Analytics", icon: PieChart, roles: ["GP_ADMIN", "OPERATIONS_MANAGER"] },
+      { href: "/portfolio", label: "Properties", icon: Building2, roles: [GP, PM] },
+      { href: "/lifecycle", label: "Lifecycle", icon: GitBranch, roles: [GP, PM] },
+      { href: "/analytics", label: "Portfolio Analytics", icon: PieChart, roles: [GP] },
     ],
   },
+
+  // ── GP + Operator + PM: Community Operations ──
   {
     section: "Operations",
-    roles: ["GP_ADMIN", "OPERATIONS_MANAGER", "PROPERTY_MANAGER", "RESIDENT"],
+    roles: [GP, OP, PM],
     items: [
-      { href: "/communities", label: "Communities", icon: Home, roles: ["GP_ADMIN", "OPERATIONS_MANAGER", "PROPERTY_MANAGER"] },
-      { href: "/operations", label: "Operations P&L", icon: Activity, roles: ["GP_ADMIN", "OPERATIONS_MANAGER", "PROPERTY_MANAGER"] },
-      { href: "/vacancy-alerts", label: "Vacancy Alerts", icon: AlertTriangle, roles: ["GP_ADMIN", "OPERATIONS_MANAGER", "PROPERTY_MANAGER"] },
-      { href: "/maintenance", label: "Maintenance", icon: Wrench, roles: ["GP_ADMIN", "OPERATIONS_MANAGER", "PROPERTY_MANAGER", "RESIDENT"] },
-      { href: "/operator/turnovers", label: "Unit Turnovers", icon: RefreshCw, roles: ["GP_ADMIN", "OPERATIONS_MANAGER", "PROPERTY_MANAGER"] },
+      { href: "/communities", label: "Communities", icon: Home, roles: [GP, OP, PM] },
+      { href: "/operations", label: "Operations P&L", icon: Activity, roles: [GP, OP, PM] },
+      { href: "/vacancy-alerts", label: "Vacancy Alerts", icon: AlertTriangle, roles: [GP, OP, PM] },
+      { href: "/maintenance", label: "Maintenance", icon: Wrench, roles: [GP, OP, PM] },
+      { href: "/operator/turnovers", label: "Unit Turnovers", icon: RefreshCw, roles: [GP, OP, PM] },
     ],
   },
+
+  // ── Reporting ──
   {
     section: "Reporting",
-    roles: ["GP_ADMIN", "OPERATIONS_MANAGER", "INVESTOR"],
+    roles: [GP, INV],
     items: [
-      { href: "/quarterly-reports", label: "Quarterly Reports", icon: FileText, roles: ["GP_ADMIN", "OPERATIONS_MANAGER", "INVESTOR"] },
-      { href: "/reports", label: "Reports", icon: BarChart2, roles: ["GP_ADMIN", "OPERATIONS_MANAGER"] },
+      { href: "/quarterly-reports", label: "Quarterly Reports", icon: FileText, roles: [GP, INV] },
+      { href: "/reports", label: "Reports", icon: BarChart2, roles: [GP] },
     ],
   },
+
+  // ── GP Admin: Administration ──
   {
     section: "Administration",
-    roles: ["GP_ADMIN", "OPERATIONS_MANAGER"],
+    roles: [GP],
     items: [
-      { href: "/operator", label: "Operators", icon: ClipboardList, roles: ["GP_ADMIN", "OPERATIONS_MANAGER"] },
-      { href: "/property-managers", label: "Property Managers", icon: Settings, roles: ["GP_ADMIN", "OPERATIONS_MANAGER", "PROPERTY_MANAGER"] },
-      { href: "/etransfers", label: "eTransfers", icon: Send, roles: ["GP_ADMIN", "OPERATIONS_MANAGER"] },
-      { href: "/funding", label: "Grants & Funding", icon: HandCoins, roles: ["GP_ADMIN", "OPERATIONS_MANAGER"] },
+      { href: "/operator", label: "Operators", icon: ClipboardList, roles: [GP] },
+      { href: "/property-managers", label: "Property Managers", icon: Settings, roles: [GP, PM] },
+      { href: "/etransfers", label: "eTransfers", icon: Send, roles: [GP] },
+      { href: "/funding", label: "Grants & Funding", icon: HandCoins, roles: [GP, OP] },
     ],
   },
+
+  // ── AI Assistant: all platform users ──
   {
     section: "",
-    roles: ["GP_ADMIN", "OPERATIONS_MANAGER", "PROPERTY_MANAGER"],
+    roles: ALL_PLATFORM,
     items: [
-      { href: "/ai", label: "AI Assistant", icon: Sparkles, roles: ["GP_ADMIN", "OPERATIONS_MANAGER", "PROPERTY_MANAGER"] },
+      { href: "/ai", label: "AI Assistant", icon: Sparkles, roles: ALL_PLATFORM },
     ],
   },
 ];
@@ -127,6 +142,15 @@ export function Sidebar() {
   const pathname = usePathname();
   const { user, logout } = useAuth();
   const [mobileOpen, setMobileOpen] = useState(false);
+
+  // Role display labels
+  const roleLabels: Record<string, string> = {
+    GP_ADMIN: "GP Admin",
+    OPERATIONS_MANAGER: "Operator",
+    PROPERTY_MANAGER: "Property Manager",
+    INVESTOR: "Investor",
+    RESIDENT: "Resident",
+  };
 
   const sidebarContent = (
     <>
@@ -151,13 +175,11 @@ export function Sidebar() {
       {/* Navigation */}
       <nav className="flex-1 overflow-y-auto p-3 space-y-1">
         {NAV_SECTIONS.map((section, si) => {
-          // Filter items visible to current user
           const visibleItems = section.items.filter(
             (item) => user && item.roles.includes(user.role)
           );
           if (visibleItems.length === 0) return null;
 
-          // Check if section header is visible to this role
           const showHeader = section.section && user && section.roles.includes(user.role);
 
           return (
@@ -198,7 +220,9 @@ export function Sidebar() {
         <div className="border-t border-border p-4">
           <div className="mb-2">
             <p className="text-sm font-medium truncate">{user.full_name ?? user.email}</p>
-            <p className="text-xs text-muted-foreground truncate">{user.role.replace(/_/g, " ")}</p>
+            <p className="text-xs text-muted-foreground truncate">
+              {roleLabels[user.role] || user.role.replace(/_/g, " ")}
+            </p>
           </div>
           <div className="flex items-center justify-between">
             <button
