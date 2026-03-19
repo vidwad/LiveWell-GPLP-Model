@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api";
+import { Sparkles, Loader2, ExternalLink, Save, Star, Search } from "lucide-react";
 
 interface FundingOpportunity {
   funding_id: number;
@@ -46,6 +47,25 @@ export default function FundingPage() {
   const [editId, setEditId] = useState<number | null>(null);
   const [form, setForm] = useState({ ...EMPTY_FORM });
   const [statusFilter, setStatusFilter] = useState<string>("all");
+
+  const [showResearch, setShowResearch] = useState(false);
+  const [researchType, setResearchType] = useState("RecoverWell");
+  const [researchCity, setResearchCity] = useState("Calgary");
+  const [researchResults, setResearchResults] = useState<Record<string, unknown> | null>(null);
+
+  const researchMutation = useMutation({
+    mutationFn: (params: { community_type: string; city: string }) =>
+      apiClient.post("/api/ai/research-funding", params).then(r => r.data),
+    onSuccess: (data) => setResearchResults(data),
+  });
+
+  const saveOpportunitiesMutation = useMutation({
+    mutationFn: (opps: object[]) =>
+      apiClient.post("/api/ai/research-funding/save-opportunities", opps).then(r => r.data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["funding"] });
+    },
+  });
 
   const { data: opportunities = [], isLoading } = useQuery<FundingOpportunity[]>({
     queryKey: ["funding"],
@@ -137,13 +157,149 @@ export default function FundingPage() {
             Track grant applications, funding opportunities, and award statuses.
           </p>
         </div>
-        <button
-          onClick={() => { resetForm(); setShowForm(true); }}
-          className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700"
-        >
-          + New Opportunity
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={() => setShowResearch(!showResearch)}
+            className={`flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg border transition-colors ${
+              showResearch ? "bg-purple-50 border-purple-300 text-purple-700" : "bg-white border-gray-300 text-gray-700 hover:bg-gray-50"
+            }`}
+          >
+            <Sparkles className="h-4 w-4" />
+            AI Research
+          </button>
+          <button
+            onClick={() => { resetForm(); setShowForm(true); }}
+            className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700"
+          >
+            + New Opportunity
+          </button>
+        </div>
       </div>
+
+      {/* AI Funding Research Panel */}
+      {showResearch && (
+        <div className="bg-gradient-to-br from-purple-50 to-indigo-50 rounded-xl border border-purple-200 p-5 space-y-4">
+          <div className="flex items-center gap-2">
+            <Sparkles className="h-5 w-5 text-purple-600" />
+            <h2 className="text-lg font-semibold text-purple-900">AI Grant Research</h2>
+          </div>
+          <p className="text-sm text-purple-700">
+            Claude will search for relevant government grants, housing programs, and funding opportunities
+            based on your community type and location.
+          </p>
+
+          <div className="flex flex-wrap gap-3 items-end">
+            <div>
+              <label className="text-xs font-medium text-purple-700">Community Type</label>
+              <select value={researchType} onChange={e => setResearchType(e.target.value)}
+                className="block mt-1 rounded-md border border-purple-300 px-3 py-2 text-sm bg-white">
+                <option value="RecoverWell">RecoverWell (Sober Living)</option>
+                <option value="StudyWell">StudyWell (Student Housing)</option>
+                <option value="RetireWell">RetireWell (Seniors Housing)</option>
+              </select>
+            </div>
+            <div>
+              <label className="text-xs font-medium text-purple-700">City</label>
+              <select value={researchCity} onChange={e => setResearchCity(e.target.value)}
+                className="block mt-1 rounded-md border border-purple-300 px-3 py-2 text-sm bg-white">
+                <option value="Calgary">Calgary</option>
+                <option value="Edmonton">Edmonton</option>
+                <option value="Red Deer">Red Deer</option>
+                <option value="Lethbridge">Lethbridge</option>
+                <option value="Medicine Hat">Medicine Hat</option>
+              </select>
+            </div>
+            <button
+              onClick={() => researchMutation.mutate({ community_type: researchType, city: researchCity })}
+              disabled={researchMutation.isPending}
+              className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white text-sm font-medium rounded-lg hover:bg-purple-700 disabled:opacity-50"
+            >
+              {researchMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
+              {researchMutation.isPending ? "Researching..." : "Search for Grants"}
+            </button>
+          </div>
+
+          {/* Research Results */}
+          {researchResults && (
+            <div className="space-y-4 mt-4">
+              {/* Summary */}
+              <div className="bg-white rounded-lg border p-4">
+                <p className="text-sm font-medium text-gray-900">{(researchResults as Record<string, unknown>).summary as string}</p>
+                <div className="flex gap-4 mt-2 text-xs text-gray-600">
+                  <span>Total potential: <strong>{(researchResults as Record<string, unknown>).total_potential as string}</strong></span>
+                </div>
+                {(researchResults.recommended_priority as string[] || []).length > 0 && (
+                  <div className="mt-2">
+                    <span className="text-xs font-medium text-gray-500">Priority: </span>
+                    {(researchResults.recommended_priority as string[]).map((p, i) => (
+                      <span key={i} className="inline-flex items-center gap-1 text-xs bg-yellow-50 text-yellow-800 border border-yellow-200 rounded-full px-2 py-0.5 mr-1">
+                        <Star className="h-3 w-3" /> {p}
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Opportunities */}
+              <div className="grid gap-3 md:grid-cols-2">
+                {((researchResults.opportunities as Record<string, unknown>[]) || []).map((opp, i) => (
+                  <div key={i} className="bg-white rounded-lg border p-4 space-y-2">
+                    <div className="flex items-start justify-between">
+                      <div>
+                        <h3 className="text-sm font-semibold text-gray-900">{opp.program_name as string}</h3>
+                        <p className="text-xs text-gray-500">{opp.funding_source as string}</p>
+                      </div>
+                      <div className="flex items-center gap-1 shrink-0">
+                        {Array.from({ length: Math.min(5, Math.ceil((opp.relevance_score as number || 0) / 2)) }).map((_, j) => (
+                          <Star key={j} className="h-3 w-3 fill-yellow-400 text-yellow-400" />
+                        ))}
+                        <span className="text-xs text-gray-400 ml-1">{opp.relevance_score as number}/10</span>
+                      </div>
+                    </div>
+                    <p className="text-xs text-gray-600">{opp.description as string}</p>
+                    <div className="grid grid-cols-2 gap-2 text-xs">
+                      <div>
+                        <span className="text-gray-400">Amount:</span>
+                        <span className="ml-1 font-medium">{opp.estimated_amount as string}</span>
+                      </div>
+                      <div>
+                        <span className="text-gray-400">Type:</span>
+                        <span className="ml-1 font-medium capitalize">{(opp.program_type as string || "").replace("_", " ")}</span>
+                      </div>
+                    </div>
+                    <div className="text-xs text-gray-500">
+                      <span className="font-medium">Eligibility:</span> {opp.eligibility_summary as string}
+                    </div>
+                    {opp.url_hint && (
+                      <div className="flex items-center gap-1 text-xs text-purple-600">
+                        <ExternalLink className="h-3 w-3" />
+                        {opp.url_hint as string}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+
+              {/* Save All button */}
+              <div className="flex gap-2">
+                <button
+                  onClick={() => saveOpportunitiesMutation.mutate(researchResults.opportunities as object[])}
+                  disabled={saveOpportunitiesMutation.isPending}
+                  className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white text-sm font-medium rounded-lg hover:bg-green-700 disabled:opacity-50"
+                >
+                  {saveOpportunitiesMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                  Save All as Draft Opportunities
+                </button>
+                {saveOpportunitiesMutation.isSuccess && (
+                  <span className="text-sm text-green-600 flex items-center gap-1">
+                    Saved! Check your opportunities list below.
+                  </span>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* KPI row */}
       <div className="grid grid-cols-3 gap-4">

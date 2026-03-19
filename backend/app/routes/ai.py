@@ -25,6 +25,7 @@ from app.services.ai import (
     suggest_property_defaults, analyze_property_risk,
     analyze_underwriting, generate_report_narrative,
     detect_anomalies, chat_with_context,
+    research_funding_opportunities,
 )
 
 router = APIRouter()
@@ -359,6 +360,113 @@ def ai_chat(
         "response": result["response"],
         "tools_used": result.get("tools_used", []),
         "model": "claude" if result["response"] and "not configured" not in result["response"] else "fallback",
+    }
+
+
+# ── Grant & Funding Research ─────────────────────────────────────────────
+
+class FundingResearchRequest(BaseModel):
+    community_type: Optional[str] = None  # RecoverWell, StudyWell, RetireWell
+    city: Optional[str] = None
+    lp_id: Optional[int] = None  # auto-detect type/city from LP
+
+
+@router.post("/research-funding")
+def research_funding(
+    payload: FundingResearchRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_gp_or_ops),
+):
+    """AI-powered research of government grants and funding programs.
+
+    Searches for relevant Canadian federal, provincial, and municipal
+    funding programs based on the community type and location.
+    Returns structured opportunities with eligibility and amounts.
+    """
+    from app.db.models import FundingOpportunity, FundingStatus
+
+    community_type = payload.community_type
+    city = payload.city
+
+    # Auto-detect from LP if provided
+    if payload.lp_id:
+        lp = db.query(LPEntity).filter(LPEntity.lp_id == payload.lp_id).first()
+        if lp:
+            if not community_type and lp.purpose_type:
+                community_type = lp.purpose_type.value
+            if not city and lp.city_focus:
+                city = lp.city_focus.split(",")[0].strip()
+
+    if not community_type:
+        community_type = "RecoverWell"
+    if not city:
+        city = "Calgary"
+
+    # Count properties and beds for context
+    from app.db.models import Property, Bed, Unit
+    props = db.query(Property).all()
+    property_count = len(props)
+    bed_count = 0
+    for p in props:
+        units = db.query(Unit).filter(Unit.property_id == p.property_id).all()
+        for u in units:
+            bed_count += db.query(Bed).filter(Bed.unit_id == u.unit_id).count()
+
+    # Get existing programs
+    existing = db.query(FundingOpportunity).filter(
+        FundingOpportunity.status.in_([FundingStatus.submitted, FundingStatus.awarded])
+    ).all()
+    current_programs = [f.title for f in existing]
+
+    result = research_funding_opportunities(
+        community_type=community_type,
+        city=city,
+        property_count=property_count,
+        bed_count=bed_count,
+        current_programs=current_programs if current_programs else None,
+    )
+
+    return result
+
+
+@router.post("/research-funding/save-opportunities")
+def save_researched_opportunities(
+    opportunities: list[dict],
+    operator_id: Optional[int] = None,
+    community_id: Optional[int] = None,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_gp_or_ops),
+):
+    """Save AI-researched funding opportunities to the database as drafts."""
+    from app.db.models import FundingOpportunity, FundingStatus
+
+    created = []
+    for opp in opportunities:
+        fo = FundingOpportunity(
+            title=opp.get("program_name", "Untitled"),
+            funding_source=opp.get("funding_source"),
+            amount=None,  # Will be set when applying
+            status=FundingStatus.draft,
+            operator_id=operator_id,
+            community_id=community_id,
+            notes=(
+                f"AI-researched opportunity.\n"
+                f"Type: {opp.get('program_type', 'N/A')}\n"
+                f"Estimated: {opp.get('estimated_amount', 'N/A')}\n"
+                f"Eligibility: {opp.get('eligibility_summary', 'N/A')}\n"
+                f"How to apply: {opp.get('application_notes', 'N/A')}\n"
+                f"More info: {opp.get('url_hint', 'N/A')}"
+            ),
+        )
+        db.add(fo)
+        db.flush()
+        created.append({"funding_id": fo.funding_id, "title": fo.title})
+
+    db.commit()
+    return {
+        "saved": len(created),
+        "opportunities": created,
+        "message": f"{len(created)} funding opportunities saved as drafts.",
     }
 
 

@@ -533,6 +533,110 @@ def chat_with_context(
         }
 
 
+# ── Grant & Funding Research ─────────────────────────────────────────────
+
+def research_funding_opportunities(
+    community_type: str,
+    city: str,
+    province: str = "Alberta",
+    property_count: int = 0,
+    bed_count: int = 0,
+    current_programs: Optional[list] = None,
+) -> dict:
+    """Use Claude to research government and institutional funding opportunities.
+
+    Searches Claude's knowledge for relevant Canadian/Alberta programs for:
+    - Affordable housing grants
+    - Supportive housing funding
+    - Community development programs
+    - Energy efficiency / green building incentives
+    - Municipal development incentives
+
+    Returns structured list of opportunities with eligibility, amounts, and deadlines.
+    """
+    current_str = ""
+    if current_programs:
+        current_str = f"\n\nWe already have/applied for:\n" + "\n".join(f"- {p}" for p in current_programs)
+
+    prompt = f"""Research government and institutional funding opportunities for a shared-living
+community development company in {city}, {province}, Canada.
+
+Our profile:
+- Community type: {community_type} ({"sober living / addiction recovery" if community_type == "RecoverWell" else "student housing" if community_type == "StudyWell" else "seniors housing / assisted living"})
+- Location: {city}, {province}
+- Properties: {property_count} (converting single-family homes to multi-unit shared living)
+- Total beds: {bed_count}
+- Business model: LP-funded real estate syndication, bed-level rent, community operations
+{current_str}
+
+Research and return JSON with these exact keys:
+- opportunities (array of objects, each with):
+  - program_name (string — official program name)
+  - funding_source (string — government body or institution, e.g. "CMHC", "Government of Alberta", "City of Calgary")
+  - program_type (string — "grant", "loan", "tax_incentive", "development_incentive", "operating_subsidy")
+  - description (string — 2-3 sentences about the program)
+  - estimated_amount (string — typical funding range, e.g. "$50,000 - $500,000 per project")
+  - eligibility_summary (string — key eligibility criteria)
+  - application_notes (string — how to apply, typical timeline)
+  - relevance_score (int 1-10 — how relevant this is for our specific situation)
+  - url_hint (string — where to find more info, e.g. "cmhc-schl.gc.ca" or "alberta.ca/affordable-housing")
+- summary (string — 2-3 sentence overview of the funding landscape)
+- total_potential (string — estimated total potential funding across all opportunities)
+- recommended_priority (array of strings — top 3 programs to apply for first)
+
+Focus on REAL Canadian programs. Include federal (CMHC, CMHC Rapid Housing Initiative, National Housing Strategy),
+provincial (Alberta Affordable Housing, Alberta Seniors Housing), and municipal programs.
+For {community_type} specifically, look for addiction recovery funding, mental health housing,
+student housing grants, or seniors care programs as applicable.
+Return 6-10 opportunities ranked by relevance."""
+
+    result = _call_claude_json(prompt, max_tokens=4000)
+    if result and "opportunities" in result:
+        return result
+
+    # Fallback with known real programs
+    return {
+        "opportunities": [
+            {
+                "program_name": "CMHC Rapid Housing Initiative",
+                "funding_source": "CMHC (Federal)",
+                "program_type": "grant",
+                "description": "Capital funding for new affordable housing units. Covers up to 100% of eligible costs for rapid construction or conversion projects.",
+                "estimated_amount": "$200,000 - $500,000 per project",
+                "eligibility_summary": "Must create affordable units for vulnerable populations. Priority for supportive housing.",
+                "application_notes": "Rounds announced periodically. Check cmhc-schl.gc.ca for current intake.",
+                "relevance_score": 9,
+                "url_hint": "cmhc-schl.gc.ca/rapid-housing",
+            },
+            {
+                "program_name": "National Housing Co-Investment Fund",
+                "funding_source": "CMHC (Federal)",
+                "program_type": "loan",
+                "description": "Low-interest loans and contributions for new construction and major renovation of community/affordable housing.",
+                "estimated_amount": "Up to $4M loan + $1M contribution per project",
+                "eligibility_summary": "Must achieve energy efficiency, accessibility, and affordability targets.",
+                "application_notes": "Rolling intake. Requires detailed project plan and financial pro forma.",
+                "relevance_score": 8,
+                "url_hint": "cmhc-schl.gc.ca/nhcf",
+            },
+            {
+                "program_name": "Alberta Affordable Housing Partnership Program",
+                "funding_source": "Government of Alberta",
+                "program_type": "grant",
+                "description": "Provincial funding to increase affordable housing supply through partnerships with private and non-profit developers.",
+                "estimated_amount": "$100,000 - $300,000 per project",
+                "eligibility_summary": "Projects must serve households below median income. Supportive housing eligible.",
+                "application_notes": "Contact Alberta Seniors, Community and Social Services for current intake.",
+                "relevance_score": 7,
+                "url_hint": "alberta.ca/affordable-housing",
+            },
+        ],
+        "summary": f"Multiple federal and provincial programs support {community_type} housing in Alberta. Configure ANTHROPIC_API_KEY for comprehensive AI-powered research.",
+        "total_potential": "$500,000 - $2,000,000+",
+        "recommended_priority": ["CMHC Rapid Housing Initiative", "National Housing Co-Investment Fund", "Alberta Affordable Housing Partnership Program"],
+    }
+
+
 # ── Investor Communication Drafts ────────────────────────────────────────
 
 COMM_TYPES = {
