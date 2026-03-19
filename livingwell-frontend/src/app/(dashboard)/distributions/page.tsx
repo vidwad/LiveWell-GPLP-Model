@@ -331,7 +331,7 @@ export default function DistributionsPage() {
                     <option value="">Select an LP fund...</option>
                     {lps.map((lp) => (
                       <option key={lp.lp_id} value={lp.lp_id}>
-                        {lp.fund_name}
+                        {lp.name}
                       </option>
                     ))}
                   </select>
@@ -500,7 +500,7 @@ export default function DistributionsPage() {
                 <p className="text-sm text-gray-600">
                   Creating distribution for{" "}
                   <span className="font-semibold">
-                    {lps.find((l) => l.lp_id === selectedLpId)?.fund_name}
+                    {lps.find((l) => l.lp_id === selectedLpId)?.name}
                   </span>{" "}
                   with distributable amount of{" "}
                   <span className="font-semibold">

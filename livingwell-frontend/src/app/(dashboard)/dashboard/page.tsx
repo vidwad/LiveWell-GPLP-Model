@@ -257,7 +257,7 @@ export default function DashboardPage() {
                       </p>
                     </div>
                     <div className="text-right">
-                      <div className="text-sm font-bold">LTV: {fund.portfolio_ltv.toFixed(1)}%</div>
+                      <div className="text-sm font-bold">LTV: {fund.portfolio_ltv != null ? `${fund.portfolio_ltv.toFixed(1)}%` : 'N/A'}</div>
                       <div className="text-sm text-muted-foreground">
                         DSCR: {fund.portfolio_dscr ? `${fund.portfolio_dscr.toFixed(2)}x` : 'N/A'}
                       </div>

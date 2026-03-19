@@ -197,3 +197,74 @@ def validate_upfront_funding(subscription: m.Subscription) -> None:
                    f"(${subscription.funded_amount:,.2f}) must equal commitment amount "
                    f"(${subscription.commitment_amount:,.2f})",
         )
+
+
+# ── LP / Property / Community Purpose Type Consistency ──────────────────
+
+def validate_property_lp_community_match(
+    db: Session,
+    lp_id: int | None,
+    community_id: int | None,
+    property_id: int | None = None,
+):
+    """Ensure a property's community type matches its LP's purpose_type.
+
+    Rules:
+    - Each LP serves exactly one community type (no Mixed)
+    - A property assigned to an LP must belong to a community of the same type
+    - If either lp_id or community_id is None, no validation needed
+    """
+    if not lp_id or not community_id:
+        return  # Can't validate without both
+
+    from app.db.models import LPEntity, Community
+
+    lp = db.query(LPEntity).filter(LPEntity.lp_id == lp_id).first()
+    community = db.query(Community).filter(Community.community_id == community_id).first()
+
+    if not lp or not community:
+        return  # Will be caught by FK validation
+
+    if not lp.purpose_type:
+        return  # LP has no purpose_type set yet — allow assignment
+
+    lp_type = lp.purpose_type.value if hasattr(lp.purpose_type, "value") else str(lp.purpose_type)
+    comm_type = community.community_type.value if hasattr(community.community_type, "value") else str(community.community_type)
+
+    if lp_type != comm_type:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Community type mismatch: LP '{lp.name}' is a {lp_type} fund, "
+                   f"but community '{community.name}' is {comm_type}. "
+                   f"Properties in this LP must belong to {lp_type} communities.",
+        )
+
+
+def validate_lp_purpose_type_change(
+    db: Session,
+    lp_id: int,
+    new_purpose_type: str,
+):
+    """Ensure an LP's purpose_type can be changed without orphaning properties.
+
+    If the LP already has properties assigned to communities of a different type,
+    the purpose_type change is blocked.
+    """
+    from app.db.models import LPEntity, Property, Community
+
+    properties = db.query(Property).filter(Property.lp_id == lp_id).all()
+
+    for prop in properties:
+        if not prop.community_id:
+            continue
+        community = db.query(Community).filter(Community.community_id == prop.community_id).first()
+        if not community:
+            continue
+        comm_type = community.community_type.value if hasattr(community.community_type, "value") else str(community.community_type)
+        if comm_type != new_purpose_type:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Cannot change LP purpose to {new_purpose_type}: "
+                       f"property '{prop.address}' belongs to community '{community.name}' "
+                       f"which is {comm_type}. Reassign the property first.",
+            )

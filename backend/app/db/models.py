@@ -152,11 +152,10 @@ class LPStatus(str, enum.Enum):
 
 
 class LPPurposeType(str, enum.Enum):
-    """Purpose / community focus of the LP."""
+    """Purpose / community focus of the LP. Each LP serves exactly one community type."""
     recover_well = "RecoverWell"
     study_well = "StudyWell"
     retire_well = "RetireWell"
-    mixed = "Mixed"
 
 
 class TrancheStatus(str, enum.Enum):

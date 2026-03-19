@@ -317,6 +317,11 @@ def update_lp_entity(
         if data["status"] != current:
             validate_lp_status_transition(current, data["status"])
 
+    # Validate purpose_type change — can't orphan existing properties
+    if "purpose_type" in data and data["purpose_type"]:
+        from app.services.validation_service import validate_lp_purpose_type_change
+        validate_lp_purpose_type_change(db, lp_id, data["purpose_type"])
+
     for key, val in data.items():
         if key == "status" and val:
             val = LPStatus(val)

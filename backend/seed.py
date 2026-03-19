@@ -97,10 +97,10 @@ def seed():
             name="Living Well Fund I LP",
             legal_name="Living Well Fund I Limited Partnership",
             lp_number="LW-001",
-            description="First fund — RecoverWell and StudyWell properties in Calgary and Edmonton.",
-            city_focus="Calgary, Edmonton",
-            community_focus="RecoverWell, StudyWell",
-            purpose_type=m.LPPurposeType.mixed,
+            description="First fund — RecoverWell sober living properties in Calgary.",
+            city_focus="Calgary",
+            community_focus="RecoverWell",
+            purpose_type=m.LPPurposeType.recover_well,
             status=m.LPStatus.operating,
             unit_price=Decimal("1000.00"),
             minimum_subscription=Decimal("50000.00"),
@@ -785,7 +785,7 @@ def seed():
             development_stage=m.DevelopmentStage.construction,
         )
         prop3 = m.Property(
-            lp_id=lp1.lp_id,
+            lp_id=None,  # StudyWell property — not assigned to Fund I (RecoverWell) or Fund II (RetireWell)
             pm_id=pm_edmonton.pm_id,
             address="789 Campus Drive",
             city="Edmonton",
@@ -2516,7 +2516,7 @@ def seed():
         print("  Allocations:         3")
         print("  Operators:           3")
         print("  Clusters:            2")
-        print("  Properties:          10 (3 in Fund I, 7 in Fund II)")
+        print("  Properties:          10 (2 in Fund I, 7 in Fund II, 1 unassigned)")
         print("  Debt Facilities:     5+")
         print("  Development Plans:   3")
         print("  Communities:         5 (Calgary, Edmonton, Red Deer, Lethbridge, Medicine Hat)")

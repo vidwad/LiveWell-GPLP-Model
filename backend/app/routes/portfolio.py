@@ -93,6 +93,10 @@ def create_property(
         lp = db.query(LPEntity).filter(LPEntity.lp_id == payload.lp_id).first()
         if not lp:
             raise HTTPException(status_code=404, detail="LP entity not found")
+    # Enforce LP purpose_type ↔ community type match
+    from app.services.validation_service import validate_property_lp_community_match
+    validate_property_lp_community_match(db, payload.lp_id, payload.community_id)
+
     prop = Property(**payload.model_dump())
     db.add(prop)
     try:
@@ -134,7 +138,16 @@ def update_property(
     prop = db.query(Property).filter(Property.property_id == property_id).first()
     if not prop:
         raise HTTPException(status_code=404, detail="Property not found")
-    for field, value in payload.model_dump(exclude_unset=True).items():
+
+    data = payload.model_dump(exclude_unset=True)
+
+    # Validate LP ↔ community type match if either is changing
+    from app.services.validation_service import validate_property_lp_community_match
+    new_lp = data.get("lp_id", prop.lp_id)
+    new_comm = data.get("community_id", prop.community_id)
+    validate_property_lp_community_match(db, new_lp, new_comm)
+
+    for field, value in data.items():
         setattr(prop, field, value)
     try:
         db.commit()
