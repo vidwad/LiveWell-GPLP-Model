@@ -89,7 +89,7 @@ function KpiCard({
       </div>
       <div className="min-w-0 flex-1">
         <p className="text-[11px] sm:text-xs font-medium text-muted-foreground leading-tight">{label}</p>
-        <p className="text-sm sm:text-base lg:text-lg font-bold leading-tight whitespace-nowrap">{value}</p>
+        <p className="text-sm sm:text-base lg:text-lg font-bold leading-tight whitespace-nowrap truncate" title={value}>{value}</p>
         {sub && <p className="text-[10px] sm:text-xs text-muted-foreground mt-0.5 leading-tight line-clamp-1">{sub}</p>}
       </div>
     </div>
@@ -260,6 +260,7 @@ export default function PropertyDetailPage({ params }: { params: { id: string } 
         <div className="overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0">
           <TabsList variant="line" className="w-full sm:w-auto">
             <TabsTrigger value="overview"><Building2 className="h-4 w-4 sm:mr-1.5" /><span className="hidden sm:inline">Overview</span></TabsTrigger>
+            <TabsTrigger value="area-research"><MapPin className="h-4 w-4 sm:mr-1.5" /><span className="hidden sm:inline">Area Research</span></TabsTrigger>
             <TabsTrigger value="lifecycle"><Activity className="h-4 w-4 sm:mr-1.5" /><span className="hidden sm:inline">Lifecycle</span></TabsTrigger>
             <TabsTrigger value="units"><Ruler className="h-4 w-4 sm:mr-1.5" /><span className="hidden sm:inline">Units & Beds</span></TabsTrigger>
             <TabsTrigger value="rentroll"><DollarSign className="h-4 w-4 sm:mr-1.5" /><span className="hidden sm:inline">Rent Roll</span></TabsTrigger>
@@ -270,7 +271,6 @@ export default function PropertyDetailPage({ params }: { params: { id: string } 
             <TabsTrigger value="exit"><TrendingUp className="h-4 w-4 sm:mr-1.5" /><span className="hidden sm:inline">Exit Scenarios</span></TabsTrigger>
             <TabsTrigger value="valuation"><Banknote className="h-4 w-4 sm:mr-1.5" /><span className="hidden sm:inline">Valuation</span></TabsTrigger>
             <TabsTrigger value="proforma"><Calculator className="h-4 w-4 sm:mr-1.5" /><span className="hidden sm:inline">Pro Forma</span></TabsTrigger>
-            <TabsTrigger value="area-research"><MapPin className="h-4 w-4 sm:mr-1.5" /><span className="hidden sm:inline">Area Research</span></TabsTrigger>
           </TabsList>
         </div>
 
@@ -283,6 +283,18 @@ export default function PropertyDetailPage({ params }: { params: { id: string } 
             totalDebtOutstanding={totalDebtOutstanding}
             debtFacilitiesCount={(debtFacilities ?? []).length}
             onPropertyUpdated={() => refetchProperty()}
+          />
+        </TabsContent>
+
+        {/* ── Area Research ── */}
+        <TabsContent value="area-research" className="mt-6">
+          <AreaResearchTab
+            propertyId={propertyId}
+            address={property?.address}
+            city={property?.city}
+            zoning={property?.zoning}
+            latitude={property?.latitude ? Number(property.latitude) : undefined}
+            longitude={property?.longitude ? Number(property.longitude) : undefined}
           />
         </TabsContent>
 
@@ -357,17 +369,6 @@ export default function PropertyDetailPage({ params }: { params: { id: string } 
           <ProFormaTab propertyId={propertyId} />
         </TabsContent>
 
-        {/* ── Area Research Tab ── */}
-        <TabsContent value="area-research" className="mt-4">
-          <AreaResearchTab
-            propertyId={propertyId}
-            address={property?.address}
-            city={property?.city}
-            zoning={property?.zoning}
-            latitude={property?.latitude ? Number(property.latitude) : undefined}
-            longitude={property?.longitude ? Number(property.longitude) : undefined}
-          />
-        </TabsContent>
       </Tabs>
     </div>
   );
