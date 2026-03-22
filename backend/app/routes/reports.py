@@ -11,10 +11,13 @@ from fastapi import APIRouter, Depends
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
+from typing import Optional
 from app.core.deps import get_current_user, require_gp_or_ops
 from app.services.reporting import generate_fund_performance_report, generate_management_pack
 from app.db.models import (
     Community,
+    DebtFacility,
+    DevelopmentPlan,
     DistributionAllocation,
     DistributionEvent,
     Holding,
@@ -29,6 +32,7 @@ from app.db.models import (
     User,
 )
 from app.db.session import get_db
+from app.services.calculations import calculate_annual_debt_service
 
 router = APIRouter()
 
@@ -195,4 +199,152 @@ def get_summary(
         "maintenance_by_status": [
             {"status": k, "count": v} for k, v in maint_by_status.items()
         ],
+    }
+
+
+@router.get("/cash-flow-projection")
+def get_cash_flow_projection(
+    projection_years: int = 10,
+    lp_id: Optional[int] = None,
+    rent_growth: float = 3.0,
+    expense_growth: float = 2.5,
+    vacancy_rate: float = 5.0,
+    db: Session = Depends(get_db),
+    _: User = Depends(require_gp_or_ops),
+):
+    """
+    Portfolio-wide cash flow projection.
+
+    Aggregates NOI, debt service, and cash flow for each year across all
+    properties (optionally filtered by LP). Uses current rent rolls and debt
+    facilities to project forward.
+    """
+    query = db.query(Property)
+    if lp_id:
+        query = query.filter(Property.lp_id == lp_id)
+    properties = query.all()
+
+    # Build per-property snapshots
+    property_snapshots = []
+    for prop in properties:
+        # Find current NOI from active plan or estimate
+        prop_noi = 0.0
+        active_plans = [
+            p for p in prop.development_plans
+            if p.status.value in ("active", "approved")
+        ]
+        if active_plans:
+            plan = active_plans[0]
+            if plan.projected_annual_noi:
+                prop_noi = float(plan.projected_annual_noi)
+            elif plan.projected_annual_revenue:
+                prop_noi = float(plan.projected_annual_revenue) * 0.65
+        elif prop.purchase_price:
+            prop_noi = float(prop.purchase_price) * 0.06
+
+        # Debt service
+        debts = (
+            db.query(DebtFacility)
+            .filter(
+                DebtFacility.property_id == prop.property_id,
+                DebtFacility.status == "active",
+            )
+            .all()
+        )
+        prop_ads = 0.0
+        for d in debts:
+            if d.outstanding_balance and d.interest_rate:
+                prop_ads += calculate_annual_debt_service(
+                    float(d.outstanding_balance),
+                    float(d.interest_rate),
+                    d.amortization_months or 0,
+                    d.io_period_months or 0,
+                )
+
+        market_value = float(
+            prop.current_market_value or prop.purchase_price or 0
+        )
+
+        property_snapshots.append({
+            "property_id": prop.property_id,
+            "address": prop.address,
+            "lp_id": prop.lp_id,
+            "lp_name": prop.lp_entity.name if prop.lp_entity else None,
+            "stage": prop.development_stage.value,
+            "current_noi": round(prop_noi, 2),
+            "current_ads": round(prop_ads, 2),
+            "current_cash_flow": round(prop_noi - prop_ads, 2),
+            "market_value": round(market_value, 2),
+        })
+
+    # Project forward year by year
+    rent_mult = 1 + rent_growth / 100
+    expense_mult = 1 + expense_growth / 100
+    vacancy_pct = vacancy_rate / 100
+
+    yearly_projections = []
+    for year in range(1, projection_years + 1):
+        year_total_noi = 0.0
+        year_total_ads = 0.0
+        year_total_revenue = 0.0
+        year_total_expenses = 0.0
+
+        for snap in property_snapshots:
+            base_noi = snap["current_noi"]
+            base_ads = snap["current_ads"]
+
+            # Revenue grows at rent_growth rate
+            # NOI = Revenue * (1 - opex_ratio) where opex_ratio is derived
+            if base_noi > 0:
+                projected_revenue = (base_noi / 0.65) * (rent_mult ** (year - 1))
+                projected_expenses = projected_revenue * 0.35 * (expense_mult ** (year - 1)) / (rent_mult ** (year - 1))
+                projected_noi = projected_revenue * (1 - vacancy_pct) - projected_expenses
+            else:
+                projected_revenue = 0
+                projected_expenses = 0
+                projected_noi = 0
+
+            year_total_revenue += projected_revenue
+            year_total_expenses += projected_expenses
+            year_total_noi += projected_noi
+            year_total_ads += base_ads  # debt service stays constant
+
+        yearly_projections.append({
+            "year": year,
+            "gross_revenue": round(year_total_revenue, 2),
+            "vacancy_loss": round(year_total_revenue * vacancy_pct, 2),
+            "operating_expenses": round(year_total_expenses, 2),
+            "noi": round(year_total_noi, 2),
+            "debt_service": round(year_total_ads, 2),
+            "net_cash_flow": round(year_total_noi - year_total_ads, 2),
+            "cumulative_cash_flow": 0.0,  # filled below
+        })
+
+    # Compute cumulative
+    cumulative = 0.0
+    for yp in yearly_projections:
+        cumulative += yp["net_cash_flow"]
+        yp["cumulative_cash_flow"] = round(cumulative, 2)
+
+    # Summary
+    total_current_noi = sum(s["current_noi"] for s in property_snapshots)
+    total_current_ads = sum(s["current_ads"] for s in property_snapshots)
+    total_market_value = sum(s["market_value"] for s in property_snapshots)
+
+    return {
+        "projection_years": projection_years,
+        "assumptions": {
+            "rent_growth_pct": rent_growth,
+            "expense_growth_pct": expense_growth,
+            "vacancy_rate_pct": vacancy_rate,
+        },
+        "current_snapshot": {
+            "property_count": len(property_snapshots),
+            "total_noi": round(total_current_noi, 2),
+            "total_debt_service": round(total_current_ads, 2),
+            "total_cash_flow": round(total_current_noi - total_current_ads, 2),
+            "total_market_value": round(total_market_value, 2),
+        },
+        "projections": yearly_projections,
+        "properties": property_snapshots,
     }

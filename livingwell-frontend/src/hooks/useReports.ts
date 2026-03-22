@@ -78,3 +78,65 @@ export function useManagementPack() {
     staleTime: 60_000,
   });
 }
+
+// ── Cash Flow Projection ────────────────────────────────────────────
+
+export interface CashFlowProjectionYear {
+  year: number;
+  gross_revenue: number;
+  vacancy_loss: number;
+  operating_expenses: number;
+  noi: number;
+  debt_service: number;
+  net_cash_flow: number;
+  cumulative_cash_flow: number;
+}
+
+export interface CashFlowPropertySnapshot {
+  property_id: number;
+  address: string;
+  lp_id: number | null;
+  lp_name: string | null;
+  stage: string;
+  current_noi: number;
+  current_ads: number;
+  current_cash_flow: number;
+  market_value: number;
+}
+
+export interface CashFlowProjectionResult {
+  projection_years: number;
+  assumptions: {
+    rent_growth_pct: number;
+    expense_growth_pct: number;
+    vacancy_rate_pct: number;
+  };
+  current_snapshot: {
+    property_count: number;
+    total_noi: number;
+    total_debt_service: number;
+    total_cash_flow: number;
+    total_market_value: number;
+  };
+  projections: CashFlowProjectionYear[];
+  properties: CashFlowPropertySnapshot[];
+}
+
+export function useCashFlowProjection(params?: {
+  projection_years?: number;
+  lp_id?: number;
+  rent_growth?: number;
+  expense_growth?: number;
+  vacancy_rate?: number;
+}) {
+  return useQuery<CashFlowProjectionResult, Error>({
+    queryKey: ["reports", "cash-flow-projection", params],
+    queryFn: () =>
+      apiClient
+        .get<CashFlowProjectionResult>("/api/reports/cash-flow-projection", {
+          params,
+        })
+        .then((r) => r.data),
+    staleTime: 60_000,
+  });
+}

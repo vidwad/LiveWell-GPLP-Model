@@ -30,6 +30,7 @@ import {
   ClipboardList,
   Settings,
   MapPin,
+  Banknote,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/providers/AuthProvider";
@@ -114,6 +115,7 @@ const NAV_SECTIONS: NavSection[] = [
     items: [
       { href: "/quarterly-reports", label: "Quarterly Reports", icon: FileText, roles: [GP, INV] },
       { href: "/reports", label: "Reports", icon: BarChart2, roles: [GP] },
+      { href: "/cash-flow", label: "Cash Flow", icon: Banknote, roles: [GP] },
     ],
   },
 
