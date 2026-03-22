@@ -25,7 +25,7 @@ export default function NewPropertyPage() {
     province: "",
     purchase_date: "",
     purchase_price: 0,
-    development_stage: "acquisition",
+    development_stage: "prospect",
   });
 
   const [lpOptions, setLpOptions] = useState<{ lp_id: number; name: string }[]>([]);
@@ -33,6 +33,7 @@ export default function NewPropertyPage() {
   const [showBuildingDetails, setShowBuildingDetails] = useState(false);
   const [showLocationDetails, setShowLocationDetails] = useState(false);
   const [showMarketDetails, setShowMarketDetails] = useState(false);
+  const [estimatedMonthlyRent, setEstimatedMonthlyRent] = useState(0);
 
   useEffect(() => {
     api.investment.getLPs().then((lps: any[]) => setLpOptions(lps.map(l => ({ lp_id: l.lp_id, name: l.name }))));
@@ -57,10 +58,28 @@ export default function NewPropertyPage() {
         const v = payload[f];
         (payload as Record<string, unknown>)[f] = v ? Number(v) : undefined;
       }
+      // Strip empty date/string fields so backend doesn't get ""
+      if (!payload.purchase_date) (payload as Record<string, unknown>).purchase_date = undefined;
       payload.lp_id = form.lp_id || undefined;
       payload.community_id = form.community_id || undefined;
       const prop = await mutateAsync(payload);
-      toast.success("Property created");
+
+      // If we have lookup data with bedrooms, auto-initialize the unit structure
+      if (form.bedrooms || form.building_sqft) {
+        try {
+          await api.portfolio.initializeUnits(prop.property_id, {
+            bedrooms: Number(form.bedrooms) || 3,
+            bathrooms: Number(form.bathrooms) || 1,
+            building_sqft: Number(form.building_sqft) || 0,
+            estimated_monthly_rent: estimatedMonthlyRent || 0,
+          });
+          toast.success("Property created with unit structure from lookup data");
+        } catch {
+          toast.success("Property created (units can be added manually)");
+        }
+      } else {
+        toast.success("Property created");
+      }
       router.push(`/portfolio/${prop.property_id}`);
     } catch {
       toast.error("Failed to create property");
@@ -122,11 +141,17 @@ export default function NewPropertyPage() {
                 <PropertyLookup
                   address={form.address}
                   city={form.city}
+                  province={form.province}
                   onApply={(fields) => {
                     // Spread all non-null lookup fields into the form
                     const updates: Record<string, unknown> = {};
                     for (const [k, v] of Object.entries(fields)) {
                       if (v != null) updates[k] = v;
+                    }
+                    // Capture estimated rent separately (not a property field)
+                    if ((fields as Record<string, unknown>).estimated_monthly_rent) {
+                      setEstimatedMonthlyRent(Number((fields as Record<string, unknown>).estimated_monthly_rent));
+                      delete updates.estimated_monthly_rent;
                     }
                     setForm((f) => ({ ...f, ...updates }));
                   }}
@@ -179,7 +204,7 @@ export default function NewPropertyPage() {
                   type="date"
                   value={form.purchase_date}
                   onChange={(e) => set("purchase_date", e.target.value)}
-                  required
+                  placeholder="Leave blank for prospects"
                 />
               </div>
               <div className="space-y-2">

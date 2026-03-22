@@ -168,6 +168,7 @@ function DataRow({
 interface PropertyLookupProps {
   address?: string;
   city?: string;
+  province?: string;
   onApply?: (fields: ApplicableFields) => void;
   mode?: "button" | "inline";
 }
@@ -175,17 +176,24 @@ interface PropertyLookupProps {
 export function PropertyLookup({
   address: initialAddress,
   city: initialCity,
+  province: initialProvince,
   onApply,
   mode = "button",
 }: PropertyLookupProps) {
   const [open, setOpen] = useState(false);
   const [address, setAddress] = useState(initialAddress ?? "");
   const [city, setCity] = useState(initialCity ?? "Calgary");
+  const [province, setProvince] = useState(initialProvince ?? "AB");
   const [result, setResult] = useState<LookupResult | null>(null);
   const [showRaw, setShowRaw] = useState(false);
 
+  // Sync with parent props when they change
+  React.useEffect(() => { if (initialAddress) setAddress(initialAddress); }, [initialAddress]);
+  React.useEffect(() => { if (initialCity) setCity(initialCity); }, [initialCity]);
+  React.useEffect(() => { if (initialProvince) setProvince(initialProvince); }, [initialProvince]);
+
   const mutation = useMutation({
-    mutationFn: () => portfolio.lookupProperty({ address, city }),
+    mutationFn: () => portfolio.lookupProperty({ address, city, province }),
     onSuccess: (data: LookupResult) => {
       setResult(data);
       if (data.sources_used.length === 0) {
@@ -231,6 +239,7 @@ export function PropertyLookup({
     if (result.list_price) fields.list_price = result.list_price;
     if (result.last_sold_price) fields.last_sold_price = result.last_sold_price;
     if (result.last_sold_date) fields.last_sold_date = result.last_sold_date;
+    if (result.estimated_monthly_rent) (fields as Record<string, unknown>).estimated_monthly_rent = result.estimated_monthly_rent;
 
     onApply(fields);
     toast.success("Property fields updated from lookup data");
@@ -252,7 +261,7 @@ export function PropertyLookup({
   const content = (
     <div className="space-y-4">
       {/* Search */}
-      <div className="grid gap-3 sm:grid-cols-3">
+      <div className="grid gap-3 sm:grid-cols-4">
         <div className="sm:col-span-2 space-y-1.5">
           <Label className="text-xs">Address</Label>
           <Input
@@ -267,6 +276,14 @@ export function PropertyLookup({
             value={city}
             onChange={(e) => setCity(e.target.value)}
             placeholder="Calgary"
+          />
+        </div>
+        <div className="space-y-1.5">
+          <Label className="text-xs">Province</Label>
+          <Input
+            value={province}
+            onChange={(e) => setProvince(e.target.value)}
+            placeholder="AB"
           />
         </div>
       </div>

@@ -104,7 +104,7 @@ export default function PropertyDetailPage({ params }: { params: { id: string } 
   const router = useRouter();
   const { user } = useAuth();
 
-  const { data: property, isLoading } = useProperty(propertyId);
+  const { data: property, isLoading, refetch: refetchProperty } = useProperty(propertyId);
   const { data: plans } = useDevelopmentPlans(propertyId);
   const { mutateAsync: deleteProperty, isPending: deletePending } = useDeleteProperty();
   const { data: debtFacilities } = useDebtFacilities(propertyId);
@@ -282,6 +282,7 @@ export default function PropertyDetailPage({ params }: { params: { id: string } 
             totalDebtCommitment={totalDebtCommitment}
             totalDebtOutstanding={totalDebtOutstanding}
             debtFacilitiesCount={(debtFacilities ?? []).length}
+            onPropertyUpdated={() => refetchProperty()}
           />
         </TabsContent>
 
@@ -363,6 +364,8 @@ export default function PropertyDetailPage({ params }: { params: { id: string } 
             address={property?.address}
             city={property?.city}
             zoning={property?.zoning}
+            latitude={property?.latitude ? Number(property.latitude) : undefined}
+            longitude={property?.longitude ? Number(property.longitude) : undefined}
           />
         </TabsContent>
       </Tabs>

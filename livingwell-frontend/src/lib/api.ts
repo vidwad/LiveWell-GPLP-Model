@@ -133,6 +133,14 @@ export const portfolio = {
     apiClient.patch(`/api/portfolio/properties/${propertyId}/rent-pricing-mode`, null, { params: { mode } }).then(r => r.data),
   bulkCreateBeds: (propertyId: number, unitId: number, beds: object[]) =>
     apiClient.post(`/api/portfolio/properties/${propertyId}/units/bulk-beds`, beds, { params: { unit_id: unitId } }).then(r => r.data),
+
+  // Property Lookup
+  lookupProperty: (data: { address: string; city: string; province?: string }) =>
+    apiClient.post("/api/portfolio/lookup", data).then(r => r.data),
+
+  // Initialize units from lookup data
+  initializeUnits: (propertyId: number, data: { bedrooms?: number; bathrooms?: number; building_sqft?: number; estimated_monthly_rent?: number }) =>
+    apiClient.post(`/api/portfolio/properties/${propertyId}/initialize-units`, data).then(r => r.data),
 };
 
 // ── Investment (GP / LP / Tranche / Subscription / Holding / Target / Distribution) ─────
@@ -321,6 +329,10 @@ export const ai = {
     property_type?: string;
     additional_context?: string;
   }) => apiClient.post("/api/ai/area-research", data).then(r => r.data),
+  getSavedAreaResearch: (propertyId: number) =>
+    apiClient.get(`/api/ai/area-research/${propertyId}`).then(r => r.data),
+  saveAreaResearch: (propertyId: number, data: object) =>
+    apiClient.post(`/api/ai/area-research/${propertyId}/save`, data).then(r => r.data),
 };
 
 // ── Convenience namespace ──────────────────────────────────────────────

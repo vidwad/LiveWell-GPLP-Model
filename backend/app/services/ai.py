@@ -768,6 +768,8 @@ def research_property_area(
     zoning: Optional[str] = None,
     property_type: Optional[str] = None,
     additional_context: Optional[str] = None,
+    subject_lat: Optional[float] = None,
+    subject_lng: Optional[float] = None,
 ) -> dict:
     """AI-powered area research for real estate due diligence.
 
@@ -780,6 +782,9 @@ def research_property_area(
         f"City: {city}, {province}, Canada",
         f"Search Radius: {radius_miles} miles",
     ]
+    if subject_lat and subject_lng:
+        context_parts.append(f"EXACT Subject Property Coordinates: lat={subject_lat}, lng={subject_lng}")
+        context_parts.append(f"USE THESE EXACT COORDINATES as the center point. All nearby properties must be within {radius_miles} miles of this point.")
     if zoning:
         context_parts.append(f"Current Zoning: {zoning}")
     if property_type:
@@ -898,6 +903,13 @@ Return JSON with these exact keys:
     - estimated_arv (number — after-renovation value estimate)
     - key_considerations (array of strings)
 
+CRITICAL COORDINATE RULES:
+- The subject property is at approximately {address}, {city}. Look up its actual coordinates.
+- ALL comparable sales, active listings, rezoning activity, and development projects MUST have lat/lng coordinates that are WITHIN {radius_miles} miles of the subject property.
+- For {city}, typical coordinates are: Calgary ~51.04 lat, -114.07 lng; Edmonton ~53.54 lat, -113.49 lng.
+- Vary coordinates by small amounts (0.001-0.01 degrees) to place properties on nearby streets, NOT across the city.
+- A {radius_miles}-mile radius is approximately {radius_miles * 0.015:.4f} degrees of latitude/longitude variation.
+
 Be specific with numbers. Use realistic values for {city}, {province}. Do not use placeholder text."""
 
     result = _call_claude_json(prompt, max_tokens=4096)
@@ -905,6 +917,9 @@ Be specific with numbers. Use realistic values for {city}, {province}. Do not us
         result["address"] = address
         result["city"] = city
         result["radius_miles"] = radius_miles
+        # Override subject_location with real coordinates if available
+        if subject_lat and subject_lng:
+            result["subject_location"] = {"lat": subject_lat, "lng": subject_lng}
         return result
 
     # Fallback with structured mock data

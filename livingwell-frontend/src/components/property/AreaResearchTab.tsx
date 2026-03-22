@@ -271,13 +271,33 @@ interface AreaResearchTabProps {
   address?: string;
   city?: string;
   zoning?: string;
+  latitude?: number;
+  longitude?: number;
 }
 
-export function AreaResearchTab({ propertyId, address, city, zoning }: AreaResearchTabProps) {
+export function AreaResearchTab({ propertyId, address, city, zoning, latitude, longitude }: AreaResearchTabProps) {
   const [radius, setRadius] = useState(2);
   const [customAddress, setCustomAddress] = useState(address ?? "");
   const [customCity, setCustomCity] = useState(city ?? "");
   const [result, setResult] = useState<AreaResearchResult | null>(null);
+  const [lastUpdated, setLastUpdated] = useState<string | null>(null);
+  const [loadingSaved, setLoadingSaved] = useState(false);
+
+  // Load saved area research on mount
+  React.useEffect(() => {
+    if (!propertyId) return;
+    setLoadingSaved(true);
+    ai.getSavedAreaResearch(propertyId)
+      .then((saved) => {
+        if (saved?.data) {
+          setResult(saved.data);
+          setLastUpdated(saved.updated_at);
+          if (saved.data.radius_miles) setRadius(saved.data.radius_miles);
+        }
+      })
+      .catch(() => {})
+      .finally(() => setLoadingSaved(false));
+  }, [propertyId]);
 
   const mutation = useMutation({
     mutationFn: () =>
@@ -290,7 +310,15 @@ export function AreaResearchTab({ propertyId, address, city, zoning }: AreaResea
       }),
     onSuccess: (data) => {
       setResult(data);
-      toast.success("Area research complete");
+      setLastUpdated(new Date().toISOString());
+      // Auto-save to database
+      if (propertyId) {
+        ai.saveAreaResearch(propertyId, { data, radius_miles: radius })
+          .then(() => toast.success("Area research complete and saved"))
+          .catch(() => toast.success("Area research complete (save failed)"));
+      } else {
+        toast.success("Area research complete");
+      }
     },
     onError: () => {
       toast.error("Failed to generate area research");
@@ -376,10 +404,22 @@ export function AreaResearchTab({ propertyId, address, city, zoning }: AreaResea
             ) : (
               <>
                 <MapPin className="mr-2 h-4 w-4" />
-                Generate Area Research
+                {result ? "Refresh Research" : "Generate Area Research"}
               </>
             )}
           </Button>
+          {lastUpdated && (
+            <p className="text-xs text-muted-foreground mt-2">
+              <Clock className="inline h-3 w-3 mr-1" />
+              Last updated: {new Date(lastUpdated).toLocaleDateString("en-CA", { year: "numeric", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
+            </p>
+          )}
+          {loadingSaved && (
+            <p className="text-xs text-muted-foreground mt-2">
+              <Loader2 className="inline h-3 w-3 mr-1 animate-spin" />
+              Loading saved research...
+            </p>
+          )}
         </CardContent>
       </Card>
 
@@ -435,7 +475,11 @@ export function AreaResearchTab({ propertyId, address, city, zoning }: AreaResea
 
           {/* Interactive Map */}
           <AreaResearchMap
-            subjectLocation={result.subject_location}
+            subjectLocation={
+              latitude && longitude
+                ? { lat: latitude, lng: longitude }
+                : result.subject_location
+            }
             address={result.address}
             city={result.city}
             radiusMiles={result.radius_miles}

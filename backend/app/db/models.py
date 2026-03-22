@@ -59,8 +59,12 @@ class UnitType(str, enum.Enum):
     one_bed = "1br"
     two_bed = "2br"
     three_bed = "3br"
-    suite = "suite"
-    shared = "shared"
+    four_bed = "4br"
+    five_plus = "5br+"
+    house = "house"         # whole single-family house (shared living)
+    duplex = "duplex"       # duplex unit
+    suite = "suite"         # legal suite / secondary suite
+    shared = "shared"       # shared room
 
 
 class RentType(str, enum.Enum):
@@ -2146,3 +2150,25 @@ class PlatformSetting(Base):
     updated_at = Column(DateTime, nullable=True, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     updated_by = relationship("User")
+
+
+# ---------------------------------------------------------------------------
+# Saved Area Research
+# ---------------------------------------------------------------------------
+
+class AreaResearch(Base):
+    """Persisted area research results for a property."""
+    __tablename__ = "area_research"
+
+    research_id = Column(Integer, primary_key=True, autoincrement=True)
+    property_id = Column(Integer, ForeignKey("properties.property_id"), nullable=False, index=True)
+    address = Column(String(512), nullable=True)
+    city = Column(String(128), nullable=True)
+    radius_miles = Column(Integer, nullable=True)
+    data = Column(Text, nullable=False)  # Full JSON result
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    updated_at = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_by = Column(Integer, ForeignKey("users.user_id"), nullable=True)
+
+    property = relationship("Property")
+    creator = relationship("User")

@@ -729,6 +729,8 @@ def get_area_research(
     zoning = payload.zoning
 
     # Auto-populate from property if property_id provided
+    subject_lat = None
+    subject_lng = None
     if payload.property_id:
         prop = db.query(Property).filter(Property.property_id == payload.property_id).first()
         if not prop:
@@ -739,6 +741,10 @@ def get_area_research(
             city = prop.city
         if not zoning and prop.zoning:
             zoning = prop.zoning
+        if prop.latitude:
+            subject_lat = float(prop.latitude)
+        if prop.longitude:
+            subject_lng = float(prop.longitude)
 
     if not address or not city:
         raise HTTPException(400, "Address and city are required (or provide property_id)")
@@ -751,6 +757,8 @@ def get_area_research(
         zoning=zoning,
         property_type=payload.property_type,
         additional_context=payload.additional_context,
+        subject_lat=subject_lat,
+        subject_lng=subject_lng,
     )
 
 
@@ -1190,3 +1198,81 @@ def validate_rent_roll_endpoint(
         city=prop.city,
         existing_units=existing_units,
     )
+
+
+# ===========================================================================
+# Area Research — Save / Load
+# ===========================================================================
+
+from app.db.models import AreaResearch
+
+
+@router.get("/area-research/{property_id}")
+def get_saved_area_research(
+    property_id: int,
+    db: Session = Depends(get_db),
+    _: User = Depends(require_investor_or_above),
+):
+    """Load saved area research for a property."""
+    record = (
+        db.query(AreaResearch)
+        .filter(AreaResearch.property_id == property_id)
+        .order_by(AreaResearch.updated_at.desc())
+        .first()
+    )
+    if not record:
+        return None
+    import json as _json
+    return {
+        "research_id": record.research_id,
+        "property_id": record.property_id,
+        "data": _json.loads(record.data),
+        "created_at": record.created_at.isoformat() if record.created_at else None,
+        "updated_at": record.updated_at.isoformat() if record.updated_at else None,
+    }
+
+
+@router.post("/area-research/{property_id}/save")
+def save_area_research(
+    property_id: int,
+    payload: dict,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_gp_or_ops),
+):
+    """Save or update area research results for a property."""
+    import json as _json
+
+    prop = db.query(Property).filter(Property.property_id == property_id).first()
+    if not prop:
+        raise HTTPException(404, "Property not found")
+
+    # Check for existing record
+    existing = (
+        db.query(AreaResearch)
+        .filter(AreaResearch.property_id == property_id)
+        .first()
+    )
+
+    data_json = _json.dumps(payload.get("data", payload), default=str)
+
+    if existing:
+        existing.data = data_json
+        existing.address = prop.address
+        existing.city = prop.city
+        existing.radius_miles = payload.get("radius_miles")
+        existing.created_by = current_user.user_id
+        from datetime import datetime
+        existing.updated_at = datetime.utcnow()
+    else:
+        record = AreaResearch(
+            property_id=property_id,
+            address=prop.address,
+            city=prop.city,
+            radius_miles=payload.get("radius_miles"),
+            data=data_json,
+            created_by=current_user.user_id,
+        )
+        db.add(record)
+
+    db.commit()
+    return {"status": "saved", "property_id": property_id}

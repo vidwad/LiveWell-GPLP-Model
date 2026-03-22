@@ -378,9 +378,6 @@ function MapOverlayCard({
 
 /* ── Main Map Component ────────────────────────────────────────────────── */
 
-const MAPS_API_KEY =
-  process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY ?? "";
-
 export function AreaResearchMap({
   subjectLocation,
   address,
@@ -394,7 +391,22 @@ export function AreaResearchMap({
   marketInsights,
   redevelopmentPotential,
 }: AreaResearchMapProps) {
+  const [mapsApiKey, setMapsApiKey] = useState(process.env.NEXT_PUBLIC_GOOGLE_mapsApiKey ?? "");
   const [selectedMarker, setSelectedMarker] = useState<MapMarker | null>(null);
+
+  // Fetch Google Maps key from platform settings if not in env
+  React.useEffect(() => {
+    if (!mapsApiKey) {
+      import("@/lib/api").then(({ settingsApi }) => {
+        settingsApi.getAll("api_keys").then((settings: any[]) => {
+          const gmKey = settings.find((s: any) => s.key === "GOOGLE_MAPS_API_KEY");
+          if (gmKey?.value && !gmKey.value.includes("••")) {
+            setMapsApiKey(gmKey.value);
+          }
+        }).catch(() => {});
+      });
+    }
+  }, [mapsApiKey]);
   const [layers, setLayers] = useState<Record<LayerKey, boolean>>({
     comps: true,
     listings: true,
@@ -531,15 +543,15 @@ export function AreaResearchMap({
             ? 12
             : 11;
 
-  if (!MAPS_API_KEY) {
+  if (!mapsApiKey) {
     return (
       <Card className="border-dashed">
         <CardContent className="py-8 text-center">
           <MapPin className="h-10 w-10 text-muted-foreground mx-auto mb-3" />
           <p className="text-sm font-medium">Google Maps Not Configured</p>
           <p className="text-xs text-muted-foreground mt-1">
-            Set <code className="bg-gray-100 px-1 rounded">NEXT_PUBLIC_GOOGLE_MAPS_API_KEY</code> in
-            your environment to enable the interactive map view.
+            Add your Google Maps API key in <a href="/settings" className="text-blue-600 hover:underline">Settings</a> to
+            enable the interactive map view.
           </p>
         </CardContent>
       </Card>
@@ -583,7 +595,7 @@ export function AreaResearchMap({
         />
 
         {/* Google Map */}
-        <APIProvider apiKey={MAPS_API_KEY}>
+        <APIProvider apiKey={mapsApiKey}>
           <Map
             defaultCenter={center}
             defaultZoom={zoom}

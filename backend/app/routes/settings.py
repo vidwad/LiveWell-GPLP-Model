@@ -39,7 +39,7 @@ DEFAULT_SETTINGS = [
         "category": "api_keys",
         "label": "Google Maps API Key",
         "description": "Enables interactive map view in Area Research with property markers and radius overlay. Requires Maps JavaScript API enabled. Get your key at console.cloud.google.com.",
-        "is_secret": True,
+        "is_secret": False,  # Client-side key — safe to expose to browser
     },
     {
         "key": "REPLIERS_API_KEY",

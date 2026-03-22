@@ -1121,6 +1121,84 @@ def create_property_unit(
     return unit
 
 
+@router.post("/properties/{property_id}/initialize-units")
+def initialize_units_from_lookup(
+    property_id: int,
+    payload: dict,
+    db: Session = Depends(get_db),
+    _: User = Depends(require_gp_ops_pm),
+):
+    """Create baseline unit structure from property lookup data.
+
+    Accepts: { bedrooms: 3, bathrooms: 2, building_sqft: 1200, estimated_monthly_rent: 2800 }
+    Creates a single baseline unit with beds matching the bedroom count.
+    """
+    prop = db.query(Property).filter(Property.property_id == property_id).first()
+    if not prop:
+        raise HTTPException(404, "Property not found")
+
+    # Check if units already exist
+    existing = db.query(Unit).filter(Unit.property_id == property_id).count()
+    if existing > 0:
+        raise HTTPException(400, f"Property already has {existing} units. Delete them first or add manually.")
+
+    bedrooms = payload.get("bedrooms") or 3
+    bathrooms = payload.get("bathrooms") or 1
+    building_sqft = payload.get("building_sqft") or 0
+    estimated_rent = payload.get("estimated_monthly_rent") or 0
+    rent_per_bed = estimated_rent / bedrooms if bedrooms > 0 and estimated_rent > 0 else 800
+
+    # For whole-property baseline, use 'house' type
+    unit_type = "house"
+
+    # Create a single baseline unit representing the existing house
+    unit = Unit(
+        property_id=property_id,
+        community_id=prop.community_id,
+        unit_number="Main",
+        unit_type=unit_type,
+        bed_count=bedrooms,
+        bedroom_count=bedrooms,
+        sqft=building_sqft,
+        floor="Main",
+        is_occupied=False,
+        is_legal_suite=False,
+        renovation_phase="pre_renovation",
+    )
+    db.add(unit)
+    db.flush()
+
+    # Create beds
+    beds_created = []
+    for b in range(1, bedrooms + 1):
+        bed = Bed(
+            unit_id=unit.unit_id,
+            bed_label=f"Main-B{b}",
+            bedroom_number=b,
+            monthly_rent=round(rent_per_bed, 2),
+            rent_type="private_pay",
+            status=BedStatus.available,
+        )
+        db.add(bed)
+        beds_created.append(bed)
+
+    try:
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise HTTPException(500, "Failed to initialize units")
+
+    return {
+        "property_id": property_id,
+        "units_created": 1,
+        "beds_created": len(beds_created),
+        "unit_number": "Main",
+        "bedrooms": bedrooms,
+        "rent_per_bed": round(rent_per_bed, 2),
+        "total_monthly_rent": round(rent_per_bed * bedrooms, 2),
+    }
+
+
 @router.patch(
     "/properties/{property_id}/units/{unit_id}",
     response_model=UnitOut,
