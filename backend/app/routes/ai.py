@@ -27,6 +27,13 @@ from app.services.ai import (
     detect_anomalies, chat_with_context,
     research_funding_opportunities,
     research_property_area,
+    generate_staffing_schedule,
+    compare_scenarios,
+    predict_occupancy_risk,
+    generate_executive_briefing,
+    suggest_arrears_strategy,
+    advise_distribution_timing,
+    validate_rent_roll,
 )
 
 router = APIRouter()
@@ -850,3 +857,300 @@ def update_decision_outcome(
         "outcome": d.outcome.value,
         "message": "Decision outcome updated.",
     }
+
+
+# ── AI Staffing Schedule ─────────────────────────────────────────────────
+
+class StaffingScheduleRequest(BaseModel):
+    community_id: int
+    week_start: str  # YYYY-MM-DD (Monday)
+    budget_weekly: float | None = None
+
+
+@router.post("/generate-staffing-schedule")
+def generate_staffing_schedule_endpoint(
+    payload: StaffingScheduleRequest,
+    db: Session = Depends(get_db),
+    _: User = Depends(require_gp_or_ops),
+):
+    """Generate an AI-optimized weekly staffing schedule."""
+    from app.db.models import Staff, Shift, StaffStatus
+
+    community = db.query(Community).filter(Community.community_id == payload.community_id).first()
+    if not community:
+        raise HTTPException(404, "Community not found")
+
+    # Get active staff
+    staff = db.query(Staff).filter(
+        Staff.community_id == payload.community_id,
+        Staff.status == StaffStatus.active,
+    ).all()
+
+    staff_list = [{
+        "staff_id": s.staff_id,
+        "first_name": s.first_name,
+        "last_name": s.last_name,
+        "role": s.role.value if s.role else "support_worker",
+        "hourly_rate": float(s.hourly_rate) if s.hourly_rate else 20.0,
+    } for s in staff]
+
+    # Get occupancy
+    from app.services.reporting import get_community_occupancy
+    occ = get_community_occupancy(db, payload.community_id)
+    occupancy_rate = occ.get("occupancy_rate", 0.85) if occ else 0.85
+
+    # Get existing shifts for the week
+    import datetime
+    week_start = datetime.datetime.strptime(payload.week_start, "%Y-%m-%d").date()
+    week_end = week_start + datetime.timedelta(days=6)
+    existing_shifts = db.query(Shift).filter(
+        Shift.community_id == payload.community_id,
+        Shift.shift_date >= week_start,
+        Shift.shift_date <= week_end,
+    ).all()
+    existing = [{
+        "staff_id": sh.staff_id,
+        "shift_date": str(sh.shift_date),
+        "start_time": sh.start_time,
+        "end_time": sh.end_time,
+        "hours": float(sh.hours) if sh.hours else 0,
+    } for sh in existing_shifts]
+
+    return generate_staffing_schedule(
+        community_name=community.name,
+        community_type=community.community_type.value if community.community_type else "LiveWell",
+        occupancy_rate=occupancy_rate,
+        staff_list=staff_list,
+        week_start=payload.week_start,
+        budget_weekly=payload.budget_weekly,
+        existing_shifts=existing if existing else None,
+    )
+
+
+# ── Scenario Comparison ──────────────────────────────────────────────────
+
+class ScenarioInput(BaseModel):
+    name: str
+    vacancy_rate: float = 0.05
+    rent_growth: float = 0.03
+    expense_growth: float = 0.02
+    cap_rate: float = 0.055
+
+
+class ScenarioComparisonRequest(BaseModel):
+    property_id: int
+    scenarios: list[ScenarioInput]
+
+
+@router.post("/compare-scenarios")
+def compare_scenarios_endpoint(
+    payload: ScenarioComparisonRequest,
+    db: Session = Depends(get_db),
+    _: User = Depends(require_gp_or_ops),
+):
+    """Compare multiple pro forma scenarios with AI commentary."""
+    prop = db.query(Property).filter(Property.property_id == payload.property_id).first()
+    if not prop:
+        raise HTTPException(404, "Property not found")
+
+    # Generate pro formas for each scenario
+    from app.services.proforma_service import generate_proforma
+    scenario_data = []
+    for sc in payload.scenarios:
+        proforma = generate_proforma(db, payload.property_id)
+        scenario_data.append({
+            "name": sc.name,
+            "assumptions": sc.model_dump(),
+            "proforma": proforma,
+        })
+
+    current = {
+        "address": prop.address,
+        "city": prop.city,
+        "purchase_price": float(prop.purchase_price) if prop.purchase_price else None,
+        "current_market_value": float(prop.current_market_value) if prop.current_market_value else None,
+    }
+
+    return compare_scenarios(
+        property_name=f"{prop.address}, {prop.city}",
+        scenarios=scenario_data,
+        current_financials=current,
+    )
+
+
+# ── Predictive Occupancy Risk ────────────────────────────────────────────
+
+class OccupancyRiskRequest(BaseModel):
+    community_id: int
+
+
+@router.post("/predict-occupancy-risk")
+def predict_occupancy_risk_endpoint(
+    payload: OccupancyRiskRequest,
+    db: Session = Depends(get_db),
+    _: User = Depends(require_gp_or_ops),
+):
+    """Predict occupancy risk for a community."""
+    community = db.query(Community).filter(Community.community_id == payload.community_id).first()
+    if not community:
+        raise HTTPException(404, "Community not found")
+
+    # Get occupancy
+    from app.services.reporting import get_community_occupancy
+    occ = get_community_occupancy(db, payload.community_id)
+    occupancy_rate = occ.get("occupancy_rate", 0.85) if occ else 0.85
+
+    # Get trend data
+    from app.services.snapshot_service import get_trend
+    trend = get_trend(db, "community", payload.community_id, 12)
+
+    # Get arrears for residents in this community
+    from app.db.models import ArrearsRecord, Resident
+    arrears = db.query(ArrearsRecord).join(Resident).filter(
+        Resident.community_id == payload.community_id,
+        ArrearsRecord.amount_overdue > 0,
+    ).all()
+    arrears_data = [{
+        "resident_name": f"{a.resident.first_name} {a.resident.last_name}" if a.resident else "Unknown",
+        "amount_overdue": float(a.amount_overdue),
+        "days_overdue": a.days_overdue,
+    } for a in arrears] if arrears else None
+
+    return predict_occupancy_risk(
+        community_name=community.name,
+        community_type=community.community_type.value if community.community_type else "LiveWell",
+        current_occupancy=occupancy_rate,
+        trend_data=trend if trend else [],
+        arrears_data=arrears_data,
+    )
+
+
+# ── Arrears Collection Strategy ──────────────────────────────────────────
+
+class ArrearsStrategyRequest(BaseModel):
+    arrears_id: int
+
+
+@router.post("/suggest-arrears-strategy")
+def suggest_arrears_strategy_endpoint(
+    payload: ArrearsStrategyRequest,
+    db: Session = Depends(get_db),
+    _: User = Depends(require_gp_or_ops),
+):
+    """Get AI-recommended collection strategy for an arrears case."""
+    from app.db.models import ArrearsRecord, Resident
+
+    arrear = db.query(ArrearsRecord).filter(ArrearsRecord.arrears_id == payload.arrears_id).first()
+    if not arrear:
+        raise HTTPException(404, "Arrears record not found")
+
+    resident = arrear.resident
+    community_type = "LiveWell"
+    if resident and resident.community:
+        community_type = resident.community.community_type.value if resident.community.community_type else "LiveWell"
+
+    # Get arrears history for this resident
+    history = []
+    if resident:
+        past = db.query(ArrearsRecord).filter(
+            ArrearsRecord.resident_id == resident.resident_id,
+        ).order_by(ArrearsRecord.record_date.desc()).limit(10).all()
+        history = [{
+            "record_date": str(a.record_date),
+            "amount_overdue": float(a.amount_overdue),
+            "days_overdue": a.days_overdue,
+            "follow_up_action": a.follow_up_action,
+        } for a in past]
+
+    return suggest_arrears_strategy(
+        resident_name=f"{resident.first_name} {resident.last_name}" if resident else "Unknown",
+        community_type=community_type,
+        days_overdue=arrear.days_overdue or 0,
+        amount_overdue=float(arrear.amount_overdue) if arrear.amount_overdue else 0,
+        arrears_history=history if history else None,
+        current_follow_up=arrear.follow_up_action,
+    )
+
+
+# ── Distribution Timing Advisor ──────────────────────────────────────────
+
+class DistributionAdviceRequest(BaseModel):
+    lp_id: int
+    proposed_amount: float | None = None
+
+
+@router.post("/advise-distribution")
+def advise_distribution_endpoint(
+    payload: DistributionAdviceRequest,
+    db: Session = Depends(get_db),
+    _: User = Depends(require_gp_or_ops),
+):
+    """Get AI advice on distribution timing and amount."""
+    lp = db.query(LPEntity).filter(LPEntity.lp_id == payload.lp_id).first()
+    if not lp:
+        raise HTTPException(404, "LP not found")
+
+    lp_ctx = _get_lp_context(db, payload.lp_id)
+
+    # Get waterfall result if proposed amount
+    waterfall_result = None
+    if payload.proposed_amount:
+        from app.services.waterfall import run_waterfall
+        try:
+            waterfall_result = run_waterfall(db, payload.lp_id, payload.proposed_amount)
+        except Exception:
+            pass
+
+    # Get debt maturities
+    import datetime as _dt2
+    maturities = db.query(DebtFacility).filter(
+        DebtFacility.lp_id == payload.lp_id,
+        DebtFacility.maturity_date != None,
+        DebtFacility.maturity_date <= _dt2.date.today() + _dt2.timedelta(days=365),
+    ).all()
+    debt_data = [{
+        "lender": d.lender_name,
+        "balance": float(d.current_balance) if d.current_balance else 0,
+        "maturity_date": str(d.maturity_date),
+    } for d in maturities] if maturities else None
+
+    return advise_distribution_timing(
+        lp_name=lp.name,
+        lp_financials=lp_ctx,
+        waterfall_result=waterfall_result,
+        debt_maturities=debt_data,
+        cash_reserves=float(lp_ctx.get("capital_available", 0)),
+    )
+
+
+# ── Rent Roll CSV Validation ────────────────────────────────────────────
+
+class RentRollValidationRequest(BaseModel):
+    property_id: int
+    csv_rows: list[dict]
+
+
+@router.post("/validate-rent-roll")
+def validate_rent_roll_endpoint(
+    payload: RentRollValidationRequest,
+    db: Session = Depends(get_db),
+    _: User = Depends(require_gp_or_ops),
+):
+    """Validate rent roll CSV data before import."""
+    prop = db.query(Property).filter(Property.property_id == payload.property_id).first()
+    if not prop:
+        raise HTTPException(404, "Property not found")
+
+    # Get existing units for comparison
+    existing = db.query(Unit).filter(Unit.property_id == payload.property_id).all()
+    existing_units = [{
+        "unit_number": u.unit_number,
+        "bed_count": len(u.beds) if hasattr(u, "beds") else 0,
+    } for u in existing] if existing else None
+
+    return validate_rent_roll(
+        csv_rows=payload.csv_rows,
+        property_address=prop.address,
+        city=prop.city,
+        existing_units=existing_units,
+    )

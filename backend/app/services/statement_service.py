@@ -265,6 +265,41 @@ def generate_investor_statement(
 
     pdf.ln(6)
 
+    # ── AI Portfolio Commentary ───────────────────────────────────
+    try:
+        from app.services.ai import draft_investor_communication, _HAS_CLAUDE
+        if _HAS_CLAUDE and holdings:
+            # Build context from what we already have
+            investor_data = {
+                "name": inv.name,
+                "email": inv.email,
+                "investor_type": inv.investor_type.value if inv.investor_type else "individual",
+            }
+            holdings_data = []
+            for h in holdings:
+                lp = db.query(m.LPEntity).get(h.lp_id)
+                holdings_data.append({
+                    "lp_name": lp.name if lp else f"LP #{h.lp_id}",
+                    "units_held": float(h.units_held or 0),
+                    "capital_contributed": float(h.total_capital_contributed or 0),
+                })
+
+            comm = draft_investor_communication(
+                comm_type="quarterly_update",
+                investor_data=investor_data,
+                holdings_data=holdings_data,
+            )
+            if comm and comm.get("body"):
+                pdf.section_title("Portfolio Commentary")
+                pdf.set_font("Helvetica", "", 9)
+                pdf.set_text_color(60, 60, 60)
+                body = comm["body"][:1500]
+                pdf.multi_cell(0, 4.5, body)
+                pdf.set_text_color(0, 0, 0)
+                pdf.ln(4)
+    except Exception:
+        pass  # Don't fail the PDF if AI is unavailable
+
     # ── Disclaimer ─────────────────────────────────────────────────
     pdf.set_font("Helvetica", "I", 7)
     pdf.set_text_color(120, 120, 120)

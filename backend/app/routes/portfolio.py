@@ -1853,6 +1853,22 @@ async def import_rent_roll_csv(
         text = content.decode("latin-1")
 
     reader = csv.DictReader(io.StringIO(text))
+    csv_rows = list(reader)
+
+    # AI validation (best-effort, non-blocking)
+    ai_validation = None
+    try:
+        from app.services.ai import validate_rent_roll
+        existing_units = db.query(Unit).filter(Unit.property_id == property_id).all()
+        existing = [{"unit_number": u.unit_number, "bed_count": u.bed_count} for u in existing_units]
+        ai_validation = validate_rent_roll(
+            csv_rows=[{k: v for k, v in row.items()} for row in csv_rows[:50]],
+            property_address=prop.address,
+            city=prop.city,
+            existing_units=existing if existing else None,
+        )
+    except Exception:
+        pass
 
     created_units = 0
     created_beds = 0
@@ -1862,7 +1878,7 @@ async def import_rent_roll_csv(
     # Group rows by unit_number so multiple beds can share a unit
     unit_cache: dict[str, Unit] = {}
 
-    for row in reader:
+    for row in csv_rows:
         row_num += 1
         unit_number = (row.get("unit_number") or "").strip()
         if not unit_number:
@@ -2002,6 +2018,7 @@ async def import_rent_roll_csv(
         "created_beds": created_beds,
         "errors": errors,
         "total_rows_processed": row_num - 1,
+        **({"ai_validation": ai_validation} if ai_validation else {}),
     }
 
 

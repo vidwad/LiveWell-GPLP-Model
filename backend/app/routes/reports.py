@@ -40,28 +40,46 @@ from app.services.calculations import calculate_annual_debt_service
 router = APIRouter()
 
 
+def _maybe_add_briefing(report_data: dict, report_type: str, include_briefing: bool) -> dict:
+    """Optionally add AI executive briefing to report data."""
+    if not include_briefing:
+        return report_data
+    try:
+        from app.services.ai import generate_executive_briefing
+        briefing = generate_executive_briefing(report_type, report_data)
+        report_data["ai_briefing"] = briefing
+    except Exception:
+        pass
+    return report_data
+
+
 @router.get("/fund-performance")
 def get_fund_performance(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_gp_or_ops),
+    include_briefing: bool = False,
 ):
     """Get aggregated performance metrics rolled up by LP."""
-    return generate_fund_performance_report(db)
+    result = generate_fund_performance_report(db)
+    return _maybe_add_briefing(result, "fund_performance", include_briefing)
 
 
 @router.get("/management-pack")
 def get_management_pack(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_gp_or_ops),
+    include_briefing: bool = False,
 ):
     """GP monthly management pack: LP summary, property summary, dev update, budget issues."""
-    return generate_management_pack(db)
+    result = generate_management_pack(db)
+    return _maybe_add_briefing(result, "management_pack", include_briefing)
 
 
 @router.get("/summary")
 def get_summary(
     db: Session = Depends(get_db),
     _: User = Depends(require_gp_or_ops),
+    include_briefing: bool = False,
 ):
     # --- Properties ---
     properties = db.query(Property).all()
@@ -172,7 +190,7 @@ def get_summary(
         if row.month
     ]
 
-    return {
+    result = {
         # High-level KPIs
         "total_properties": len(properties),
         "total_lps": total_lps,
@@ -203,6 +221,7 @@ def get_summary(
             {"status": k, "count": v} for k, v in maint_by_status.items()
         ],
     }
+    return _maybe_add_briefing(result, "portfolio_summary", include_briefing)
 
 
 @router.get("/cash-flow-projection")
@@ -214,6 +233,7 @@ def get_cash_flow_projection(
     vacancy_rate: float = 5.0,
     db: Session = Depends(get_db),
     _: User = Depends(require_gp_or_ops),
+    include_briefing: bool = False,
 ):
     """
     Portfolio-wide cash flow projection.
@@ -334,7 +354,7 @@ def get_cash_flow_projection(
     total_current_ads = sum(s["current_ads"] for s in property_snapshots)
     total_market_value = sum(s["market_value"] for s in property_snapshots)
 
-    return {
+    result = {
         "projection_years": projection_years,
         "assumptions": {
             "rent_growth_pct": rent_growth,
@@ -351,12 +371,14 @@ def get_cash_flow_projection(
         "projections": yearly_projections,
         "properties": property_snapshots,
     }
+    return _maybe_add_briefing(result, "cash_flow_projection", include_briefing)
 
 
 @router.get("/debt-maturity")
 def get_debt_maturity(
     db: Session = Depends(get_db),
     _: User = Depends(require_gp_or_ops),
+    include_briefing: bool = False,
 ):
     """
     Debt maturity calendar — returns all debt facilities with maturity info,
@@ -422,7 +444,7 @@ def get_debt_maturity(
     )
     past_due = [i for i in items if i["urgency"] == "past_due"]
 
-    return {
+    result = {
         "summary": {
             "total_facilities": len(items),
             "total_outstanding": round(total_outstanding, 2),
@@ -432,6 +454,7 @@ def get_debt_maturity(
         },
         "facilities": items,
     }
+    return _maybe_add_briefing(result, "debt_maturity", include_briefing)
 
 
 @router.get("/arrears-aging")
@@ -439,6 +462,7 @@ def get_arrears_aging_report(
     community_id: Optional[int] = None,
     db: Session = Depends(get_db),
     _: User = Depends(require_gp_or_ops),
+    include_briefing: bool = False,
 ):
     """
     Arrears aging report with 30/60/90/120+ day buckets.
@@ -495,11 +519,12 @@ def get_arrears_aging_report(
     total_outstanding = sum(b["total"] for b in buckets.values())
     total_records = sum(b["count"] for b in buckets.values())
 
-    return {
+    result = {
         "total_outstanding": round(total_outstanding, 2),
         "total_records": total_records,
         "buckets": buckets,
     }
+    return _maybe_add_briefing(result, "arrears_aging", include_briefing)
 
 
 @router.get("/variance-alerts")
@@ -507,6 +532,7 @@ def get_variance_alerts(
     threshold_pct: float = 10.0,
     db: Session = Depends(get_db),
     _: User = Depends(require_gp_or_ops),
+    include_briefing: bool = False,
 ):
     """
     Budget variance alerts — flags communities where actual spending
@@ -575,7 +601,7 @@ def get_variance_alerts(
     high_count = sum(1 for a in alerts for i in a["alerts"] if i["severity"] == "high")
     medium_count = sum(1 for a in alerts for i in a["alerts"] if i["severity"] == "medium")
 
-    return {
+    result = {
         "threshold_pct": threshold_pct,
         "total_alerts": sum(len(a["alerts"]) for a in alerts),
         "high_severity": high_count,
@@ -583,6 +609,7 @@ def get_variance_alerts(
         "communities_affected": len(alerts),
         "alerts": alerts,
     }
+    return _maybe_add_briefing(result, "variance_alerts", include_briefing)
 
 
 # ---------------------------------------------------------------------------
@@ -595,6 +622,7 @@ def get_maintenance_cost_report(
     property_id: int | None = None,
     db: Session = Depends(get_db),
     _: User = Depends(require_gp_or_ops),
+    include_briefing: bool = False,
 ):
     """
     Maintenance cost tracking and reporting.
@@ -655,7 +683,7 @@ def get_maintenance_cost_report(
             resolution_times.append(days)
     avg_resolution_days = round(sum(resolution_times) / len(resolution_times), 1) if resolution_times else None
 
-    return {
+    result = {
         "total_requests": len(requests),
         "open_requests": open_count,
         "resolved_requests": resolved_count,
@@ -666,3 +694,4 @@ def get_maintenance_cost_report(
         "by_category": by_category,
         "by_priority": by_priority,
     }
+    return _maybe_add_briefing(result, "maintenance_costs", include_briefing)

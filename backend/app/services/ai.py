@@ -1055,3 +1055,384 @@ def _area_research_fallback(
             ],
         },
     }
+
+
+# ── AI Staffing Schedule Generation ──────────────────────────────────────
+
+def generate_staffing_schedule(
+    community_name: str,
+    community_type: str,
+    occupancy_rate: float,
+    staff_list: list[dict],
+    week_start: str,
+    budget_weekly: Optional[float] = None,
+    existing_shifts: Optional[list[dict]] = None,
+) -> dict:
+    """Generate an optimized weekly staffing schedule using AI."""
+    context = f"""Community: {community_name}
+Type: {community_type}
+Occupancy: {occupancy_rate:.0%}
+Week starting: {week_start}
+Weekly budget: ${budget_weekly:,.0f}
+
+Available staff:
+{json.dumps(staff_list, indent=2, default=str)}"""
+
+    if existing_shifts:
+        context += f"\n\nExisting shifts already scheduled:\n{json.dumps(existing_shifts, indent=2, default=str)}"
+
+    if budget_weekly:
+        context += f"\n\nWeekly labour budget: ${budget_weekly:,.2f}"
+
+    prompt = f"""Generate an optimized weekly staffing schedule for this Living Well community.
+
+{context}
+
+Coverage requirements by community type:
+- RecoverWell: 24/7 support worker coverage, house manager during business hours, security overnight
+- LiveWell: House manager during business hours, support worker evenings/weekends
+- StudyWell: House manager during business hours, support worker evenings, lighter weekends
+- WorkWell: Minimal staffing — house manager weekdays, on-call evenings
+
+Consider:
+1. Staff roles and hourly rates
+2. Fair distribution of hours across staff
+3. No single staff member should exceed 40 hours/week
+4. Ensure coverage gaps are minimized for the community type
+5. Stay within budget if specified
+6. Higher occupancy = more coverage needed
+
+Return JSON with:
+- schedule (array of shift objects, each with: staff_id, staff_name, role, day (Monday-Sunday), start_time (HH:MM), end_time (HH:MM), hours)
+- total_hours (float)
+- total_cost (float)
+- coverage_summary (object with day names as keys, each having: covered_hours, gap_hours, staff_count)
+- optimization_notes (array of 3-5 strings with scheduling rationale)
+- warnings (array of strings for any concerns — understaffing, budget overrun, etc.)"""
+
+    result = _call_claude_json(prompt, max_tokens=4000)
+    if result and "schedule" in result:
+        return result
+
+    # Fallback: basic schedule
+    shifts = []
+    day_names = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+    for staff in staff_list[:3]:
+        for day in day_names[:5]:  # Weekdays only
+            shifts.append({
+                "staff_id": staff.get("staff_id"),
+                "staff_name": f"{staff.get('first_name', '')} {staff.get('last_name', '')}",
+                "role": staff.get("role", "support_worker"),
+                "day": day,
+                "start_time": "09:00",
+                "end_time": "17:00",
+                "hours": 8.0,
+            })
+
+    return {
+        "schedule": shifts,
+        "total_hours": len(shifts) * 8.0,
+        "total_cost": sum(float(s.get("hourly_rate", 20)) * 40 for s in staff_list[:3]),
+        "coverage_summary": {d: {"covered_hours": 8 if d in day_names[:5] else 0, "gap_hours": 16 if d in day_names[:5] else 24, "staff_count": min(3, len(staff_list))} for d in day_names},
+        "optimization_notes": ["Default schedule — configure ANTHROPIC_API_KEY for AI-optimized scheduling."],
+        "warnings": ["This is a fallback schedule. Enable AI for optimized coverage."],
+    }
+
+
+# ── Scenario Comparison Engine ───────────────────────────────────────────
+
+def compare_scenarios(
+    property_name: str,
+    scenarios: list[dict],
+    current_financials: Optional[dict] = None,
+) -> dict:
+    """Compare 2-3 pro forma scenarios with AI commentary."""
+    prompt = f"""Compare these investment scenarios for {property_name}:
+
+{json.dumps(scenarios, indent=2, default=str)}"""
+
+    if current_financials:
+        prompt += f"\n\nCurrent financials:\n{json.dumps(current_financials, indent=2, default=str)}"
+
+    prompt += """
+
+Return JSON with:
+- comparison_table (array of objects, one per scenario, each with: scenario_name, noi, cash_on_cash, dscr, irr, cap_rate, total_return)
+- best_scenario (string — name of the recommended scenario)
+- narrative (string — 4-6 sentence comparison highlighting the key drivers of difference between scenarios)
+- key_drivers (array of strings — 3-4 factors that most impact the outcome differences)
+- sensitivity_notes (string — 2-3 sentences on which assumptions matter most)
+- risk_ranking (array of objects with: scenario_name, risk_level (low/medium/high), rationale)"""
+
+    result = _call_claude_json(prompt, max_tokens=3000)
+    if result and "narrative" in result:
+        return result
+
+    return {
+        "comparison_table": [{"scenario_name": s.get("name", f"Scenario {i+1}")} for i, s in enumerate(scenarios)],
+        "best_scenario": scenarios[0].get("name", "Scenario 1") if scenarios else "N/A",
+        "narrative": "Configure ANTHROPIC_API_KEY for AI-powered scenario comparison.",
+        "key_drivers": ["Vacancy rate", "Rent growth", "Expense growth"],
+        "sensitivity_notes": "Enable AI for sensitivity analysis.",
+        "risk_ranking": [],
+    }
+
+
+# ── Predictive Occupancy Risk Scoring ────────────────────────────────────
+
+def predict_occupancy_risk(
+    community_name: str,
+    community_type: str,
+    current_occupancy: float,
+    trend_data: list[dict],
+    lease_expirations: Optional[list[dict]] = None,
+    arrears_data: Optional[list[dict]] = None,
+) -> dict:
+    """Predict occupancy risk using AI analysis of trends and resident data."""
+    context = f"""Community: {community_name}
+Type: {community_type}
+Current Occupancy: {current_occupancy:.1%}
+
+Occupancy/Revenue Trend (last 6+ months):
+{json.dumps(trend_data[-12:], indent=2, default=str)}"""
+
+    if lease_expirations:
+        context += f"\n\nUpcoming lease expirations (next 90 days):\n{json.dumps(lease_expirations, indent=2, default=str)}"
+    if arrears_data:
+        context += f"\n\nCurrent arrears:\n{json.dumps(arrears_data, indent=2, default=str)}"
+
+    prompt = f"""Analyze occupancy risk for this Living Well community.
+
+{context}
+
+Consider:
+- Seasonal patterns (StudyWell: academic year cycles, RecoverWell: stable year-round)
+- Arrears progression (90+ day arrears often precede vacancy)
+- Lease expiration clustering
+- Trend direction and velocity
+
+Return JSON with:
+- risk_score (int 1-100, higher = more risk of occupancy decline)
+- risk_level (string: "low", "moderate", "elevated", "high", "critical")
+- predicted_occupancy_30d (float — predicted occupancy in 30 days)
+- predicted_occupancy_90d (float — predicted occupancy in 90 days)
+- risk_factors (array of objects with: factor, impact (high/medium/low), description)
+- at_risk_beds (int — estimated beds at risk of vacancy in next 90 days)
+- revenue_at_risk (float — estimated monthly revenue at risk)
+- recommendations (array of strings — 3-5 actionable retention/marketing strategies)
+- seasonal_outlook (string — 2-3 sentences on seasonal expectations)"""
+
+    result = _call_claude_json(prompt, max_tokens=2500)
+    if result and "risk_score" in result:
+        return result
+
+    # Fallback
+    risk = 30 if current_occupancy > 0.9 else 60 if current_occupancy > 0.75 else 80
+    return {
+        "risk_score": risk,
+        "risk_level": "low" if risk < 40 else "moderate" if risk < 60 else "high",
+        "predicted_occupancy_30d": current_occupancy,
+        "predicted_occupancy_90d": current_occupancy - 0.02,
+        "risk_factors": [{"factor": "Current occupancy level", "impact": "medium", "description": f"Occupancy at {current_occupancy:.0%}"}],
+        "at_risk_beds": 0,
+        "revenue_at_risk": 0,
+        "recommendations": ["Configure ANTHROPIC_API_KEY for AI-powered occupancy risk prediction."],
+        "seasonal_outlook": "Enable AI for seasonal analysis.",
+    }
+
+
+# ── Executive Briefing Generator ─────────────────────────────────────────
+
+def generate_executive_briefing(report_type: str, report_data: dict) -> dict:
+    """Generate a 3-5 sentence executive briefing from structured report data."""
+    prompt = f"""Summarize this {report_type} report in 3-5 concise sentences for an executive audience.
+Focus on what requires attention, key metrics, and actionable takeaways.
+
+Report data:
+{json.dumps(report_data, indent=2, default=str)[:6000]}
+
+Return JSON with:
+- briefing (string — 3-5 sentences)
+- attention_items (array of strings — 0-3 items needing immediate attention)
+- key_metrics (array of objects with: metric, value, status (good/warning/critical))"""
+
+    result = _call_claude_json(prompt, max_tokens=1000)
+    if result and "briefing" in result:
+        return result
+
+    return {
+        "briefing": f"{report_type.replace('_', ' ').title()} report generated. Configure ANTHROPIC_API_KEY for AI briefings.",
+        "attention_items": [],
+        "key_metrics": [],
+    }
+
+
+# ── Arrears Collection Strategy ──────────────────────────────────────────
+
+def suggest_arrears_strategy(
+    resident_name: str,
+    community_type: str,
+    days_overdue: int,
+    amount_overdue: float,
+    arrears_history: Optional[list[dict]] = None,
+    current_follow_up: Optional[str] = None,
+) -> dict:
+    """Suggest an arrears collection strategy based on resident context."""
+    context = f"""Resident: {resident_name}
+Community Type: {community_type}
+Days Overdue: {days_overdue}
+Amount Overdue: ${amount_overdue:,.2f}
+Current Follow-Up: {current_follow_up or 'None'}"""
+
+    if arrears_history:
+        context += f"\n\nArrears History:\n{json.dumps(arrears_history, indent=2, default=str)}"
+
+    prompt = f"""Recommend an arrears collection strategy for this Living Well community resident.
+
+{context}
+
+Consider:
+- Community type sensitivity (RecoverWell residents may need more compassionate approach)
+- Escalation appropriateness based on days overdue
+- Alberta Residential Tenancies Act requirements
+- Balance between revenue recovery and resident welfare
+- Historical payment patterns
+
+Return JSON with:
+- recommended_action (string — specific next step)
+- escalation_level (string: "gentle_reminder", "formal_notice", "payment_plan", "final_warning", "legal_referral")
+- communication_template (string — brief message to send to resident)
+- timeline (string — when to take next action if no response)
+- alternative_actions (array of strings — 2-3 other approaches)
+- risk_assessment (string — likelihood of payment vs vacancy)
+- notes (string — any special considerations)"""
+
+    result = _call_claude_json(prompt, max_tokens=1500)
+    if result and "recommended_action" in result:
+        return result
+
+    # Fallback escalation ladder
+    if days_overdue <= 7:
+        action, level = "Send friendly payment reminder", "gentle_reminder"
+    elif days_overdue <= 30:
+        action, level = "Send formal written notice", "formal_notice"
+    elif days_overdue <= 60:
+        action, level = "Propose payment plan", "payment_plan"
+    elif days_overdue <= 90:
+        action, level = "Issue final warning before legal action", "final_warning"
+    else:
+        action, level = "Refer to legal counsel", "legal_referral"
+
+    return {
+        "recommended_action": action,
+        "escalation_level": level,
+        "communication_template": f"Dear {resident_name}, your account has a balance of ${amount_overdue:,.2f} that is {days_overdue} days overdue.",
+        "timeline": "Follow up in 7 days if no response",
+        "alternative_actions": ["Offer payment plan", "Schedule in-person meeting"],
+        "risk_assessment": "Configure ANTHROPIC_API_KEY for AI-powered assessment.",
+        "notes": "Default strategy based on days overdue.",
+    }
+
+
+# ── Distribution Timing Advisor ──────────────────────────────────────────
+
+def advise_distribution_timing(
+    lp_name: str,
+    lp_financials: dict,
+    waterfall_result: Optional[dict] = None,
+    debt_maturities: Optional[list[dict]] = None,
+    cash_reserves: Optional[float] = None,
+) -> dict:
+    """Advise on distribution timing and amount."""
+    context = f"""LP Fund: {lp_name}
+
+Financial Summary:
+{json.dumps(lp_financials, indent=2, default=str)}"""
+
+    if waterfall_result:
+        context += f"\n\nWaterfall Calculation:\n{json.dumps(waterfall_result, indent=2, default=str)}"
+    if debt_maturities:
+        context += f"\n\nUpcoming Debt Maturities:\n{json.dumps(debt_maturities, indent=2, default=str)}"
+    if cash_reserves is not None:
+        context += f"\n\nCurrent Cash Reserves: ${cash_reserves:,.2f}"
+
+    prompt = f"""Advise on distribution timing for this LP fund.
+
+{context}
+
+Consider:
+- Preferred return accrual and unpaid balances
+- Upcoming debt maturities and refinancing needs
+- Cash reserve requirements (typically 3-6 months operating expenses)
+- LP investor expectations and communication impact
+- Tax timing implications (year-end vs quarterly)
+
+Return JSON with:
+- recommendation (string: "distribute_full", "distribute_partial", "defer", "accumulate_reserve")
+- recommended_amount (float — suggested distribution amount)
+- max_safe_amount (float — maximum distributable while maintaining reserves)
+- rationale (string — 3-5 sentences explaining the recommendation)
+- risk_factors (array of strings — 2-4 risks to consider)
+- timing_suggestion (string — when to distribute)
+- reserve_after_distribution (float — projected cash reserve after recommended distribution)"""
+
+    result = _call_claude_json(prompt, max_tokens=2000)
+    if result and "recommendation" in result:
+        return result
+
+    return {
+        "recommendation": "distribute_partial",
+        "recommended_amount": 0,
+        "max_safe_amount": 0,
+        "rationale": "Configure ANTHROPIC_API_KEY for AI-powered distribution advice.",
+        "risk_factors": ["Unable to assess without AI integration"],
+        "timing_suggestion": "Review financials before distributing",
+        "reserve_after_distribution": cash_reserves or 0,
+    }
+
+
+# ── Rent Roll CSV Validation ────────────────────────────────────────────
+
+def validate_rent_roll(
+    csv_rows: list[dict],
+    property_address: str,
+    city: str,
+    existing_units: Optional[list[dict]] = None,
+) -> dict:
+    """Validate rent roll CSV data using AI for semantic checks."""
+    prompt = f"""Validate this rent roll data for a property at {property_address}, {city}, Alberta.
+
+Rent roll rows:
+{json.dumps(csv_rows[:50], indent=2, default=str)}"""
+
+    if existing_units:
+        prompt += f"\n\nExisting units on record:\n{json.dumps(existing_units[:20], indent=2, default=str)}"
+
+    prompt += """
+
+Check for:
+1. Unrealistic rents (too high or too low for the Alberta market — typical range $800-$2000/bed/month)
+2. Duplicate unit numbers
+3. Missing or malformed data
+4. Inconsistent formatting
+5. Rents that are outliers compared to other units in the same building
+6. Market comparison — are these rents competitive for the area?
+
+Return JSON with:
+- is_valid (boolean — true if no critical issues)
+- total_rows (int)
+- issues (array of objects with: row_number, field, issue_type (error/warning/info), description, suggested_fix)
+- market_comparison (object with: avg_rent_in_file, estimated_market_rent, assessment (below_market/at_market/above_market))
+- summary (string — 2-3 sentence overall assessment)"""
+
+    result = _call_claude_json(prompt, max_tokens=2500)
+    if result and "issues" in result:
+        return result
+
+    return {
+        "is_valid": True,
+        "total_rows": len(csv_rows),
+        "issues": [],
+        "market_comparison": {"avg_rent_in_file": 0, "estimated_market_rent": 0, "assessment": "unknown"},
+        "summary": "Configure ANTHROPIC_API_KEY for AI-powered rent roll validation.",
+    }
