@@ -245,6 +245,45 @@ async def upload_property_document(
     db.commit()
     db.refresh(doc)
 
+    # AI document data extraction (async, best-effort)
+    extraction_result = None
+    try:
+        from app.services.document_extraction import (
+            extract_document_data,
+            apply_extraction_to_property,
+        )
+
+        extraction_result = extract_document_data(
+            file_bytes=content,
+            content_type=file.content_type or "",
+            category=category.value,
+            property_address=prop.address,
+            city=prop.city,
+        )
+        if extraction_result:
+            # Store extraction summary in document notes
+            ai_note = f"[AI Extracted] {extraction_result['summary']}"
+            if doc.notes:
+                doc.notes = f"{doc.notes}\n{ai_note}"
+            else:
+                doc.notes = ai_note
+
+            # Auto-apply high-confidence extractions to property
+            apply_result = apply_extraction_to_property(
+                db=db,
+                property_id=property_id,
+                category=category.value,
+                extracted_fields=extraction_result["extracted_fields"],
+                confidence=extraction_result["confidence"],
+            )
+            db.commit()
+            db.refresh(doc)
+    except Exception:
+        import logging
+        logging.getLogger(__name__).warning(
+            "Document extraction failed for doc %s", doc.document_id, exc_info=True
+        )
+
     return {
         "document_id": doc.document_id,
         "property_id": doc.property_id,
@@ -255,6 +294,7 @@ async def upload_property_document(
         "expiry_date": str(doc.expiry_date) if doc.expiry_date else None,
         "notes": doc.notes,
         "upload_date": doc.upload_date.isoformat(),
+        **({"ai_extraction": extraction_result} if extraction_result else {}),
     }
 
 
