@@ -42,6 +42,9 @@ import {
   HardHat,
   Home,
   Wrench,
+  Upload,
+  Download,
+  FileSpreadsheet,
 } from "lucide-react";
 import {
   useProperty,
@@ -72,6 +75,7 @@ import {
   useCreateBed,
   useDeleteBed,
   useUpdatePropertyUnit,
+  useImportRentRoll,
 } from "@/hooks/usePortfolio";
 import {
   useStageTransitions,
@@ -489,7 +493,10 @@ export default function PropertyDetailPage({ params }: { params: { id: string } 
   const { data: unitSummary } = usePropertyUnitSummary(propertyId);
   const createUnit = useCreatePropertyUnit(propertyId);
   const deleteUnit = useDeletePropertyUnit(propertyId);
+  const importRentRoll = useImportRentRoll(propertyId);
   const [showAddUnit, setShowAddUnit] = useState(false);
+  const [showImport, setShowImport] = useState(false);
+  const [importResult, setImportResult] = useState<{ created_units: number; created_beds: number; errors: string[] } | null>(null);
   const [expandedUnit, setExpandedUnit] = useState<number | null>(null);
 
   // Rent Roll — multi-phase response: { baseline, plan_phases[], comparison, escalation }
@@ -1511,6 +1518,66 @@ export default function PropertyDetailPage({ params }: { params: { id: string } 
                     <CardHeader className="flex flex-row items-center justify-between">
                       <CardTitle className="text-base">Baseline Units</CardTitle>
                       {canEdit && (
+                        <div className="flex items-center gap-2">
+                        {/* CSV Import Dialog */}
+                        <Dialog open={showImport} onOpenChange={(open) => { setShowImport(open); if (!open) setImportResult(null); }}>
+                          <DialogTrigger asChild>
+                            <Button size="sm" variant="outline"><Upload className="h-4 w-4 mr-1" />Import CSV</Button>
+                          </DialogTrigger>
+                          <DialogContent className="max-w-lg">
+                            <DialogHeader><DialogTitle className="flex items-center gap-2"><FileSpreadsheet className="h-5 w-5" />Import Rent Roll from CSV</DialogTitle></DialogHeader>
+                            <div className="space-y-4">
+                              <div className="rounded-lg border border-dashed p-4 text-center">
+                                <Upload className="h-8 w-8 text-muted-foreground/40 mx-auto mb-2" />
+                                <p className="text-sm text-muted-foreground mb-3">Upload a CSV file with unit and bed data</p>
+                                <input
+                                  type="file"
+                                  accept=".csv"
+                                  className="text-sm"
+                                  onChange={(e) => {
+                                    const file = e.target.files?.[0];
+                                    if (!file) return;
+                                    importRentRoll.mutate(file, {
+                                      onSuccess: (result: { created_units: number; created_beds: number; errors: string[] }) => {
+                                        setImportResult(result);
+                                        toast.success(`Imported ${result.created_units} units and ${result.created_beds} beds`);
+                                      },
+                                      onError: () => toast.error("Import failed"),
+                                    });
+                                  }}
+                                />
+                              </div>
+                              {importRentRoll.isPending && (
+                                <div className="text-center py-2">
+                                  <p className="text-sm text-muted-foreground">Importing...</p>
+                                </div>
+                              )}
+                              {importResult && (
+                                <div className="rounded-lg border bg-green-50 border-green-200 p-3 space-y-2">
+                                  <p className="text-sm font-medium text-green-800">Import Complete</p>
+                                  <div className="grid grid-cols-2 gap-2 text-sm">
+                                    <p>Units created: <span className="font-bold">{importResult.created_units}</span></p>
+                                    <p>Beds created: <span className="font-bold">{importResult.created_beds}</span></p>
+                                  </div>
+                                  {importResult.errors.length > 0 && (
+                                    <div className="mt-2">
+                                      <p className="text-xs font-medium text-amber-700">{importResult.errors.length} warning(s):</p>
+                                      <ul className="text-xs text-amber-600 list-disc pl-4 mt-1">
+                                        {importResult.errors.slice(0, 5).map((err, i) => <li key={i}>{err}</li>)}
+                                        {importResult.errors.length > 5 && <li>...and {importResult.errors.length - 5} more</li>}
+                                      </ul>
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+                              <div className="rounded-lg border bg-muted/50 p-3">
+                                <p className="text-xs font-medium mb-1">Expected CSV columns:</p>
+                                <p className="text-xs text-muted-foreground font-mono">unit_number, unit_type, bed_count, sqft, floor, monthly_rent, bed_label, bed_rent, bed_status, bedroom_count, is_legal_suite</p>
+                                <p className="text-xs text-muted-foreground mt-1">unit_type values: studio, 1br, 2br, 3br, suite, shared</p>
+                              </div>
+                            </div>
+                          </DialogContent>
+                        </Dialog>
                         <Dialog open={showAddUnit} onOpenChange={setShowAddUnit}>
                           <DialogTrigger asChild>
                             <Button size="sm"><Plus className="h-4 w-4 mr-1" />Add Unit</Button>
@@ -1555,6 +1622,7 @@ export default function PropertyDetailPage({ params }: { params: { id: string } 
                             </form>
                           </DialogContent>
                         </Dialog>
+                        </div>
                       )}
                     </CardHeader>
                     <CardContent>

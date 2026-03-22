@@ -497,6 +497,30 @@ export function useDeleteBed(propertyId: number) {
 }
 
 // ---------------------------------------------------------------------------
+// Rent Roll CSV Import
+// ---------------------------------------------------------------------------
+
+export function useImportRentRoll(propertyId: number) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (file: File) => {
+      const formData = new FormData();
+      formData.append("file", file);
+      return apiClient
+        .post(`/api/portfolio/properties/${propertyId}/import-rent-roll`, formData, {
+          headers: { "Content-Type": "multipart/form-data" },
+        })
+        .then((r) => r.data);
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["property-units", propertyId] });
+      qc.invalidateQueries({ queryKey: ["property-unit-summary", propertyId] });
+      qc.invalidateQueries({ queryKey: ["rent-roll", propertyId] });
+    },
+  });
+}
+
+// ---------------------------------------------------------------------------
 // Construction Expenses
 // ---------------------------------------------------------------------------
 

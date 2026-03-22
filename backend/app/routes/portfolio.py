@@ -4,7 +4,9 @@ Development Plans, and Financial Modeling.
 """
 import datetime
 
-from fastapi import APIRouter, Depends, HTTPException, status
+import csv
+import io
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, status
 from dateutil.relativedelta import relativedelta
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
@@ -17,7 +19,7 @@ from app.core.deps import (
 )
 from app.db.models import (
     DevelopmentPlan, LPEntity, Property, PropertyCluster, User, UserRole,
-    ScopeEntityType, Unit, Bed,
+    ScopeEntityType, Unit, Bed, BedStatus, UnitType, RenovationPhase,
 )
 from app.db.session import get_db
 from app.schemas.portfolio import (
@@ -2848,3 +2850,235 @@ def delete_proforma(
         raise HTTPException(404, "Pro forma not found")
     db.delete(pf)
     db.commit()
+
+
+# ---------------------------------------------------------------------------
+# Bulk Rent Roll Import (CSV)
+# ---------------------------------------------------------------------------
+
+VALID_UNIT_TYPES = {t.value for t in UnitType}
+
+@router.post("/properties/{property_id}/import-rent-roll")
+async def import_rent_roll_csv(
+    property_id: int,
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    _: User = Depends(require_gp_or_ops),
+):
+    """
+    Bulk import units and beds from a CSV file.
+
+    Expected CSV columns:
+      unit_number (required), unit_type, bed_count, sqft, floor,
+      monthly_rent, bed_label, bed_rent, bed_status, bedroom_count,
+      is_legal_suite, development_plan_id
+
+    Each row creates a unit. If bed_count > 0, beds are auto-created.
+    If bed_label and bed_rent are provided, beds use those values.
+    """
+    prop = db.query(Property).filter(Property.property_id == property_id).first()
+    if not prop:
+        raise HTTPException(404, "Property not found")
+
+    if not file.filename or not file.filename.endswith(".csv"):
+        raise HTTPException(400, "File must be a .csv file")
+
+    content = await file.read()
+    try:
+        text = content.decode("utf-8-sig")  # handles BOM
+    except UnicodeDecodeError:
+        text = content.decode("latin-1")
+
+    reader = csv.DictReader(io.StringIO(text))
+
+    created_units = 0
+    created_beds = 0
+    errors = []
+    row_num = 1
+
+    # Group rows by unit_number so multiple beds can share a unit
+    unit_cache: dict[str, Unit] = {}
+
+    for row in reader:
+        row_num += 1
+        unit_number = (row.get("unit_number") or "").strip()
+        if not unit_number:
+            errors.append(f"Row {row_num}: missing unit_number")
+            continue
+
+        # Get or create unit
+        if unit_number not in unit_cache:
+            # Parse unit fields
+            unit_type_raw = (row.get("unit_type") or "shared").strip().lower()
+            if unit_type_raw not in VALID_UNIT_TYPES:
+                unit_type_raw = "shared"
+
+            try:
+                bed_count = int(row.get("bed_count") or 1)
+            except ValueError:
+                bed_count = 1
+
+            try:
+                sqft = float(row.get("sqft") or 0)
+            except ValueError:
+                sqft = 0
+
+            floor = (row.get("floor") or "").strip() or None
+            is_legal_suite = (row.get("is_legal_suite") or "").strip().lower() in ("true", "1", "yes")
+
+            try:
+                bedroom_count = int(row.get("bedroom_count") or 0) or None
+            except ValueError:
+                bedroom_count = None
+
+            plan_id = None
+            if row.get("development_plan_id"):
+                try:
+                    plan_id = int(row["development_plan_id"])
+                except ValueError:
+                    pass
+
+            try:
+                monthly_rent_val = float(row.get("monthly_rent") or 0)
+            except ValueError:
+                monthly_rent_val = 0
+
+            unit = Unit(
+                property_id=property_id,
+                community_id=prop.community_id,
+                unit_number=unit_number,
+                unit_type=unit_type_raw,
+                bed_count=bed_count,
+                sqft=sqft,
+                floor=floor,
+                is_legal_suite=is_legal_suite,
+                bedroom_count=bedroom_count,
+                development_plan_id=plan_id,
+                monthly_rent=monthly_rent_val if monthly_rent_val > 0 else None,
+            )
+            db.add(unit)
+            try:
+                db.flush()
+            except IntegrityError:
+                db.rollback()
+                errors.append(f"Row {row_num}: duplicate unit '{unit_number}'")
+                continue
+
+            unit_cache[unit_number] = unit
+            created_units += 1
+
+            # Auto-create beds if no explicit bed_label provided
+            bed_label = (row.get("bed_label") or "").strip()
+            if not bed_label:
+                for b in range(1, bed_count + 1):
+                    try:
+                        bed_rent = float(row.get("bed_rent") or row.get("monthly_rent") or 0)
+                    except ValueError:
+                        bed_rent = 0
+                    bed = Bed(
+                        unit_id=unit.unit_id,
+                        bed_label=f"{unit_number}-B{b}",
+                        monthly_rent=bed_rent,
+                        rent_type="private_pay",
+                        status=BedStatus.available,
+                    )
+                    db.add(bed)
+                    created_beds += 1
+            else:
+                # Create the explicit bed from this row
+                try:
+                    bed_rent = float(row.get("bed_rent") or row.get("monthly_rent") or 0)
+                except ValueError:
+                    bed_rent = 0
+                bed_status_raw = (row.get("bed_status") or "available").strip().lower()
+                if bed_status_raw not in {s.value for s in BedStatus}:
+                    bed_status_raw = "available"
+                bed = Bed(
+                    unit_id=unit.unit_id,
+                    bed_label=bed_label,
+                    monthly_rent=bed_rent,
+                    rent_type="private_pay",
+                    status=bed_status_raw,
+                )
+                db.add(bed)
+                created_beds += 1
+        else:
+            # Unit already exists — add a bed to it
+            existing_unit = unit_cache[unit_number]
+            bed_label = (row.get("bed_label") or "").strip()
+            if not bed_label:
+                bed_label = f"{unit_number}-B{existing_unit.bed_count + 1}"
+                existing_unit.bed_count += 1
+
+            try:
+                bed_rent = float(row.get("bed_rent") or row.get("monthly_rent") or 0)
+            except ValueError:
+                bed_rent = 0
+            bed_status_raw = (row.get("bed_status") or "available").strip().lower()
+            if bed_status_raw not in {s.value for s in BedStatus}:
+                bed_status_raw = "available"
+            bed = Bed(
+                unit_id=existing_unit.unit_id,
+                bed_label=bed_label,
+                monthly_rent=bed_rent,
+                rent_type="private_pay",
+                status=bed_status_raw,
+            )
+            db.add(bed)
+            created_beds += 1
+
+    try:
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(500, f"Failed to save: {str(e)}")
+
+    return {
+        "success": True,
+        "created_units": created_units,
+        "created_beds": created_beds,
+        "errors": errors,
+        "total_rows_processed": row_num - 1,
+    }
+
+
+@router.get("/properties/{property_id}/rent-roll-template")
+def get_rent_roll_template(
+    property_id: int,
+    _: User = Depends(require_gp_or_ops),
+):
+    """Returns the CSV template headers for rent roll import."""
+    return {
+        "columns": [
+            "unit_number",
+            "unit_type",
+            "bed_count",
+            "sqft",
+            "floor",
+            "monthly_rent",
+            "bed_label",
+            "bed_rent",
+            "bed_status",
+            "bedroom_count",
+            "is_legal_suite",
+            "development_plan_id",
+        ],
+        "unit_type_values": list(VALID_UNIT_TYPES),
+        "bed_status_values": [s.value for s in BedStatus],
+        "example_rows": [
+            {
+                "unit_number": "101",
+                "unit_type": "2br",
+                "bed_count": "3",
+                "sqft": "850",
+                "floor": "1",
+                "monthly_rent": "0",
+                "bed_label": "101-B1",
+                "bed_rent": "750",
+                "bed_status": "occupied",
+                "bedroom_count": "2",
+                "is_legal_suite": "false",
+                "development_plan_id": "",
+            },
+        ],
+    }
