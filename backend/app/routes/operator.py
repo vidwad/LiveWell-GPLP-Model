@@ -212,6 +212,7 @@ def list_expenses(
     year: int | None = None,
     month: int | None = None,
     category: str | None = None,
+    phase: str | None = None,
     db: Session = Depends(get_db),
     current_user: User = Depends(require_investor_or_above),
 ):
@@ -227,6 +228,8 @@ def list_expenses(
         query = query.filter(OperatingExpense.period_month == month)
     if category:
         query = query.filter(OperatingExpense.category == category)
+    if phase:
+        query = query.filter(OperatingExpense.phase == phase)
 
     return query.order_by(OperatingExpense.expense_date.desc()).all()
 

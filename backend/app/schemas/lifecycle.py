@@ -10,7 +10,7 @@ from pydantic import BaseModel
 
 from app.db.models import (
     DevelopmentStage, MilestoneStatus, QuarterlyReportStatus,
-    ETransferStatus, ExpenseCategory, BudgetPeriodType,
+    ETransferStatus, ExpenseCategory, ExpensePhase, BudgetPeriodType,
 )
 
 
@@ -258,6 +258,7 @@ class OperatingExpenseCreate(BaseModel):
     vendor: Optional[str] = None
     invoice_ref: Optional[str] = None
     is_recurring: bool = False
+    phase: Optional[ExpensePhase] = None
     notes: Optional[str] = None
 
 
@@ -269,6 +270,7 @@ class OperatingExpenseUpdate(BaseModel):
     vendor: Optional[str] = None
     invoice_ref: Optional[str] = None
     is_recurring: Optional[bool] = None
+    phase: Optional[ExpensePhase] = None
     notes: Optional[str] = None
 
 
@@ -285,6 +287,7 @@ class OperatingExpenseOut(BaseModel):
     vendor: Optional[str]
     invoice_ref: Optional[str]
     is_recurring: bool
+    phase: Optional[str] = None
     notes: Optional[str]
     created_at: datetime.datetime
 

@@ -8,6 +8,8 @@ import {
   TrendingDown,
   Minus,
   PieChart,
+  AlertTriangle,
+  ExternalLink,
 } from "lucide-react";
 import {
   useBudgets,
@@ -16,7 +18,9 @@ import {
   useCreateExpense,
   useUpdateBudget,
 } from "@/hooks/useOperator";
+import { useArrearsAging } from "@/hooks/useReports";
 import { useCommunities } from "@/hooks/useCommunities";
+import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
@@ -122,6 +126,7 @@ export default function OperatorPage() {
             <TabsTrigger value="budgets">Budgets</TabsTrigger>
             <TabsTrigger value="expenses">Expenses</TabsTrigger>
             <TabsTrigger value="summary">Summary</TabsTrigger>
+            <TabsTrigger value="arrears">Arrears</TabsTrigger>
           </TabsList>
 
           <TabsContent value="budgets" className="mt-4">
@@ -132,6 +137,9 @@ export default function OperatorPage() {
           </TabsContent>
           <TabsContent value="summary" className="mt-4">
             <SummaryTab communityId={selectedCommunityId} />
+          </TabsContent>
+          <TabsContent value="arrears" className="mt-4">
+            <ArrearsTab />
           </TabsContent>
         </Tabs>
       )}
@@ -501,6 +509,108 @@ function SummaryTab({ communityId }: { communityId: number }) {
         )}
       </CardContent>
     </Card>
+  );
+}
+
+function ArrearsTab() {
+  const { data, isLoading } = useArrearsAging();
+
+  if (isLoading) return <Skeleton className="h-48 w-full" />;
+
+  const buckets = data?.buckets ?? {};
+  const totalOutstanding = data?.total_outstanding ?? 0;
+  const totalRecords = data?.total_records ?? 0;
+  const serious =
+    (buckets["61-90"]?.total ?? 0) +
+    (buckets["91-120"]?.total ?? 0) +
+    (buckets["120+"]?.total ?? 0);
+
+  return (
+    <div className="space-y-4">
+      {/* KPI row */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <Card className="border-l-4 border-l-red-500">
+          <CardContent className="pt-4 pb-3 px-4">
+            <p className="text-xs text-muted-foreground font-medium">Total Outstanding</p>
+            <p className="text-xl font-bold text-red-700">{formatCurrency(totalOutstanding)}</p>
+            <p className="text-xs text-muted-foreground">{totalRecords} records</p>
+          </CardContent>
+        </Card>
+        <Card className="border-l-4 border-l-orange-500">
+          <CardContent className="pt-4 pb-3 px-4">
+            <p className="text-xs text-muted-foreground font-medium">60+ Days (Needs Escalation)</p>
+            <p className="text-xl font-bold text-orange-700">{formatCurrency(serious)}</p>
+          </CardContent>
+        </Card>
+        <Card className="border-l-4 border-l-amber-400">
+          <CardContent className="pt-4 pb-3 px-4">
+            <p className="text-xs text-muted-foreground font-medium">120+ Days</p>
+            <p className="text-xl font-bold text-red-800">{formatCurrency(buckets["120+"]?.total ?? 0)}</p>
+            <p className="text-xs text-muted-foreground">{buckets["120+"]?.count ?? 0} records</p>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Aging buckets mini bar */}
+      {totalRecords > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base flex items-center gap-2">
+              <AlertTriangle className="h-4 w-4" />
+              Aging Breakdown
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2">
+              {["0-30", "31-60", "61-90", "91-120", "120+"].map((key) => {
+                const bucket = buckets[key];
+                if (!bucket || bucket.count === 0) return null;
+                const pct = totalOutstanding > 0 ? (bucket.total / totalOutstanding) * 100 : 0;
+                const colors: Record<string, string> = {
+                  "0-30": "bg-green-500",
+                  "31-60": "bg-amber-500",
+                  "61-90": "bg-orange-500",
+                  "91-120": "bg-red-500",
+                  "120+": "bg-red-700",
+                };
+                return (
+                  <div key={key} className="flex items-center gap-3">
+                    <span className="text-sm w-20">{key} days</span>
+                    <div className="flex-1 h-2 bg-gray-100 rounded-full overflow-hidden">
+                      <div className={`h-full rounded-full ${colors[key]}`} style={{ width: `${pct}%` }} />
+                    </div>
+                    <span className="text-sm font-medium w-24 text-right">{formatCurrency(bucket.total)}</span>
+                    <span className="text-xs text-muted-foreground w-16 text-right">{bucket.count} rec.</span>
+                  </div>
+                );
+              })}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {totalRecords === 0 && (
+        <Card className="border-dashed">
+          <CardContent className="pt-6 pb-6 text-center">
+            <DollarSign className="h-10 w-10 text-green-500/40 mx-auto mb-3" />
+            <p className="text-sm text-muted-foreground">No outstanding arrears. All accounts current.</p>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Link to full report */}
+      <div className="flex justify-end">
+        <Link
+          href="/arrears-aging"
+          className={cn(
+            "inline-flex items-center gap-2 text-sm font-medium text-primary hover:underline"
+          )}
+        >
+          View Full Arrears Aging Report
+          <ExternalLink className="h-3.5 w-3.5" />
+        </Link>
+      </div>
+    </div>
   );
 }
 

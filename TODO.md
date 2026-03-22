@@ -67,7 +67,7 @@
 | 1.3.10 | Holding admin UI (list, create, edit dialogs) | DONE | In LP detail page Holdings tab |
 | 1.3.11 | Holding ownership_percent computed from units_held / total_units | DONE | Service layer computes this |
 | 1.3.12 | Investor exemption/accreditation document tracking | DONE | Added accreditation_verified_at, accreditation_expires_at, accreditation_document_id to Investor model. InvestorDocument model exists for file storage. |
-| 1.3.13 | Investor master record with supporting documents UI | PARTIAL | Investor detail page exists; document upload exists but not well-integrated into investor workflow |
+| 1.3.13 | Investor master record with supporting documents UI | DONE | Onboarding checklist items show document attachment status (Paperclip icon + "Doc attached"), notes display, and step_name field exposed. Backend already supported document_id on checklist items. |
 
 ### 1.4 Property / Community / Operator / Property Manager Relationships
 
@@ -105,10 +105,10 @@
 | 2.1.2 | Bed-level revenue tracking (monthly_rent per bed, rent_type) | DONE | Bed model with monthly_rent and rent_type (private_pay, subsidized, grant_funded) |
 | 2.1.3 | Unit/bed occupancy tracking (is_occupied, bed status) | DONE | Unit.is_occupied, Bed.status (available, occupied, reserved, maintenance) |
 | 2.1.4 | Resident model (move_in/out dates, rent_amount, payment_status) | DONE | |
-| 2.1.5 | Interim house expense tracking | PARTIAL | OperatingExpense model exists with categories (utilities, insurance, maintenance, etc.) but not explicitly tied to "interim" vs "stabilized" phase |
+| 2.1.5 | Interim house expense tracking | DONE | OperatingExpense model now has `phase` column (ExpensePhase enum: interim, stabilized, construction). Schema, migration 006, and API filter support added. |
 | 2.1.6 | Interim revenue vs expense summary (actual house P&L) | DONE | operations_service.py computes community-level P&L with revenue, expenses, NOI, collection rates. Endpoints: GET /community/{id}/pnl and GET /community/operations/portfolio-summary. |
 | 2.1.7 | Interim occupancy dashboard | DONE | Operations P&L Dashboard at /operations shows occupancy rates, bed counts, revenue per occupied bed, monthly potential, expense breakdown, budget vs actual — per community and portfolio-wide. |
-| 2.1.8 | Support-service cost tracking for interim operations | PARTIAL | CommunityEvent model tracks events with cost field and 10 service types (counseling, meal_service, etc.). Full cost-center breakdown not yet implemented. |
+| 2.1.8 | Support-service cost tracking for interim operations | DONE | CommunityEvent model tracks events with cost field and 10 service types. Events/summary endpoint now returns `cost_by_type` breakdown (per-type cost aggregation) alongside count `by_type`. |
 
 ### 2.2 Redevelopment Scenario
 
@@ -263,7 +263,7 @@
 |---|------|--------|-------|
 | 4.3.1 | ArrearsRecord model (resident_id, community_id, amount_owing, months_behind) | DONE | |
 | 4.3.2 | Arrears CRUD endpoints | DONE | In operator routes |
-| 4.3.3 | Arrears UI | PARTIAL | Exists in operator page but limited |
+| 4.3.3 | Arrears UI | DONE | Operator page now has Arrears tab with KPI cards (total outstanding, 60+ days, 120+ days), aging breakdown bar chart, and link to full /arrears-aging report page. |
 | 4.3.4 | Arrears aging report | DONE | GET /reports/arrears-aging with 30/60/90/120+ day buckets + per-resident detail |
 
 ### 4.4 Staffing / Scheduling
@@ -363,8 +363,8 @@
 
 | Status | Count |
 |--------|-------|
-| DONE | ~160 |
-| PARTIAL | 8 |
+| DONE | ~164 |
+| PARTIAL | 4 |
 | NOT DONE | 1 |
 
 ---
@@ -373,11 +373,7 @@
 
 | # | Item | Status | Notes |
 |---|------|--------|-------|
-| 1.3.13 | Investor master record doc integration | PARTIAL | Document upload exists, needs tighter workflow integration |
-| 2.1.5 | Interim expense phase tagging | PARTIAL | OperatingExpense model works, no interim vs stabilized flag |
-| 2.1.8 | Support-service cost-center breakdown | PARTIAL | CommunityEvent has cost, needs rollup |
 | 2.7.4 | Structured appraisal record | PARTIAL | Document model supports appraisal type, no dedicated record |
 | 3.3.2 | Subscription history timeline | PARTIAL | Shown in list form, not a timeline |
 | 3.3.5 | K-1 / tax document support | NOT DONE | Future phase |
-| 4.3.3 | Arrears UI improvements | PARTIAL | Basic UI exists |
 | T.1/T.7 | Service extraction | PARTIAL | Core services created, some inline logic remains |

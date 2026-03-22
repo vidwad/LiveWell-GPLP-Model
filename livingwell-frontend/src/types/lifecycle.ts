@@ -198,6 +198,8 @@ export interface BudgetUpdate {
 
 // ── Operating Expenses ──────────────────────────────────────────────
 
+export type ExpensePhase = "interim" | "stabilized" | "construction";
+
 export type ExpenseCategory =
   | "property_management"
   | "utilities"
@@ -225,6 +227,7 @@ export interface OperatingExpense {
   vendor: string | null;
   invoice_ref: string | null;
   is_recurring: boolean;
+  phase: ExpensePhase | null;
   notes: string | null;
 }
 
@@ -240,6 +243,7 @@ export interface ExpenseCreate {
   vendor?: string;
   invoice_ref?: string;
   is_recurring?: boolean;
+  phase?: ExpensePhase;
 }
 
 export interface ExpenseUpdate {

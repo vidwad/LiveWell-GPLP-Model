@@ -244,6 +244,13 @@ class QuarterlyReportStatus(str, enum.Enum):
     archived = "archived"
 
 
+class ExpensePhase(str, enum.Enum):
+    """Operating phase for expense tracking (interim vs stabilized)."""
+    interim = "interim"
+    stabilized = "stabilized"
+    construction = "construction"
+
+
 class ExpenseCategory(str, enum.Enum):
     """Operating expense categories."""
     property_management = "property_management"
@@ -1466,6 +1473,7 @@ class OperatingExpense(Base):
     vendor = Column(String(256), nullable=True)
     invoice_ref = Column(String(128), nullable=True)
     is_recurring = Column(Boolean, default=False, nullable=False)
+    phase = Column(_enum(ExpensePhase), nullable=True)  # interim, stabilized, construction
     notes = Column(Text, nullable=True)
     created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
 

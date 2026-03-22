@@ -769,18 +769,23 @@ def get_events_summary(
     events = query.all()
 
     by_type: dict[str, int] = {}
+    cost_by_type: dict[str, float] = {}
     total_cost = 0.0
     total_participants = 0
     for e in events:
-        by_type[e.event_type.value] = by_type.get(e.event_type.value, 0) + 1
+        etype = e.event_type.value
+        by_type[etype] = by_type.get(etype, 0) + 1
         if e.cost:
-            total_cost += float(e.cost)
+            cost_val = float(e.cost)
+            total_cost += cost_val
+            cost_by_type[etype] = round(cost_by_type.get(etype, 0.0) + cost_val, 2)
         if e.actual_participants:
             total_participants += e.actual_participants
 
     return {
         "total_events": len(events),
         "by_type": by_type,
+        "cost_by_type": cost_by_type,
         "total_cost": round(total_cost, 2),
         "total_participants": total_participants,
     }

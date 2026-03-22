@@ -18,6 +18,7 @@ import {
   Clock,
   ChevronRight,
   Loader2,
+  Paperclip,
 } from "lucide-react";
 
 // ── Types ────────────────────────────────────────────────────────────
@@ -44,9 +45,13 @@ interface InvestorRecord {
 
 interface ChecklistItem {
   item_id: number;
-  label: string;
+  step_name: string;
+  step_label: string;
+  label?: string;  // alias for step_label
   is_required: boolean;
   is_completed: boolean;
+  document_id: number | null;
+  notes: string | null;
 }
 
 interface OnboardingDetail {
@@ -612,10 +617,19 @@ function InvestorDetailDrawer({
                 />
                 <div className="min-w-0 flex-1">
                   <span className={`text-sm ${item.is_completed ? "line-through text-muted-foreground" : ""}`}>
-                    {item.label}
+                    {item.step_label || item.label}
                   </span>
                   {item.is_required && (
                     <span className="ml-2 text-[10px] font-medium text-red-500">Required</span>
+                  )}
+                  {item.document_id && (
+                    <span className="ml-2 inline-flex items-center gap-0.5 text-[10px] font-medium text-blue-600">
+                      <Paperclip className="h-2.5 w-2.5" />
+                      Doc attached
+                    </span>
+                  )}
+                  {item.notes && (
+                    <p className="text-[11px] text-muted-foreground mt-0.5 truncate">{item.notes}</p>
                   )}
                 </div>
                 {item.is_completed ? (
