@@ -43,12 +43,16 @@ def _empty_result(address: str, city: str) -> dict:
         "floor_area_ratio": None,
         "year_built": None,
         "property_type": None,
+        "property_style": None,
         "building_sqft": None,
         "bedrooms": None,
         "bathrooms": None,
+        "garage": None,
         "legal_description": None,
         "neighbourhood": None,
         "ward": None,
+        "roll_number": None,
+        "assessment_class": None,
         # MLS / listing data
         "mls_number": None,
         "list_price": None,
@@ -77,7 +81,8 @@ def _empty_result(address: str, city: str) -> dict:
 
 # ── Calgary Open Data ────────────────────────────────────────────────────
 
-CALGARY_ASSESSMENT_URL = "https://data.calgary.ca/resource/6zp6-pxei.json"
+# Current Year dataset (replaces historical 6zp6-pxei which ended at 2022)
+CALGARY_ASSESSMENT_URL = "https://data.calgary.ca/resource/4bsw-nn7w.json"
 CALGARY_LANDUSE_URL = "https://data.calgary.ca/resource/rkfr-buzb.json"
 
 
@@ -103,8 +108,8 @@ def _fetch_calgary_assessment(address: str) -> Optional[dict]:
         rec = data[0]
         return {
             "assessed_value": _to_decimal(rec.get("current_value") or rec.get("assessed_value")),
-            "lot_size": _to_decimal(rec.get("lot_size")),
-            "year_built": rec.get("year_built"),
+            "lot_size": _to_decimal(rec.get("lot_size") or rec.get("land_size")),
+            "year_built": rec.get("year_built") or rec.get("year_of_construction"),
             "property_type": rec.get("property_type") or rec.get("building_type"),
             "building_sqft": _to_decimal(rec.get("total_living_area") or rec.get("building_size")),
             "neighbourhood": rec.get("community_name") or rec.get("comm_name"),
@@ -114,6 +119,8 @@ def _fetch_calgary_assessment(address: str) -> Optional[dict]:
             "longitude": _to_float(rec.get("longitude")),
             "tax_amount": _to_decimal(rec.get("current_tax") or rec.get("tax_amount")),
             "tax_year": rec.get("tax_year") or rec.get("roll_year"),
+            "roll_number": rec.get("roll_number"),
+            "assessment_class": rec.get("assessment_class") or rec.get("property_class"),
             "_source": "calgary_opendata",
             "_raw": rec,
         }
@@ -197,6 +204,9 @@ def _fetch_edmonton_assessment(address: str) -> Optional[dict]:
             "latitude": _to_float(rec.get("latitude")),
             "longitude": _to_float(rec.get("longitude")),
             "tax_amount": _to_decimal(rec.get("tax_levy")),
+            "roll_number": rec.get("account_number"),
+            "assessment_class": rec.get("assessment_class_1") or rec.get("tax_class"),
+            "garage": rec.get("garage"),
             "_source": "edmonton_opendata",
             "_raw": rec,
         }
@@ -237,6 +247,7 @@ def _fetch_repliers_listing(address: str, city: str, api_key: str) -> Optional[d
         details = listing.get("details", {})
         lot = listing.get("lot", {})
 
+        map_data = listing.get("map", {})
         return {
             "mls_number": listing.get("mlsNumber"),
             "list_price": _to_decimal(listing.get("listPrice")),
@@ -246,14 +257,16 @@ def _fetch_repliers_listing(address: str, city: str, api_key: str) -> Optional[d
             "listing_status": listing.get("status"),
             "listing_url": listing.get("url"),
             "property_type": details.get("propertyType"),
+            "property_style": details.get("style"),
             "bedrooms": _to_int(details.get("numBedrooms")),
             "bathrooms": _to_int(details.get("numBathrooms")),
             "building_sqft": _to_decimal(details.get("sqft")),
             "lot_size": _to_decimal(lot.get("size")),
             "year_built": details.get("yearBuilt"),
+            "garage": details.get("garage"),
             "current_market_value": _to_decimal(listing.get("listPrice")),
-            "latitude": _to_float(address_data.get("latitude")),
-            "longitude": _to_float(address_data.get("longitude")),
+            "latitude": _to_float(map_data.get("lat") or address_data.get("latitude")),
+            "longitude": _to_float(map_data.get("long") or address_data.get("longitude")),
             "neighbourhood": address_data.get("neighbourhood"),
             "_source": "repliers",
             "_raw": listing,

@@ -11,7 +11,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useState, useEffect } from "react";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, ChevronDown, ChevronRight } from "lucide-react";
 import { api } from "@/lib/api";
 import { PropertyLookup } from "@/components/property/PropertyLookup";
 
@@ -30,6 +30,9 @@ export default function NewPropertyPage() {
 
   const [lpOptions, setLpOptions] = useState<{ lp_id: number; name: string }[]>([]);
   const [communityOptions, setCommunityOptions] = useState<{ community_id: number; name: string }[]>([]);
+  const [showBuildingDetails, setShowBuildingDetails] = useState(false);
+  const [showLocationDetails, setShowLocationDetails] = useState(false);
+  const [showMarketDetails, setShowMarketDetails] = useState(false);
 
   useEffect(() => {
     api.investment.getLPs().then((lps: any[]) => setLpOptions(lps.map(l => ({ lp_id: l.lp_id, name: l.name }))));
@@ -42,18 +45,21 @@ export default function NewPropertyPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      const prop = await mutateAsync({
-        ...form,
-        purchase_price: Number(form.purchase_price),
-        assessed_value: form.assessed_value ? Number(form.assessed_value) : undefined,
-        current_market_value: form.current_market_value ? Number(form.current_market_value) : undefined,
-        lot_size: form.lot_size ? Number(form.lot_size) : undefined,
-        max_buildable_area: form.max_buildable_area
-          ? Number(form.max_buildable_area)
-          : undefined,
-        lp_id: form.lp_id || undefined,
-        community_id: form.community_id || undefined,
-      });
+      // Coerce numeric fields and strip empty optionals
+      const payload = { ...form };
+      const numericFields = [
+        "purchase_price", "assessed_value", "current_market_value",
+        "lot_size", "max_buildable_area", "building_sqft",
+        "tax_amount", "list_price", "last_sold_price",
+        "latitude", "longitude",
+      ] as const;
+      for (const f of numericFields) {
+        const v = payload[f];
+        (payload as Record<string, unknown>)[f] = v ? Number(v) : undefined;
+      }
+      payload.lp_id = form.lp_id || undefined;
+      payload.community_id = form.community_id || undefined;
+      const prop = await mutateAsync(payload);
       toast.success("Property created");
       router.push(`/portfolio/${prop.property_id}`);
     } catch {
@@ -117,14 +123,12 @@ export default function NewPropertyPage() {
                   address={form.address}
                   city={form.city}
                   onApply={(fields) => {
-                    setForm((f) => ({
-                      ...f,
-                      ...(fields.assessed_value != null ? { assessed_value: fields.assessed_value } : {}),
-                      ...(fields.current_market_value != null ? { current_market_value: fields.current_market_value } : {}),
-                      ...(fields.lot_size != null ? { lot_size: fields.lot_size } : {}),
-                      ...(fields.zoning != null ? { zoning: fields.zoning } : {}),
-                      ...(fields.max_buildable_area != null ? { max_buildable_area: fields.max_buildable_area } : {}),
-                    }));
+                    // Spread all non-null lookup fields into the form
+                    const updates: Record<string, unknown> = {};
+                    for (const [k, v] of Object.entries(fields)) {
+                      if (v != null) updates[k] = v;
+                    }
+                    setForm((f) => ({ ...f, ...updates }));
                   }}
                 />
               </div>
@@ -267,6 +271,153 @@ export default function NewPropertyPage() {
                 </Select>
               </div>
             </div>
+            {/* ── Building Details (collapsible) ── */}
+            <button
+              type="button"
+              onClick={() => setShowBuildingDetails(!showBuildingDetails)}
+              className="flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-foreground w-full pt-2"
+            >
+              {showBuildingDetails ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+              Building Details
+              {(form.year_built || form.property_type || form.bedrooms) && (
+                <span className="text-[10px] bg-green-100 text-green-700 px-1.5 py-0.5 rounded">populated</span>
+              )}
+            </button>
+            {showBuildingDetails && (
+              <div className="space-y-4 pl-6 border-l-2 border-muted">
+                <div className="grid grid-cols-3 gap-4">
+                  <div className="space-y-2">
+                    <Label>Year Built</Label>
+                    <Input type="number" value={form.year_built || ""} onChange={(e) => set("year_built", e.target.value)} placeholder="2005" />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Property Type</Label>
+                    <Input value={form.property_type || ""} onChange={(e) => set("property_type", e.target.value)} placeholder="Single Family" />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Style</Label>
+                    <Input value={form.property_style || ""} onChange={(e) => set("property_style", e.target.value)} placeholder="Bungalow" />
+                  </div>
+                </div>
+                <div className="grid grid-cols-4 gap-4">
+                  <div className="space-y-2">
+                    <Label>Building sqft</Label>
+                    <Input type="number" value={form.building_sqft || ""} onChange={(e) => set("building_sqft", e.target.value)} placeholder="1800" />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Bedrooms</Label>
+                    <Input type="number" value={form.bedrooms || ""} onChange={(e) => set("bedrooms", e.target.value)} placeholder="4" />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Bathrooms</Label>
+                    <Input type="number" value={form.bathrooms || ""} onChange={(e) => set("bathrooms", e.target.value)} placeholder="2" />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Garage</Label>
+                    <Input value={form.garage || ""} onChange={(e) => set("garage", e.target.value)} placeholder="Double Attached" />
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* ── Location & Municipal (collapsible) ── */}
+            <button
+              type="button"
+              onClick={() => setShowLocationDetails(!showLocationDetails)}
+              className="flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-foreground w-full"
+            >
+              {showLocationDetails ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+              Location & Municipal Data
+              {(form.neighbourhood || form.latitude || form.roll_number) && (
+                <span className="text-[10px] bg-green-100 text-green-700 px-1.5 py-0.5 rounded">populated</span>
+              )}
+            </button>
+            {showLocationDetails && (
+              <div className="space-y-4 pl-6 border-l-2 border-muted">
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Neighbourhood</Label>
+                    <Input value={form.neighbourhood || ""} onChange={(e) => set("neighbourhood", e.target.value)} placeholder="Beltline" />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Ward</Label>
+                    <Input value={form.ward || ""} onChange={(e) => set("ward", e.target.value)} placeholder="8" />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Legal Description</Label>
+                    <Input value={form.legal_description || ""} onChange={(e) => set("legal_description", e.target.value)} placeholder="Plan 1234AB Block 5 Lot 10" />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Roll Number</Label>
+                    <Input value={form.roll_number || ""} onChange={(e) => set("roll_number", e.target.value)} placeholder="0123456789" />
+                  </div>
+                </div>
+                <div className="grid grid-cols-3 gap-4">
+                  <div className="space-y-2">
+                    <Label>Latitude</Label>
+                    <Input type="number" step="any" value={form.latitude || ""} onChange={(e) => set("latitude", e.target.value)} placeholder="51.0447" />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Longitude</Label>
+                    <Input type="number" step="any" value={form.longitude || ""} onChange={(e) => set("longitude", e.target.value)} placeholder="-114.0719" />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Assessment Class</Label>
+                    <Input value={form.assessment_class || ""} onChange={(e) => set("assessment_class", e.target.value)} placeholder="Residential" />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Tax Amount (CAD)</Label>
+                    <Input type="number" value={form.tax_amount || ""} onChange={(e) => set("tax_amount", e.target.value)} placeholder="3500" />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Tax Year</Label>
+                    <Input type="number" value={form.tax_year || ""} onChange={(e) => set("tax_year", e.target.value)} placeholder="2025" />
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* ── MLS / Market Data (collapsible) ── */}
+            <button
+              type="button"
+              onClick={() => setShowMarketDetails(!showMarketDetails)}
+              className="flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-foreground w-full"
+            >
+              {showMarketDetails ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+              MLS & Market Data
+              {(form.mls_number || form.list_price || form.last_sold_price) && (
+                <span className="text-[10px] bg-green-100 text-green-700 px-1.5 py-0.5 rounded">populated</span>
+              )}
+            </button>
+            {showMarketDetails && (
+              <div className="space-y-4 pl-6 border-l-2 border-muted">
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>MLS Number</Label>
+                    <Input value={form.mls_number || ""} onChange={(e) => set("mls_number", e.target.value)} placeholder="A2012345" />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>List Price (CAD)</Label>
+                    <Input type="number" value={form.list_price || ""} onChange={(e) => set("list_price", e.target.value)} placeholder="550000" />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Last Sold Price (CAD)</Label>
+                    <Input type="number" value={form.last_sold_price || ""} onChange={(e) => set("last_sold_price", e.target.value)} placeholder="500000" />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Last Sold Date</Label>
+                    <Input type="date" value={form.last_sold_date || ""} onChange={(e) => set("last_sold_date", e.target.value)} />
+                  </div>
+                </div>
+              </div>
+            )}
+
             <div className="flex gap-3 pt-2">
               <Button type="submit" disabled={isPending}>
                 {isPending ? "Creating…" : "Create Property"}

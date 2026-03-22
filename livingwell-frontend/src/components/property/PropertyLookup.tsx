@@ -47,12 +47,16 @@ interface LookupResult {
   floor_area_ratio: number | null;
   year_built: string | null;
   property_type: string | null;
+  property_style: string | null;
   building_sqft: number | null;
   bedrooms: number | null;
   bathrooms: number | null;
+  garage: string | null;
   legal_description: string | null;
   neighbourhood: string | null;
   ward: string | null;
+  roll_number: string | null;
+  assessment_class: string | null;
   mls_number: string | null;
   list_price: number | null;
   last_sold_price: number | null;
@@ -80,6 +84,26 @@ interface ApplicableFields {
   zoning?: string;
   max_buildable_area?: number;
   floor_area_ratio?: number;
+  year_built?: number;
+  property_type?: string;
+  property_style?: string;
+  building_sqft?: number;
+  bedrooms?: number;
+  bathrooms?: number;
+  garage?: string;
+  neighbourhood?: string;
+  ward?: string;
+  legal_description?: string;
+  latitude?: number;
+  longitude?: number;
+  roll_number?: string;
+  assessment_class?: string;
+  tax_amount?: number;
+  tax_year?: number;
+  mls_number?: string;
+  list_price?: number;
+  last_sold_price?: number;
+  last_sold_date?: string;
 }
 
 /* ── Source Icon ────────────────────────────────────────────────────────── */
@@ -187,6 +211,26 @@ export function PropertyLookup({
     if (result.zoning) fields.zoning = result.zoning;
     if (result.max_buildable_area) fields.max_buildable_area = result.max_buildable_area;
     if (result.floor_area_ratio) fields.floor_area_ratio = result.floor_area_ratio;
+    if (result.year_built) fields.year_built = Number(result.year_built);
+    if (result.property_type) fields.property_type = result.property_type;
+    if (result.property_style) fields.property_style = result.property_style;
+    if (result.building_sqft) fields.building_sqft = result.building_sqft;
+    if (result.bedrooms) fields.bedrooms = result.bedrooms;
+    if (result.bathrooms) fields.bathrooms = result.bathrooms;
+    if (result.garage) fields.garage = result.garage;
+    if (result.neighbourhood) fields.neighbourhood = result.neighbourhood;
+    if (result.ward) fields.ward = result.ward;
+    if (result.legal_description) fields.legal_description = result.legal_description;
+    if (result.latitude) fields.latitude = result.latitude;
+    if (result.longitude) fields.longitude = result.longitude;
+    if (result.roll_number) fields.roll_number = result.roll_number;
+    if (result.assessment_class) fields.assessment_class = result.assessment_class;
+    if (result.tax_amount) fields.tax_amount = result.tax_amount;
+    if (result.tax_year) fields.tax_year = Number(result.tax_year);
+    if (result.mls_number) fields.mls_number = result.mls_number;
+    if (result.list_price) fields.list_price = result.list_price;
+    if (result.last_sold_price) fields.last_sold_price = result.last_sold_price;
+    if (result.last_sold_date) fields.last_sold_date = result.last_sold_date;
 
     onApply(fields);
     toast.success("Property fields updated from lookup data");
@@ -196,12 +240,12 @@ export function PropertyLookup({
   // Count how many applicable fields have data
   const applicableCount = result
     ? [
-        result.assessed_value,
-        result.current_market_value,
-        result.lot_size,
-        result.zoning,
-        result.max_buildable_area,
-        result.floor_area_ratio,
+        result.assessed_value, result.current_market_value, result.lot_size,
+        result.zoning, result.max_buildable_area, result.floor_area_ratio,
+        result.year_built, result.property_type, result.building_sqft,
+        result.bedrooms, result.bathrooms, result.neighbourhood,
+        result.legal_description, result.latitude, result.tax_amount,
+        result.mls_number, result.list_price, result.last_sold_price,
       ].filter((v) => v !== null && v !== undefined).length
     : 0;
 
@@ -307,11 +351,15 @@ export function PropertyLookup({
                 <DataRow label="FAR" value={result.floor_area_ratio} />
                 <DataRow label="Year Built" value={result.year_built} />
                 <DataRow label="Type" value={result.property_type} />
+                <DataRow label="Style" value={result.property_style} />
                 <DataRow label="Bedrooms" value={result.bedrooms} />
                 <DataRow label="Bathrooms" value={result.bathrooms} />
+                <DataRow label="Garage" value={result.garage} />
                 <DataRow label="Neighbourhood" value={result.neighbourhood} />
                 <DataRow label="Ward" value={result.ward} />
                 <DataRow label="Legal" value={result.legal_description} />
+                <DataRow label="Roll #" value={result.roll_number} />
+                <DataRow label="Assessment Class" value={result.assessment_class} />
               </CardContent>
             </Card>
 

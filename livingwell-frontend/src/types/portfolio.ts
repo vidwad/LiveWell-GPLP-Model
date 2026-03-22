@@ -65,6 +65,30 @@ export interface PropertyCreate {
   cluster_id?: number;
   community_id?: number;
   pm_id?: number;
+  // Physical property details
+  year_built?: number;
+  property_type?: string;
+  building_sqft?: number;
+  bedrooms?: number;
+  bathrooms?: number;
+  property_style?: string;
+  garage?: string;
+  // Location & municipal
+  neighbourhood?: string;
+  ward?: string;
+  legal_description?: string;
+  latitude?: number;
+  longitude?: number;
+  roll_number?: string;
+  assessment_class?: string;
+  // Tax
+  tax_amount?: number;
+  tax_year?: number;
+  // MLS / market
+  mls_number?: string;
+  list_price?: number;
+  last_sold_price?: number;
+  last_sold_date?: string;
 }
 
 // ── Property Manager ─────────────────────────────────────────────

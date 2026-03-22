@@ -958,6 +958,34 @@ class Property(Base):
     annual_expenses = Column(Numeric(14, 2), nullable=True)
     annual_other_income = Column(Numeric(14, 2), nullable=True)
 
+    # ── Physical property details (from municipal data / MLS) ──
+    year_built = Column(Integer, nullable=True)
+    property_type = Column(String(128), nullable=True)        # e.g. "Single Family", "Multi-Family"
+    building_sqft = Column(Numeric(14, 2), nullable=True)
+    bedrooms = Column(Integer, nullable=True)
+    bathrooms = Column(Integer, nullable=True)
+    property_style = Column(String(128), nullable=True)       # e.g. "Bungalow", "2-Storey"
+    garage = Column(String(64), nullable=True)                 # e.g. "Double Attached"
+
+    # ── Location & municipal references ──
+    neighbourhood = Column(String(256), nullable=True)
+    ward = Column(String(64), nullable=True)
+    legal_description = Column(String(512), nullable=True)
+    latitude = Column(Numeric(10, 7), nullable=True)
+    longitude = Column(Numeric(11, 7), nullable=True)
+    roll_number = Column(String(64), nullable=True)           # municipal assessment roll ID
+    assessment_class = Column(String(64), nullable=True)      # e.g. "Residential", "Non-Residential"
+
+    # ── Tax data ──
+    tax_amount = Column(Numeric(12, 2), nullable=True)
+    tax_year = Column(Integer, nullable=True)
+
+    # ── MLS / market data ──
+    mls_number = Column(String(64), nullable=True)
+    list_price = Column(Numeric(14, 2), nullable=True)
+    last_sold_price = Column(Numeric(14, 2), nullable=True)
+    last_sold_date = Column(Date, nullable=True)
+
     lp = relationship("LPEntity", back_populates="properties")
     cluster = relationship("PropertyCluster", back_populates="properties")
     development_plans = relationship(

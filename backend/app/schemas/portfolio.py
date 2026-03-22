@@ -56,10 +56,34 @@ class PropertyCreate(BaseModel):
     floor_area_ratio: Decimal | None = None
     development_stage: DevelopmentStage = DevelopmentStage.prospect
     rent_pricing_mode: RentPricingMode = RentPricingMode.by_bed
-    annual_rent_increase_pct: Decimal | None = None  # e.g. 3.0 = 3% per year
+    annual_rent_increase_pct: Decimal | None = None
     annual_revenue: Decimal | None = None
     annual_expenses: Decimal | None = None
     annual_other_income: Decimal | None = None
+    # Physical property details
+    year_built: int | None = None
+    property_type: str | None = None
+    building_sqft: Decimal | None = None
+    bedrooms: int | None = None
+    bathrooms: int | None = None
+    property_style: str | None = None
+    garage: str | None = None
+    # Location & municipal
+    neighbourhood: str | None = None
+    ward: str | None = None
+    legal_description: str | None = None
+    latitude: Decimal | None = None
+    longitude: Decimal | None = None
+    roll_number: str | None = None
+    assessment_class: str | None = None
+    # Tax
+    tax_amount: Decimal | None = None
+    tax_year: int | None = None
+    # MLS / market
+    mls_number: str | None = None
+    list_price: Decimal | None = None
+    last_sold_price: Decimal | None = None
+    last_sold_date: datetime.date | None = None
 
 
 class PropertyUpdate(BaseModel):
@@ -84,6 +108,26 @@ class PropertyUpdate(BaseModel):
     annual_revenue: Decimal | None = None
     annual_expenses: Decimal | None = None
     annual_other_income: Decimal | None = None
+    year_built: int | None = None
+    property_type: str | None = None
+    building_sqft: Decimal | None = None
+    bedrooms: int | None = None
+    bathrooms: int | None = None
+    property_style: str | None = None
+    garage: str | None = None
+    neighbourhood: str | None = None
+    ward: str | None = None
+    legal_description: str | None = None
+    latitude: Decimal | None = None
+    longitude: Decimal | None = None
+    roll_number: str | None = None
+    assessment_class: str | None = None
+    tax_amount: Decimal | None = None
+    tax_year: int | None = None
+    mls_number: str | None = None
+    list_price: Decimal | None = None
+    last_sold_price: Decimal | None = None
+    last_sold_date: datetime.date | None = None
 
 
 class PropertyOut(BaseModel):
@@ -112,6 +156,30 @@ class PropertyOut(BaseModel):
     annual_revenue: Decimal | None = None
     annual_expenses: Decimal | None = None
     annual_other_income: Decimal | None = None
+    # Physical property details
+    year_built: int | None = None
+    property_type: str | None = None
+    building_sqft: Decimal | None = None
+    bedrooms: int | None = None
+    bathrooms: int | None = None
+    property_style: str | None = None
+    garage: str | None = None
+    # Location & municipal
+    neighbourhood: str | None = None
+    ward: str | None = None
+    legal_description: str | None = None
+    latitude: Decimal | None = None
+    longitude: Decimal | None = None
+    roll_number: str | None = None
+    assessment_class: str | None = None
+    # Tax
+    tax_amount: Decimal | None = None
+    tax_year: int | None = None
+    # MLS / market
+    mls_number: str | None = None
+    list_price: Decimal | None = None
+    last_sold_price: Decimal | None = None
+    last_sold_date: datetime.date | None = None
 
     model_config = {"from_attributes": True}
 
