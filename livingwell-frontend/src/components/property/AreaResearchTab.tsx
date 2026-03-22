@@ -37,11 +37,14 @@ import {
 } from "@/components/ui/table";
 import { formatCurrency, cn } from "@/lib/utils";
 import { ai } from "@/lib/api";
+import { AreaResearchMap } from "@/components/property/AreaResearchMap";
 
 /* ── Types ─────────────────────────────────────────────────────────────── */
 
 interface ComparableSale {
   address: string;
+  lat?: number;
+  lng?: number;
   sale_price: number;
   sale_date: string;
   property_type: string;
@@ -53,6 +56,8 @@ interface ComparableSale {
 
 interface ActiveListing {
   address: string;
+  lat?: number;
+  lng?: number;
   list_price: number;
   property_type: string;
   bedrooms: number;
@@ -73,6 +78,8 @@ interface ZoningInfo {
 
 interface RezoningActivity {
   location: string;
+  lat?: number;
+  lng?: number;
   from_zone: string;
   to_zone: string;
   status: string;
@@ -104,6 +111,8 @@ interface Demographics {
 interface DevelopmentProject {
   project_name: string;
   location: string;
+  lat?: number;
+  lng?: number;
   type: string;
   units: number | null;
   status: string;
@@ -140,6 +149,7 @@ interface AreaResearchResult {
   address: string;
   city: string;
   radius_miles: number;
+  subject_location?: { lat: number; lng: number };
   summary: string;
   comparable_sales?: ComparableSale[];
   active_listings?: ActiveListing[];
@@ -422,6 +432,21 @@ export function AreaResearchTab({ propertyId, address, city, zoning }: AreaResea
               )}
             </CardContent>
           </Card>
+
+          {/* Interactive Map */}
+          <AreaResearchMap
+            subjectLocation={result.subject_location}
+            address={result.address}
+            city={result.city}
+            radiusMiles={result.radius_miles}
+            comparableSales={result.comparable_sales}
+            activeListings={result.active_listings}
+            rezoningActivity={result.rezoning_activity}
+            developmentActivity={result.development_activity}
+            rentalMarket={result.rental_market}
+            marketInsights={result.market_insights}
+            redevelopmentPotential={result.redevelopment_potential}
+          />
 
           {/* Comparable Sales */}
           {result.comparable_sales && result.comparable_sales.length > 0 && (

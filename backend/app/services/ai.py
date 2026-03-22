@@ -788,8 +788,14 @@ Return JSON with these exact keys:
 
 1. "summary" (string) — 3-4 sentence executive summary of the area as an investment location
 
-2. "comparable_sales" (array of objects) — 4-6 recent comparable property sales within the radius, each with:
+2. "subject_location" (object) — the approximate lat/lng of the subject property:
+   - lat (number — latitude, e.g. 51.0447)
+   - lng (number — longitude, e.g. -114.0719)
+
+3. "comparable_sales" (array of objects) — 4-6 recent comparable property sales within the radius, each with:
    - address (string — realistic street name in the area)
+   - lat (number — approximate latitude)
+   - lng (number — approximate longitude)
    - sale_price (number)
    - sale_date (string — within last 12 months, YYYY-MM format)
    - property_type (string — e.g. "Single Family", "Duplex", "Multi-Family")
@@ -798,15 +804,17 @@ Return JSON with these exact keys:
    - price_per_sqft (number)
    - notes (string — brief detail like "Renovated" or "Estate sale")
 
-3. "active_listings" (array of objects) — 3-5 currently listed properties nearby, each with:
+4. "active_listings" (array of objects) — 3-5 currently listed properties nearby, each with:
    - address (string)
+   - lat (number — approximate latitude)
+   - lng (number — approximate longitude)
    - list_price (number)
    - property_type (string)
    - bedrooms (number)
    - days_on_market (number)
    - status (string — "Active", "Pending", "Price Reduced")
 
-4. "zoning_info" (object) with:
+5. "zoning_info" (object) with:
    - current_zoning (string — the zoning code)
    - zoning_description (string — what the zoning allows)
    - max_density (string — e.g. "Up to 4 units per lot")
@@ -816,15 +824,17 @@ Return JSON with these exact keys:
    - permitted_uses (array of strings)
    - discretionary_uses (array of strings)
 
-5. "rezoning_activity" (array of objects) — 2-4 recent or pending rezoning applications nearby, each with:
+6. "rezoning_activity" (array of objects) — 2-4 recent or pending rezoning applications nearby, each with:
    - location (string — approximate address or intersection)
+   - lat (number — approximate latitude)
+   - lng (number — approximate longitude)
    - from_zone (string)
    - to_zone (string)
    - status (string — "Approved", "Pending", "Under Review")
    - application_date (string — YYYY-MM format)
    - description (string — what the developer is proposing)
 
-6. "rental_market" (object) with:
+7. "rental_market" (object) with:
    - average_rent_1br (number — monthly)
    - average_rent_2br (number)
    - average_rent_3br (number)
@@ -834,7 +844,7 @@ Return JSON with these exact keys:
    - rent_growth_annual_pct (number)
    - notes (string — market commentary)
 
-7. "demographics" (object) with:
+8. "demographics" (object) with:
    - population (number — area population)
    - median_household_income (number)
    - median_age (number)
@@ -843,16 +853,18 @@ Return JSON with these exact keys:
    - transit_access (string — description of transit options)
    - walk_score_estimate (number — 0-100)
 
-8. "development_activity" (array of objects) — 3-5 notable development projects nearby, each with:
+9. "development_activity" (array of objects) — 3-5 notable development projects nearby, each with:
    - project_name (string)
    - location (string)
+   - lat (number — approximate latitude)
+   - lng (number — approximate longitude)
    - type (string — e.g. "Residential", "Mixed-Use", "Commercial")
    - units (number or null)
    - status (string — "Proposed", "Under Construction", "Completed")
    - estimated_completion (string — YYYY or YYYY-QN format)
    - description (string)
 
-9. "market_insights" (object) with:
+10. "market_insights" (object) with:
    - median_home_price (number)
    - price_trend (string — "appreciating", "stable", "declining")
    - price_growth_annual_pct (number)
@@ -861,13 +873,13 @@ Return JSON with these exact keys:
    - investment_grade (string — "A", "B+", "B", "B-", "C+", "C")
    - opportunity_score (number — 1-10, 10 being highest opportunity)
 
-10. "risks_and_considerations" (array of objects) — 3-5 items, each with:
+11. "risks_and_considerations" (array of objects) — 3-5 items, each with:
     - category (string — "Environmental", "Market", "Regulatory", "Infrastructure", "Social")
     - description (string)
     - severity (string — "Low", "Medium", "High")
     - mitigation (string)
 
-11. "redevelopment_potential" (object) with:
+12. "redevelopment_potential" (object) with:
     - score (number — 1-10)
     - rationale (string — 2-3 sentences)
     - best_use_recommendation (string — e.g. "4-plex conversion" or "8-unit multiplex")
@@ -887,14 +899,26 @@ Be specific with numbers. Use realistic values for {city}, {province}. Do not us
     return _area_research_fallback(address, city, radius_miles, zoning)
 
 
+# Default city coordinates for fallback
+_CITY_COORDS = {
+    "calgary": (51.0447, -114.0719),
+    "edmonton": (53.5461, -113.4937),
+    "red deer": (52.2681, -113.8112),
+    "lethbridge": (49.6935, -112.8418),
+    "medicine hat": (50.0405, -110.6764),
+}
+
+
 def _area_research_fallback(
     address: str, city: str, radius_miles: float, zoning: Optional[str] = None,
 ) -> dict:
     """Return structured fallback area research when Claude is unavailable."""
+    base_lat, base_lng = _CITY_COORDS.get(city.lower(), (51.0447, -114.0719))
     return {
         "address": address,
         "city": city,
         "radius_miles": radius_miles,
+        "subject_location": {"lat": base_lat, "lng": base_lng},
         "summary": (
             f"Area research for {address}, {city}. "
             "Configure ANTHROPIC_API_KEY for AI-powered comprehensive area analysis "
@@ -904,6 +928,8 @@ def _area_research_fallback(
         "comparable_sales": [
             {
                 "address": f"Nearby Property 1, {city}",
+                "lat": base_lat + 0.005,
+                "lng": base_lng + 0.003,
                 "sale_price": 525000,
                 "sale_date": "2025-11",
                 "property_type": "Single Family",
@@ -914,6 +940,8 @@ def _area_research_fallback(
             },
             {
                 "address": f"Nearby Property 2, {city}",
+                "lat": base_lat - 0.004,
+                "lng": base_lng - 0.006,
                 "sale_price": 480000,
                 "sale_date": "2025-09",
                 "property_type": "Single Family",
@@ -926,6 +954,8 @@ def _area_research_fallback(
         "active_listings": [
             {
                 "address": f"Listed Property 1, {city}",
+                "lat": base_lat + 0.003,
+                "lng": base_lng - 0.004,
                 "list_price": 549000,
                 "property_type": "Single Family",
                 "bedrooms": 4,
@@ -946,6 +976,8 @@ def _area_research_fallback(
         "rezoning_activity": [
             {
                 "location": f"Near {address}",
+                "lat": base_lat + 0.002,
+                "lng": base_lng + 0.005,
                 "from_zone": "R-C1",
                 "to_zone": "R-CG",
                 "status": "Approved",
@@ -976,6 +1008,8 @@ def _area_research_fallback(
             {
                 "project_name": "Sample Development",
                 "location": f"Near {address}",
+                "lat": base_lat - 0.006,
+                "lng": base_lng + 0.004,
                 "type": "Residential",
                 "units": 24,
                 "status": "Under Construction",
