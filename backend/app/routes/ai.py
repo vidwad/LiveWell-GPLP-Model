@@ -895,13 +895,16 @@ def generate_staffing_schedule_endpoint(
     } for s in staff]
 
     # Get occupancy
-    from app.services.reporting import get_community_occupancy
-    occ = get_community_occupancy(db, payload.community_id)
+    from app.services.operations_service import compute_occupancy
+    occ = compute_occupancy(db, payload.community_id)
     occupancy_rate = occ.get("occupancy_rate", 0.85) if occ else 0.85
 
     # Get existing shifts for the week
     import datetime
-    week_start = datetime.datetime.strptime(payload.week_start, "%Y-%m-%d").date()
+    try:
+        week_start = datetime.datetime.strptime(payload.week_start, "%Y-%m-%d").date()
+    except ValueError:
+        raise HTTPException(400, f"Invalid date format: {payload.week_start}. Expected YYYY-MM-DD.")
     week_end = week_start + datetime.timedelta(days=6)
     existing_shifts = db.query(Shift).filter(
         Shift.community_id == payload.community_id,
@@ -996,8 +999,8 @@ def predict_occupancy_risk_endpoint(
         raise HTTPException(404, "Community not found")
 
     # Get occupancy
-    from app.services.reporting import get_community_occupancy
-    occ = get_community_occupancy(db, payload.community_id)
+    from app.services.operations_service import compute_occupancy
+    occ = compute_occupancy(db, payload.community_id)
     occupancy_rate = occ.get("occupancy_rate", 0.85) if occ else 0.85
 
     # Get trend data
@@ -1011,7 +1014,7 @@ def predict_occupancy_risk_endpoint(
         ArrearsRecord.amount_overdue > 0,
     ).all()
     arrears_data = [{
-        "resident_name": f"{a.resident.first_name} {a.resident.last_name}" if a.resident else "Unknown",
+        "resident_name": a.resident.full_name if a.resident else "Unknown",
         "amount_overdue": float(a.amount_overdue),
         "days_overdue": a.days_overdue,
     } for a in arrears] if arrears else None
@@ -1054,16 +1057,16 @@ def suggest_arrears_strategy_endpoint(
     if resident:
         past = db.query(ArrearsRecord).filter(
             ArrearsRecord.resident_id == resident.resident_id,
-        ).order_by(ArrearsRecord.record_date.desc()).limit(10).all()
+        ).order_by(ArrearsRecord.created_at.desc()).limit(10).all()
         history = [{
-            "record_date": str(a.record_date),
+            "record_date": str(a.due_date),
             "amount_overdue": float(a.amount_overdue),
             "days_overdue": a.days_overdue,
             "follow_up_action": a.follow_up_action,
         } for a in past]
 
     return suggest_arrears_strategy(
-        resident_name=f"{resident.first_name} {resident.last_name}" if resident else "Unknown",
+        resident_name=resident.full_name if resident else "Unknown",
         community_type=community_type,
         days_overdue=arrear.days_overdue or 0,
         amount_overdue=float(arrear.amount_overdue) if arrear.amount_overdue else 0,
@@ -1095,24 +1098,27 @@ def advise_distribution_endpoint(
     # Get waterfall result if proposed amount
     waterfall_result = None
     if payload.proposed_amount:
-        from app.services.waterfall import run_waterfall
+        from app.services.investment_service import compute_waterfall
         try:
-            waterfall_result = run_waterfall(db, payload.lp_id, payload.proposed_amount)
+            waterfall_result = compute_waterfall(db, payload.lp_id, payload.proposed_amount)
         except Exception:
             pass
 
-    # Get debt maturities
+    # Get debt maturities for properties in this LP
     import datetime as _dt2
-    maturities = db.query(DebtFacility).filter(
-        DebtFacility.lp_id == payload.lp_id,
-        DebtFacility.maturity_date != None,
-        DebtFacility.maturity_date <= _dt2.date.today() + _dt2.timedelta(days=365),
-    ).all()
-    debt_data = [{
-        "lender": d.lender_name,
-        "balance": float(d.current_balance) if d.current_balance else 0,
-        "maturity_date": str(d.maturity_date),
-    } for d in maturities] if maturities else None
+    lp_property_ids = [p.property_id for p in db.query(Property.property_id).filter(Property.lp_id == payload.lp_id).all()]
+    debt_data = None
+    if lp_property_ids:
+        maturities = db.query(DebtFacility).filter(
+            DebtFacility.property_id.in_(lp_property_ids),
+            DebtFacility.maturity_date != None,
+            DebtFacility.maturity_date <= _dt2.date.today() + _dt2.timedelta(days=365),
+        ).all()
+        debt_data = [{
+            "lender": d.lender_name,
+            "balance": float(d.outstanding_balance) if d.outstanding_balance else 0,
+            "maturity_date": str(d.maturity_date),
+        } for d in maturities] if maturities else None
 
     return advise_distribution_timing(
         lp_name=lp.name,

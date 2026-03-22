@@ -292,7 +292,7 @@ def get_cash_flow_projection(
             "property_id": prop.property_id,
             "address": prop.address,
             "lp_id": prop.lp_id,
-            "lp_name": prop.lp_entity.name if prop.lp_entity else None,
+            "lp_name": prop.lp.name if prop.lp else None,
             "stage": prop.development_stage.value,
             "current_noi": round(prop_noi, 2),
             "current_ads": round(prop_ads, 2),
@@ -414,7 +414,7 @@ def get_debt_maturity(
             "debt_id": f.debt_id,
             "property_id": f.property_id,
             "address": f.property.address if f.property else "Unknown",
-            "lp_name": f.property.lp_entity.name if f.property and f.property.lp_entity else None,
+            "lp_name": f.property.lp.name if f.property and f.property.lp else None,
             "lender_name": f.lender_name,
             "debt_type": f.debt_type,
             "commitment_amount": float(f.commitment_amount or 0),
@@ -502,7 +502,7 @@ def get_arrears_aging_report(
         buckets[bucket]["total"] += amount
         buckets[bucket]["records"].append({
             "arrears_id": r.arrears_id,
-            "resident_name": r.resident.name if r.resident else "Unknown",
+            "resident_name": r.resident.full_name if r.resident else "Unknown",
             "community_name": r.resident.community.name if r.resident and r.resident.community else None,
             "amount_overdue": amount,
             "due_date": str(r.due_date) if r.due_date else None,

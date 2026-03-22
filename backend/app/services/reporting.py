@@ -262,9 +262,9 @@ def generate_management_pack(db: Session) -> dict:
 
     prop_summary = []
     for prop in properties:
-        units = db.query(Unit).filter(Unit.community_id.in_(
-            [c.community_id for c in prop.communities]
-        )).all() if prop.communities else []
+        units = db.query(Unit).filter(
+            Unit.community_id == prop.community.community_id
+        ).all() if prop.community else []
         total_u = len(units)
         occupied_u = sum(1 for u in units if u.is_occupied)
         occ_rate = round(occupied_u / total_u * 100, 1) if total_u else None
