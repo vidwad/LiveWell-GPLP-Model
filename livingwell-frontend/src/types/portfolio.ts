@@ -485,6 +485,70 @@ export interface ProjectionInput {
   carrying_cost_annual?: number;
 }
 
+// ── Construction Expense & Draw Types ────────────────────────────────
+
+export interface ConstructionExpense {
+  expense_id: number;
+  property_id: number;
+  plan_id: number;
+  category: string;
+  description: string | null;
+  budgeted_amount: string;
+  actual_amount: string;
+  vendor: string | null;
+  invoice_ref: string | null;
+  expense_date: string | null;
+  notes: string | null;
+  created_at: string | null;
+}
+
+export interface ConstructionExpenseCreate {
+  plan_id: number;
+  category: string;
+  description?: string;
+  budgeted_amount?: number;
+  actual_amount?: number;
+  vendor?: string;
+  invoice_ref?: string;
+  expense_date?: string;
+  notes?: string;
+}
+
+export interface ConstructionBudgetSummary {
+  property_id: number;
+  plan_id: number;
+  line_items: ConstructionExpense[];
+  total_budgeted: string;
+  total_actual: string;
+  total_variance: string;
+  by_category: Record<string, { budgeted: number; actual: number; variance: number }>;
+}
+
+export interface ConstructionDraw {
+  draw_id: number;
+  property_id: number;
+  debt_id: number;
+  draw_number: number;
+  requested_amount: string;
+  approved_amount: string | null;
+  status: string;
+  description: string | null;
+  requested_date: string | null;
+  approved_date: string | null;
+  funded_date: string | null;
+  notes: string | null;
+  created_at: string | null;
+}
+
+export interface ConstructionDrawCreate {
+  debt_id: number;
+  draw_number: number;
+  requested_amount: number;
+  description?: string;
+  requested_date?: string;
+  notes?: string;
+}
+
 // ── Edit Plan Form ──────────────────────────────────────────────────
 
 export interface EditPlanForm {

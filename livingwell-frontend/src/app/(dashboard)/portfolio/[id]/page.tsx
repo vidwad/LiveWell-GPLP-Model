@@ -4,6 +4,7 @@ import React, { useState } from "react";
 import { useRouter } from "next/navigation";
 import { ProFormaTab } from "@/components/property/ProFormaTab";
 import { AreaResearchTab } from "@/components/property/AreaResearchTab";
+import { ConstructionBudgetTab } from "@/components/property/ConstructionBudgetTab";
 import { PropertyLookup } from "@/components/property/PropertyLookup";
 import { toast } from "sonner";
 import {
@@ -858,6 +859,7 @@ export default function PropertyDetailPage({ params }: { params: { id: string } 
             <TabsTrigger value="units"><Ruler className="h-4 w-4 sm:mr-1.5" /><span className="hidden sm:inline">Units & Beds</span></TabsTrigger>
             <TabsTrigger value="rentroll"><DollarSign className="h-4 w-4 sm:mr-1.5" /><span className="hidden sm:inline">Rent Roll</span></TabsTrigger>
             <TabsTrigger value="plans"><Layers className="h-4 w-4 sm:mr-1.5" /><span className="hidden sm:inline">Dev Plans</span></TabsTrigger>
+            <TabsTrigger value="construction"><HardHat className="h-4 w-4 sm:mr-1.5" /><span className="hidden sm:inline">Construction</span></TabsTrigger>
             <TabsTrigger value="debt"><Landmark className="h-4 w-4 sm:mr-1.5" /><span className="hidden sm:inline">Debt & Financing</span></TabsTrigger>
             <TabsTrigger value="projections"><BarChart3 className="h-4 w-4 sm:mr-1.5" /><span className="hidden sm:inline">Projections</span></TabsTrigger>
             <TabsTrigger value="exit"><TrendingUp className="h-4 w-4 sm:mr-1.5" /><span className="hidden sm:inline">Exit Scenarios</span></TabsTrigger>
@@ -2884,6 +2886,11 @@ export default function PropertyDetailPage({ params }: { params: { id: string } 
               })()}
             </CardContent>
           </Card>
+        </TabsContent>
+
+        {/* ── Construction Budget vs Actual ── */}
+        <TabsContent value="construction" className="mt-6">
+          <ConstructionBudgetTab propertyId={propertyId} canEdit={canEdit} />
         </TabsContent>
 
         {/* ── Debt & Financing ── */}

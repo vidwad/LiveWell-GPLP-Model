@@ -8,6 +8,11 @@ import {
   DevelopmentPlanUpdate,
   ModelingInput,
   ModelingResult,
+  ConstructionExpense,
+  ConstructionExpenseCreate,
+  ConstructionBudgetSummary,
+  ConstructionDraw,
+  ConstructionDrawCreate,
 } from "@/types/portfolio";
 
 function unwrapPaginated<T>(data: { items: T[]; total: number } | T[]): T[] {
@@ -415,6 +420,139 @@ export function useDeleteBed(propertyId: number) {
       qc.invalidateQueries({ queryKey: ["rent-roll", propertyId] });
       qc.invalidateQueries({ queryKey: ["property-units", propertyId] });
       qc.invalidateQueries({ queryKey: ["property-unit-summary", propertyId] });
+    },
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Construction Expenses
+// ---------------------------------------------------------------------------
+
+export function useConstructionExpenses(propertyId: number, planId?: number) {
+  return useQuery({
+    queryKey: ["construction-expenses", propertyId, planId],
+    queryFn: () =>
+      apiClient
+        .get<ConstructionExpense[]>(
+          `/api/portfolio/properties/${propertyId}/construction-expenses`,
+          planId ? { params: { plan_id: planId } } : undefined
+        )
+        .then((r) => r.data),
+    enabled: !!propertyId,
+  });
+}
+
+export function useConstructionBudgetSummary(propertyId: number, planId: number) {
+  return useQuery({
+    queryKey: ["construction-budget-summary", propertyId, planId],
+    queryFn: () =>
+      apiClient
+        .get<ConstructionBudgetSummary>(
+          `/api/portfolio/properties/${propertyId}/construction-budget-summary`,
+          { params: { plan_id: planId } }
+        )
+        .then((r) => r.data),
+    enabled: !!propertyId && !!planId,
+  });
+}
+
+export function useCreateConstructionExpense(propertyId: number) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (data: ConstructionExpenseCreate) =>
+      apiClient
+        .post<ConstructionExpense>(
+          `/api/portfolio/properties/${propertyId}/construction-expenses`,
+          data
+        )
+        .then((r) => r.data),
+    onSuccess: (_, variables) => {
+      qc.invalidateQueries({ queryKey: ["construction-expenses", propertyId] });
+      qc.invalidateQueries({ queryKey: ["construction-budget-summary", propertyId, variables.plan_id] });
+    },
+  });
+}
+
+export function useUpdateConstructionExpense(propertyId: number) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ expenseId, data }: { expenseId: number; data: Partial<ConstructionExpenseCreate> }) =>
+      apiClient
+        .patch<ConstructionExpense>(`/api/portfolio/construction-expenses/${expenseId}`, data)
+        .then((r) => r.data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["construction-expenses", propertyId] });
+      qc.invalidateQueries({ queryKey: ["construction-budget-summary", propertyId] });
+    },
+  });
+}
+
+export function useDeleteConstructionExpense(propertyId: number) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (expenseId: number) =>
+      apiClient.delete(`/api/portfolio/construction-expenses/${expenseId}`),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["construction-expenses", propertyId] });
+      qc.invalidateQueries({ queryKey: ["construction-budget-summary", propertyId] });
+    },
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Construction Draws
+// ---------------------------------------------------------------------------
+
+export function useConstructionDraws(propertyId: number, debtId?: number) {
+  return useQuery({
+    queryKey: ["construction-draws", propertyId, debtId],
+    queryFn: () =>
+      apiClient
+        .get<ConstructionDraw[]>(
+          `/api/portfolio/properties/${propertyId}/construction-draws`,
+          debtId ? { params: { debt_id: debtId } } : undefined
+        )
+        .then((r) => r.data),
+    enabled: !!propertyId,
+  });
+}
+
+export function useCreateConstructionDraw(propertyId: number) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (data: ConstructionDrawCreate) =>
+      apiClient
+        .post<ConstructionDraw>(
+          `/api/portfolio/properties/${propertyId}/construction-draws`,
+          data
+        )
+        .then((r) => r.data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["construction-draws", propertyId] });
+    },
+  });
+}
+
+export function useUpdateConstructionDraw(propertyId: number) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ drawId, data }: { drawId: number; data: Record<string, unknown> }) =>
+      apiClient
+        .patch<ConstructionDraw>(`/api/portfolio/construction-draws/${drawId}`, data)
+        .then((r) => r.data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["construction-draws", propertyId] });
+    },
+  });
+}
+
+export function useDeleteConstructionDraw(propertyId: number) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (drawId: number) =>
+      apiClient.delete(`/api/portfolio/construction-draws/${drawId}`),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["construction-draws", propertyId] });
     },
   });
 }
