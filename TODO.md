@@ -3,7 +3,7 @@
 > **Platform identity:** Real estate LP syndication + property lifecycle modeling + community operations + investor reporting platform.
 > **Not:** A generic PE/VC fund administration system.
 >
-> Last updated: 2026-03-15
+> Last updated: 2026-03-22
 
 ---
 
@@ -31,7 +31,7 @@
 | 1.1.4 | Role-based route guards on all endpoints | DONE | 135 of 156 endpoints have explicit role guards. Remaining 11 are correctly auth-only (notifications, auth, user-scoped reads). |
 | 1.1.5 | Scope-based data filtering on all list endpoints | DONE | All list endpoints filtered by scope: LP list, properties, target properties, subscriptions, holdings, distributions, budgets, expenses, funding, tranches, portfolio rollup. Uses filter_by_lp_scope, filter_by_community_scope, filter_by_property_scope helpers + check_entity_access for detail endpoints. |
 | 1.1.6 | Frontend role-aware UI (hide/show actions based on user role) | DONE | usePermissions hook created. LP detail page: Edit LP, Add/Edit Tranche, Add/Edit Subscription, Add/Edit Holding, Add/Edit/Convert Target Property buttons all gated by canEdit. Portfolio, Investors, Communities list pages already had canCreate guards. Sidebar already role-filters nav items. |
-| 1.1.7 | Capability-based permissions (e.g., "can_create_subscription", "can_approve_distribution") | NOT DONE | No fine-grained capability system exists. |
+| 1.1.7 | Capability-based permissions (e.g., "can_create_subscription", "can_approve_distribution") | DONE | UserCapability model, 15 well-known capabilities, ROLE_DEFAULT_CAPABILITIES mapping, require_capability/require_any_capability dependencies, grant/revoke/list endpoints in auth routes, frontend hasCapability() in usePermissions hook. |
 
 ### 1.2 LP Model
 
@@ -108,7 +108,7 @@
 | 2.1.5 | Interim house expense tracking | PARTIAL | OperatingExpense model exists with categories (utilities, insurance, maintenance, etc.) but not explicitly tied to "interim" vs "stabilized" phase |
 | 2.1.6 | Interim revenue vs expense summary (actual house P&L) | DONE | operations_service.py computes community-level P&L with revenue, expenses, NOI, collection rates. Endpoints: GET /community/{id}/pnl and GET /community/operations/portfolio-summary. |
 | 2.1.7 | Interim occupancy dashboard | DONE | Operations P&L Dashboard at /operations shows occupancy rates, bed counts, revenue per occupied bed, monthly potential, expense breakdown, budget vs actual — per community and portfolio-wide. |
-| 2.1.8 | Support-service cost tracking for interim operations | NOT DONE | No model for support services (counseling, meals, etc.) as distinct cost items |
+| 2.1.8 | Support-service cost tracking for interim operations | PARTIAL | CommunityEvent model tracks events with cost field and 10 service types (counseling, meal_service, etc.). Full cost-center breakdown not yet implemented. |
 
 ### 2.2 Redevelopment Scenario
 
@@ -128,8 +128,8 @@
 | 2.3.1 | Cost breakdown fields (hard_costs, soft_costs, site_costs, financing_costs, contingency) | DONE | In DevelopmentPlan model |
 | 2.3.2 | Cost per sqft calculation | DONE | cost_per_sqft field |
 | 2.3.3 | Cost escalation modeling | DONE | cost_escalation_percent_per_year field |
-| 2.3.4 | Construction budget vs actual tracking | NOT DONE | No actual-spend tracking against budget |
-| 2.3.5 | Construction draw schedule | NOT DONE | No draw/disbursement model |
+| 2.3.4 | Construction budget vs actual tracking | DONE | ConstructionExpense model with budget/actual, full CRUD, budget summary endpoint, ConstructionBudgetTab component |
+| 2.3.5 | Construction draw schedule | DONE | ConstructionDraw model with approval workflow (requested→approved→funded), CRUD endpoints, frontend hooks |
 
 ### 2.4 Stabilized Pro Forma
 
@@ -159,7 +159,7 @@
 | 2.6.2 | PropertyMilestone model (milestone_type, target_date, actual_date, status) | DONE | |
 | 2.6.3 | Lifecycle routes (transitions, milestones) | DONE | Full CRUD in lifecycle.py |
 | 2.6.4 | Lifecycle UI page | DONE | /lifecycle page |
-| 2.6.5 | Timeline visualization (Gantt-style or milestone chart) | NOT DONE | List-based UI only |
+| 2.6.5 | Timeline visualization (Gantt-style or milestone chart) | DONE | Gantt-style TimelineVisualization component in lifecycle page with month grid, today marker, color-coded bars, stage transition arrows |
 
 ### 2.7 Valuation
 
@@ -167,7 +167,7 @@
 |---|------|--------|-------|
 | 2.7.1 | Property valuation fields (purchase_price, assessed_value, current_market_value, estimated_value) | DONE | On Property model |
 | 2.7.2 | Valuation history tracking | DONE | ValuationHistory model with method enum (appraisal, assessment, broker_opinion, market_comp, internal, purchase_price). CRUD endpoints at /portfolio/properties/{id}/valuations. Tracks value, method, appraiser, date, notes, document_url. |
-| 2.7.3 | Cap rate / income approach valuation calculator | NOT DONE | No automated valuation method |
+| 2.7.3 | Cap rate / income approach valuation calculator | DONE | POST cap-rate endpoint, cap-rate/save endpoint, ValuationTab UI component |
 | 2.7.4 | Appraisal document storage | PARTIAL | Document model exists with "appraisal" type but no structured appraisal record |
 
 ### 2.8 LP Roll-up
@@ -246,7 +246,7 @@
 | 4.1.2 | Occupancy tracking endpoints | DONE | Community P&L endpoint includes occupancy data. Portfolio summary aggregates across communities. |
 | 4.1.3 | Occupancy dashboard UI | DONE | Operations P&L Dashboard at /operations shows per-community and portfolio-wide occupancy with progress bars. |
 | 4.1.4 | Occupancy rate calculations (by community, by property) | DONE | operations_service.py computes occupancy rates per community. |
-| 4.1.5 | Vacancy tracking and alerts | NOT DONE | |
+| 4.1.5 | Vacancy tracking and alerts | DONE | vacancy-alerts endpoint with severity levels, threshold-based detection, frontend page with summary cards and community breakdowns |
 
 ### 4.2 Maintenance
 
@@ -270,10 +270,10 @@
 
 | # | Item | Status | Notes |
 |---|------|--------|-------|
-| 4.4.1 | Staff/Employee model | NOT DONE | No model exists |
-| 4.4.2 | Schedule model | NOT DONE | No model exists |
-| 4.4.3 | Staffing CRUD endpoints | NOT DONE | |
-| 4.4.4 | Staffing/scheduling UI | NOT DONE | |
+| 4.4.1 | Staff/Employee model | DONE | Staff model with role, hourly_rate, hire/termination dates, emergency contacts |
+| 4.4.2 | Schedule model | DONE | Shift model with date, start/end time, status, hours tracking |
+| 4.4.3 | Staffing CRUD endpoints | DONE | GET/POST /staff, GET/POST /shifts, weekly-schedule endpoint |
+| 4.4.4 | Staffing/scheduling UI | PARTIAL | Frontend hooks exist (useStaff, useShifts, useWeeklySchedule). Dedicated UI page not yet built. |
 
 ### 4.5 Operator Budget vs Actual
 
@@ -295,7 +295,7 @@
 | 4.6.2 | Community list/detail UI | DONE | /communities, /communities/[id] |
 | 4.6.3 | Community-level reporting (occupancy, revenue, expenses) | DONE | Operations P&L Dashboard provides per-community P&L with all metrics. |
 | 4.6.4 | Community model redesign (city-level, not property-level) | DONE | Community is now a city+purpose entity. Properties have community_id FK. |
-| 4.6.5 | Events and services tracking | NOT DONE | No model for community events or support services |
+| 4.6.5 | Events and services tracking | DONE | CommunityEvent model with 10 types, full CRUD + summary endpoints, frontend hooks (useCommunityEvents, useCreateCommunityEvent, etc.) |
 | 4.6.6 | Grant/funding opportunity tracking | DONE | FundingOpportunity model and CRUD exist |
 
 ---
@@ -309,8 +309,8 @@
 | 5.1.1 | FundingOpportunity model | DONE | Basic model exists |
 | 5.1.2 | Funding CRUD endpoints | DONE | |
 | 5.1.3 | Funding UI | DONE | /funding page |
-| 5.1.4 | Grant application tracking workflow | NOT DONE | |
-| 5.1.5 | Grant reporting requirements tracking | NOT DONE | |
+| 5.1.4 | Grant application tracking workflow | DONE | FundingOpportunity extended with application_date, application_ref, program_name, contact fields. Schemas updated. |
+| 5.1.5 | Grant reporting requirements tracking | DONE | Added reporting_frequency, next_report_date, requirements fields to FundingOpportunity. |
 
 ### 5.2 AI Support
 
@@ -318,8 +318,8 @@
 |---|------|--------|-------|
 | 5.2.1 | AI service (OpenAI integration) | DONE | ai.py service exists |
 | 5.2.2 | AI chat UI | DONE | /ai page |
-| 5.2.3 | AI-powered property analysis | NOT DONE | |
-| 5.2.4 | AI-powered report generation | NOT DONE | |
+| 5.2.3 | AI-powered property analysis | DONE | analyze-risk, underwrite, detect-anomalies, area-research endpoints with Claude API + fallbacks |
+| 5.2.4 | AI-powered report generation | DONE | generate-report-narrative, draft-investor-communication, draft-bulk-communications endpoints |
 
 ### 5.3 Advanced Analytics
 
@@ -350,7 +350,7 @@
 | T.6 | Enforce workflow state transitions consistently | PARTIAL | LP and subscription transitions validated. Other entities (maintenance, milestones) are not. |
 | T.7 | Backend/frontend separation of concern | PARTIAL | Some computed fields done in service layer, some still inline in routes |
 | T.8 | Report generation structure (PDF export) | DONE | quarterly_reports.py + statement_service.py (investor PDF statements with holdings, distributions, subscriptions). |
-| T.9 | Waterfall engine: make LP-specific and configurable | PARTIAL | European-style waterfall built with 4 tiers. Needs to support LP-specific rule sets, special class/founding LP, refinance/sale proceeds. |
+| T.9 | Waterfall engine: make LP-specific and configurable | DONE | WaterfallEngine.from_lp_config() reads all LP waterfall fields (pref_rate, gp_promote, catchup_pct, hurdle_rate_2, gp_promote_2, lp_split_pct). 4-tier support with second hurdle. |
 | T.10 | Seed data consistency | DONE | Holdings no longer store ownership_percent or cost_basis. Seed data is clean and consistent. |
 | T.11 | Community model architectural redesign | DONE | Community is now city+purpose-level. Properties have community_id FK. |
 | T.12 | PropertyManager as distinct entity | DONE | Full model, routes, seed data, and frontend page implemented. |
