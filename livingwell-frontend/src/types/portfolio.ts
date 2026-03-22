@@ -485,6 +485,43 @@ export interface ProjectionInput {
   carrying_cost_annual?: number;
 }
 
+// ── Valuation Types ─────────────────────────────────────────────────
+
+export interface Valuation {
+  valuation_id: number;
+  property_id: number;
+  valuation_date: string;
+  value: string;
+  method: string;
+  appraiser: string | null;
+  notes: string | null;
+  document_url: string | null;
+  created_by: number | null;
+  created_at: string;
+}
+
+export interface ValuationCreate {
+  valuation_date: string;
+  value: number;
+  method?: string;
+  appraiser?: string;
+  notes?: string;
+  document_url?: string;
+}
+
+export interface CapRateValuationInput {
+  noi: number;
+  cap_rate: number;
+}
+
+export interface CapRateValuationResult {
+  noi: string;
+  cap_rate: string;
+  estimated_value: string;
+  value_per_unit: string | null;
+  value_per_sqft: string | null;
+}
+
 // ── Construction Expense & Draw Types ────────────────────────────────
 
 export interface ConstructionExpense {

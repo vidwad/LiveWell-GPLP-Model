@@ -13,6 +13,10 @@ import {
   ConstructionBudgetSummary,
   ConstructionDraw,
   ConstructionDrawCreate,
+  Valuation,
+  ValuationCreate,
+  CapRateValuationInput,
+  CapRateValuationResult,
 } from "@/types/portfolio";
 
 function unwrapPaginated<T>(data: { items: T[]; total: number } | T[]): T[] {
@@ -137,6 +141,74 @@ export function usePortfolioReturns() {
     queryKey: ["portfolio-returns"],
     queryFn: () =>
       apiClient.get("/api/portfolio/metrics/returns").then((r) => r.data),
+  });
+}
+
+// ── Valuations ────────────────────────────────────────────────────────────
+
+export function useValuations(propertyId: number) {
+  return useQuery({
+    queryKey: ["valuations", propertyId],
+    queryFn: () =>
+      apiClient
+        .get<Valuation[]>(`/api/portfolio/properties/${propertyId}/valuations`)
+        .then((r) => r.data),
+    enabled: !!propertyId,
+  });
+}
+
+export function useCreateValuation(propertyId: number) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (data: ValuationCreate) =>
+      apiClient
+        .post<Valuation>(`/api/portfolio/properties/${propertyId}/valuations`, data)
+        .then((r) => r.data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["valuations", propertyId] });
+      qc.invalidateQueries({ queryKey: ["properties", propertyId] });
+    },
+  });
+}
+
+export function useDeleteValuation(propertyId: number) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (valuationId: number) =>
+      apiClient.delete(`/api/portfolio/valuations/${valuationId}`),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["valuations", propertyId] });
+      qc.invalidateQueries({ queryKey: ["properties", propertyId] });
+    },
+  });
+}
+
+export function useCapRateCalculation(propertyId: number) {
+  return useMutation({
+    mutationFn: (data: CapRateValuationInput) =>
+      apiClient
+        .post<CapRateValuationResult>(
+          `/api/portfolio/properties/${propertyId}/valuations/cap-rate`,
+          data
+        )
+        .then((r) => r.data),
+  });
+}
+
+export function useSaveCapRateValuation(propertyId: number) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (data: CapRateValuationInput) =>
+      apiClient
+        .post<Valuation>(
+          `/api/portfolio/properties/${propertyId}/valuations/cap-rate/save`,
+          data
+        )
+        .then((r) => r.data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["valuations", propertyId] });
+      qc.invalidateQueries({ queryKey: ["properties", propertyId] });
+    },
   });
 }
 
