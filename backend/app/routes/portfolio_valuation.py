@@ -95,7 +95,7 @@ def portfolio_returns_metrics(
                 fd = sub.funded_date if isinstance(sub.funded_date, datetime.date) else sub.funded_date.date()
                 cash_flows.append(-float(sub.funded_amount))
                 dates.append(fd)
-            elif h.cost_basis:
+            elif getattr(h, "cost_basis", None):
                 # Fallback: use cost_basis as the invested amount with a synthetic date
                 cash_flows.append(-float(h.cost_basis))
                 # Use subscription accepted_date or a default

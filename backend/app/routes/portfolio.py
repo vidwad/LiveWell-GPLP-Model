@@ -29,8 +29,6 @@ from app.schemas.portfolio import (
     ModelingInput, ModelingResult,
     PropertyClusterCreate, PropertyClusterOut,
     PropertyCreate, PropertyOut, PropertyUpdate,
-    RefinanceScenarioCreate, RefinanceScenarioOut,
-    SaleScenarioCreate, SaleScenarioOut,
 )
 from app.services.modeling import (
     calculate_cap_rate, calculate_construction_costs, calculate_irr, calculate_noi,

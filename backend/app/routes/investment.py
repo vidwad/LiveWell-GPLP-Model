@@ -83,7 +83,12 @@ def _sub_out(s: Subscription) -> SubscriptionOut:
     )
 
 
-def _holding_out(h: Holding) -> HoldingOut:
+def _holding_out(h) -> HoldingOut:
+    """Convert a Holding ORM object (or enriched dict-like object) to HoldingOut.
+
+    ownership_percent and cost_basis are computed fields that may not exist
+    on raw ORM objects — default to None/0 when absent.
+    """
     return HoldingOut(
         holding_id=h.holding_id,
         investor_id=h.investor_id,
@@ -93,8 +98,8 @@ def _holding_out(h: Holding) -> HoldingOut:
         average_issue_price=h.average_issue_price,
         total_capital_contributed=h.total_capital_contributed,
         initial_issue_date=h.initial_issue_date,
-        ownership_percent=h.ownership_percent,
-        cost_basis=h.cost_basis,
+        ownership_percent=getattr(h, "ownership_percent", None),
+        cost_basis=getattr(h, "cost_basis", None),
         unreturned_capital=h.unreturned_capital,
         unpaid_preferred=h.unpaid_preferred,
         is_gp=h.is_gp,

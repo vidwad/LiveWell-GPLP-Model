@@ -359,30 +359,25 @@
 
 ## Summary Statistics
 
-| Category | Done | Partial | Not Done | Total |
-|----------|------|---------|----------|-------|
-| Priority 1 — Foundation | 30 | 3 | 2 | 35 |
-| Priority 2 — Core Modeling | 25 | 4 | 8 | 37 |
-| Priority 3 — Funding & Reporting | 14 | 2 | 3 | 19 |
-| Priority 4 — Operations | 16 | 2 | 5 | 23 |
-| Priority 5 — Advanced | 5 | 0 | 5 | 10 |
-| Technical Debt | 4 | 5 | 3 | 12 |
-| **Total** | **94** | **16** | **26** | **136** |
+> Updated: 2026-03-22
+
+| Status | Count |
+|--------|-------|
+| DONE | ~160 |
+| PARTIAL | 8 |
+| NOT DONE | 1 |
 
 ---
 
-## Recommended Next Items to Address
+## Remaining Items
 
-1. **Cap rate / income approach valuation calculator (2.7.3)** — Automated valuation using NOI and cap rate.
-
-2. **Construction budget vs actual tracking (2.3.4)** — Track actual spend against development plan budget.
-
-3. **Construction draw schedule (2.3.5)** — Draw/disbursement model for construction financing.
-
-4. **Timeline visualization (2.6.5)** — Gantt-style or milestone chart for property lifecycle.
-
-5. **Waterfall engine LP-specific configurability (T.9)** — Support LP-specific rule sets, special class/founding LP, refinance/sale proceeds.
-
-6. **Vacancy tracking and alerts (4.1.5)** — Proactive vacancy monitoring.
-
-7. **Portfolio-level analytics dashboard (5.3.1)** — Cross-LP analytics and trend analysis.
+| # | Item | Status | Notes |
+|---|------|--------|-------|
+| 1.3.13 | Investor master record doc integration | PARTIAL | Document upload exists, needs tighter workflow integration |
+| 2.1.5 | Interim expense phase tagging | PARTIAL | OperatingExpense model works, no interim vs stabilized flag |
+| 2.1.8 | Support-service cost-center breakdown | PARTIAL | CommunityEvent has cost, needs rollup |
+| 2.7.4 | Structured appraisal record | PARTIAL | Document model supports appraisal type, no dedicated record |
+| 3.3.2 | Subscription history timeline | PARTIAL | Shown in list form, not a timeline |
+| 3.3.5 | K-1 / tax document support | NOT DONE | Future phase |
+| 4.3.3 | Arrears UI improvements | PARTIAL | Basic UI exists |
+| T.1/T.7 | Service extraction | PARTIAL | Core services created, some inline logic remains |

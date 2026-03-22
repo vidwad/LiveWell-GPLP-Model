@@ -150,8 +150,8 @@ def generate_investor_statement(
             lp = db.query(m.LPEntity).get(h.lp_id)
             lp_name = lp.name if lp else f"LP #{h.lp_id}"
             units = _d(h.units_held)
-            ownership = _d(h.ownership_percent)
-            cost = _d(h.cost_basis)
+            ownership = _d(getattr(h, "ownership_percent", None))
+            cost = _d(getattr(h, "cost_basis", None) or h.total_capital_contributed)
             total_cost += cost
 
             # Compute NAV per unit for this LP
