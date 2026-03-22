@@ -119,6 +119,7 @@ const NAV_SECTIONS: NavSection[] = [
       { href: "/reports", label: "Reports", icon: BarChart2, roles: [GP] },
       { href: "/cash-flow", label: "Cash Flow", icon: Banknote, roles: [GP] },
       { href: "/debt-maturity", label: "Debt Maturity", icon: Landmark, roles: [GP] },
+      { href: "/tax-documents", label: "K-1 Tax Docs", icon: FileText, roles: [GP] },
       { href: "/documents", label: "Documents", icon: FolderOpen, roles: [GP] },
     ],
   },

@@ -76,3 +76,30 @@ export function useCalculateWaterfall() {
     mutationFn: (data: WaterfallInput) => investors.calculateWaterfall(data),
   });
 }
+
+// ── Tax Documents ──────────────────────────────────────────────────
+
+export function useInvestorTaxSummary(investorId: number, taxYear: number) {
+  return useQuery({
+    queryKey: ["tax-summary", investorId, taxYear],
+    queryFn: () =>
+      apiClient
+        .get(`/api/investor/investors/${investorId}/tax-summary`, {
+          params: { tax_year: taxYear },
+        })
+        .then((r) => r.data),
+    enabled: !!investorId,
+  });
+}
+
+export function useTaxDocuments(taxYear: number, lpId?: number) {
+  return useQuery({
+    queryKey: ["tax-documents", taxYear, lpId],
+    queryFn: () =>
+      apiClient
+        .get("/api/investor/tax-documents", {
+          params: { tax_year: taxYear, lp_id: lpId },
+        })
+        .then((r) => r.data),
+  });
+}

@@ -16,6 +16,7 @@ from app.db.models import (
     Investor, InvestorDocument, InvestorMessage, User, UserRole,
     Subscription, Holding, DistributionAllocation, DistributionEvent, LPEntity,
     OnboardingStatus, OnboardingChecklistItem, IndicationOfInterest, IOIStatus,
+    DocumentType,
 )
 from app.db.session import get_db
 from app.schemas.investor import (
@@ -916,4 +917,212 @@ def quick_add_lead(
         "ioi_amount": float(ioi.indicated_amount) if ioi else None,
         "message": f"{'New lead' if not existing else 'Existing investor'} '{name}' added"
                    + (f" with ${indicated_amount:,.0f} IOI" if ioi else ""),
+    }
+
+
+# ---------------------------------------------------------------------------
+# K-1 / Tax Documents
+# ---------------------------------------------------------------------------
+
+@router.get("/investors/{investor_id}/tax-summary")
+def get_investor_tax_summary(
+    investor_id: int,
+    tax_year: int = 2025,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_investor_or_above),
+):
+    """
+    Generate K-1 tax summary for an investor for a given tax year.
+    Shows partnership income allocation, distributions, and capital account.
+    """
+    inv = db.query(Investor).filter(Investor.investor_id == investor_id).first()
+    if not inv:
+        raise HTTPException(404, "Investor not found")
+    if current_user.role == UserRole.INVESTOR and inv.user_id != current_user.user_id:
+        raise HTTPException(403, "Access denied")
+
+    # Get subscriptions (capital contributions)
+    subscriptions = (
+        db.query(Subscription)
+        .filter(
+            Subscription.investor_id == investor_id,
+            Subscription.status.in_(["funded", "partially_funded"]),
+        )
+        .all()
+    )
+
+    # Get distributions for the tax year
+    year_start = datetime.date(tax_year, 1, 1)
+    year_end = datetime.date(tax_year, 12, 31)
+    distributions = (
+        db.query(DistributionAllocation)
+        .filter(
+            DistributionAllocation.investor_id == investor_id,
+        )
+        .join(DistributionEvent)
+        .filter(
+            DistributionEvent.record_date >= year_start,
+            DistributionEvent.record_date <= year_end,
+        )
+        .all()
+    )
+
+    total_contributed = sum(float(s.funded_amount or 0) for s in subscriptions)
+    total_distributions = sum(float(d.amount or 0) for d in distributions)
+
+    # Holdings for ownership percentage
+    holdings = (
+        db.query(Holding)
+        .filter(Holding.investor_id == investor_id)
+        .all()
+    )
+
+    # Build per-LP breakdown
+    lp_ids = set()
+    for s in subscriptions:
+        if s.lp_id:
+            lp_ids.add(s.lp_id)
+    for h in holdings:
+        if h.lp_id:
+            lp_ids.add(h.lp_id)
+
+    lp_breakdowns = []
+    for lp_id in lp_ids:
+        lp = db.query(LPEntity).filter(LPEntity.lp_id == lp_id).first()
+        if not lp:
+            continue
+
+        lp_subs = [s for s in subscriptions if s.lp_id == lp_id]
+        lp_dists = [d for d in distributions if d.lp_id == lp_id]
+        lp_holdings = [h for h in holdings if h.lp_id == lp_id]
+
+        lp_contributed = sum(float(s.funded_amount or 0) for s in lp_subs)
+        lp_distributed = sum(float(d.amount or 0) for d in lp_dists)
+        ownership_pct = sum(float(h.ownership_percent or 0) for h in lp_holdings)
+
+        lp_breakdowns.append({
+            "lp_id": lp_id,
+            "lp_name": lp.name,
+            "capital_contributed": round(lp_contributed, 2),
+            "distributions_received": round(lp_distributed, 2),
+            "ownership_percent": round(ownership_pct, 4),
+            "beginning_capital": round(lp_contributed, 2),
+            "ending_capital": round(lp_contributed - lp_distributed, 2),
+        })
+
+    # Check for existing K-1 documents
+    existing_docs = (
+        db.query(InvestorDocument)
+        .filter(
+            InvestorDocument.investor_id == investor_id,
+            InvestorDocument.document_type == DocumentType.tax_form,
+            InvestorDocument.title.contains(str(tax_year)),
+        )
+        .all()
+    )
+
+    return {
+        "investor_id": investor_id,
+        "investor_name": inv.name,
+        "tax_year": tax_year,
+        "total_capital_contributed": round(total_contributed, 2),
+        "total_distributions": round(total_distributions, 2),
+        "net_capital_account": round(total_contributed - total_distributions, 2),
+        "lp_breakdowns": lp_breakdowns,
+        "has_k1_document": len(existing_docs) > 0,
+        "k1_documents": [
+            {
+                "document_id": d.document_id,
+                "title": d.title,
+                "upload_date": d.upload_date.isoformat() if d.upload_date else None,
+                "is_viewed": d.is_viewed,
+            }
+            for d in existing_docs
+        ],
+    }
+
+
+@router.get("/tax-documents")
+def list_tax_documents(
+    tax_year: int = 2025,
+    lp_id: int | None = None,
+    db: Session = Depends(get_db),
+    _: User = Depends(require_gp_or_ops),
+):
+    """
+    List all tax documents across investors for a tax year.
+    Used by GP to track K-1 distribution status.
+    """
+    investors = db.query(Investor).all()
+
+    result = []
+    for inv in investors:
+        # Check subscriptions for this investor
+        sub_query = db.query(Subscription).filter(
+            Subscription.investor_id == inv.investor_id,
+            Subscription.status.in_(["funded", "partially_funded"]),
+        )
+        if lp_id:
+            sub_query = sub_query.filter(Subscription.lp_id == lp_id)
+        subs = sub_query.all()
+        if not subs:
+            continue
+
+        total_contributed = sum(float(s.funded_amount or 0) for s in subs)
+
+        # Check for K-1 docs
+        existing_docs = (
+            db.query(InvestorDocument)
+            .filter(
+                InvestorDocument.investor_id == inv.investor_id,
+                InvestorDocument.document_type == DocumentType.tax_form,
+                InvestorDocument.title.contains(str(tax_year)),
+            )
+            .all()
+        )
+
+        # Year distributions
+        year_start = datetime.date(tax_year, 1, 1)
+        year_end = datetime.date(tax_year, 12, 31)
+        year_dists = (
+            db.query(DistributionAllocation)
+            .filter(DistributionAllocation.investor_id == inv.investor_id)
+            .join(DistributionEvent)
+            .filter(
+                DistributionEvent.record_date >= year_start,
+                DistributionEvent.record_date <= year_end,
+            )
+            .all()
+        )
+        total_distributed = sum(float(d.amount or 0) for d in year_dists)
+
+        lp_names = list(set(s.lp.name for s in subs if s.lp))
+
+        result.append({
+            "investor_id": inv.investor_id,
+            "investor_name": inv.name,
+            "email": inv.email,
+            "lp_names": lp_names,
+            "capital_contributed": round(total_contributed, 2),
+            "distributions": round(total_distributed, 2),
+            "k1_status": "uploaded" if existing_docs else "pending",
+            "k1_documents": [
+                {
+                    "document_id": d.document_id,
+                    "title": d.title,
+                    "is_viewed": d.is_viewed,
+                }
+                for d in existing_docs
+            ],
+        })
+
+    pending = sum(1 for r in result if r["k1_status"] == "pending")
+    uploaded = sum(1 for r in result if r["k1_status"] == "uploaded")
+
+    return {
+        "tax_year": tax_year,
+        "total_investors": len(result),
+        "k1_uploaded": uploaded,
+        "k1_pending": pending,
+        "investors": result,
     }
