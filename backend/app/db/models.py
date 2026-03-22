@@ -260,6 +260,34 @@ class ExpenseCategory(str, enum.Enum):
     other = "other"
 
 
+class StaffRole(str, enum.Enum):
+    """Staff role categories for community operations."""
+    community_manager = "community_manager"
+    house_manager = "house_manager"
+    caregiver = "caregiver"
+    support_worker = "support_worker"
+    maintenance_tech = "maintenance_tech"
+    cook = "cook"
+    cleaner = "cleaner"
+    admin = "admin"
+    security = "security"
+    other = "other"
+
+
+class StaffStatus(str, enum.Enum):
+    active = "active"
+    on_leave = "on_leave"
+    terminated = "terminated"
+
+
+class ShiftStatus(str, enum.Enum):
+    scheduled = "scheduled"
+    in_progress = "in_progress"
+    completed = "completed"
+    cancelled = "cancelled"
+    no_show = "no_show"
+
+
 class BudgetPeriodType(str, enum.Enum):
     """Budget period granularity."""
     monthly = "monthly"
@@ -1352,6 +1380,53 @@ class OperatingExpense(Base):
 
     community = relationship("Community", back_populates="expenses")
     budget = relationship("OperatorBudget")
+
+
+# ---------------------------------------------------------------------------
+# Staffing & Scheduling
+# ---------------------------------------------------------------------------
+
+class Staff(Base):
+    """Staff member working at a community."""
+    __tablename__ = "staff"
+
+    staff_id = Column(Integer, primary_key=True, index=True)
+    community_id = Column(Integer, ForeignKey("communities.community_id"), nullable=False, index=True)
+    first_name = Column(String(128), nullable=False)
+    last_name = Column(String(128), nullable=False)
+    email = Column(String(256), nullable=True)
+    phone = Column(String(64), nullable=True)
+    role = Column(_enum(StaffRole), nullable=False, default=StaffRole.support_worker)
+    status = Column(_enum(StaffStatus), nullable=False, default=StaffStatus.active)
+    hourly_rate = Column(Numeric(8, 2), nullable=True)
+    hire_date = Column(Date, nullable=True)
+    termination_date = Column(Date, nullable=True)
+    emergency_contact_name = Column(String(256), nullable=True)
+    emergency_contact_phone = Column(String(64), nullable=True)
+    notes = Column(Text, nullable=True)
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+
+    community = relationship("Community", backref="staff_members")
+    shifts = relationship("Shift", back_populates="staff_member", cascade="all, delete-orphan")
+
+
+class Shift(Base):
+    """A scheduled shift for a staff member."""
+    __tablename__ = "shifts"
+
+    shift_id = Column(Integer, primary_key=True, index=True)
+    staff_id = Column(Integer, ForeignKey("staff.staff_id"), nullable=False, index=True)
+    community_id = Column(Integer, ForeignKey("communities.community_id"), nullable=False, index=True)
+    shift_date = Column(Date, nullable=False, index=True)
+    start_time = Column(String(5), nullable=False)   # HH:MM format
+    end_time = Column(String(5), nullable=False)      # HH:MM format
+    hours = Column(Numeric(5, 2), nullable=True)
+    status = Column(_enum(ShiftStatus), nullable=False, default=ShiftStatus.scheduled)
+    notes = Column(Text, nullable=True)
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+
+    staff_member = relationship("Staff", back_populates="shifts")
+    community = relationship("Community", backref="shifts")
 
 
 # ---------------------------------------------------------------------------

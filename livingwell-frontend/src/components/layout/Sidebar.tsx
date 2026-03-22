@@ -106,6 +106,7 @@ const NAV_SECTIONS: NavSection[] = [
       { href: "/vacancy-alerts", label: "Vacancy Alerts", icon: AlertTriangle, roles: [GP, OP, PM] },
       { href: "/maintenance", label: "Maintenance", icon: Wrench, roles: [GP, OP, PM] },
       { href: "/operator/turnovers", label: "Unit Turnovers", icon: RefreshCw, roles: [GP, OP, PM] },
+      { href: "/staffing", label: "Staffing", icon: Users, roles: [GP, OP, PM] },
     ],
   },
 

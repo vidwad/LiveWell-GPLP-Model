@@ -20,6 +20,7 @@ from app.db.models import (
     User, OperatorEntity, OperatorBudget, OperatingExpense,
     Community, BudgetPeriodType, FundingOpportunity, FundingStatus,
     UnitTurnover, ArrearsRecord, Unit, Resident, TurnoverStatus,
+    Staff, StaffRole, StaffStatus, Shift, ShiftStatus,
 )
 from app.db.session import get_db
 from app.schemas.lifecycle import (
@@ -634,3 +635,350 @@ def resolve_arrears(
     db.commit()
     db.refresh(record)
     return record
+
+
+# ---------------------------------------------------------------------------
+# Staffing — CRUD
+# ---------------------------------------------------------------------------
+
+def _staff_to_dict(s: Staff) -> dict:
+    return {
+        "staff_id": s.staff_id,
+        "community_id": s.community_id,
+        "community_name": s.community.name if s.community else None,
+        "first_name": s.first_name,
+        "last_name": s.last_name,
+        "full_name": f"{s.first_name} {s.last_name}",
+        "email": s.email,
+        "phone": s.phone,
+        "role": s.role.value,
+        "status": s.status.value,
+        "hourly_rate": float(s.hourly_rate) if s.hourly_rate else None,
+        "hire_date": str(s.hire_date) if s.hire_date else None,
+        "termination_date": str(s.termination_date) if s.termination_date else None,
+        "emergency_contact_name": s.emergency_contact_name,
+        "emergency_contact_phone": s.emergency_contact_phone,
+        "notes": s.notes,
+        "created_at": s.created_at.isoformat() if s.created_at else None,
+    }
+
+
+@router.get("/staff")
+def list_staff(
+    community_id: int | None = None,
+    status: str | None = None,
+    role: str | None = None,
+    db: Session = Depends(get_db),
+    _: User = Depends(require_gp_ops_pm),
+):
+    """List staff members, optionally filtered by community, status, or role."""
+    query = db.query(Staff)
+    if community_id:
+        query = query.filter(Staff.community_id == community_id)
+    if status:
+        query = query.filter(Staff.status == status)
+    if role:
+        query = query.filter(Staff.role == role)
+    staff = query.order_by(Staff.last_name, Staff.first_name).all()
+    return [_staff_to_dict(s) for s in staff]
+
+
+@router.post("/staff", status_code=201)
+def create_staff(
+    payload: dict,
+    db: Session = Depends(get_db),
+    _: User = Depends(require_gp_or_ops),
+):
+    """Create a new staff member."""
+    community = db.query(Community).filter(
+        Community.community_id == payload.get("community_id")
+    ).first()
+    if not community:
+        raise HTTPException(404, "Community not found")
+
+    staff = Staff(
+        community_id=payload["community_id"],
+        first_name=payload["first_name"],
+        last_name=payload["last_name"],
+        email=payload.get("email"),
+        phone=payload.get("phone"),
+        role=payload.get("role", "support_worker"),
+        status=payload.get("status", "active"),
+        hourly_rate=payload.get("hourly_rate"),
+        hire_date=payload.get("hire_date"),
+        emergency_contact_name=payload.get("emergency_contact_name"),
+        emergency_contact_phone=payload.get("emergency_contact_phone"),
+        notes=payload.get("notes"),
+    )
+    db.add(staff)
+    db.commit()
+    db.refresh(staff)
+    return _staff_to_dict(staff)
+
+
+@router.patch("/staff/{staff_id}")
+def update_staff(
+    staff_id: int,
+    payload: dict,
+    db: Session = Depends(get_db),
+    _: User = Depends(require_gp_or_ops),
+):
+    """Update a staff member."""
+    staff = db.query(Staff).filter(Staff.staff_id == staff_id).first()
+    if not staff:
+        raise HTTPException(404, "Staff member not found")
+
+    allowed = {
+        "first_name", "last_name", "email", "phone", "role", "status",
+        "hourly_rate", "hire_date", "termination_date",
+        "emergency_contact_name", "emergency_contact_phone", "notes",
+        "community_id",
+    }
+    for key, val in payload.items():
+        if key in allowed:
+            setattr(staff, key, val)
+    db.commit()
+    db.refresh(staff)
+    return _staff_to_dict(staff)
+
+
+@router.delete("/staff/{staff_id}", status_code=204)
+def delete_staff(
+    staff_id: int,
+    db: Session = Depends(get_db),
+    _: User = Depends(require_gp_or_ops),
+):
+    """Delete a staff member."""
+    staff = db.query(Staff).filter(Staff.staff_id == staff_id).first()
+    if not staff:
+        raise HTTPException(404, "Staff member not found")
+    db.delete(staff)
+    db.commit()
+
+
+@router.get("/staff/summary")
+def get_staff_summary(
+    community_id: int | None = None,
+    db: Session = Depends(get_db),
+    _: User = Depends(require_gp_ops_pm),
+):
+    """Get staffing summary with headcount by role and community."""
+    query = db.query(Staff).filter(Staff.status == StaffStatus.active)
+    if community_id:
+        query = query.filter(Staff.community_id == community_id)
+    staff = query.all()
+
+    by_role: dict[str, int] = {}
+    by_community: dict[str, int] = {}
+    total_hourly_cost = 0.0
+    for s in staff:
+        by_role[s.role.value] = by_role.get(s.role.value, 0) + 1
+        cname = s.community.name if s.community else "Unknown"
+        by_community[cname] = by_community.get(cname, 0) + 1
+        if s.hourly_rate:
+            total_hourly_cost += float(s.hourly_rate)
+
+    return {
+        "total_active": len(staff),
+        "by_role": by_role,
+        "by_community": by_community,
+        "estimated_weekly_cost": round(total_hourly_cost * 40, 2),
+        "estimated_monthly_cost": round(total_hourly_cost * 40 * 4.33, 2),
+    }
+
+
+# ---------------------------------------------------------------------------
+# Scheduling — CRUD
+# ---------------------------------------------------------------------------
+
+def _shift_to_dict(s: Shift) -> dict:
+    return {
+        "shift_id": s.shift_id,
+        "staff_id": s.staff_id,
+        "staff_name": f"{s.staff_member.first_name} {s.staff_member.last_name}" if s.staff_member else None,
+        "staff_role": s.staff_member.role.value if s.staff_member else None,
+        "community_id": s.community_id,
+        "community_name": s.community.name if s.community else None,
+        "shift_date": str(s.shift_date),
+        "start_time": s.start_time,
+        "end_time": s.end_time,
+        "hours": float(s.hours) if s.hours else None,
+        "status": s.status.value,
+        "notes": s.notes,
+        "created_at": s.created_at.isoformat() if s.created_at else None,
+    }
+
+
+@router.get("/shifts")
+def list_shifts(
+    community_id: int | None = None,
+    staff_id: int | None = None,
+    start_date: str | None = None,
+    end_date: str | None = None,
+    status: str | None = None,
+    db: Session = Depends(get_db),
+    _: User = Depends(require_gp_ops_pm),
+):
+    """List shifts with optional filters."""
+    import datetime as dt_
+    query = db.query(Shift)
+    if community_id:
+        query = query.filter(Shift.community_id == community_id)
+    if staff_id:
+        query = query.filter(Shift.staff_id == staff_id)
+    if start_date:
+        query = query.filter(Shift.shift_date >= dt_.date.fromisoformat(start_date))
+    if end_date:
+        query = query.filter(Shift.shift_date <= dt_.date.fromisoformat(end_date))
+    if status:
+        query = query.filter(Shift.status == status)
+    shifts = query.order_by(Shift.shift_date, Shift.start_time).all()
+    return [_shift_to_dict(s) for s in shifts]
+
+
+@router.post("/shifts", status_code=201)
+def create_shift(
+    payload: dict,
+    db: Session = Depends(get_db),
+    _: User = Depends(require_gp_ops_pm),
+):
+    """Create a new shift."""
+    staff = db.query(Staff).filter(Staff.staff_id == payload.get("staff_id")).first()
+    if not staff:
+        raise HTTPException(404, "Staff member not found")
+
+    # Calculate hours from start/end times
+    hours = None
+    try:
+        start_parts = payload["start_time"].split(":")
+        end_parts = payload["end_time"].split(":")
+        start_mins = int(start_parts[0]) * 60 + int(start_parts[1])
+        end_mins = int(end_parts[0]) * 60 + int(end_parts[1])
+        if end_mins > start_mins:
+            hours = round((end_mins - start_mins) / 60, 2)
+    except (ValueError, IndexError, KeyError):
+        pass
+
+    shift = Shift(
+        staff_id=payload["staff_id"],
+        community_id=payload.get("community_id", staff.community_id),
+        shift_date=payload["shift_date"],
+        start_time=payload["start_time"],
+        end_time=payload["end_time"],
+        hours=hours,
+        status=payload.get("status", "scheduled"),
+        notes=payload.get("notes"),
+    )
+    db.add(shift)
+    db.commit()
+    db.refresh(shift)
+    return _shift_to_dict(shift)
+
+
+@router.patch("/shifts/{shift_id}")
+def update_shift(
+    shift_id: int,
+    payload: dict,
+    db: Session = Depends(get_db),
+    _: User = Depends(require_gp_ops_pm),
+):
+    """Update a shift."""
+    shift = db.query(Shift).filter(Shift.shift_id == shift_id).first()
+    if not shift:
+        raise HTTPException(404, "Shift not found")
+
+    allowed = {"shift_date", "start_time", "end_time", "hours", "status", "notes", "staff_id"}
+    for key, val in payload.items():
+        if key in allowed:
+            setattr(shift, key, val)
+
+    # Recalculate hours if times changed
+    if "start_time" in payload or "end_time" in payload:
+        try:
+            start_parts = shift.start_time.split(":")
+            end_parts = shift.end_time.split(":")
+            start_mins = int(start_parts[0]) * 60 + int(start_parts[1])
+            end_mins = int(end_parts[0]) * 60 + int(end_parts[1])
+            if end_mins > start_mins:
+                shift.hours = round((end_mins - start_mins) / 60, 2)
+        except (ValueError, IndexError):
+            pass
+
+    db.commit()
+    db.refresh(shift)
+    return _shift_to_dict(shift)
+
+
+@router.delete("/shifts/{shift_id}", status_code=204)
+def delete_shift(
+    shift_id: int,
+    db: Session = Depends(get_db),
+    _: User = Depends(require_gp_ops_pm),
+):
+    """Delete a shift."""
+    shift = db.query(Shift).filter(Shift.shift_id == shift_id).first()
+    if not shift:
+        raise HTTPException(404, "Shift not found")
+    db.delete(shift)
+    db.commit()
+
+
+@router.get("/shifts/weekly-summary")
+def get_weekly_schedule_summary(
+    community_id: int | None = None,
+    week_start: str | None = None,
+    db: Session = Depends(get_db),
+    _: User = Depends(require_gp_ops_pm),
+):
+    """Get a weekly schedule summary with total hours and cost by staff member."""
+    import datetime as dt_
+    if week_start:
+        start = dt_.date.fromisoformat(week_start)
+    else:
+        today = dt_.date.today()
+        start = today - dt_.timedelta(days=today.weekday())  # Monday
+    end = start + dt_.timedelta(days=6)
+
+    query = db.query(Shift).filter(
+        Shift.shift_date >= start,
+        Shift.shift_date <= end,
+        Shift.status != ShiftStatus.cancelled,
+    )
+    if community_id:
+        query = query.filter(Shift.community_id == community_id)
+    shifts = query.all()
+
+    staff_summary: dict[int, dict] = {}
+    for s in shifts:
+        sid = s.staff_id
+        if sid not in staff_summary:
+            staff_summary[sid] = {
+                "staff_id": sid,
+                "staff_name": f"{s.staff_member.first_name} {s.staff_member.last_name}" if s.staff_member else "Unknown",
+                "role": s.staff_member.role.value if s.staff_member else None,
+                "total_shifts": 0,
+                "total_hours": 0.0,
+                "estimated_cost": 0.0,
+            }
+        staff_summary[sid]["total_shifts"] += 1
+        hrs = float(s.hours) if s.hours else 0
+        staff_summary[sid]["total_hours"] += hrs
+        if s.staff_member and s.staff_member.hourly_rate:
+            staff_summary[sid]["estimated_cost"] += hrs * float(s.staff_member.hourly_rate)
+
+    # Round values
+    for v in staff_summary.values():
+        v["total_hours"] = round(v["total_hours"], 2)
+        v["estimated_cost"] = round(v["estimated_cost"], 2)
+
+    total_hours = sum(v["total_hours"] for v in staff_summary.values())
+    total_cost = sum(v["estimated_cost"] for v in staff_summary.values())
+
+    return {
+        "week_start": str(start),
+        "week_end": str(end),
+        "total_shifts": len(shifts),
+        "total_hours": round(total_hours, 2),
+        "total_estimated_cost": round(total_cost, 2),
+        "staff": list(staff_summary.values()),
+    }

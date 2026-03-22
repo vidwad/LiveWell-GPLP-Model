@@ -132,3 +132,196 @@ export function useExpenseSummary(communityId: number, year: number, quarter?: n
     enabled: !!communityId && !!year,
   });
 }
+
+// ── Staffing ───────────────────────────────────────────────────────
+
+export interface StaffMember {
+  staff_id: number;
+  community_id: number;
+  community_name: string | null;
+  first_name: string;
+  last_name: string;
+  full_name: string;
+  email: string | null;
+  phone: string | null;
+  role: string;
+  status: string;
+  hourly_rate: number | null;
+  hire_date: string | null;
+  termination_date: string | null;
+  emergency_contact_name: string | null;
+  emergency_contact_phone: string | null;
+  notes: string | null;
+  created_at: string | null;
+}
+
+export interface StaffSummary {
+  total_active: number;
+  by_role: Record<string, number>;
+  by_community: Record<string, number>;
+  estimated_weekly_cost: number;
+  estimated_monthly_cost: number;
+}
+
+export interface ShiftRecord {
+  shift_id: number;
+  staff_id: number;
+  staff_name: string | null;
+  staff_role: string | null;
+  community_id: number;
+  community_name: string | null;
+  shift_date: string;
+  start_time: string;
+  end_time: string;
+  hours: number | null;
+  status: string;
+  notes: string | null;
+  created_at: string | null;
+}
+
+export interface WeeklyScheduleSummary {
+  week_start: string;
+  week_end: string;
+  total_shifts: number;
+  total_hours: number;
+  total_estimated_cost: number;
+  staff: {
+    staff_id: number;
+    staff_name: string;
+    role: string | null;
+    total_shifts: number;
+    total_hours: number;
+    estimated_cost: number;
+  }[];
+}
+
+export function useStaff(communityId?: number, status?: string) {
+  return useQuery<StaffMember[]>({
+    queryKey: ["staff", communityId, status],
+    queryFn: () => {
+      const params = new URLSearchParams();
+      if (communityId) params.set("community_id", String(communityId));
+      if (status) params.set("status", status);
+      const qs = params.toString() ? `?${params}` : "";
+      return apiClient.get<StaffMember[]>(`/api/operator/staff${qs}`).then((r) => r.data);
+    },
+  });
+}
+
+export function useStaffSummary(communityId?: number) {
+  return useQuery<StaffSummary>({
+    queryKey: ["staff-summary", communityId],
+    queryFn: () => {
+      const qs = communityId ? `?community_id=${communityId}` : "";
+      return apiClient.get<StaffSummary>(`/api/operator/staff/summary${qs}`).then((r) => r.data);
+    },
+  });
+}
+
+export function useCreateStaff() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (data: Record<string, unknown>) =>
+      apiClient.post("/api/operator/staff", data).then((r) => r.data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["staff"] });
+      qc.invalidateQueries({ queryKey: ["staff-summary"] });
+    },
+  });
+}
+
+export function useUpdateStaff() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ staffId, data }: { staffId: number; data: Record<string, unknown> }) =>
+      apiClient.patch(`/api/operator/staff/${staffId}`, data).then((r) => r.data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["staff"] });
+      qc.invalidateQueries({ queryKey: ["staff-summary"] });
+    },
+  });
+}
+
+export function useDeleteStaff() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (staffId: number) =>
+      apiClient.delete(`/api/operator/staff/${staffId}`),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["staff"] });
+      qc.invalidateQueries({ queryKey: ["staff-summary"] });
+    },
+  });
+}
+
+// ── Shifts / Scheduling ────────────────────────────────────────────
+
+export function useShifts(params?: {
+  community_id?: number;
+  staff_id?: number;
+  start_date?: string;
+  end_date?: string;
+}) {
+  return useQuery<ShiftRecord[]>({
+    queryKey: ["shifts", params],
+    queryFn: () => {
+      const search = new URLSearchParams();
+      if (params?.community_id) search.set("community_id", String(params.community_id));
+      if (params?.staff_id) search.set("staff_id", String(params.staff_id));
+      if (params?.start_date) search.set("start_date", params.start_date);
+      if (params?.end_date) search.set("end_date", params.end_date);
+      const qs = search.toString() ? `?${search}` : "";
+      return apiClient.get<ShiftRecord[]>(`/api/operator/shifts${qs}`).then((r) => r.data);
+    },
+  });
+}
+
+export function useWeeklySchedule(communityId?: number, weekStart?: string) {
+  return useQuery<WeeklyScheduleSummary>({
+    queryKey: ["weekly-schedule", communityId, weekStart],
+    queryFn: () => {
+      const params = new URLSearchParams();
+      if (communityId) params.set("community_id", String(communityId));
+      if (weekStart) params.set("week_start", weekStart);
+      return apiClient
+        .get<WeeklyScheduleSummary>(`/api/operator/shifts/weekly-summary?${params}`)
+        .then((r) => r.data);
+    },
+  });
+}
+
+export function useCreateShift() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (data: Record<string, unknown>) =>
+      apiClient.post("/api/operator/shifts", data).then((r) => r.data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["shifts"] });
+      qc.invalidateQueries({ queryKey: ["weekly-schedule"] });
+    },
+  });
+}
+
+export function useUpdateShift() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ shiftId, data }: { shiftId: number; data: Record<string, unknown> }) =>
+      apiClient.patch(`/api/operator/shifts/${shiftId}`, data).then((r) => r.data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["shifts"] });
+      qc.invalidateQueries({ queryKey: ["weekly-schedule"] });
+    },
+  });
+}
+
+export function useDeleteShift() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (shiftId: number) =>
+      apiClient.delete(`/api/operator/shifts/${shiftId}`),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["shifts"] });
+      qc.invalidateQueries({ queryKey: ["weekly-schedule"] });
+    },
+  });
+}
