@@ -346,8 +346,8 @@
 | T.2 | Reduce oversized route files (investment.py is ~1000 lines) | DONE | portfolio.py split: valuation (654L), construction (274L), proforma (162L) sub-routers via include_router(). portfolio.py: 3084 → 2049 lines. |
 | T.3 | Reduce oversized page files (LP detail page is ~1100 lines) | DONE | Property detail page.tsx split: 8 tab components extracted (Overview, Lifecycle, UnitsBedsTab, RentRoll, DevPlans, DebtFinancing, Projections, ExitScenarios). page.tsx: 4539 → 973 lines (79% reduction). |
 | T.4 | Centralize calculation logic | PARTIAL | calculations.py exists but some calcs are duplicated |
-| T.5 | Strengthen validations across all endpoints | PARTIAL | validation_service.py covers investment routes. Other routes lack validation. |
-| T.6 | Enforce workflow state transitions consistently | PARTIAL | LP and subscription transitions validated. Other entities (maintenance, milestones) are not. |
+| T.5 | Strengthen validations across all endpoints | DONE | validation_service.py now covers: subscription/LP/tranche transitions, holding units, upfront funding, property-LP match, purpose type changes. Plus get_or_404 and validate_enum_value utilities. |
+| T.6 | Enforce workflow state transitions consistently | DONE | All entity transitions validated: LP, subscription, tranche, maintenance (open→in_progress→resolved), milestone (pending→in_progress→completed/overdue/skipped), turnover (scheduled→in_progress→ready→completed), shift (scheduled→completed/cancelled/no_show). |
 | T.7 | Backend/frontend separation of concern | PARTIAL | Some computed fields done in service layer, some still inline in routes |
 | T.8 | Report generation structure (PDF export) | DONE | quarterly_reports.py + statement_service.py (investor PDF statements with holdings, distributions, subscriptions). |
 | T.9 | Waterfall engine: make LP-specific and configurable | DONE | WaterfallEngine.from_lp_config() reads all LP waterfall fields (pref_rate, gp_promote, catchup_pct, hurdle_rate_2, gp_promote_2, lp_split_pct). 4-tier support with second hurdle. |
