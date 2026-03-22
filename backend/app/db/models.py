@@ -1207,6 +1207,9 @@ class MaintenanceRequest(Base):
     )
     priority = Column(String(32), nullable=True)  # low, medium, high, urgent
     category = Column(String(64), nullable=True)  # plumbing, electrical, structural, etc.
+    estimated_cost = Column(Numeric(10, 2), nullable=True)
+    actual_cost = Column(Numeric(10, 2), nullable=True)
+    vendor = Column(String(256), nullable=True)
     created_at = Column(DateTime, nullable=False)
     resolved_at = Column(DateTime, nullable=True)
 

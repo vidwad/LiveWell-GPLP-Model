@@ -583,3 +583,86 @@ def get_variance_alerts(
         "communities_affected": len(alerts),
         "alerts": alerts,
     }
+
+
+# ---------------------------------------------------------------------------
+# Maintenance Cost Report (4.2.4)
+# ---------------------------------------------------------------------------
+
+@router.get("/maintenance-costs")
+def get_maintenance_cost_report(
+    community_id: int | None = None,
+    property_id: int | None = None,
+    db: Session = Depends(get_db),
+    _: User = Depends(require_gp_or_ops),
+):
+    """
+    Maintenance cost tracking and reporting.
+    Aggregates costs by category, priority, and status with trend data.
+    """
+    query = db.query(MaintenanceRequest)
+    if community_id:
+        prop_ids = [
+            r[0] for r in
+            db.query(Property.property_id)
+            .filter(Property.community_id == community_id)
+            .all()
+        ]
+        query = query.filter(MaintenanceRequest.property_id.in_(prop_ids))
+    if property_id:
+        query = query.filter(MaintenanceRequest.property_id == property_id)
+
+    requests = query.all()
+
+    # Aggregate by category
+    by_category: dict[str, dict] = {}
+    by_priority: dict[str, dict] = {}
+    total_estimated = 0.0
+    total_actual = 0.0
+    resolved_count = 0
+    open_count = 0
+
+    for r in requests:
+        cat = r.category or "uncategorized"
+        pri = r.priority or "unset"
+
+        if cat not in by_category:
+            by_category[cat] = {"count": 0, "estimated_cost": 0.0, "actual_cost": 0.0, "open": 0, "resolved": 0}
+        by_category[cat]["count"] += 1
+        by_category[cat]["estimated_cost"] += float(r.estimated_cost or 0)
+        by_category[cat]["actual_cost"] += float(r.actual_cost or 0)
+        if r.status.value == "resolved":
+            by_category[cat]["resolved"] += 1
+            resolved_count += 1
+        else:
+            by_category[cat]["open"] += 1
+            open_count += 1
+
+        if pri not in by_priority:
+            by_priority[pri] = {"count": 0, "estimated_cost": 0.0, "actual_cost": 0.0}
+        by_priority[pri]["count"] += 1
+        by_priority[pri]["estimated_cost"] += float(r.estimated_cost or 0)
+        by_priority[pri]["actual_cost"] += float(r.actual_cost or 0)
+
+        total_estimated += float(r.estimated_cost or 0)
+        total_actual += float(r.actual_cost or 0)
+
+    # Resolution time stats
+    resolution_times = []
+    for r in requests:
+        if r.resolved_at and r.created_at:
+            days = (r.resolved_at - r.created_at).days
+            resolution_times.append(days)
+    avg_resolution_days = round(sum(resolution_times) / len(resolution_times), 1) if resolution_times else None
+
+    return {
+        "total_requests": len(requests),
+        "open_requests": open_count,
+        "resolved_requests": resolved_count,
+        "total_estimated_cost": round(total_estimated, 2),
+        "total_actual_cost": round(total_actual, 2),
+        "variance": round(total_actual - total_estimated, 2),
+        "avg_resolution_days": avg_resolution_days,
+        "by_category": by_category,
+        "by_priority": by_priority,
+    }

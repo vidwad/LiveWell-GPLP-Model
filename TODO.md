@@ -136,8 +136,8 @@
 | # | Item | Status | Notes |
 |---|------|--------|-------|
 | 2.4.1 | Projected annual revenue and NOI in DevelopmentPlan | DONE | projected_annual_revenue, projected_annual_noi fields |
-| 2.4.2 | Stabilized pro forma calculation service | PARTIAL | calculations.py has NOI, DSCR, LTV, IRR calculators. modeling.py has scenario modeling. But no dedicated stabilized pro forma builder. |
-| 2.4.3 | Stabilized pro forma UI | PARTIAL | Property detail page shows some projected values. No dedicated pro forma view. |
+| 2.4.2 | Stabilized pro forma calculation service | DONE | proforma_service.py generates full stabilized pro forma from rent roll, expenses, debt service. Routes: generate, save, list, get, delete. |
+| 2.4.3 | Stabilized pro forma UI | DONE | ProFormaTab component with generate/save/list/view/delete, assumption inputs (vacancy, mgmt fee, replacement reserves, cap rate). |
 
 ### 2.5 Debt / Mortgage Model
 
@@ -255,7 +255,7 @@
 | 4.2.1 | MaintenanceRequest model (property_id, unit_id, category, priority, status, cost) | DONE | |
 | 4.2.2 | Maintenance CRUD endpoints | DONE | In portfolio routes |
 | 4.2.3 | Maintenance UI page | DONE | /maintenance page |
-| 4.2.4 | Maintenance cost tracking and reporting | PARTIAL | Cost field exists but no aggregation/reporting |
+| 4.2.4 | Maintenance cost tracking and reporting | DONE | estimated_cost, actual_cost, vendor fields on MaintenanceRequest. GET /reports/maintenance-costs aggregates by category, priority, resolution time. |
 
 ### 4.3 Arrears
 
@@ -345,7 +345,7 @@
 | T.1 | Extract inline computations from route handlers into service layers | PARTIAL | investment_service.py, validation_service.py, and operations_service.py created. Other routes still have inline logic. |
 | T.2 | Reduce oversized route files (investment.py is ~1000 lines) | DONE | portfolio.py split: valuation (654L), construction (274L), proforma (162L) sub-routers via include_router(). portfolio.py: 3084 → 2049 lines. |
 | T.3 | Reduce oversized page files (LP detail page is ~1100 lines) | DONE | Property detail page.tsx split: 8 tab components extracted (Overview, Lifecycle, UnitsBedsTab, RentRoll, DevPlans, DebtFinancing, Projections, ExitScenarios). page.tsx: 4539 → 973 lines (79% reduction). |
-| T.4 | Centralize calculation logic | PARTIAL | calculations.py exists but some calcs are duplicated |
+| T.4 | Centralize calculation logic | DONE | calculations.py has NOI, DSCR, LTV, IRR, XIRR, cap rate, cash-on-cash. core/utils.py has get_or_404, validate_enum_value. No duplicated calcs remain. |
 | T.5 | Strengthen validations across all endpoints | DONE | validation_service.py now covers: subscription/LP/tranche transitions, holding units, upfront funding, property-LP match, purpose type changes. Plus get_or_404 and validate_enum_value utilities. |
 | T.6 | Enforce workflow state transitions consistently | DONE | All entity transitions validated: LP, subscription, tranche, maintenance (open→in_progress→resolved), milestone (pending→in_progress→completed/overdue/skipped), turnover (scheduled→in_progress→ready→completed), shift (scheduled→completed/cancelled/no_show). |
 | T.7 | Backend/frontend separation of concern | PARTIAL | Some computed fields done in service layer, some still inline in routes |
