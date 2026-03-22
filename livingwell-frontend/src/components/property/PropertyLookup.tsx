@@ -66,6 +66,9 @@ interface LookupResult {
   estimated_rent_per_bed: number | null;
   latitude: number | null;
   longitude: number | null;
+  recommended_units: number | null;
+  estimated_cost_per_sqft: number | null;
+  development_reasoning: string | null;
 }
 
 /* ── Applicable fields to property form ─────────────────────────────── */
@@ -264,6 +267,27 @@ export function PropertyLookup({
               </Badge>
             )}
           </div>
+
+          {/* Development Plan Suggestions */}
+          {(result.recommended_units || result.estimated_cost_per_sqft) && (
+            <Card className="border-purple-200 bg-purple-50/30">
+              <CardHeader className="py-2 px-3">
+                <CardTitle className="text-xs font-semibold text-purple-700 flex items-center gap-1.5">
+                  <Sparkles className="h-3 w-3" />
+                  AI Development Plan Suggestions
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="px-3 pb-3 space-y-1">
+                <DataRow label="Recommended Units" value={result.recommended_units} />
+                <DataRow label="Est. Construction Cost" value={result.estimated_cost_per_sqft ? `$${result.estimated_cost_per_sqft}/sqft` : null} />
+                {result.development_reasoning && (
+                  <p className="text-[11px] text-muted-foreground pt-1 leading-relaxed">
+                    {result.development_reasoning}
+                  </p>
+                )}
+              </CardContent>
+            </Card>
+          )}
 
           <div className="grid gap-4 sm:grid-cols-2">
             {/* Property Details */}

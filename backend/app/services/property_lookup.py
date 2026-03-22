@@ -66,6 +66,10 @@ def _empty_result(address: str, city: str) -> dict:
         # Location
         "latitude": None,
         "longitude": None,
+        # Development plan suggestions (from AI suggest-defaults)
+        "recommended_units": None,
+        "estimated_cost_per_sqft": None,
+        "development_reasoning": None,
         # Raw data from each source (for debugging / reference)
         "raw_sources": {},
     }
@@ -397,6 +401,28 @@ def lookup_property(
     if ai_data:
         _merge_data(result, ai_data)
         result["sources_used"].append("AI Estimate (Claude)")
+
+    # 4. Development plan suggestions (if zoning is available)
+    if result.get("zoning"):
+        try:
+            from app.services.ai import suggest_property_defaults
+
+            dev_plan = suggest_property_defaults(
+                address=address,
+                zoning=result["zoning"],
+                city=city,
+            )
+            if dev_plan:
+                result["recommended_units"] = dev_plan.get("recommended_units")
+                result["estimated_cost_per_sqft"] = dev_plan.get("estimated_cost_per_sqft")
+                result["development_reasoning"] = dev_plan.get("reasoning")
+                # Also fill in lot_size/max_buildable_area from dev plan if still missing
+                if result["lot_size"] is None and dev_plan.get("estimated_lot_size"):
+                    result["lot_size"] = dev_plan["estimated_lot_size"]
+                if result["max_buildable_area"] is None and dev_plan.get("max_buildable_area"):
+                    result["max_buildable_area"] = dev_plan["max_buildable_area"]
+        except Exception as e:
+            logger.warning("Development plan suggestions failed: %s", e)
 
     # Clean up raw_sources for response
     if not result["raw_sources"]:
