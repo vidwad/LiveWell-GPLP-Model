@@ -126,6 +126,7 @@ const NAV_SECTIONS: NavSection[] = [
       { href: "/property-managers", label: "Property Managers", icon: Settings, roles: [GP, PM] },
       { href: "/etransfers", label: "eTransfers", icon: Send, roles: [GP] },
       { href: "/funding", label: "Grants & Funding", icon: HandCoins, roles: [GP, OP] },
+      { href: "/settings", label: "Settings", icon: Settings, roles: [GP] },
     ],
   },
 

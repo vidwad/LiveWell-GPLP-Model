@@ -1862,3 +1862,30 @@ class DecisionLog(Base):
     lp = relationship("LPEntity")
     investor = relationship("Investor")
     maker = relationship("User")
+
+
+# ---------------------------------------------------------------------------
+# Platform Settings (API Keys & Configuration)
+# ---------------------------------------------------------------------------
+
+class PlatformSetting(Base):
+    """Key-value store for platform configuration including API keys.
+
+    Sensitive values are stored as-is in the database (encrypt at the
+    infrastructure layer for production).  The API never returns full
+    secret values — only masked versions for display.
+    """
+    __tablename__ = "platform_settings"
+
+    setting_id = Column(Integer, primary_key=True, autoincrement=True)
+    key = Column(String(128), unique=True, nullable=False, index=True)
+    value = Column(Text, nullable=False, default="")
+    category = Column(String(64), nullable=False, default="general")  # api_keys, ai, maps, general
+    label = Column(String(256), nullable=True)        # human-readable label
+    description = Column(String(512), nullable=True)  # help text
+    is_secret = Column(Boolean, nullable=False, default=False)  # mask value in API responses
+    updated_by_id = Column(Integer, ForeignKey("users.user_id"), nullable=True)
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    updated_at = Column(DateTime, nullable=True, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    updated_by = relationship("User")

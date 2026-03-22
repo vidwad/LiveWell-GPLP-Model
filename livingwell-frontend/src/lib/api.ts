@@ -291,6 +291,20 @@ export const lifecycle = {
     apiClient.patch(`/api/lifecycle/milestones/${milestoneId}`, data).then(r => r.data),
 };
 
+// ── Settings ────────────────────────────────────────────────────────────
+export const settingsApi = {
+  getAll: (category?: string) =>
+    apiClient.get("/api/settings", { params: category ? { category } : {} }).then(r => r.data),
+  update: (key: string, value: string) =>
+    apiClient.put(`/api/settings/${key}`, { value }).then(r => r.data),
+  bulkUpdate: (settings: Record<string, string>) =>
+    apiClient.put("/api/settings", { settings }).then(r => r.data),
+  clear: (key: string) =>
+    apiClient.delete(`/api/settings/${key}`).then(r => r.data),
+  getStatus: () =>
+    apiClient.get("/api/settings/status").then(r => r.data),
+};
+
 // ── AI / Area Research ──────────────────────────────────────────────────
 export const ai = {
   areaResearch: (data: {
@@ -317,4 +331,5 @@ export const api = {
   notifications,
   lifecycle,
   ai,
+  settings: settingsApi,
 };
