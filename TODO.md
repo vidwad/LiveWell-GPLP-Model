@@ -66,7 +66,7 @@
 | 1.3.9 | Holding CRUD endpoints | DONE | |
 | 1.3.10 | Holding admin UI (list, create, edit dialogs) | DONE | In LP detail page Holdings tab |
 | 1.3.11 | Holding ownership_percent computed from units_held / total_units | DONE | Service layer computes this |
-| 1.3.12 | Investor exemption/accreditation document tracking | NOT DONE | Document model exists but no exemption-specific fields or workflow |
+| 1.3.12 | Investor exemption/accreditation document tracking | DONE | Added accreditation_verified_at, accreditation_expires_at, accreditation_document_id to Investor model. InvestorDocument model exists for file storage. |
 | 1.3.13 | Investor master record with supporting documents UI | PARTIAL | Investor detail page exists; document upload exists but not well-integrated into investor workflow |
 
 ### 1.4 Property / Community / Operator / Property Manager Relationships

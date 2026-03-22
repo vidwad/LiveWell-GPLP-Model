@@ -542,6 +542,9 @@ class Investor(Base):
     jurisdiction = Column(String(128), nullable=True)   # province / state / country
     accredited_status = Column(String(32), nullable=False)
     exemption_type = Column(String(128), nullable=True) # accreditation exemption type
+    accreditation_verified_at = Column(Date, nullable=True)
+    accreditation_expires_at = Column(Date, nullable=True)
+    accreditation_document_id = Column(Integer, nullable=True)  # FK to investor_documents
     tax_id = Column(String(64), nullable=True)          # SIN, BN, or other tax ID
     banking_info = Column(Text, nullable=True)          # encrypted or reference
     notes = Column(Text, nullable=True)
