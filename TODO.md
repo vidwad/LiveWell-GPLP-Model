@@ -264,7 +264,7 @@
 | 4.3.1 | ArrearsRecord model (resident_id, community_id, amount_owing, months_behind) | DONE | |
 | 4.3.2 | Arrears CRUD endpoints | DONE | In operator routes |
 | 4.3.3 | Arrears UI | PARTIAL | Exists in operator page but limited |
-| 4.3.4 | Arrears aging report | NOT DONE | |
+| 4.3.4 | Arrears aging report | DONE | GET /reports/arrears-aging with 30/60/90/120+ day buckets + per-resident detail |
 
 ### 4.4 Staffing / Scheduling
 
@@ -285,7 +285,7 @@
 | 4.5.4 | Expense CRUD endpoints | DONE | In operator routes |
 | 4.5.5 | Budget vs actual comparison endpoint | DONE | GET /operator/budget-vs-actual and in operations_service.py P&L |
 | 4.5.6 | Budget vs actual UI | DONE | Operations P&L Dashboard shows budget vs actual table per community with variance analysis. |
-| 4.5.7 | Variance analysis and alerts | NOT DONE | |
+| 4.5.7 | Variance analysis and alerts | DONE | GET /reports/variance-alerts with configurable threshold, expense/revenue/NOI variance detection |
 
 ### 4.6 Community Operations
 
@@ -325,9 +325,9 @@
 
 | # | Item | Status | Notes |
 |---|------|--------|-------|
-| 5.3.1 | Portfolio-level analytics dashboard | NOT DONE | |
-| 5.3.2 | Cross-LP comparison | NOT DONE | |
-| 5.3.3 | Trend analysis (occupancy, revenue, expenses over time) | NOT DONE | |
+| 5.3.1 | Portfolio-level analytics dashboard | DONE | GET /investment/portfolio-analytics with AUM, blended returns, cross-LP fund summaries |
+| 5.3.2 | Cross-LP comparison | DONE | portfolio-analytics endpoint aggregates and compares all LPs (NAV, unit price delta, property count) |
+| 5.3.3 | Trend analysis (occupancy, revenue, expenses over time) | DONE | community/operations/trends + investment/lps/{id}/trends endpoints, OccupancySnapshot model, capture-snapshots action |
 
 ### 5.4 Capital Calls (Only If Later Confirmed)
 
