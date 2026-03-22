@@ -37,6 +37,8 @@ from app.schemas.lifecycle import (
     ETransferCreate, ETransferUpdate, ETransferOut,
     MessageReplyCreate, MessageReplyOut,
 )
+from app.db.models import NotificationType
+from app.services.notifications import create_notification, notify_all_lp_investors
 from app.services.lifecycle import (
     get_allowed_transitions, transition_property_stage, validate_transition,
 )
@@ -143,6 +145,24 @@ def perform_stage_transition(
         raise HTTPException(400, str(e))
 
     db.commit()
+
+    # Dispatch notification for stage transition
+    try:
+        prop = db.query(Property).filter(Property.property_id == property_id).first()
+        if prop and prop.lp_id:
+            from_label = (transition.from_stage.value if transition.from_stage else "—").replace("_", " ")
+            to_label = transition.to_stage.value.replace("_", " ")
+            notify_all_lp_investors(
+                db=db,
+                lp_id=prop.lp_id,
+                title=f"Property Stage Change: {prop.address or prop.name}",
+                message=f"Property has moved from {from_label} to {to_label}.",
+                type=NotificationType.stage_transition,
+                action_url=f"/portfolio/{property_id}",
+            )
+            db.commit()
+    except Exception:
+        logger.warning("Failed to dispatch stage transition notification", exc_info=True)
 
     checks = []
     if transition.validation_details:
@@ -394,6 +414,22 @@ def update_quarterly_report(
 
     db.commit()
     db.refresh(report)
+
+    # Notify investors when report is published
+    if payload.status == QuarterlyReportStatus.published:
+        try:
+            notify_all_lp_investors(
+                db=db,
+                lp_id=report.lp_id,
+                title=f"Q{report.quarter} {report.year} Report Published",
+                message=f"The quarterly report for Q{report.quarter} {report.year} is now available.",
+                type=NotificationType.quarterly_report,
+                action_url=f"/quarterly-reports",
+            )
+            db.commit()
+        except Exception:
+            logger.warning("Failed to dispatch quarterly report notification", exc_info=True)
+
     return report
 
 
@@ -499,6 +535,26 @@ def update_etransfer(
 
     db.commit()
     db.refresh(etransfer)
+
+    # Notify investor when eTransfer is sent
+    if payload.status == ETransferStatus.sent:
+        try:
+            alloc = db.query(DistributionAllocation).filter(
+                DistributionAllocation.allocation_id == etransfer.allocation_id
+            ).first()
+            if alloc and alloc.investor and alloc.investor.user_id:
+                create_notification(
+                    db=db,
+                    user_id=alloc.investor.user_id,
+                    title="Distribution Payment Sent",
+                    message=f"An eTransfer of ${float(etransfer.amount):,.2f} has been sent to your account.",
+                    type=NotificationType.etransfer,
+                    action_url="/investors",
+                )
+                db.commit()
+        except Exception:
+            logger.warning("Failed to dispatch eTransfer notification", exc_info=True)
+
     return etransfer
 
 

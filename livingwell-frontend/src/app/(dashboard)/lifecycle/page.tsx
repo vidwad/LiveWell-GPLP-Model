@@ -153,6 +153,10 @@ export default function LifecyclePage() {
             propertyId={selectedPropertyId}
             currentStage={selectedProperty.development_stage as DevelopmentStage}
           />
+          <TimelineVisualization
+            propertyId={selectedPropertyId}
+            currentStage={selectedProperty.development_stage as DevelopmentStage}
+          />
           <MilestonesSection
             propertyId={selectedPropertyId}
             currentStage={selectedProperty.development_stage as DevelopmentStage}
@@ -315,6 +319,216 @@ function StagePipeline({
               </div>
             );
           })}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function TimelineVisualization({
+  propertyId,
+  currentStage,
+}: {
+  propertyId: number;
+  currentStage: DevelopmentStage;
+}) {
+  const { data: milestones } = useMilestones(propertyId);
+  const { data: transitions } = useStageTransitions(propertyId);
+
+  if (!milestones?.length && !transitions?.length) return null;
+
+  // Build a unified timeline from milestones + stage transitions
+  type TimelineEvent = {
+    id: string;
+    label: string;
+    targetDate: string | null;
+    actualDate: string | null;
+    status: MilestoneStatus;
+    stage: DevelopmentStage | null;
+    type: "milestone" | "transition";
+  };
+
+  const events: TimelineEvent[] = [];
+
+  // Add milestones
+  (milestones ?? []).forEach((m: any) => {
+    events.push({
+      id: `m-${m.milestone_id}`,
+      label: m.title,
+      targetDate: m.target_date,
+      actualDate: m.actual_date,
+      status: m.status,
+      stage: m.stage,
+      type: "milestone",
+    });
+  });
+
+  // Add stage transitions as completed events
+  (transitions ?? []).forEach((t: any) => {
+    events.push({
+      id: `t-${t.transition_id}`,
+      label: `${(t.from_stage ?? "—").replace(/_/g, " ")} → ${(t.to_stage ?? "—").replace(/_/g, " ")}`,
+      targetDate: null,
+      actualDate: t.transitioned_at,
+      status: "completed" as MilestoneStatus,
+      stage: t.to_stage,
+      type: "transition",
+    });
+  });
+
+  // Sort by actual date, then target date
+  events.sort((a, b) => {
+    const da = a.actualDate || a.targetDate || "9999";
+    const db = b.actualDate || b.targetDate || "9999";
+    return da.localeCompare(db);
+  });
+
+  // Find date range for the Gantt bars
+  const allDates = events
+    .flatMap((e) => [e.targetDate, e.actualDate])
+    .filter(Boolean) as string[];
+  if (allDates.length === 0) return null;
+
+  const minDate = new Date(allDates.sort()[0]);
+  const maxDate = new Date(allDates.sort().reverse()[0]);
+  // Add buffer
+  minDate.setDate(minDate.getDate() - 14);
+  maxDate.setDate(maxDate.getDate() + 30);
+  const totalDays = Math.max((maxDate.getTime() - minDate.getTime()) / (1000 * 60 * 60 * 24), 30);
+
+  const getPosition = (dateStr: string | null): number => {
+    if (!dateStr) return 0;
+    const d = new Date(dateStr);
+    const days = (d.getTime() - minDate.getTime()) / (1000 * 60 * 60 * 24);
+    return Math.max(0, Math.min(100, (days / totalDays) * 100));
+  };
+
+  const today = new Date();
+  const todayPos = getPosition(today.toISOString().split("T")[0]);
+
+  const BAR_COLORS: Record<string, string> = {
+    completed: "bg-green-500",
+    in_progress: "bg-blue-500",
+    pending: "bg-gray-300",
+    at_risk: "bg-amber-500",
+    blocked: "bg-red-500",
+    skipped: "bg-yellow-400",
+  };
+
+  // Generate month markers
+  const monthMarkers: { label: string; pos: number }[] = [];
+  const cursor = new Date(minDate);
+  cursor.setDate(1);
+  cursor.setMonth(cursor.getMonth() + 1);
+  while (cursor <= maxDate) {
+    const pos = getPosition(cursor.toISOString().split("T")[0]);
+    if (pos > 0 && pos < 100) {
+      monthMarkers.push({
+        label: cursor.toLocaleDateString("en-CA", { month: "short", year: "2-digit" }),
+        pos,
+      });
+    }
+    cursor.setMonth(cursor.getMonth() + 1);
+  }
+
+  return (
+    <Card className="mb-6">
+      <CardHeader>
+        <CardTitle className="text-base flex items-center gap-2">
+          <Clock className="h-4 w-4" />
+          Timeline
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        <div className="relative">
+          {/* Month axis */}
+          <div className="relative h-6 mb-2 border-b border-muted">
+            {monthMarkers.map((m) => (
+              <div
+                key={m.label}
+                className="absolute text-[10px] text-muted-foreground -translate-x-1/2"
+                style={{ left: `${m.pos}%` }}
+              >
+                {m.label}
+                <div className="w-px h-2 bg-muted mx-auto mt-0.5" />
+              </div>
+            ))}
+            {/* Today line */}
+            {todayPos > 0 && todayPos < 100 && (
+              <div
+                className="absolute top-0 bottom-0 w-px bg-red-400 z-10"
+                style={{ left: `${todayPos}%` }}
+              >
+                <span className="absolute -top-4 -translate-x-1/2 text-[9px] text-red-500 font-bold">
+                  Today
+                </span>
+              </div>
+            )}
+          </div>
+
+          {/* Event rows */}
+          <div className="space-y-1.5">
+            {events.map((evt) => {
+              const startPos = getPosition(evt.targetDate || evt.actualDate);
+              const endPos = evt.actualDate ? getPosition(evt.actualDate) : startPos;
+              const barLeft = Math.min(startPos, endPos);
+              const barWidth = Math.max(Math.abs(endPos - startPos), 1.5);
+
+              return (
+                <div key={evt.id} className="flex items-center gap-2 h-6">
+                  <div className="w-[180px] shrink-0 text-[11px] truncate text-right pr-2 text-muted-foreground">
+                    {evt.type === "transition" && (
+                      <ArrowRight className="inline h-3 w-3 mr-0.5 text-blue-500" />
+                    )}
+                    {evt.label}
+                  </div>
+                  <div className="relative flex-1 h-4 bg-muted/30 rounded-sm">
+                    {/* Target date marker */}
+                    {evt.targetDate && (
+                      <div
+                        className="absolute top-0 h-4 w-1 bg-gray-400/50 rounded-sm"
+                        style={{ left: `${getPosition(evt.targetDate)}%` }}
+                        title={`Target: ${evt.targetDate}`}
+                      />
+                    )}
+                    {/* Actual bar */}
+                    <div
+                      className={cn(
+                        "absolute top-0.5 h-3 rounded-sm min-w-[6px]",
+                        BAR_COLORS[evt.status] ?? "bg-gray-400"
+                      )}
+                      style={{
+                        left: `${barLeft}%`,
+                        width: `${barWidth}%`,
+                      }}
+                      title={`${evt.label} — ${evt.status}${evt.actualDate ? ` (${evt.actualDate})` : ""}`}
+                    />
+                  </div>
+                  <div className="w-[60px] shrink-0">
+                    <Badge
+                      className={cn(
+                        "text-[9px] px-1",
+                        STAGE_COLORS[evt.stage as DevelopmentStage] ?? "bg-gray-100 text-gray-600"
+                      )}
+                    >
+                      {evt.stage?.replace(/_/g, " ").slice(0, 10) ?? "—"}
+                    </Badge>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Legend */}
+          <div className="flex flex-wrap gap-3 mt-4 pt-3 border-t text-[10px] text-muted-foreground">
+            <span className="flex items-center gap-1"><span className="h-2 w-4 bg-green-500 rounded-sm inline-block" /> Completed</span>
+            <span className="flex items-center gap-1"><span className="h-2 w-4 bg-blue-500 rounded-sm inline-block" /> In Progress</span>
+            <span className="flex items-center gap-1"><span className="h-2 w-4 bg-gray-300 rounded-sm inline-block" /> Pending</span>
+            <span className="flex items-center gap-1"><span className="h-2 w-4 bg-amber-500 rounded-sm inline-block" /> At Risk</span>
+            <span className="flex items-center gap-1"><span className="h-2 w-4 bg-red-500 rounded-sm inline-block" /> Blocked</span>
+            <span className="flex items-center gap-1"><span className="w-1 h-3 bg-gray-400/50 inline-block" /> Target Date</span>
+            <span className="flex items-center gap-1"><span className="w-px h-3 bg-red-400 inline-block" /> Today</span>
+          </div>
         </div>
       </CardContent>
     </Card>

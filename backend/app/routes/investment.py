@@ -1346,6 +1346,23 @@ def approve_distribution(
         db.rollback()
         raise HTTPException(status_code=500, detail="Internal server error")
 
+    # Notify investors about approved distribution
+    try:
+        from app.db.models import NotificationType
+        from app.services.notifications import notify_all_lp_investors
+        if event.lp_id:
+            notify_all_lp_investors(
+                db=db,
+                lp_id=event.lp_id,
+                title="Distribution Approved",
+                message=f"A {event.distribution_type.value.replace('_', ' ')} distribution of ${float(event.total_amount):,.2f} has been approved.",
+                type=NotificationType.distribution,
+                action_url="/distributions",
+            )
+            db.commit()
+    except Exception:
+        pass  # best-effort
+
     return {
         "event_id": event.event_id,
         "status": event.status.value,
