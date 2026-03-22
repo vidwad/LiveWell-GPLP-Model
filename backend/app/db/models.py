@@ -1485,7 +1485,7 @@ class RefinanceScenario(Base):
     annual_noi_at_refi = Column(Numeric(14, 2), nullable=True)  # projected NOI at refi date
     hold_period_months = Column(Integer, nullable=True)  # months from purchase to refi
 
-    property = relationship("Property")
+    property = relationship("Property", backref="refinance_scenarios")
     linked_milestone = relationship("PropertyMilestone", foreign_keys=[linked_milestone_id])
 
 
@@ -1512,7 +1512,7 @@ class SaleScenario(Base):
     hold_period_months = Column(Integer, nullable=True)  # months from purchase to sale
     annual_cash_flow = Column(Numeric(14, 2), nullable=True)  # avg annual cash flow during hold
 
-    property = relationship("Property")
+    property = relationship("Property", backref="sale_scenarios")
     linked_milestone = relationship("PropertyMilestone", foreign_keys=[linked_milestone_id])
 
 
@@ -1542,12 +1542,59 @@ class FundingOpportunity(Base):
     submission_deadline = Column(Date, nullable=True)
     reporting_deadline = Column(Date, nullable=True)
     awarded_amount = Column(Numeric(14, 2), nullable=True)
+    application_date = Column(Date, nullable=True)
+    application_ref = Column(String(128), nullable=True)
+    program_name = Column(String(256), nullable=True)
+    contact_name = Column(String(256), nullable=True)
+    contact_email = Column(String(256), nullable=True)
+    reporting_frequency = Column(String(64), nullable=True)  # monthly, quarterly, annual
+    next_report_date = Column(Date, nullable=True)
+    requirements = Column(Text, nullable=True)  # JSON or text of application requirements
     notes = Column(Text, nullable=True)
     created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
     updated_at = Column(DateTime, nullable=True, onupdate=datetime.utcnow)
 
-    operator = relationship("OperatorEntity")
-    community = relationship("Community")
+    operator = relationship("OperatorEntity", backref="funding_opportunities")
+    community = relationship("Community", backref="funding_opportunities")
+
+
+class CommunityEventType(str, enum.Enum):
+    """Types of community events and support services."""
+    group_session = "group_session"
+    counseling = "counseling"
+    meal_service = "meal_service"
+    workshop = "workshop"
+    recreation = "recreation"
+    medical = "medical"
+    life_skills = "life_skills"
+    community_meeting = "community_meeting"
+    maintenance_day = "maintenance_day"
+    other = "other"
+
+
+class CommunityEvent(Base):
+    """Tracks events and support services within a community."""
+    __tablename__ = "community_events"
+
+    event_id = Column(Integer, primary_key=True, index=True)
+    community_id = Column(Integer, ForeignKey("communities.community_id"), nullable=False, index=True)
+    title = Column(String(256), nullable=False)
+    event_type = Column(_enum(CommunityEventType), nullable=False, default=CommunityEventType.other)
+    description = Column(Text, nullable=True)
+    event_date = Column(Date, nullable=False)
+    start_time = Column(String(5), nullable=True)  # HH:MM
+    end_time = Column(String(5), nullable=True)
+    location = Column(String(256), nullable=True)
+    facilitator = Column(String(256), nullable=True)
+    max_participants = Column(Integer, nullable=True)
+    actual_participants = Column(Integer, nullable=True)
+    cost = Column(Numeric(10, 2), nullable=True)
+    is_recurring = Column(Boolean, default=False, nullable=False)
+    recurrence_pattern = Column(String(64), nullable=True)  # weekly, biweekly, monthly
+    notes = Column(Text, nullable=True)
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+
+    community = relationship("Community", backref="events")
 
 
 # ---------------------------------------------------------------------------
@@ -1663,8 +1710,8 @@ class ConstructionExpense(Base):
     notes = Column(Text, nullable=True)
     created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
 
-    property = relationship("Property")
-    plan = relationship("DevelopmentPlan")
+    property = relationship("Property", backref="construction_expenses")
+    plan = relationship("DevelopmentPlan", backref="construction_expenses")
 
 
 # ---------------------------------------------------------------------------
@@ -1697,8 +1744,8 @@ class ConstructionDraw(Base):
     notes = Column(Text, nullable=True)
     created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
 
-    property = relationship("Property")
-    debt_facility = relationship("DebtFacility")
+    property = relationship("Property", backref="construction_draws")
+    debt_facility = relationship("DebtFacility", backref="construction_draws")
 
 
 # ---------------------------------------------------------------------------
@@ -1840,8 +1887,8 @@ class ProForma(Base):
     created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
     created_by = Column(Integer, ForeignKey("users.user_id"), nullable=True)
 
-    property = relationship("Property")
-    plan = relationship("DevelopmentPlan")
+    property = relationship("Property", backref="pro_formas")
+    plan = relationship("DevelopmentPlan", backref="pro_formas")
     creator = relationship("User")
 
 
@@ -1969,9 +2016,9 @@ class DecisionLog(Base):
     updated_at = Column(DateTime, nullable=True, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     # Relationships
-    property = relationship("Property")
-    lp = relationship("LPEntity")
-    investor = relationship("Investor")
+    property = relationship("Property", backref="decision_logs")
+    lp = relationship("LPEntity", backref="decision_logs")
+    investor = relationship("Investor", backref="decision_logs")
     maker = relationship("User")
 
 

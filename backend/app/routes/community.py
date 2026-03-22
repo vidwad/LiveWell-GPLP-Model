@@ -6,7 +6,8 @@ from sqlalchemy.orm import Session
 
 from app.core.deps import get_current_user, require_gp_ops_pm, require_gp_or_ops, PaginationParams
 from app.db.models import (
-    Bed, BedStatus, Community, MaintenanceRequest, MaintenanceStatus, Property, Resident,
+    Bed, BedStatus, Community, CommunityEvent, CommunityEventType,
+    MaintenanceRequest, MaintenanceStatus, Property, Resident,
     RentPayment, PaymentStatus, RenovationPhase, Unit, User,
 )
 from app.db.session import get_db
@@ -624,3 +625,161 @@ def capture_snapshots(
     """
     result = capture_all_snapshots(db, year, month)
     return result
+
+
+# ---------------------------------------------------------------------------
+# Community Events & Services (4.6.5)
+# ---------------------------------------------------------------------------
+
+@router.get("/communities/{community_id}/events")
+def list_community_events(
+    community_id: int,
+    event_type: str | None = None,
+    start_date: str | None = None,
+    end_date: str | None = None,
+    db: Session = Depends(get_db),
+    _: User = Depends(require_gp_ops_pm),
+):
+    """List events/services for a community."""
+    query = db.query(CommunityEvent).filter(CommunityEvent.community_id == community_id)
+    if event_type:
+        query = query.filter(CommunityEvent.event_type == event_type)
+    if start_date:
+        query = query.filter(CommunityEvent.event_date >= start_date)
+    if end_date:
+        query = query.filter(CommunityEvent.event_date <= end_date)
+    events = query.order_by(CommunityEvent.event_date.desc()).all()
+
+    return [
+        {
+            "event_id": e.event_id,
+            "community_id": e.community_id,
+            "community_name": e.community.name if e.community else None,
+            "title": e.title,
+            "event_type": e.event_type.value,
+            "description": e.description,
+            "event_date": str(e.event_date),
+            "start_time": e.start_time,
+            "end_time": e.end_time,
+            "location": e.location,
+            "facilitator": e.facilitator,
+            "max_participants": e.max_participants,
+            "actual_participants": e.actual_participants,
+            "cost": float(e.cost) if e.cost else None,
+            "is_recurring": e.is_recurring,
+            "recurrence_pattern": e.recurrence_pattern,
+            "notes": e.notes,
+        }
+        for e in events
+    ]
+
+
+@router.post("/communities/{community_id}/events", status_code=201)
+def create_community_event(
+    community_id: int,
+    payload: dict,
+    db: Session = Depends(get_db),
+    _: User = Depends(require_gp_ops_pm),
+):
+    """Create a new event/service for a community."""
+    community = db.query(Community).filter(Community.community_id == community_id).first()
+    if not community:
+        raise HTTPException(404, "Community not found")
+
+    event = CommunityEvent(
+        community_id=community_id,
+        title=payload["title"],
+        event_type=payload.get("event_type", "other"),
+        description=payload.get("description"),
+        event_date=payload["event_date"],
+        start_time=payload.get("start_time"),
+        end_time=payload.get("end_time"),
+        location=payload.get("location"),
+        facilitator=payload.get("facilitator"),
+        max_participants=payload.get("max_participants"),
+        actual_participants=payload.get("actual_participants"),
+        cost=payload.get("cost"),
+        is_recurring=payload.get("is_recurring", False),
+        recurrence_pattern=payload.get("recurrence_pattern"),
+        notes=payload.get("notes"),
+    )
+    db.add(event)
+    db.commit()
+    db.refresh(event)
+
+    return {
+        "event_id": event.event_id,
+        "community_id": event.community_id,
+        "title": event.title,
+        "event_type": event.event_type.value,
+        "event_date": str(event.event_date),
+    }
+
+
+@router.patch("/events/{event_id}")
+def update_community_event(
+    event_id: int,
+    payload: dict,
+    db: Session = Depends(get_db),
+    _: User = Depends(require_gp_ops_pm),
+):
+    """Update a community event."""
+    event = db.query(CommunityEvent).filter(CommunityEvent.event_id == event_id).first()
+    if not event:
+        raise HTTPException(404, "Event not found")
+
+    allowed = {
+        "title", "event_type", "description", "event_date", "start_time",
+        "end_time", "location", "facilitator", "max_participants",
+        "actual_participants", "cost", "is_recurring", "recurrence_pattern", "notes",
+    }
+    for key, val in payload.items():
+        if key in allowed:
+            setattr(event, key, val)
+    db.commit()
+    db.refresh(event)
+    return {"event_id": event.event_id, "title": event.title, "updated": True}
+
+
+@router.delete("/events/{event_id}", status_code=204)
+def delete_community_event(
+    event_id: int,
+    db: Session = Depends(get_db),
+    _: User = Depends(require_gp_ops_pm),
+):
+    """Delete a community event."""
+    event = db.query(CommunityEvent).filter(CommunityEvent.event_id == event_id).first()
+    if not event:
+        raise HTTPException(404, "Event not found")
+    db.delete(event)
+    db.commit()
+
+
+@router.get("/events/summary")
+def get_events_summary(
+    community_id: int | None = None,
+    db: Session = Depends(get_db),
+    _: User = Depends(require_gp_ops_pm),
+):
+    """Get summary of community events/services."""
+    query = db.query(CommunityEvent)
+    if community_id:
+        query = query.filter(CommunityEvent.community_id == community_id)
+    events = query.all()
+
+    by_type: dict[str, int] = {}
+    total_cost = 0.0
+    total_participants = 0
+    for e in events:
+        by_type[e.event_type.value] = by_type.get(e.event_type.value, 0) + 1
+        if e.cost:
+            total_cost += float(e.cost)
+        if e.actual_participants:
+            total_participants += e.actual_participants
+
+    return {
+        "total_events": len(events),
+        "by_type": by_type,
+        "total_cost": round(total_cost, 2),
+        "total_participants": total_participants,
+    }

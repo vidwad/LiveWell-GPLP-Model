@@ -366,6 +366,14 @@ class _FundingCreate(_BaseModel):
     submission_deadline: _dt.date | None = None
     reporting_deadline: _dt.date | None = None
     awarded_amount: float | None = None
+    application_date: _dt.date | None = None
+    application_ref: str | None = None
+    program_name: str | None = None
+    contact_name: str | None = None
+    contact_email: str | None = None
+    reporting_frequency: str | None = None
+    next_report_date: _dt.date | None = None
+    requirements: str | None = None
     notes: str | None = None
 
 
@@ -379,6 +387,14 @@ class _FundingUpdate(_BaseModel):
     submission_deadline: _dt.date | None = None
     reporting_deadline: _dt.date | None = None
     awarded_amount: float | None = None
+    application_date: _dt.date | None = None
+    application_ref: str | None = None
+    program_name: str | None = None
+    contact_name: str | None = None
+    contact_email: str | None = None
+    reporting_frequency: str | None = None
+    next_report_date: _dt.date | None = None
+    requirements: str | None = None
     notes: str | None = None
 
 
