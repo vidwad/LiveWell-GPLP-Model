@@ -42,6 +42,13 @@ DEFAULT_SETTINGS = [
         "is_secret": True,
     },
     {
+        "key": "REPLIERS_API_KEY",
+        "category": "api_keys",
+        "label": "Repliers API Key (Canadian MLS)",
+        "description": "Canadian MLS/IDX listing data for property lookups. Provides comparable sales, active listings, and sold data. Sign up at repliers.io.",
+        "is_secret": True,
+    },
+    {
         "key": "CLAUDE_MODEL",
         "category": "ai",
         "label": "Claude Model",

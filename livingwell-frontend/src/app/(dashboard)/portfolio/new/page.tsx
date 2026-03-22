@@ -13,6 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useState, useEffect } from "react";
 import { ArrowLeft } from "lucide-react";
 import { api } from "@/lib/api";
+import { PropertyLookup } from "@/components/property/PropertyLookup";
 
 export default function NewPropertyPage() {
   const router = useRouter();
@@ -105,6 +106,30 @@ export default function NewPropertyPage() {
                 />
               </div>
             </div>
+
+            {/* Property Data Lookup */}
+            {form.address && form.city && (
+              <div className="rounded-lg border border-dashed border-blue-300 bg-blue-50/30 p-3 flex items-center justify-between">
+                <p className="text-xs text-muted-foreground">
+                  Auto-populate fields from municipal data, MLS, and AI estimates
+                </p>
+                <PropertyLookup
+                  address={form.address}
+                  city={form.city}
+                  onApply={(fields) => {
+                    setForm((f) => ({
+                      ...f,
+                      ...(fields.assessed_value != null ? { assessed_value: fields.assessed_value } : {}),
+                      ...(fields.current_market_value != null ? { current_market_value: fields.current_market_value } : {}),
+                      ...(fields.lot_size != null ? { lot_size: fields.lot_size } : {}),
+                      ...(fields.zoning != null ? { zoning: fields.zoning } : {}),
+                      ...(fields.max_buildable_area != null ? { max_buildable_area: fields.max_buildable_area } : {}),
+                    }));
+                  }}
+                />
+              </div>
+            )}
+
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>LP Fund</Label>

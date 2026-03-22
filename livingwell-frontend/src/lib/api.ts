@@ -122,6 +122,10 @@ export const portfolio = {
     apiClient.patch(`/api/portfolio/beds/${bedId}`, data).then(r => r.data),
   deleteBed: (bedId: number) =>
     apiClient.delete(`/api/portfolio/beds/${bedId}`).then(r => r.data),
+  // Property Lookup
+  lookupProperty: (data: { address: string; city?: string; province?: string }) =>
+    apiClient.post("/api/portfolio/lookup", data).then(r => r.data),
+
   // Rent Roll
   getRentRoll: (propertyId: number, phase?: string) =>
     apiClient.get(`/api/portfolio/properties/${propertyId}/rent-roll`, { params: phase ? { phase } : {} }).then(r => r.data),

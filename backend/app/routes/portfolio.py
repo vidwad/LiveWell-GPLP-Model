@@ -932,6 +932,51 @@ def run_projection(
 # Cost Estimation Engine
 # ---------------------------------------------------------------------------
 
+# ---------------------------------------------------------------------------
+# Property Data Lookup (External Sources)
+# ---------------------------------------------------------------------------
+
+from pydantic import BaseModel as _BaseModel
+from typing import Optional as _Opt
+
+
+class PropertyLookupRequest(_BaseModel):
+    address: str
+    city: str = "Calgary"
+    province: str = "Alberta"
+
+
+@router.post("/lookup")
+def lookup_property_data(
+    payload: PropertyLookupRequest,
+    db: Session = Depends(get_db),
+    _: User = Depends(require_gp_or_ops),
+):
+    """Look up property data from external sources.
+
+    Checks municipal open data (Calgary/Edmonton), MLS via Repliers API
+    (if configured), and AI enrichment to auto-populate property fields.
+    Returns all discovered data — the frontend decides what to apply.
+    """
+    from app.services.property_lookup import lookup_property
+    from app.db.models import PlatformSetting
+
+    # Check for Repliers API key in settings
+    repliers_key = None
+    repliers_setting = db.query(PlatformSetting).filter(
+        PlatformSetting.key == "REPLIERS_API_KEY"
+    ).first()
+    if repliers_setting and repliers_setting.value:
+        repliers_key = repliers_setting.value
+
+    return lookup_property(
+        address=payload.address,
+        city=payload.city,
+        province=payload.province,
+        repliers_api_key=repliers_key,
+    )
+
+
 @router.post("/modeling/estimate-costs", response_model=CostEstimateResult)
 def estimate_construction_costs(
     payload: CostEstimateInput,

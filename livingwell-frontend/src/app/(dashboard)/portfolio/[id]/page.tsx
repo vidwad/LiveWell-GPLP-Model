@@ -4,6 +4,7 @@ import React, { useState } from "react";
 import { useRouter } from "next/navigation";
 import { ProFormaTab } from "@/components/property/ProFormaTab";
 import { AreaResearchTab } from "@/components/property/AreaResearchTab";
+import { PropertyLookup } from "@/components/property/PropertyLookup";
 import { toast } from "sonner";
 import {
   ArrowLeft,
@@ -871,10 +872,16 @@ export default function PropertyDetailPage({ params }: { params: { id: string } 
             {/* Property Details */}
             <Card>
               <CardHeader className="pb-3">
-                <CardTitle className="text-base flex items-center gap-2">
-                  <MapPin className="h-4 w-4 text-muted-foreground" />
-                  Property Details
-                </CardTitle>
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <MapPin className="h-4 w-4 text-muted-foreground" />
+                    Property Details
+                  </CardTitle>
+                  <PropertyLookup
+                    address={property.address}
+                    city={property.city}
+                  />
+                </div>
               </CardHeader>
               <CardContent>
                 <dl className="space-y-0 text-sm">
