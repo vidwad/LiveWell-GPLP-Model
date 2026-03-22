@@ -10,10 +10,15 @@ import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import {
   Loader2, ShieldAlert, TrendingUp, Scale, Settings,
   Send, Bot, User, Sparkles, Wrench, FileText, MessageSquare,
+  BookOpen, Mail, MapPin, Search, AlertTriangle, Brain,
+  Globe, Save, Copy, Check,
 } from 'lucide-react';
+import { useLPs } from '@/hooks/useInvestment';
 
 // ── Types ────────────────────────────────────────────────────────
 
@@ -449,6 +454,675 @@ function UnderwritingTab() {
   );
 }
 
+// ── Report Narrative Tab ─────────────────────────────────────────
+
+interface ReportNarrative {
+  executive_summary: string;
+  property_updates: string;
+  market_commentary: string;
+  investor_outlook: string;
+}
+
+function ReportNarrativeTab() {
+  const { data: lps } = useLPs();
+  const [selectedLpId, setSelectedLpId] = useState<string>('');
+  const [period, setPeriod] = useState(() => {
+    const now = new Date();
+    const q = Math.ceil(now.getMonth() / 3) || 1;
+    return `Q${q} ${now.getFullYear()}`;
+  });
+
+  const mutation = useMutation({
+    mutationFn: (payload: { lp_id: number; period: string }) =>
+      apiClient.post<ReportNarrative>('/api/ai/generate-report-narrative', payload).then(r => r.data),
+  });
+
+  const data = mutation.data;
+
+  const sections = data ? [
+    { title: 'Executive Summary', content: data.executive_summary, icon: <BookOpen className="h-4 w-4" /> },
+    { title: 'Property Updates', content: data.property_updates, icon: <MapPin className="h-4 w-4" /> },
+    { title: 'Market Commentary', content: data.market_commentary, icon: <TrendingUp className="h-4 w-4" /> },
+    { title: 'Investor Outlook', content: data.investor_outlook, icon: <Sparkles className="h-4 w-4" /> },
+  ] : [];
+
+  const handleCopyAll = () => {
+    if (!data) return;
+    const text = `Executive Summary\n${data.executive_summary}\n\nProperty Updates\n${data.property_updates}\n\nMarket Commentary\n${data.market_commentary}\n\nInvestor Outlook\n${data.investor_outlook}`;
+    navigator.clipboard.writeText(text);
+  };
+
+  return (
+    <div className="space-y-6">
+      <Card>
+        <CardHeader>
+          <CardTitle>Quarterly Report Narrative</CardTitle>
+          <CardDescription>Generate AI-written quarterly report sections from LP portfolio data.</CardDescription>
+        </CardHeader>
+        <CardContent className="flex gap-4 items-end">
+          <div className="space-y-1.5">
+            <Label className="text-xs">LP Fund</Label>
+            <Select value={selectedLpId} onValueChange={(v: string | null) => setSelectedLpId(v ?? "")}>
+              <SelectTrigger className="w-[250px]">
+                <SelectValue placeholder="Select an LP..." />
+              </SelectTrigger>
+              <SelectContent>
+                {(lps as { lp_id: number; name: string }[] | undefined)?.map((lp) => (
+                  <SelectItem key={lp.lp_id} value={lp.lp_id.toString()}>
+                    {lp.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-xs">Period</Label>
+            <Input
+              value={period}
+              onChange={e => setPeriod(e.target.value)}
+              placeholder="Q1 2026"
+              className="w-[140px]"
+            />
+          </div>
+          <Button
+            onClick={() => selectedLpId && mutation.mutate({ lp_id: parseInt(selectedLpId), period })}
+            disabled={!selectedLpId || mutation.isPending}
+          >
+            {mutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            Generate Report
+          </Button>
+        </CardContent>
+      </Card>
+
+      {data && (
+        <div className="space-y-4 animate-in fade-in slide-in-from-bottom-4">
+          <div className="flex justify-end">
+            <Button variant="outline" size="sm" onClick={handleCopyAll} className="gap-1.5">
+              <Copy className="h-3.5 w-3.5" />
+              Copy All
+            </Button>
+          </div>
+          {sections.map((section, i) => (
+            <Card key={i}>
+              <CardHeader className="pb-2">
+                <CardTitle className="flex items-center gap-2 text-base">
+                  {section.icon}
+                  {section.title}
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-sm leading-relaxed whitespace-pre-wrap">{section.content}</p>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Investor Communications Tab ─────────────────────────────────
+
+const COMM_TYPES = [
+  { value: 'distribution_notice', label: 'Distribution Notice' },
+  { value: 'quarterly_update', label: 'Quarterly Update' },
+  { value: 'welcome_letter', label: 'Welcome Letter' },
+  { value: 'capital_confirmation', label: 'Capital Call Confirmation' },
+  { value: 'year_end', label: 'Year-End Summary' },
+  { value: 'milestone', label: 'Milestone Update' },
+  { value: 'custom', label: 'Custom' },
+];
+
+function InvestorCommunicationsTab() {
+  const { data: lps } = useLPs();
+  const [selectedLpId, setSelectedLpId] = useState<string>('');
+  const [commType, setCommType] = useState('quarterly_update');
+  const [customSubject, setCustomSubject] = useState('');
+  const [draft, setDraft] = useState<{ subject: string; body: string; tone: string } | null>(null);
+  const [copied, setCopied] = useState(false);
+
+  const mutation = useMutation({
+    mutationFn: (payload: { lp_id: number; communication_type: string; custom_subject?: string }) =>
+      apiClient.post('/api/ai/draft-investor-communication', payload).then(r => r.data),
+    onSuccess: (data) => setDraft(data as { subject: string; body: string; tone: string }),
+  });
+
+  const handleCopy = () => {
+    if (!draft) return;
+    navigator.clipboard.writeText(`Subject: ${draft.subject}\n\n${draft.body}`);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  return (
+    <div className="space-y-6">
+      <Card>
+        <CardHeader>
+          <CardTitle>Investor Communication Drafter</CardTitle>
+          <CardDescription>AI-draft personalized investor emails from your portfolio data.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex gap-4 items-end flex-wrap">
+            <div className="space-y-1.5">
+              <Label className="text-xs">LP Fund</Label>
+              <Select value={selectedLpId} onValueChange={(v: string | null) => setSelectedLpId(v ?? "")}>
+                <SelectTrigger className="w-[250px]">
+                  <SelectValue placeholder="Select an LP..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {(lps as { lp_id: number; name: string }[] | undefined)?.map((lp) => (
+                    <SelectItem key={lp.lp_id} value={lp.lp_id.toString()}>
+                      {lp.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs">Communication Type</Label>
+              <Select value={commType} onValueChange={setCommType}>
+                <SelectTrigger className="w-[220px]">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {COMM_TYPES.map(ct => (
+                    <SelectItem key={ct.value} value={ct.value}>{ct.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <Button
+              onClick={() => selectedLpId && mutation.mutate({
+                lp_id: parseInt(selectedLpId),
+                communication_type: commType,
+                ...(commType === 'custom' && customSubject ? { custom_subject: customSubject } : {}),
+              })}
+              disabled={!selectedLpId || mutation.isPending}
+            >
+              {mutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Draft Email
+            </Button>
+          </div>
+          {commType === 'custom' && (
+            <div className="space-y-1.5">
+              <Label className="text-xs">Custom Subject</Label>
+              <Input
+                value={customSubject}
+                onChange={e => setCustomSubject(e.target.value)}
+                placeholder="Describe what this email should be about..."
+              />
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {draft && (
+        <Card className="animate-in fade-in slide-in-from-bottom-4">
+          <CardHeader className="pb-2">
+            <div className="flex items-center justify-between">
+              <CardTitle className="flex items-center gap-2 text-base">
+                <Mail className="h-4 w-4" />
+                {draft.subject}
+              </CardTitle>
+              <div className="flex gap-2">
+                <Badge variant="secondary" className="text-xs">{draft.tone}</Badge>
+                <Button variant="outline" size="sm" onClick={handleCopy} className="gap-1.5">
+                  {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+                  {copied ? 'Copied' : 'Copy'}
+                </Button>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="bg-muted/50 rounded-lg p-4">
+              <p className="text-sm leading-relaxed whitespace-pre-wrap">{draft.body}</p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+    </div>
+  );
+}
+
+// ── Area Research Tab ────────────────────────────────────────────
+
+function AreaResearchTab() {
+  const [address, setAddress] = useState('');
+  const [city, setCity] = useState('Calgary');
+
+  const mutation = useMutation({
+    mutationFn: (payload: { address: string; city: string }) =>
+      apiClient.post('/api/ai/area-research', payload).then(r => r.data),
+  });
+
+  const data = mutation.data as Record<string, unknown> | undefined;
+
+  const renderSection = (title: string, items: unknown) => {
+    if (!items || (Array.isArray(items) && items.length === 0)) return null;
+    return (
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-base">{title}</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {typeof items === 'string' ? (
+            <p className="text-sm leading-relaxed">{items}</p>
+          ) : Array.isArray(items) ? (
+            <ul className="space-y-2">
+              {items.map((item, i) => (
+                <li key={i} className="text-sm">
+                  {typeof item === 'object' ? (
+                    <div className="bg-muted/50 rounded p-2 space-y-0.5">
+                      {Object.entries(item as Record<string, unknown>).map(([k, v]) => (
+                        <div key={k} className="flex justify-between">
+                          <span className="text-xs text-muted-foreground capitalize">{k.replace(/_/g, ' ')}</span>
+                          <span className="text-xs font-medium">{String(v)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  ) : String(item)}
+                </li>
+              ))}
+            </ul>
+          ) : typeof items === 'object' ? (
+            <div className="space-y-1">
+              {Object.entries(items as Record<string, unknown>).map(([k, v]) => (
+                <div key={k} className="flex justify-between py-0.5">
+                  <span className="text-xs text-muted-foreground capitalize">{k.replace(/_/g, ' ')}</span>
+                  <span className="text-xs font-medium">{String(v)}</span>
+                </div>
+              ))}
+            </div>
+          ) : null}
+        </CardContent>
+      </Card>
+    );
+  };
+
+  return (
+    <div className="space-y-6">
+      <Card>
+        <CardHeader>
+          <CardTitle>Area Research</CardTitle>
+          <CardDescription>AI-powered due diligence research for a property area — comps, zoning, rentals, demographics.</CardDescription>
+        </CardHeader>
+        <CardContent className="flex gap-4 items-end">
+          <div className="space-y-1.5 flex-1">
+            <Label className="text-xs">Address or Area</Label>
+            <Input
+              value={address}
+              onChange={e => setAddress(e.target.value)}
+              placeholder="123 Main St NW or Beltline, Calgary"
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-xs">City</Label>
+            <Input
+              value={city}
+              onChange={e => setCity(e.target.value)}
+              placeholder="Calgary"
+              className="w-[140px]"
+            />
+          </div>
+          <Button
+            onClick={() => address.trim() && mutation.mutate({ address, city })}
+            disabled={!address.trim() || mutation.isPending}
+          >
+            {mutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            <Search className="mr-2 h-4 w-4" />
+            Research
+          </Button>
+        </CardContent>
+      </Card>
+
+      {data && (
+        <div className="space-y-4 animate-in fade-in slide-in-from-bottom-4">
+          {data.summary && (
+            <Card className="border-blue-200 bg-blue-50/30">
+              <CardContent className="pt-4">
+                <p className="text-sm leading-relaxed">{data.summary as string}</p>
+              </CardContent>
+            </Card>
+          )}
+          <div className="grid gap-4 md:grid-cols-2">
+            {renderSection('Comparable Sales', data.comparable_sales)}
+            {renderSection('Active Listings', data.active_listings)}
+            {renderSection('Zoning & Land Use', data.zoning)}
+            {renderSection('Rezoning Activity', data.rezoning)}
+            {renderSection('Rental Market', data.rental_market)}
+            {renderSection('Demographics', data.demographics)}
+            {renderSection('Development Activity', data.development_activity)}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Funding Research Tab ────────────────────────────────────────
+
+function FundingResearchTab() {
+  const [communityType, setCommunityType] = useState('');
+  const [city, setCity] = useState('Calgary');
+
+  const mutation = useMutation({
+    mutationFn: (payload: { community_type: string; city: string }) =>
+      apiClient.post('/api/ai/research-funding', payload).then(r => r.data),
+  });
+
+  const saveMutation = useMutation({
+    mutationFn: (payload: { community_type: string; opportunities: unknown[] }) =>
+      apiClient.post('/api/ai/research-funding/save-opportunities', payload).then(r => r.data),
+  });
+
+  const data = mutation.data as { opportunities?: { program_name: string; provider: string; description: string; eligibility: string; estimated_amount: string; application_url?: string }[]; summary?: string } | undefined;
+
+  return (
+    <div className="space-y-6">
+      <Card>
+        <CardHeader>
+          <CardTitle>Government Funding Research</CardTitle>
+          <CardDescription>Search for CMHC, provincial, and municipal funding programs for your community type.</CardDescription>
+        </CardHeader>
+        <CardContent className="flex gap-4 items-end">
+          <div className="space-y-1.5">
+            <Label className="text-xs">Community Type</Label>
+            <Select value={communityType} onValueChange={setCommunityType}>
+              <SelectTrigger className="w-[200px]">
+                <SelectValue placeholder="Select type..." />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="LiveWell">LiveWell</SelectItem>
+                <SelectItem value="RecoverWell">RecoverWell</SelectItem>
+                <SelectItem value="StudyWell">StudyWell</SelectItem>
+                <SelectItem value="WorkWell">WorkWell</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-xs">City</Label>
+            <Input value={city} onChange={e => setCity(e.target.value)} className="w-[140px]" />
+          </div>
+          <Button
+            onClick={() => communityType && mutation.mutate({ community_type: communityType, city })}
+            disabled={!communityType || mutation.isPending}
+          >
+            {mutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            <Globe className="mr-2 h-4 w-4" />
+            Search Funding
+          </Button>
+        </CardContent>
+      </Card>
+
+      {data?.opportunities && (
+        <div className="space-y-4 animate-in fade-in slide-in-from-bottom-4">
+          {data.summary && (
+            <Card className="border-green-200 bg-green-50/30">
+              <CardContent className="pt-4">
+                <p className="text-sm leading-relaxed">{data.summary}</p>
+              </CardContent>
+            </Card>
+          )}
+          <div className="flex justify-end">
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-1.5"
+              onClick={() => data.opportunities && saveMutation.mutate({ community_type: communityType, opportunities: data.opportunities })}
+              disabled={saveMutation.isPending}
+            >
+              {saveMutation.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
+              Save to Database
+            </Button>
+          </div>
+          {data.opportunities.map((opp, i) => (
+            <Card key={i}>
+              <CardHeader className="pb-2">
+                <div className="flex items-start justify-between">
+                  <CardTitle className="text-base">{opp.program_name}</CardTitle>
+                  <Badge variant="secondary">{opp.provider}</Badge>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                <p className="text-sm">{opp.description}</p>
+                <div className="grid grid-cols-2 gap-2 text-xs">
+                  <div>
+                    <span className="text-muted-foreground">Eligibility: </span>
+                    <span>{opp.eligibility}</span>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground">Est. Amount: </span>
+                    <span className="font-medium">{opp.estimated_amount}</span>
+                  </div>
+                </div>
+                {opp.application_url && (
+                  <a href={opp.application_url} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 hover:underline">
+                    Application Link &rarr;
+                  </a>
+                )}
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Anomaly Detection Tab ───────────────────────────────────────
+
+function AnomalyDetectionTab() {
+  const { data: lps } = useLPs();
+  const [selectedLpId, setSelectedLpId] = useState<string>('');
+
+  const mutation = useMutation({
+    mutationFn: (payload: { entity_type: string; entity_id: number }) =>
+      apiClient.post('/api/ai/detect-anomalies', payload).then(r => r.data),
+  });
+
+  const data = mutation.data as { summary?: string; anomalies?: { metric: string; period: string; description: string; severity: string; recommendation: string }[] } | undefined;
+
+  const severityColor = (severity: string) => {
+    switch (severity) {
+      case 'critical': return 'bg-red-600';
+      case 'warning': return 'bg-yellow-500';
+      default: return 'bg-blue-500';
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      <Card>
+        <CardHeader>
+          <CardTitle>Anomaly Detection</CardTitle>
+          <CardDescription>AI analysis of trend data to identify unusual patterns, drops, or spikes.</CardDescription>
+        </CardHeader>
+        <CardContent className="flex gap-4 items-end">
+          <div className="space-y-1.5">
+            <Label className="text-xs">LP Fund</Label>
+            <Select value={selectedLpId} onValueChange={(v: string | null) => setSelectedLpId(v ?? "")}>
+              <SelectTrigger className="w-[250px]">
+                <SelectValue placeholder="Select an LP..." />
+              </SelectTrigger>
+              <SelectContent>
+                {(lps as { lp_id: number; name: string }[] | undefined)?.map((lp) => (
+                  <SelectItem key={lp.lp_id} value={lp.lp_id.toString()}>
+                    {lp.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <Button
+            onClick={() => selectedLpId && mutation.mutate({ entity_type: 'lp', entity_id: parseInt(selectedLpId) })}
+            disabled={!selectedLpId || mutation.isPending}
+          >
+            {mutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            <AlertTriangle className="mr-2 h-4 w-4" />
+            Detect Anomalies
+          </Button>
+        </CardContent>
+      </Card>
+
+      {data && (
+        <div className="space-y-4 animate-in fade-in slide-in-from-bottom-4">
+          {data.summary && (
+            <Card>
+              <CardContent className="pt-4">
+                <p className="text-sm leading-relaxed">{data.summary}</p>
+              </CardContent>
+            </Card>
+          )}
+          {data.anomalies?.length === 0 && (
+            <Card className="border-green-200 bg-green-50/30">
+              <CardContent className="pt-4 text-center">
+                <Check className="h-8 w-8 text-green-600 mx-auto mb-2" />
+                <p className="text-sm font-medium text-green-700">No anomalies detected</p>
+              </CardContent>
+            </Card>
+          )}
+          {data.anomalies?.map((anomaly, i) => (
+            <Card key={i}>
+              <CardHeader className="pb-2">
+                <div className="flex items-start justify-between">
+                  <CardTitle className="text-base">{anomaly.metric}</CardTitle>
+                  <div className="flex items-center gap-2">
+                    <Badge variant="outline" className="text-xs">{anomaly.period}</Badge>
+                    <Badge className={severityColor(anomaly.severity)}>{anomaly.severity}</Badge>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                <p className="text-sm">{anomaly.description}</p>
+                <div className="bg-muted p-3 rounded-md">
+                  <span className="font-semibold text-xs block mb-1">Recommendation:</span>
+                  <span className="text-sm">{anomaly.recommendation}</span>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Decision Memory Tab ─────────────────────────────────────────
+
+interface Decision {
+  decision_id: string;
+  decision_type: string;
+  title: string;
+  rationale: string;
+  outcome?: string;
+  outcome_notes?: string;
+  created_at: string;
+  tags: string[];
+}
+
+function DecisionMemoryTab() {
+  const [decisions, setDecisions] = useState<Decision[]>([]);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  const fetchDecisions = async (query?: string) => {
+    setLoading(true);
+    try {
+      const params = query ? `?q=${encodeURIComponent(query)}` : '';
+      const resp = await apiClient.get(`/api/ai/decisions${params}`);
+      setDecisions((resp.data as { decisions?: Decision[] }).decisions || resp.data as Decision[]);
+    } catch {
+      setDecisions([]);
+    }
+    setLoading(false);
+  };
+
+  useEffect(() => { fetchDecisions(); }, []);
+
+  const handleSearch = () => {
+    fetchDecisions(searchQuery || undefined);
+  };
+
+  const outcomeColor = (outcome: string) => {
+    switch (outcome) {
+      case 'successful': return 'text-green-600';
+      case 'failed': return 'text-red-600';
+      case 'mixed': return 'text-yellow-600';
+      default: return 'text-muted-foreground';
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      <Card>
+        <CardHeader>
+          <CardTitle>Decision Memory</CardTitle>
+          <CardDescription>Browse and search institutional knowledge — past decisions, rationale, and outcomes.</CardDescription>
+        </CardHeader>
+        <CardContent className="flex gap-4 items-end">
+          <div className="flex-1 space-y-1.5">
+            <Label className="text-xs">Search Decisions</Label>
+            <Input
+              value={searchQuery}
+              onChange={e => setSearchQuery(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && handleSearch()}
+              placeholder="Search by keyword, property, or decision type..."
+            />
+          </div>
+          <Button onClick={handleSearch} disabled={loading}>
+            {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Search className="mr-2 h-4 w-4" />}
+            Search
+          </Button>
+        </CardContent>
+      </Card>
+
+      {decisions.length === 0 && !loading && (
+        <Card>
+          <CardContent className="pt-6 text-center text-muted-foreground">
+            <Brain className="h-8 w-8 mx-auto mb-2 opacity-50" />
+            <p className="text-sm">No decisions recorded yet. Use the AI chat to log decisions.</p>
+          </CardContent>
+        </Card>
+      )}
+
+      {decisions.map((d) => (
+        <Card key={d.decision_id}>
+          <CardHeader className="pb-2">
+            <div className="flex items-start justify-between">
+              <CardTitle className="text-base">{d.title}</CardTitle>
+              <div className="flex gap-2 items-center">
+                <Badge variant="outline">{d.decision_type}</Badge>
+                {d.outcome && (
+                  <span className={`text-xs font-semibold uppercase ${outcomeColor(d.outcome)}`}>
+                    {d.outcome}
+                  </span>
+                )}
+              </div>
+            </div>
+            <p className="text-xs text-muted-foreground">{new Date(d.created_at).toLocaleDateString()}</p>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            <p className="text-sm">{d.rationale}</p>
+            {d.outcome_notes && (
+              <div className="bg-muted p-3 rounded-md">
+                <span className="text-xs font-semibold block mb-1">Outcome Notes:</span>
+                <span className="text-sm">{d.outcome_notes}</span>
+              </div>
+            )}
+            {d.tags?.length > 0 && (
+              <div className="flex gap-1 flex-wrap">
+                {d.tags.map((tag, i) => (
+                  <Badge key={i} variant="secondary" className="text-[10px]">{tag}</Badge>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      ))}
+    </div>
+  );
+}
+
 // ── Main Page ────────────────────────────────────────────────────
 
 export default function AIDashboardPage() {
@@ -462,7 +1136,7 @@ export default function AIDashboardPage() {
       </div>
 
       <Tabs defaultValue="chat">
-        <TabsList>
+        <TabsList className="flex-wrap h-auto gap-1">
           <TabsTrigger value="chat" className="gap-1.5">
             <MessageSquare className="h-4 w-4" />
             Chat
@@ -475,6 +1149,30 @@ export default function AIDashboardPage() {
             <FileText className="h-4 w-4" />
             Underwriting
           </TabsTrigger>
+          <TabsTrigger value="reports" className="gap-1.5">
+            <BookOpen className="h-4 w-4" />
+            Report Narrative
+          </TabsTrigger>
+          <TabsTrigger value="communications" className="gap-1.5">
+            <Mail className="h-4 w-4" />
+            Communications
+          </TabsTrigger>
+          <TabsTrigger value="area-research" className="gap-1.5">
+            <MapPin className="h-4 w-4" />
+            Area Research
+          </TabsTrigger>
+          <TabsTrigger value="funding" className="gap-1.5">
+            <Globe className="h-4 w-4" />
+            Funding
+          </TabsTrigger>
+          <TabsTrigger value="anomalies" className="gap-1.5">
+            <AlertTriangle className="h-4 w-4" />
+            Anomalies
+          </TabsTrigger>
+          <TabsTrigger value="decisions" className="gap-1.5">
+            <Brain className="h-4 w-4" />
+            Decisions
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="chat" className="mt-4">
@@ -485,6 +1183,24 @@ export default function AIDashboardPage() {
         </TabsContent>
         <TabsContent value="underwriting" className="mt-4">
           <UnderwritingTab />
+        </TabsContent>
+        <TabsContent value="reports" className="mt-4">
+          <ReportNarrativeTab />
+        </TabsContent>
+        <TabsContent value="communications" className="mt-4">
+          <InvestorCommunicationsTab />
+        </TabsContent>
+        <TabsContent value="area-research" className="mt-4">
+          <AreaResearchTab />
+        </TabsContent>
+        <TabsContent value="funding" className="mt-4">
+          <FundingResearchTab />
+        </TabsContent>
+        <TabsContent value="anomalies" className="mt-4">
+          <AnomalyDetectionTab />
+        </TabsContent>
+        <TabsContent value="decisions" className="mt-4">
+          <DecisionMemoryTab />
         </TabsContent>
       </Tabs>
     </div>
