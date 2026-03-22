@@ -1,7 +1,7 @@
 """
 Business Validation Service
 ============================
-Centralises business rule enforcement for the investment domain:
+Centralises business rule enforcement across all domains:
   - Subscription amount limits (min subscription, max raise capacity)
   - Subscription status transition rules
   - LP status transition rules
@@ -268,3 +268,96 @@ def validate_lp_purpose_type_change(
                        f"property '{prop.address}' belongs to community '{community.name}' "
                        f"which is {comm_type}. Reassign the property first.",
             )
+
+
+# ---------------------------------------------------------------------------
+# Maintenance Status Transitions
+# ---------------------------------------------------------------------------
+
+MAINTENANCE_TRANSITIONS = {
+    "open": {"in_progress", "resolved"},
+    "in_progress": {"resolved", "open"},  # can reopen
+    "resolved": {"open"},                 # can reopen
+}
+
+
+def validate_maintenance_status_transition(current: str, target: str) -> None:
+    """Validate that a maintenance request status transition is allowed."""
+    allowed = MAINTENANCE_TRANSITIONS.get(current, set())
+    if target not in allowed:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Cannot transition maintenance from '{current}' to '{target}'. "
+                   f"Allowed: {', '.join(sorted(allowed)) if allowed else 'none'}.",
+        )
+
+
+# ---------------------------------------------------------------------------
+# Milestone Status Transitions
+# ---------------------------------------------------------------------------
+
+MILESTONE_TRANSITIONS = {
+    "pending": {"in_progress", "skipped"},
+    "in_progress": {"completed", "overdue", "pending"},
+    "overdue": {"completed", "in_progress"},
+    "completed": set(),   # terminal
+    "skipped": {"pending"},  # can un-skip
+}
+
+
+def validate_milestone_status_transition(current: str, target: str) -> None:
+    """Validate that a milestone status transition is allowed."""
+    allowed = MILESTONE_TRANSITIONS.get(current, set())
+    if target not in allowed:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Cannot transition milestone from '{current}' to '{target}'. "
+                   f"Allowed: {', '.join(sorted(allowed)) if allowed else 'none (terminal)'}.",
+        )
+
+
+# ---------------------------------------------------------------------------
+# Turnover Status Transitions
+# ---------------------------------------------------------------------------
+
+TURNOVER_TRANSITIONS = {
+    "scheduled": {"in_progress", "completed"},
+    "in_progress": {"ready", "completed"},
+    "ready": {"completed"},
+    "completed": set(),  # terminal
+}
+
+
+def validate_turnover_status_transition(current: str, target: str) -> None:
+    """Validate that a unit turnover status transition is allowed."""
+    allowed = TURNOVER_TRANSITIONS.get(current, set())
+    if target not in allowed:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Cannot transition turnover from '{current}' to '{target}'. "
+                   f"Allowed: {', '.join(sorted(allowed)) if allowed else 'none (terminal)'}.",
+        )
+
+
+# ---------------------------------------------------------------------------
+# Shift Status Transitions
+# ---------------------------------------------------------------------------
+
+SHIFT_TRANSITIONS = {
+    "scheduled": {"in_progress", "completed", "cancelled", "no_show"},
+    "in_progress": {"completed", "cancelled"},
+    "completed": set(),   # terminal
+    "cancelled": set(),   # terminal
+    "no_show": set(),     # terminal
+}
+
+
+def validate_shift_status_transition(current: str, target: str) -> None:
+    """Validate that a shift status transition is allowed."""
+    allowed = SHIFT_TRANSITIONS.get(current, set())
+    if target not in allowed:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Cannot transition shift from '{current}' to '{target}'. "
+                   f"Allowed: {', '.join(sorted(allowed)) if allowed else 'none (terminal)'}.",
+        )

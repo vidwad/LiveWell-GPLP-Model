@@ -273,7 +273,7 @@
 | 4.4.1 | Staff/Employee model | DONE | Staff model with role, hourly_rate, hire/termination dates, emergency contacts |
 | 4.4.2 | Schedule model | DONE | Shift model with date, start/end time, status, hours tracking |
 | 4.4.3 | Staffing CRUD endpoints | DONE | GET/POST /staff, GET/POST /shifts, weekly-schedule endpoint |
-| 4.4.4 | Staffing/scheduling UI | PARTIAL | Frontend hooks exist (useStaff, useShifts, useWeeklySchedule). Dedicated UI page not yet built. |
+| 4.4.4 | Staffing/scheduling UI | DONE | Full staffing page at /staffing with staff directory, weekly schedule grid, shift management, weekly cost summary, community filter. |
 
 ### 4.5 Operator Budget vs Actual
 
@@ -343,8 +343,8 @@
 | # | Item | Status | Notes |
 |---|------|--------|-------|
 | T.1 | Extract inline computations from route handlers into service layers | PARTIAL | investment_service.py, validation_service.py, and operations_service.py created. Other routes still have inline logic. |
-| T.2 | Reduce oversized route files (investment.py is ~1000 lines) | NOT DONE | |
-| T.3 | Reduce oversized page files (LP detail page is ~1100 lines) | NOT DONE | |
+| T.2 | Reduce oversized route files (investment.py is ~1000 lines) | DONE | portfolio.py split: valuation (654L), construction (274L), proforma (162L) sub-routers via include_router(). portfolio.py: 3084 → 2049 lines. |
+| T.3 | Reduce oversized page files (LP detail page is ~1100 lines) | DONE | Property detail page.tsx split: 8 tab components extracted (Overview, Lifecycle, UnitsBedsTab, RentRoll, DevPlans, DebtFinancing, Projections, ExitScenarios). page.tsx: 4539 → 973 lines (79% reduction). |
 | T.4 | Centralize calculation logic | PARTIAL | calculations.py exists but some calcs are duplicated |
 | T.5 | Strengthen validations across all endpoints | PARTIAL | validation_service.py covers investment routes. Other routes lack validation. |
 | T.6 | Enforce workflow state transitions consistently | PARTIAL | LP and subscription transitions validated. Other entities (maintenance, milestones) are not. |

@@ -36,12 +36,13 @@ const STAGE_CONFIG: Record<string, { label: string }> = {
 
 interface ExitScenariosTabProps {
   propertyId: number;
+  canEdit: boolean;
   property: Record<string, any>;
   totalDebtOutstanding: number;
   totalAnnualDebtService: number;
 }
 
-export function ExitScenariosTab({ propertyId, property, totalDebtOutstanding, totalAnnualDebtService }: ExitScenariosTabProps) {
+export function ExitScenariosTab({ propertyId, canEdit, property, totalDebtOutstanding, totalAnnualDebtService }: ExitScenariosTabProps) {
   const { data: refiScenarios } = useRefinanceScenarios(propertyId);
   const { mutateAsync: createRefi, isPending: refiPending } = useCreateRefinanceScenario(propertyId);
   const { mutateAsync: deleteRefi } = useDeleteRefinanceScenario(propertyId);
