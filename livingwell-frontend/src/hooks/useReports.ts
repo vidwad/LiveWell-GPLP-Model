@@ -122,6 +122,50 @@ export interface CashFlowProjectionResult {
   properties: CashFlowPropertySnapshot[];
 }
 
+// ── Debt Maturity ───────────────────────────────────────────────────
+
+export interface DebtMaturityItem {
+  debt_id: number;
+  property_id: number;
+  address: string;
+  lp_name: string | null;
+  lender_name: string;
+  debt_type: string;
+  commitment_amount: number;
+  outstanding_balance: number;
+  interest_rate: number | null;
+  rate_type: string;
+  term_months: number | null;
+  origination_date: string | null;
+  maturity_date: string | null;
+  days_to_maturity: number | null;
+  urgency: string;
+}
+
+export interface DebtMaturityResult {
+  summary: {
+    total_facilities: number;
+    total_outstanding: number;
+    maturing_within_6mo: number;
+    maturing_within_12mo: number;
+    past_due_count: number;
+  };
+  facilities: DebtMaturityItem[];
+}
+
+export function useDebtMaturity() {
+  return useQuery<DebtMaturityResult, Error>({
+    queryKey: ["reports", "debt-maturity"],
+    queryFn: () =>
+      apiClient
+        .get<DebtMaturityResult>("/api/reports/debt-maturity")
+        .then((r) => r.data),
+    staleTime: 60_000,
+  });
+}
+
+// ── Cash Flow Projection ────────────────────────────────────────────
+
 export function useCashFlowProjection(params?: {
   projection_years?: number;
   lp_id?: number;

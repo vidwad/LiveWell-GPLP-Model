@@ -116,6 +116,7 @@ const NAV_SECTIONS: NavSection[] = [
       { href: "/quarterly-reports", label: "Quarterly Reports", icon: FileText, roles: [GP, INV] },
       { href: "/reports", label: "Reports", icon: BarChart2, roles: [GP] },
       { href: "/cash-flow", label: "Cash Flow", icon: Banknote, roles: [GP] },
+      { href: "/debt-maturity", label: "Debt Maturity", icon: Landmark, roles: [GP] },
     ],
   },
 

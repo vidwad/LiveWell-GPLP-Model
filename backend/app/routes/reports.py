@@ -11,6 +11,7 @@ from fastapi import APIRouter, Depends
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
+import datetime as _dt
 from typing import Optional
 from app.core.deps import get_current_user, require_gp_or_ops
 from app.services.reporting import generate_fund_performance_report, generate_management_pack
@@ -347,4 +348,85 @@ def get_cash_flow_projection(
         },
         "projections": yearly_projections,
         "properties": property_snapshots,
+    }
+
+
+@router.get("/debt-maturity")
+def get_debt_maturity(
+    db: Session = Depends(get_db),
+    _: User = Depends(require_gp_or_ops),
+):
+    """
+    Debt maturity calendar — returns all debt facilities with maturity info,
+    sorted by maturity date, with urgency classification.
+    """
+    facilities = (
+        db.query(DebtFacility)
+        .join(Property, DebtFacility.property_id == Property.property_id)
+        .filter(DebtFacility.status == "active")
+        .all()
+    )
+
+    today = _dt.date.today()
+    items = []
+    for f in facilities:
+        maturity = f.maturity_date
+        days_to_maturity = (maturity - today).days if maturity else None
+        if days_to_maturity is not None:
+            if days_to_maturity < 0:
+                urgency = "past_due"
+            elif days_to_maturity <= 90:
+                urgency = "critical"
+            elif days_to_maturity <= 180:
+                urgency = "warning"
+            elif days_to_maturity <= 365:
+                urgency = "upcoming"
+            else:
+                urgency = "normal"
+        else:
+            urgency = "unknown"
+
+        items.append({
+            "debt_id": f.debt_id,
+            "property_id": f.property_id,
+            "address": f.property.address if f.property else "Unknown",
+            "lp_name": f.property.lp_entity.name if f.property and f.property.lp_entity else None,
+            "lender_name": f.lender_name,
+            "debt_type": f.debt_type,
+            "commitment_amount": float(f.commitment_amount or 0),
+            "outstanding_balance": float(f.outstanding_balance or 0),
+            "interest_rate": float(f.interest_rate) if f.interest_rate else None,
+            "rate_type": f.rate_type,
+            "term_months": f.term_months,
+            "origination_date": str(f.origination_date) if f.origination_date else None,
+            "maturity_date": str(maturity) if maturity else None,
+            "days_to_maturity": days_to_maturity,
+            "urgency": urgency,
+        })
+
+    items.sort(key=lambda x: x["days_to_maturity"] if x["days_to_maturity"] is not None else 99999)
+
+    # Summary stats
+    total_outstanding = sum(i["outstanding_balance"] for i in items)
+    maturing_12mo = sum(
+        i["outstanding_balance"]
+        for i in items
+        if i["days_to_maturity"] is not None and 0 <= i["days_to_maturity"] <= 365
+    )
+    maturing_6mo = sum(
+        i["outstanding_balance"]
+        for i in items
+        if i["days_to_maturity"] is not None and 0 <= i["days_to_maturity"] <= 180
+    )
+    past_due = [i for i in items if i["urgency"] == "past_due"]
+
+    return {
+        "summary": {
+            "total_facilities": len(items),
+            "total_outstanding": round(total_outstanding, 2),
+            "maturing_within_6mo": round(maturing_6mo, 2),
+            "maturing_within_12mo": round(maturing_12mo, 2),
+            "past_due_count": len(past_due),
+        },
+        "facilities": items,
     }
