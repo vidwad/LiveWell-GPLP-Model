@@ -1,14 +1,61 @@
 "use client";
 
 import { useAuth } from "@/providers/AuthProvider";
+import { useQuery } from "@tanstack/react-query";
+import { apiClient } from "@/lib/api";
 import { UserRole } from "@/types/auth";
 
 /**
- * Role-based permission helpers for frontend UI.
+ * Well-known capabilities matching backend CAPABILITIES set.
+ */
+export type Capability =
+  | "view_financials"
+  | "manage_properties"
+  | "approve_distributions"
+  | "manage_debt"
+  | "manage_construction"
+  | "manage_staff"
+  | "manage_residents"
+  | "manage_investors"
+  | "create_reports"
+  | "manage_grants"
+  | "manage_documents"
+  | "transition_stages"
+  | "manage_valuations"
+  | "manage_waterfall"
+  | "admin_users";
+
+/**
+ * Default capabilities per role (mirrors backend ROLE_DEFAULT_CAPABILITIES).
+ * Used for optimistic client-side checks before the API response arrives.
+ */
+const ROLE_DEFAULTS: Record<string, Set<Capability>> = {
+  GP_ADMIN: new Set([
+    "view_financials", "manage_properties", "approve_distributions",
+    "manage_debt", "manage_construction", "manage_staff", "manage_residents",
+    "manage_investors", "create_reports", "manage_grants", "manage_documents",
+    "transition_stages", "manage_valuations", "manage_waterfall", "admin_users",
+  ]),
+  OPERATIONS_MANAGER: new Set([
+    "view_financials", "manage_properties", "manage_debt",
+    "manage_construction", "manage_staff", "manage_residents",
+    "create_reports", "manage_grants", "manage_documents",
+    "transition_stages", "manage_valuations",
+  ]),
+  PROPERTY_MANAGER: new Set([
+    "view_financials", "manage_properties", "manage_staff",
+    "manage_residents", "manage_construction", "create_reports",
+    "manage_documents", "manage_grants",
+  ]),
+  INVESTOR: new Set(["view_financials", "create_reports"]),
+};
+
+/**
+ * Role-based and capability-based permission helpers for frontend UI.
  *
  * Usage:
- *   const { canEdit, canCreate, canDelete, isAdmin, isInvestor } = usePermissions();
- *   {canCreate && <Button>Create LP</Button>}
+ *   const { canEdit, hasCapability } = usePermissions();
+ *   {hasCapability("approve_distributions") && <Button>Approve</Button>}
  */
 export function usePermissions() {
   const { user } = useAuth();
@@ -39,6 +86,29 @@ export function usePermissions() {
     return !!role && roles.includes(role);
   }
 
+  /**
+   * Check capability using role defaults (optimistic, synchronous).
+   * For server-authoritative checks, use useUserCapabilities() hook.
+   */
+  function hasCapability(cap: Capability): boolean {
+    if (!role) return false;
+    return ROLE_DEFAULTS[role]?.has(cap) ?? false;
+  }
+
+  /**
+   * Check if user has ALL of the given capabilities.
+   */
+  function hasAllCapabilities(...caps: Capability[]): boolean {
+    return caps.every((c) => hasCapability(c));
+  }
+
+  /**
+   * Check if user has ANY of the given capabilities.
+   */
+  function hasAnyCapability(...caps: Capability[]): boolean {
+    return caps.some((c) => hasCapability(c));
+  }
+
   return {
     role,
     isAdmin,
@@ -54,5 +124,30 @@ export function usePermissions() {
     canManageProperties,
     canViewFinancials,
     hasRole,
+    hasCapability,
+    hasAllCapabilities,
+    hasAnyCapability,
   };
+}
+
+/**
+ * Fetch server-authoritative capabilities for a specific user.
+ * Used in admin UI for managing user permissions.
+ */
+export function useUserCapabilities(userId?: number) {
+  return useQuery({
+    queryKey: ["user-capabilities", userId],
+    queryFn: () =>
+      apiClient
+        .get<{
+          user_id: number;
+          role: string;
+          effective_capabilities: string[];
+          explicit_grants: string[];
+          from_role: string[];
+          all_known_capabilities: string[];
+        }>(`/api/auth/users/${userId}/capabilities`)
+        .then((r) => r.data),
+    enabled: !!userId,
+  });
 }

@@ -325,3 +325,109 @@ export function useDeleteShift() {
     },
   });
 }
+
+
+// ── Community Events ──────────────────────────────────────────────
+
+interface CommunityEvent {
+  event_id: number;
+  community_id: number;
+  community_name?: string;
+  title: string;
+  event_type: string;
+  description?: string;
+  event_date: string;
+  start_time?: string;
+  end_time?: string;
+  location?: string;
+  facilitator?: string;
+  max_participants?: number;
+  actual_participants?: number;
+  cost?: number;
+  is_recurring: boolean;
+  recurrence_pattern?: string;
+  notes?: string;
+}
+
+interface EventCreate {
+  title: string;
+  event_type?: string;
+  description?: string;
+  event_date: string;
+  start_time?: string;
+  end_time?: string;
+  location?: string;
+  facilitator?: string;
+  max_participants?: number;
+  actual_participants?: number;
+  cost?: number;
+  is_recurring?: boolean;
+  recurrence_pattern?: string;
+  notes?: string;
+}
+
+export function useCommunityEvents(communityId?: number, eventType?: string) {
+  return useQuery({
+    queryKey: ["community-events", communityId, eventType],
+    queryFn: () => {
+      const params = new URLSearchParams();
+      if (eventType) params.set("event_type", eventType);
+      const qs = params.toString() ? `?${params.toString()}` : "";
+      return apiClient
+        .get<CommunityEvent[]>(
+          `/api/community/communities/${communityId}/events${qs}`
+        )
+        .then((r) => r.data);
+    },
+    enabled: !!communityId,
+  });
+}
+
+export function useCreateCommunityEvent(communityId: number) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (data: EventCreate) =>
+      apiClient
+        .post(`/api/community/communities/${communityId}/events`, data)
+        .then((r) => r.data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["community-events", communityId] });
+    },
+  });
+}
+
+export function useUpdateCommunityEvent() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ eventId, data }: { eventId: number; data: Partial<EventCreate> }) =>
+      apiClient.patch(`/api/community/events/${eventId}`, data).then((r) => r.data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["community-events"] });
+    },
+  });
+}
+
+export function useDeleteCommunityEvent() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (eventId: number) =>
+      apiClient.delete(`/api/community/events/${eventId}`),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["community-events"] });
+    },
+  });
+}
+
+export function useEventsSummary(communityId?: number) {
+  return useQuery({
+    queryKey: ["events-summary", communityId],
+    queryFn: () => {
+      const params = new URLSearchParams();
+      if (communityId) params.set("community_id", String(communityId));
+      const qs = params.toString() ? `?${params.toString()}` : "";
+      return apiClient
+        .get(`/api/community/events/summary${qs}`)
+        .then((r) => r.data);
+    },
+  });
+}
