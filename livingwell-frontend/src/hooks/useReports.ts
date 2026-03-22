@@ -122,6 +122,28 @@ export interface CashFlowProjectionResult {
   properties: CashFlowPropertySnapshot[];
 }
 
+// ── Trend Analysis ──────────────────────────────────────────────────
+
+export function useTrendAnalysis() {
+  return useQuery({
+    queryKey: ["reports", "summary"],
+    queryFn: () =>
+      apiClient.get("/api/reports/summary").then((r) => r.data),
+    staleTime: 60_000,
+  });
+}
+
+// ── Cross-LP Comparison ─────────────────────────────────────────────
+
+export function useCrossLPComparison() {
+  return useQuery({
+    queryKey: ["reports", "cross-lp-comparison"],
+    queryFn: () =>
+      apiClient.get("/api/reports/fund-performance").then((r) => r.data),
+    staleTime: 60_000,
+  });
+}
+
 // ── Arrears Aging ───────────────────────────────────────────────────
 
 export interface ArrearsAgingRecord {

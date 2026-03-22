@@ -93,6 +93,8 @@ const NAV_SECTIONS: NavSection[] = [
       { href: "/portfolio", label: "Properties", icon: Building2, roles: [GP, PM] },
       { href: "/lifecycle", label: "Lifecycle", icon: GitBranch, roles: [GP, PM] },
       { href: "/analytics", label: "Portfolio Analytics", icon: PieChart, roles: [GP] },
+      { href: "/lp-comparison", label: "LP Comparison", icon: GitBranch, roles: [GP] },
+      { href: "/trends", label: "Trends", icon: TrendingUp, roles: [GP] },
     ],
   },
 
