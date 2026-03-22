@@ -137,6 +137,23 @@ class DocumentType(str, enum.Enum):
     other = "other"
 
 
+class PropertyDocumentCategory(str, enum.Enum):
+    appraisal = "appraisal"
+    insurance = "insurance"
+    title = "title"
+    survey = "survey"
+    environmental = "environmental"
+    permit = "permit"
+    inspection = "inspection"
+    purchase_agreement = "purchase_agreement"
+    lease = "lease"
+    construction_contract = "construction_contract"
+    mortgage = "mortgage"
+    tax_assessment = "tax_assessment"
+    photo = "photo"
+    other = "other"
+
+
 class LPStatus(str, enum.Enum):
     """Lifecycle / offering status of an LP fund."""
     draft = "draft"
@@ -1125,6 +1142,25 @@ class InvestorDocument(Base):
     is_viewed = Column(Boolean, default=False, nullable=False)
 
     investor = relationship("Investor", back_populates="documents")
+
+
+class PropertyDocument(Base):
+    """Documents attached to a property (appraisals, insurance, permits, etc.)."""
+    __tablename__ = "property_documents"
+
+    document_id = Column(Integer, primary_key=True, index=True)
+    property_id = Column(Integer, ForeignKey("properties.property_id"), nullable=False, index=True)
+    title = Column(String(256), nullable=False)
+    category = Column(_enum(PropertyDocumentCategory), nullable=False, default=PropertyDocumentCategory.other)
+    file_url = Column(String(1024), nullable=False)
+    file_size_bytes = Column(Integer, nullable=True)
+    expiry_date = Column(Date, nullable=True)  # for insurance, permits
+    notes = Column(Text, nullable=True)
+    uploaded_by = Column(Integer, ForeignKey("users.user_id"), nullable=True)
+    upload_date = Column(DateTime, nullable=False, default=datetime.utcnow)
+
+    property = relationship("Property", backref="documents")
+    uploader = relationship("User")
 
 
 class InvestorMessage(Base):
