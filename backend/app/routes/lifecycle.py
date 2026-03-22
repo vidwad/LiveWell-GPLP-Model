@@ -7,9 +7,12 @@ API routes for Property Lifecycle management:
 - Message thread replies
 """
 import json
+import logging
 from datetime import datetime, timedelta
 from decimal import Decimal
 from typing import List
+
+logger = logging.getLogger(__name__)
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
@@ -72,8 +75,8 @@ def list_stage_transitions(
         if t.validation_details:
             try:
                 checks = [ValidationCheckOut(**c) for c in json.loads(t.validation_details)]
-            except (json.JSONDecodeError, TypeError):
-                pass
+            except (json.JSONDecodeError, TypeError) as e:
+                logger.warning("Failed to parse validation_details for transition %d: %s", t.transition_id, e)
         result.append(StageTransitionOut(
             transition_id=t.transition_id,
             property_id=t.property_id,
@@ -145,8 +148,8 @@ def perform_stage_transition(
     if transition.validation_details:
         try:
             checks = [ValidationCheckOut(**c) for c in json.loads(transition.validation_details)]
-        except (json.JSONDecodeError, TypeError):
-            pass
+        except (json.JSONDecodeError, TypeError) as e:
+            logger.warning("Failed to parse validation_details for transition %d: %s", transition.transition_id, e)
 
     result = StageTransitionOut(
         transition_id=transition.transition_id,
@@ -450,8 +453,8 @@ def create_etransfer(
                 type=NotificationType.etransfer,
                 action_url="/quarterly-reports",
             )
-    except Exception:
-        pass
+    except Exception as e:
+        logger.error("Failed to create eTransfer notification for investor %s: %s", payload.investor_id, e)
 
     db.commit()
     db.refresh(etransfer)
