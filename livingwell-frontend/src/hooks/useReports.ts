@@ -122,6 +122,86 @@ export interface CashFlowProjectionResult {
   properties: CashFlowPropertySnapshot[];
 }
 
+// ── Arrears Aging ───────────────────────────────────────────────────
+
+export interface ArrearsAgingRecord {
+  arrears_id: number;
+  resident_name: string;
+  community_name: string | null;
+  amount_overdue: number;
+  due_date: string | null;
+  days_overdue: number;
+  follow_up_action: string | null;
+  follow_up_date: string | null;
+  notes: string | null;
+}
+
+export interface ArrearsAgingBucket {
+  count: number;
+  total: number;
+  records: ArrearsAgingRecord[];
+}
+
+export interface ArrearsAgingResult {
+  total_outstanding: number;
+  total_records: number;
+  buckets: Record<string, ArrearsAgingBucket>;
+}
+
+export function useArrearsAging(communityId?: number) {
+  return useQuery<ArrearsAgingResult, Error>({
+    queryKey: ["reports", "arrears-aging", communityId],
+    queryFn: () => {
+      const params = communityId ? { community_id: communityId } : undefined;
+      return apiClient
+        .get<ArrearsAgingResult>("/api/reports/arrears-aging", { params })
+        .then((r) => r.data);
+    },
+    staleTime: 60_000,
+  });
+}
+
+// ── Variance Alerts ─────────────────────────────────────────────────
+
+export interface VarianceAlertItem {
+  type: string;
+  severity: string;
+  message: string;
+  budgeted: number;
+  actual: number;
+  variance_pct: number;
+}
+
+export interface VarianceAlertCommunity {
+  budget_id: number;
+  community_name: string;
+  period_label: string;
+  year: number;
+  alerts: VarianceAlertItem[];
+}
+
+export interface VarianceAlertsResult {
+  threshold_pct: number;
+  total_alerts: number;
+  high_severity: number;
+  medium_severity: number;
+  communities_affected: number;
+  alerts: VarianceAlertCommunity[];
+}
+
+export function useVarianceAlerts(thresholdPct?: number) {
+  return useQuery<VarianceAlertsResult, Error>({
+    queryKey: ["reports", "variance-alerts", thresholdPct],
+    queryFn: () =>
+      apiClient
+        .get<VarianceAlertsResult>("/api/reports/variance-alerts", {
+          params: thresholdPct ? { threshold_pct: thresholdPct } : undefined,
+        })
+        .then((r) => r.data),
+    staleTime: 60_000,
+  });
+}
+
 // ── Debt Maturity ───────────────────────────────────────────────────
 
 export interface DebtMaturityItem {

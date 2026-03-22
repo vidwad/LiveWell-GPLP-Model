@@ -25,12 +25,14 @@ from app.db.models import (
     Investor,
     LPEntity,
     MaintenanceRequest,
+    OperatorBudget,
     Property,
     RentPayment,
     Resident,
     Subscription,
     Unit,
     User,
+    ArrearsRecord,
 )
 from app.db.session import get_db
 from app.services.calculations import calculate_annual_debt_service
@@ -429,4 +431,155 @@ def get_debt_maturity(
             "past_due_count": len(past_due),
         },
         "facilities": items,
+    }
+
+
+@router.get("/arrears-aging")
+def get_arrears_aging_report(
+    community_id: Optional[int] = None,
+    db: Session = Depends(get_db),
+    _: User = Depends(require_gp_or_ops),
+):
+    """
+    Arrears aging report with 30/60/90/120+ day buckets.
+    Shows total outstanding by aging bucket and per-resident detail.
+    """
+    today = _dt.date.today()
+    query = db.query(ArrearsRecord).filter(ArrearsRecord.is_resolved == False)
+    if community_id:
+        query = query.join(Resident).filter(Resident.community_id == community_id)
+    records = query.order_by(ArrearsRecord.days_overdue.desc()).all()
+
+    # Recalculate aging buckets based on current date
+    buckets = {
+        "0-30": {"count": 0, "total": 0.0, "records": []},
+        "31-60": {"count": 0, "total": 0.0, "records": []},
+        "61-90": {"count": 0, "total": 0.0, "records": []},
+        "91-120": {"count": 0, "total": 0.0, "records": []},
+        "120+": {"count": 0, "total": 0.0, "records": []},
+    }
+
+    for r in records:
+        days = (today - r.due_date).days if r.due_date else r.days_overdue
+        amount = float(r.amount_overdue or 0)
+
+        if days <= 30:
+            bucket = "0-30"
+        elif days <= 60:
+            bucket = "31-60"
+        elif days <= 90:
+            bucket = "61-90"
+        elif days <= 120:
+            bucket = "91-120"
+        else:
+            bucket = "120+"
+
+        buckets[bucket]["count"] += 1
+        buckets[bucket]["total"] += amount
+        buckets[bucket]["records"].append({
+            "arrears_id": r.arrears_id,
+            "resident_name": r.resident.name if r.resident else "Unknown",
+            "community_name": r.resident.community.name if r.resident and r.resident.community else None,
+            "amount_overdue": amount,
+            "due_date": str(r.due_date) if r.due_date else None,
+            "days_overdue": days,
+            "follow_up_action": r.follow_up_action,
+            "follow_up_date": str(r.follow_up_date) if r.follow_up_date else None,
+            "notes": r.notes,
+        })
+
+    # Round totals
+    for b in buckets.values():
+        b["total"] = round(b["total"], 2)
+
+    total_outstanding = sum(b["total"] for b in buckets.values())
+    total_records = sum(b["count"] for b in buckets.values())
+
+    return {
+        "total_outstanding": round(total_outstanding, 2),
+        "total_records": total_records,
+        "buckets": buckets,
+    }
+
+
+@router.get("/variance-alerts")
+def get_variance_alerts(
+    threshold_pct: float = 10.0,
+    db: Session = Depends(get_db),
+    _: User = Depends(require_gp_or_ops),
+):
+    """
+    Budget variance alerts — flags communities where actual spending
+    exceeds budget by more than the threshold percentage.
+    """
+    budgets = (
+        db.query(OperatorBudget)
+        .filter(
+            OperatorBudget.actual_expenses.isnot(None),
+            OperatorBudget.budgeted_expenses > 0,
+        )
+        .all()
+    )
+
+    alerts = []
+    for b in budgets:
+        budgeted_exp = float(b.budgeted_expenses)
+        actual_exp = float(b.actual_expenses or 0)
+        budgeted_rev = float(b.budgeted_revenue)
+        actual_rev = float(b.actual_revenue or 0)
+        budgeted_noi = float(b.budgeted_noi)
+        actual_noi = float(b.actual_noi or 0)
+
+        exp_variance_pct = ((actual_exp - budgeted_exp) / budgeted_exp * 100) if budgeted_exp > 0 else 0
+        rev_variance_pct = ((actual_rev - budgeted_rev) / budgeted_rev * 100) if budgeted_rev > 0 else 0
+        noi_variance_pct = ((actual_noi - budgeted_noi) / budgeted_noi * 100) if budgeted_noi > 0 else 0
+
+        alert_items = []
+        if exp_variance_pct > threshold_pct:
+            alert_items.append({
+                "type": "expense_overrun",
+                "severity": "high" if exp_variance_pct > threshold_pct * 2 else "medium",
+                "message": f"Expenses {exp_variance_pct:.1f}% over budget",
+                "budgeted": budgeted_exp,
+                "actual": actual_exp,
+                "variance_pct": round(exp_variance_pct, 1),
+            })
+        if rev_variance_pct < -threshold_pct:
+            alert_items.append({
+                "type": "revenue_shortfall",
+                "severity": "high" if rev_variance_pct < -threshold_pct * 2 else "medium",
+                "message": f"Revenue {abs(rev_variance_pct):.1f}% below budget",
+                "budgeted": budgeted_rev,
+                "actual": actual_rev,
+                "variance_pct": round(rev_variance_pct, 1),
+            })
+        if noi_variance_pct < -threshold_pct:
+            alert_items.append({
+                "type": "noi_shortfall",
+                "severity": "high" if noi_variance_pct < -threshold_pct * 2 else "medium",
+                "message": f"NOI {abs(noi_variance_pct):.1f}% below budget",
+                "budgeted": budgeted_noi,
+                "actual": actual_noi,
+                "variance_pct": round(noi_variance_pct, 1),
+            })
+
+        if alert_items:
+            alerts.append({
+                "budget_id": b.budget_id,
+                "community_name": b.community.name if b.community else "Unknown",
+                "period_label": b.period_label,
+                "year": b.year,
+                "alerts": alert_items,
+            })
+
+    high_count = sum(1 for a in alerts for i in a["alerts"] if i["severity"] == "high")
+    medium_count = sum(1 for a in alerts for i in a["alerts"] if i["severity"] == "medium")
+
+    return {
+        "threshold_pct": threshold_pct,
+        "total_alerts": sum(len(a["alerts"]) for a in alerts),
+        "high_severity": high_count,
+        "medium_severity": medium_count,
+        "communities_affected": len(alerts),
+        "alerts": alerts,
     }
