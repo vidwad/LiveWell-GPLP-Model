@@ -29,6 +29,7 @@ import {
   AlertTriangle,
   ClipboardList,
   Settings,
+  MapPin,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/providers/AuthProvider";
@@ -134,6 +135,7 @@ const NAV_SECTIONS: NavSection[] = [
     roles: ALL_PLATFORM,
     items: [
       { href: "/ai", label: "AI Assistant", icon: Sparkles, roles: ALL_PLATFORM },
+      { href: "/area-research", label: "Area Research", icon: MapPin, roles: [GP, OP] },
     ],
   },
 ];

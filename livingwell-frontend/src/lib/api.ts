@@ -291,6 +291,20 @@ export const lifecycle = {
     apiClient.patch(`/api/lifecycle/milestones/${milestoneId}`, data).then(r => r.data),
 };
 
+// ── AI / Area Research ──────────────────────────────────────────────────
+export const ai = {
+  areaResearch: (data: {
+    address?: string;
+    city?: string;
+    province?: string;
+    radius_miles?: number;
+    property_id?: number;
+    zoning?: string;
+    property_type?: string;
+    additional_context?: string;
+  }) => apiClient.post("/api/ai/area-research", data).then(r => r.data),
+};
+
 // ── Convenience namespace ──────────────────────────────────────────────
 export const api = {
   portfolio,
@@ -302,4 +316,5 @@ export const api = {
   propertyManagers,
   notifications,
   lifecycle,
+  ai,
 };

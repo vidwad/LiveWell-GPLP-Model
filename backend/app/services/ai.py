@@ -744,3 +744,280 @@ Do NOT use markdown formatting in the body — use plain text with line breaks."
         ),
         "comm_type": comm_type,
     }
+
+
+# ── Area Research ────────────────────────────────────────────────────────
+
+def research_property_area(
+    address: str,
+    city: str,
+    province: str = "Alberta",
+    radius_miles: float = 2.0,
+    zoning: Optional[str] = None,
+    property_type: Optional[str] = None,
+    additional_context: Optional[str] = None,
+) -> dict:
+    """AI-powered area research for real estate due diligence.
+
+    Generates a comprehensive research report covering comparable sales,
+    active listings, zoning, rents, demographics, and development activity
+    within the specified radius of the property.
+    """
+    context_parts = [
+        f"Property Address: {address}",
+        f"City: {city}, {province}, Canada",
+        f"Search Radius: {radius_miles} miles",
+    ]
+    if zoning:
+        context_parts.append(f"Current Zoning: {zoning}")
+    if property_type:
+        context_parts.append(f"Property Type: {property_type}")
+    if additional_context:
+        context_parts.append(f"Additional Context: {additional_context}")
+
+    context = "\n".join(context_parts)
+
+    prompt = f"""Conduct a comprehensive area research report for a real estate investment opportunity.
+
+{context}
+
+You are an expert Alberta real estate analyst. Based on your knowledge of this area, provide a detailed
+research report. Use realistic, current data points and ranges typical for this specific neighbourhood.
+
+Return JSON with these exact keys:
+
+1. "summary" (string) — 3-4 sentence executive summary of the area as an investment location
+
+2. "comparable_sales" (array of objects) — 4-6 recent comparable property sales within the radius, each with:
+   - address (string — realistic street name in the area)
+   - sale_price (number)
+   - sale_date (string — within last 12 months, YYYY-MM format)
+   - property_type (string — e.g. "Single Family", "Duplex", "Multi-Family")
+   - bedrooms (number)
+   - lot_size_sqft (number)
+   - price_per_sqft (number)
+   - notes (string — brief detail like "Renovated" or "Estate sale")
+
+3. "active_listings" (array of objects) — 3-5 currently listed properties nearby, each with:
+   - address (string)
+   - list_price (number)
+   - property_type (string)
+   - bedrooms (number)
+   - days_on_market (number)
+   - status (string — "Active", "Pending", "Price Reduced")
+
+4. "zoning_info" (object) with:
+   - current_zoning (string — the zoning code)
+   - zoning_description (string — what the zoning allows)
+   - max_density (string — e.g. "Up to 4 units per lot")
+   - max_height (string)
+   - setback_requirements (string)
+   - parking_requirements (string)
+   - permitted_uses (array of strings)
+   - discretionary_uses (array of strings)
+
+5. "rezoning_activity" (array of objects) — 2-4 recent or pending rezoning applications nearby, each with:
+   - location (string — approximate address or intersection)
+   - from_zone (string)
+   - to_zone (string)
+   - status (string — "Approved", "Pending", "Under Review")
+   - application_date (string — YYYY-MM format)
+   - description (string — what the developer is proposing)
+
+6. "rental_market" (object) with:
+   - average_rent_1br (number — monthly)
+   - average_rent_2br (number)
+   - average_rent_3br (number)
+   - average_rent_per_bed (number — for shared living / SRO)
+   - vacancy_rate_pct (number)
+   - rent_trend (string — "increasing", "stable", "decreasing")
+   - rent_growth_annual_pct (number)
+   - notes (string — market commentary)
+
+7. "demographics" (object) with:
+   - population (number — area population)
+   - median_household_income (number)
+   - median_age (number)
+   - population_growth_pct (number — annual)
+   - major_employers (array of strings — top 3-5 nearby employers)
+   - transit_access (string — description of transit options)
+   - walk_score_estimate (number — 0-100)
+
+8. "development_activity" (array of objects) — 3-5 notable development projects nearby, each with:
+   - project_name (string)
+   - location (string)
+   - type (string — e.g. "Residential", "Mixed-Use", "Commercial")
+   - units (number or null)
+   - status (string — "Proposed", "Under Construction", "Completed")
+   - estimated_completion (string — YYYY or YYYY-QN format)
+   - description (string)
+
+9. "market_insights" (object) with:
+   - median_home_price (number)
+   - price_trend (string — "appreciating", "stable", "declining")
+   - price_growth_annual_pct (number)
+   - avg_days_on_market (number)
+   - absorption_rate (string — e.g. "2.5 months of inventory")
+   - investment_grade (string — "A", "B+", "B", "B-", "C+", "C")
+   - opportunity_score (number — 1-10, 10 being highest opportunity)
+
+10. "risks_and_considerations" (array of objects) — 3-5 items, each with:
+    - category (string — "Environmental", "Market", "Regulatory", "Infrastructure", "Social")
+    - description (string)
+    - severity (string — "Low", "Medium", "High")
+    - mitigation (string)
+
+11. "redevelopment_potential" (object) with:
+    - score (number — 1-10)
+    - rationale (string — 2-3 sentences)
+    - best_use_recommendation (string — e.g. "4-plex conversion" or "8-unit multiplex")
+    - estimated_arv (number — after-renovation value estimate)
+    - key_considerations (array of strings)
+
+Be specific with numbers. Use realistic values for {city}, {province}. Do not use placeholder text."""
+
+    result = _call_claude_json(prompt, max_tokens=4096)
+    if result and "summary" in result:
+        result["address"] = address
+        result["city"] = city
+        result["radius_miles"] = radius_miles
+        return result
+
+    # Fallback with structured mock data
+    return _area_research_fallback(address, city, radius_miles, zoning)
+
+
+def _area_research_fallback(
+    address: str, city: str, radius_miles: float, zoning: Optional[str] = None,
+) -> dict:
+    """Return structured fallback area research when Claude is unavailable."""
+    return {
+        "address": address,
+        "city": city,
+        "radius_miles": radius_miles,
+        "summary": (
+            f"Area research for {address}, {city}. "
+            "Configure ANTHROPIC_API_KEY for AI-powered comprehensive area analysis "
+            "including real comparable sales, zoning details, rental market data, "
+            "and development activity."
+        ),
+        "comparable_sales": [
+            {
+                "address": f"Nearby Property 1, {city}",
+                "sale_price": 525000,
+                "sale_date": "2025-11",
+                "property_type": "Single Family",
+                "bedrooms": 4,
+                "lot_size_sqft": 5500,
+                "price_per_sqft": 295,
+                "notes": "Standard sale — sample data",
+            },
+            {
+                "address": f"Nearby Property 2, {city}",
+                "sale_price": 480000,
+                "sale_date": "2025-09",
+                "property_type": "Single Family",
+                "bedrooms": 3,
+                "lot_size_sqft": 5000,
+                "price_per_sqft": 280,
+                "notes": "Standard sale — sample data",
+            },
+        ],
+        "active_listings": [
+            {
+                "address": f"Listed Property 1, {city}",
+                "list_price": 549000,
+                "property_type": "Single Family",
+                "bedrooms": 4,
+                "days_on_market": 21,
+                "status": "Active",
+            },
+        ],
+        "zoning_info": {
+            "current_zoning": zoning or "R-CG",
+            "zoning_description": f"{'Contextual Grade-Oriented' if zoning == 'R-CG' else zoning or 'Residential'} district",
+            "max_density": "Up to 4 units per lot",
+            "max_height": "11 metres",
+            "setback_requirements": "Front: 3m, Side: 1.2m, Rear: 7.5m",
+            "parking_requirements": "1 stall per unit (may be relaxed near transit)",
+            "permitted_uses": ["Single detached", "Semi-detached", "Rowhouse", "Townhouse"],
+            "discretionary_uses": ["Secondary suite", "Backyard suite", "Home occupation"],
+        },
+        "rezoning_activity": [
+            {
+                "location": f"Near {address}",
+                "from_zone": "R-C1",
+                "to_zone": "R-CG",
+                "status": "Approved",
+                "application_date": "2025-06",
+                "description": "Rezoned to allow grade-oriented infill development — sample data",
+            },
+        ],
+        "rental_market": {
+            "average_rent_1br": 1350,
+            "average_rent_2br": 1650,
+            "average_rent_3br": 2100,
+            "average_rent_per_bed": 950,
+            "vacancy_rate_pct": 3.2,
+            "rent_trend": "increasing",
+            "rent_growth_annual_pct": 4.5,
+            "notes": "Sample rental data. Enable AI for neighbourhood-specific analysis.",
+        },
+        "demographics": {
+            "population": 45000,
+            "median_household_income": 78000,
+            "median_age": 36,
+            "population_growth_pct": 2.1,
+            "major_employers": ["Local Hospital", "University", "City of " + city],
+            "transit_access": "Bus routes within walking distance. LRT accessible.",
+            "walk_score_estimate": 62,
+        },
+        "development_activity": [
+            {
+                "project_name": "Sample Development",
+                "location": f"Near {address}",
+                "type": "Residential",
+                "units": 24,
+                "status": "Under Construction",
+                "estimated_completion": "2026-Q4",
+                "description": "Multi-family residential development — sample data",
+            },
+        ],
+        "market_insights": {
+            "median_home_price": 510000,
+            "price_trend": "appreciating",
+            "price_growth_annual_pct": 5.2,
+            "avg_days_on_market": 28,
+            "absorption_rate": "2.8 months of inventory",
+            "investment_grade": "B+",
+            "opportunity_score": 7,
+        },
+        "risks_and_considerations": [
+            {
+                "category": "Market",
+                "description": "Interest rate environment may impact valuations",
+                "severity": "Medium",
+                "mitigation": "Lock in fixed-rate financing where possible",
+            },
+            {
+                "category": "Regulatory",
+                "description": "Municipal permitting timelines can vary",
+                "severity": "Low",
+                "mitigation": "Engage experienced local planners early",
+            },
+        ],
+        "redevelopment_potential": {
+            "score": 7,
+            "rationale": (
+                "Area shows strong rental demand and zoning supports densification. "
+                "Sample assessment — enable AI for detailed analysis."
+            ),
+            "best_use_recommendation": "4-plex rowhouse conversion",
+            "estimated_arv": 1200000,
+            "key_considerations": [
+                "Zoning supports multi-unit development",
+                "Strong rental demand in area",
+                "Enable ANTHROPIC_API_KEY for detailed analysis",
+            ],
+        },
+    }

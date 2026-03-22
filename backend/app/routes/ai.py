@@ -26,6 +26,7 @@ from app.services.ai import (
     analyze_underwriting, generate_report_narrative,
     detect_anomalies, chat_with_context,
     research_funding_opportunities,
+    research_property_area,
 )
 
 router = APIRouter()
@@ -658,6 +659,62 @@ def draft_bulk_communications(
         "drafts_generated": len(drafts),
         "drafts": drafts,
     }
+
+
+# ── Area Research ────────────────────────────────────────────────────────
+
+class AreaResearchRequest(BaseModel):
+    address: Optional[str] = None
+    city: Optional[str] = None
+    province: str = "Alberta"
+    radius_miles: float = 2.0
+    property_id: Optional[int] = None  # auto-populate address/city from property
+    zoning: Optional[str] = None
+    property_type: Optional[str] = None
+    additional_context: Optional[str] = None
+
+
+@router.post("/area-research")
+def get_area_research(
+    payload: AreaResearchRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_gp_or_ops),
+):
+    """AI-powered area research for real estate due diligence.
+
+    Provides comprehensive neighbourhood analysis including comparable sales,
+    active listings, zoning information, rezoning activity, rental market data,
+    demographics, development activity, and redevelopment potential — all within
+    a configurable radius of the target property.
+    """
+    address = payload.address
+    city = payload.city
+    zoning = payload.zoning
+
+    # Auto-populate from property if property_id provided
+    if payload.property_id:
+        prop = db.query(Property).filter(Property.property_id == payload.property_id).first()
+        if not prop:
+            raise HTTPException(404, "Property not found")
+        if not address:
+            address = prop.address
+        if not city:
+            city = prop.city
+        if not zoning and prop.zoning:
+            zoning = prop.zoning
+
+    if not address or not city:
+        raise HTTPException(400, "Address and city are required (or provide property_id)")
+
+    return research_property_area(
+        address=address,
+        city=city,
+        province=payload.province,
+        radius_miles=payload.radius_miles,
+        zoning=zoning,
+        property_type=payload.property_type,
+        additional_context=payload.additional_context,
+    )
 
 
 # ── Decision Memory ──────────────────────────────────────────────────────
