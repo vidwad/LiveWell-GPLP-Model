@@ -11,6 +11,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 from sqlalchemy import func as sa_func
 
+from app.core.utils import get_or_404
 from app.core.deps import (
     get_current_user, require_gp_admin, require_gp_or_ops, require_investor_or_above,
     check_entity_access, filter_by_lp_scope, PaginationParams,
