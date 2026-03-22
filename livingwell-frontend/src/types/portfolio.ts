@@ -46,6 +46,30 @@ export interface Property {
   community_name: string | null;
   pm_id: number | null;
   pm_name: string | null;
+  // Physical property details
+  year_built: number | null;
+  property_type: string | null;
+  building_sqft: string | null;
+  bedrooms: number | null;
+  bathrooms: number | null;
+  property_style: string | null;
+  garage: string | null;
+  // Location & municipal
+  neighbourhood: string | null;
+  ward: string | null;
+  legal_description: string | null;
+  latitude: string | null;
+  longitude: string | null;
+  roll_number: string | null;
+  assessment_class: string | null;
+  // Tax
+  tax_amount: string | null;
+  tax_year: number | null;
+  // MLS / market
+  mls_number: string | null;
+  list_price: string | null;
+  last_sold_price: string | null;
+  last_sold_date: string | null;
 }
 
 export interface PropertyCreate {

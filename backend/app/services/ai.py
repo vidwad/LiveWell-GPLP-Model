@@ -180,11 +180,12 @@ def analyze_property_risk(
     development_stage: str,
     noi: Optional[float] = None,
     debt_balance: Optional[float] = None,
-    # NEW: enriched context
+    # Enriched context
     rent_roll_summary: Optional[dict] = None,
     community_occupancy: Optional[dict] = None,
     debt_facilities: Optional[list] = None,
     development_plan: Optional[dict] = None,
+    property_details: Optional[dict] = None,
 ) -> dict:
     """Comprehensive risk analysis with full financial context."""
     context_parts = [
@@ -193,6 +194,17 @@ def analyze_property_risk(
         f"Zoning: {zoning}",
         f"Development Stage: {development_stage}",
     ]
+    if property_details:
+        if property_details.get("year_built"):
+            context_parts.append(f"Year Built: {property_details['year_built']}")
+        if property_details.get("property_type"):
+            context_parts.append(f"Property Type: {property_details['property_type']}")
+        if property_details.get("building_sqft"):
+            context_parts.append(f"Building Size: {property_details['building_sqft']:,.0f} sqft")
+        if property_details.get("neighbourhood"):
+            context_parts.append(f"Neighbourhood: {property_details['neighbourhood']}")
+        if property_details.get("assessment_class"):
+            context_parts.append(f"Assessment Class: {property_details['assessment_class']}")
     if noi:
         context_parts.append(f"Estimated NOI: ${noi:,.0f}")
     if debt_balance:

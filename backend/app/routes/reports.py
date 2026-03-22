@@ -291,6 +291,7 @@ def get_cash_flow_projection(
         property_snapshots.append({
             "property_id": prop.property_id,
             "address": prop.address,
+            "city": prop.city,
             "lp_id": prop.lp_id,
             "lp_name": prop.lp.name if prop.lp else None,
             "stage": prop.development_stage.value,
@@ -298,6 +299,10 @@ def get_cash_flow_projection(
             "current_ads": round(prop_ads, 2),
             "current_cash_flow": round(prop_noi - prop_ads, 2),
             "market_value": round(market_value, 2),
+            "year_built": prop.year_built,
+            "property_type": prop.property_type,
+            "building_sqft": float(prop.building_sqft) if prop.building_sqft else None,
+            "neighbourhood": prop.neighbourhood,
         })
 
     # Project forward year by year

@@ -110,6 +110,26 @@ def _get_property_context(db: Session, property_id: int) -> dict:
         "ltv": round(total_debt / float(prop.purchase_price) * 100, 1) if prop.purchase_price and float(prop.purchase_price) > 0 else None,
         "debt_facilities": debt_list,
         "development_plan": plan_data,
+        # Physical details
+        "year_built": prop.year_built,
+        "property_type": prop.property_type,
+        "building_sqft": float(prop.building_sqft) if prop.building_sqft else None,
+        "bedrooms": prop.bedrooms,
+        "bathrooms": prop.bathrooms,
+        "property_style": prop.property_style,
+        # Location & municipal
+        "neighbourhood": prop.neighbourhood,
+        "ward": prop.ward,
+        "latitude": float(prop.latitude) if prop.latitude else None,
+        "longitude": float(prop.longitude) if prop.longitude else None,
+        "assessment_class": prop.assessment_class,
+        # Tax & market
+        "tax_amount": float(prop.tax_amount) if prop.tax_amount else None,
+        "tax_year": prop.tax_year,
+        "mls_number": prop.mls_number,
+        "list_price": float(prop.list_price) if prop.list_price else None,
+        "last_sold_price": float(prop.last_sold_price) if prop.last_sold_price else None,
+        "last_sold_date": str(prop.last_sold_date) if prop.last_sold_date else None,
     }
 
 
@@ -208,6 +228,16 @@ def get_risk_analysis(
         },
         debt_facilities=ctx.get("debt_facilities"),
         development_plan=ctx.get("development_plan"),
+        property_details={
+            "year_built": ctx.get("year_built"),
+            "property_type": ctx.get("property_type"),
+            "building_sqft": ctx.get("building_sqft"),
+            "neighbourhood": ctx.get("neighbourhood"),
+            "assessment_class": ctx.get("assessment_class"),
+            "bedrooms": ctx.get("bedrooms"),
+            "property_style": ctx.get("property_style"),
+            "tax_amount": ctx.get("tax_amount"),
+        },
     )
     return result
 

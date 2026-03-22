@@ -34,6 +34,13 @@ class PropertyRollup:
     cash_flow: float
     ltv_percent: Optional[float]
     dscr: Optional[float]
+    # Extended property details
+    city: Optional[str] = None
+    year_built: Optional[int] = None
+    property_type: Optional[str] = None
+    building_sqft: Optional[float] = None
+    bedrooms: Optional[int] = None
+    neighbourhood: Optional[str] = None
 
 
 @dataclass
@@ -137,6 +144,12 @@ class LPRollupEngine:
                 cash_flow=round(prop_noi - prop_ads, 2),
                 ltv_percent=ltv_pct,
                 dscr=dscr,
+                city=prop.city,
+                year_built=prop.year_built,
+                property_type=prop.property_type,
+                building_sqft=float(prop.building_sqft) if prop.building_sqft else None,
+                bedrooms=prop.bedrooms,
+                neighbourhood=prop.neighbourhood,
             ))
 
         portfolio_ltv = round(total_debt / total_value * 100, 2) if total_value > 0 else None
@@ -275,11 +288,19 @@ def generate_management_pack(db: Session) -> dict:
         prop_summary.append({
             "property_id": prop.property_id,
             "address": prop.address,
+            "city": prop.city,
             "development_stage": prop.development_stage.value,
             "total_units": total_u,
             "occupied_units": occupied_u,
             "occupancy_rate": occ_rate,
             "projected_annual_noi": noi,
+            "year_built": prop.year_built,
+            "property_type": prop.property_type,
+            "building_sqft": float(prop.building_sqft) if prop.building_sqft else None,
+            "bedrooms": prop.bedrooms,
+            "neighbourhood": prop.neighbourhood,
+            "assessment_class": prop.assessment_class,
+            "tax_amount": float(prop.tax_amount) if prop.tax_amount else None,
         })
 
     # 3. Development Update (active construction plans)
