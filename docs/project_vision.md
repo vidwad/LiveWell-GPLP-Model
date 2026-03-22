@@ -110,14 +110,17 @@ All three share: bed-based occupancy, community-oriented environments, operating
 | INVESTOR | Investor portal only |
 | RESIDENT | Community app only |
 
-## Current Codebase State (as built by Claude)
+## Current Codebase State (March 2026 — Phase 6 Complete)
 
-- **Backend**: FastAPI + SQLAlchemy + JWT auth + OpenAI integration
-- **Frontend**: Next.js + React + TypeScript + Tailwind + shadcn/ui + Recharts
+- **Backend**: FastAPI + SQLAlchemy + JWT auth + Claude API (Anthropic) integration
+- **Frontend**: Next.js 14 + React 18 + TypeScript + Tailwind CSS + shadcn/ui + Recharts
 - **Database**: SQLite for dev (auto-fallback), PostgreSQL for production
-- **Models**: User, Property, DevelopmentPlan, Community, Unit, Resident, RentPayment, MaintenanceRequest, Investor, CapitalContribution, Ownership, Distribution
-- **Seed data**: 4 properties, 4 communities, 13 units, 7 residents, 3 investors, demo users
-- **Pages**: Login, Dashboard, Communities, Investors, Portfolio, Reports, Maintenance, AI
+- **Models**: 60+ SQLAlchemy models covering GP/LP, investors, subscriptions, holdings, distributions, properties, communities, units, beds, residents, debt, development plans, valuations, construction budgets, maintenance, staffing, turnovers, grants, documents, notifications, audit logs
+- **Seed data**: 2 LPs, 4 properties, 3 communities, 13 units, 26 beds, 7 residents, 3 investors, demo users (5 roles)
+- **Pages**: ~42 frontend pages covering dashboard, investment, portfolio (12 property tabs), investors, communities, operations, reporting, analytics, AI chat, documents, admin
+- **API Endpoints**: ~156 endpoints across 13 route modules
+- **Tests**: 284 passing tests (116 comprehensive + 168 AI integration)
+- **Completion**: ~160 DONE / 8 PARTIAL / 1 NOT DONE out of ~170 items
 
 ## Development Roadmap (from ChatGPT conversation)
 
