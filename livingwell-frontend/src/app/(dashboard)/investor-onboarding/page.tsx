@@ -242,7 +242,7 @@ export default function InvestorOnboardingPage() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
               <div>
                 <label className="text-xs font-medium text-muted-foreground">Name *</label>
                 <input type="text" value={leadForm.name} onChange={e => setLeadForm(f => ({...f, name: e.target.value}))}
@@ -340,7 +340,7 @@ export default function InvestorOnboardingPage() {
       <div className="relative flex gap-4">
         {/* Kanban Board */}
         <div className={`flex-1 overflow-x-auto transition-all ${selectedInvestorId ? "lg:mr-[420px]" : ""}`}>
-          <div className="grid gap-4 lg:grid-cols-5" style={{ minWidth: "900px" }}>
+          <div className="grid gap-4 lg:grid-cols-5" style={{ minWidth: "min(900px, max(100%, 600px))" }}>
             {KANBAN_STAGES.map((stageKey) => {
               const stageMeta = STAGES.find((s) => s.key === stageKey)!;
               const stageInvestors = grouped[stageKey] ?? [];

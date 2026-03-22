@@ -150,7 +150,7 @@ export default function FundingPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Grant & Funding Tracking</h1>
           <p className="text-sm text-gray-500 mt-1">
@@ -302,7 +302,7 @@ export default function FundingPage() {
       )}
 
       {/* KPI row */}
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <div className="bg-white rounded-xl border p-4">
           <p className="text-xs text-gray-500 uppercase tracking-wide">Total Opportunities</p>
           <p className="text-2xl font-bold text-gray-900 mt-1">{opportunities.length}</p>
@@ -322,7 +322,7 @@ export default function FundingPage() {
       </div>
 
       {/* Filter tabs */}
-      <div className="flex gap-2">
+      <div className="flex flex-wrap gap-2">
         {["all", ...STATUS_OPTIONS].map((s) => (
           <button
             key={s}
@@ -407,7 +407,7 @@ export default function FundingPage() {
       {/* Modal */}
       {showForm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-          <div className="bg-white rounded-xl shadow-xl w-full max-w-lg p-6 space-y-4">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-[calc(100%-2rem)] sm:max-w-lg mx-auto p-6 space-y-4">
             <h2 className="text-lg font-bold text-gray-900">
               {editId ? "Edit Funding Opportunity" : "New Funding Opportunity"}
             </h2>
@@ -421,7 +421,7 @@ export default function FundingPage() {
                   className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-medium text-gray-700 mb-1">Funding Source</label>
                   <input
@@ -444,7 +444,7 @@ export default function FundingPage() {
                   </select>
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-medium text-gray-700 mb-1">Requested Amount ($)</label>
                   <input
@@ -466,7 +466,7 @@ export default function FundingPage() {
                   />
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-medium text-gray-700 mb-1">Submission Deadline</label>
                   <input
