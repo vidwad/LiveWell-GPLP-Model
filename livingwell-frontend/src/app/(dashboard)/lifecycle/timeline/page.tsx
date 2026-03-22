@@ -322,11 +322,174 @@ function PropertyTimelineCard({ property }: { property: Property }) {
           </div>
         </div>
 
-        {/* Milestones Mini-Timeline */}
+        {/* Gantt-Style Milestone Chart */}
+        {!loadingMilestones && milestones && milestones.length > 0 && (() => {
+          const sorted = [...milestones]
+            .filter((m) => m.target_date)
+            .sort((a, b) => new Date(a.target_date).getTime() - new Date(b.target_date).getTime());
+          if (sorted.length === 0) return null;
+
+          const dates = sorted.map((m) => new Date(m.target_date).getTime());
+          const actualDates = sorted
+            .filter((m) => m.actual_date)
+            .map((m) => new Date(m.actual_date!).getTime());
+          const allDates = [...dates, ...actualDates];
+          const minDate = Math.min(...allDates);
+          const maxDate = Math.max(...allDates);
+          const today = Date.now();
+          const rangeStart = Math.min(minDate, today) - 30 * 24 * 3600 * 1000;
+          const rangeEnd = Math.max(maxDate, today) + 30 * 24 * 3600 * 1000;
+          const totalRange = rangeEnd - rangeStart;
+
+          const pct = (d: number) => ((d - rangeStart) / totalRange) * 100;
+          const todayPct = pct(today);
+
+          // Generate month markers
+          const monthMarkers: { label: string; pct: number }[] = [];
+          const startMonth = new Date(rangeStart);
+          startMonth.setDate(1);
+          startMonth.setMonth(startMonth.getMonth() + 1);
+          while (startMonth.getTime() < rangeEnd) {
+            monthMarkers.push({
+              label: startMonth.toLocaleString("default", { month: "short", year: "2-digit" }),
+              pct: pct(startMonth.getTime()),
+            });
+            startMonth.setMonth(startMonth.getMonth() + 1);
+          }
+
+          return (
+            <div>
+              <p className="mb-2 flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+                <Calendar className="h-3.5 w-3.5" />
+                Milestone Timeline
+              </p>
+              <div className="rounded-lg border bg-muted/20 p-3 overflow-x-auto">
+                {/* Month headers */}
+                <div className="relative h-5 mb-1" style={{ minWidth: 600 }}>
+                  {monthMarkers.map((m, i) => (
+                    <span
+                      key={i}
+                      className="absolute text-[10px] text-muted-foreground -translate-x-1/2"
+                      style={{ left: `${m.pct}%` }}
+                    >
+                      {m.label}
+                    </span>
+                  ))}
+                </div>
+
+                {/* Gantt rows */}
+                <div className="relative space-y-1" style={{ minWidth: 600 }}>
+                  {/* Today line */}
+                  {todayPct > 0 && todayPct < 100 && (
+                    <div
+                      className="absolute top-0 bottom-0 w-px bg-red-400 z-10"
+                      style={{ left: `${todayPct}%` }}
+                    >
+                      <span className="absolute -top-4 -translate-x-1/2 text-[9px] font-bold text-red-500 bg-white px-1 rounded">
+                        Today
+                      </span>
+                    </div>
+                  )}
+
+                  {sorted.map((m) => {
+                    const targetPct = pct(new Date(m.target_date).getTime());
+                    const actualPct = m.actual_date ? pct(new Date(m.actual_date).getTime()) : null;
+                    const statusColor = MILESTONE_STATUS_COLORS[m.status];
+                    const stageColor = m.stage ? STAGE_BAR_COLORS[m.stage as DevelopmentStage] : "bg-gray-300";
+
+                    return (
+                      <div key={m.milestone_id} className="relative flex items-center h-7">
+                        {/* Stage color bar background */}
+                        <div className="absolute inset-y-0 left-0 right-0 rounded-sm bg-gray-50" />
+
+                        {/* Target date marker */}
+                        <div
+                          className="absolute flex items-center"
+                          style={{ left: `${targetPct}%` }}
+                        >
+                          <div
+                            className={cn(
+                              "h-4 w-4 rounded-full border-2 border-white shadow-sm -translate-x-1/2",
+                              m.status === "completed" ? "bg-green-500" :
+                              m.status === "in_progress" ? "bg-blue-500" :
+                              m.status === "skipped" ? "bg-gray-300" : "bg-gray-400"
+                            )}
+                            title={`${m.title} — Target: ${m.target_date}${m.actual_date ? ` | Actual: ${m.actual_date}` : ""}`}
+                          />
+                        </div>
+
+                        {/* Actual date marker (diamond) */}
+                        {actualPct !== null && (
+                          <div
+                            className="absolute"
+                            style={{ left: `${actualPct}%` }}
+                          >
+                            <div
+                              className="h-3 w-3 bg-green-600 rotate-45 -translate-x-1/2 border border-white shadow-sm"
+                              title={`Completed: ${m.actual_date}`}
+                            />
+                          </div>
+                        )}
+
+                        {/* Connect target to actual with line */}
+                        {actualPct !== null && Math.abs(actualPct - targetPct) > 0.5 && (
+                          <div
+                            className={cn(
+                              "absolute h-0.5 top-1/2",
+                              actualPct > targetPct ? "bg-red-300" : "bg-green-300"
+                            )}
+                            style={{
+                              left: `${Math.min(targetPct, actualPct)}%`,
+                              width: `${Math.abs(actualPct - targetPct)}%`,
+                            }}
+                          />
+                        )}
+
+                        {/* Label */}
+                        <span
+                          className="absolute text-[10px] font-medium truncate max-w-[120px] pointer-events-none"
+                          style={{
+                            left: `${Math.min(targetPct + 1, 85)}%`,
+                            top: "50%",
+                            transform: "translateY(-50%)",
+                          }}
+                        >
+                          {m.title}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* Legend */}
+                <div className="flex items-center gap-4 mt-3 text-[10px] text-muted-foreground">
+                  <div className="flex items-center gap-1">
+                    <span className="h-3 w-3 rounded-full bg-gray-400 border border-white" />
+                    Target Date
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <span className="h-2.5 w-2.5 bg-green-600 rotate-45" />
+                    Actual Date
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <span className="h-0.5 w-4 bg-red-300" />
+                    Late
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <span className="h-0.5 w-4 bg-green-300" />
+                    Early
+                  </div>
+                </div>
+              </div>
+            </div>
+          );
+        })()}
+
+        {/* Milestones List */}
         <div>
           <p className="mb-2 flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
             <Calendar className="h-3.5 w-3.5" />
-            Milestones
+            Milestone Details
           </p>
           {loadingMilestones ? (
             <Skeleton className="h-16 w-full" />
