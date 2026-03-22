@@ -11,6 +11,7 @@ from typing import List
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
+from app.core.utils import get_or_404
 from app.core.deps import (
     get_current_user, require_gp_or_ops, require_gp_ops_pm,
     require_investor_or_above,

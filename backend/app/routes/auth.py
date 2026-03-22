@@ -182,3 +182,104 @@ def logout(response: Response):
 @router.get("/me", response_model=UserOut)
 def me(current_user: User = Depends(get_current_user)):
     return current_user
+
+
+# ---------------------------------------------------------------------------
+# Capability Management (1.1.7)
+# ---------------------------------------------------------------------------
+
+from app.core.deps import get_user_capabilities, require_capability
+from app.db.models import UserCapability, CAPABILITIES
+
+
+@router.get("/users/{user_id}/capabilities")
+def list_user_capabilities(
+    user_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_capability("admin_users")),
+):
+    """List effective capabilities for a user (role defaults + explicit grants)."""
+    target_user = db.query(User).filter(User.user_id == user_id).first()
+    if not target_user:
+        raise HTTPException(404, "User not found")
+
+    effective = get_user_capabilities(target_user, db)
+
+    explicit = (
+        db.query(UserCapability)
+        .filter(UserCapability.user_id == user_id)
+        .all()
+    )
+    explicit_caps = {c.capability for c in explicit}
+
+    return {
+        "user_id": user_id,
+        "role": target_user.role.value,
+        "effective_capabilities": sorted(effective),
+        "explicit_grants": sorted(explicit_caps),
+        "from_role": sorted(effective - explicit_caps),
+        "all_known_capabilities": sorted(CAPABILITIES),
+    }
+
+
+@router.post("/users/{user_id}/capabilities", status_code=201)
+def grant_capability(
+    user_id: int,
+    payload: dict,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_capability("admin_users")),
+):
+    """Grant one or more capabilities to a user."""
+    target_user = db.query(User).filter(User.user_id == user_id).first()
+    if not target_user:
+        raise HTTPException(404, "User not found")
+
+    caps_to_grant = payload.get("capabilities", [])
+    if isinstance(caps_to_grant, str):
+        caps_to_grant = [caps_to_grant]
+
+    invalid = set(caps_to_grant) - CAPABILITIES
+    if invalid:
+        raise HTTPException(400, f"Unknown capabilities: {', '.join(invalid)}")
+
+    existing = {
+        c.capability for c in
+        db.query(UserCapability).filter(
+            UserCapability.user_id == user_id,
+            UserCapability.capability.in_(caps_to_grant),
+        ).all()
+    }
+
+    granted = []
+    for cap in caps_to_grant:
+        if cap not in existing:
+            db.add(UserCapability(
+                user_id=user_id,
+                capability=cap,
+                granted_by=current_user.user_id,
+            ))
+            granted.append(cap)
+
+    db.commit()
+    return {"user_id": user_id, "granted": granted, "already_had": list(existing & set(caps_to_grant))}
+
+
+@router.delete("/users/{user_id}/capabilities/{capability}")
+def revoke_capability(
+    user_id: int,
+    capability: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_capability("admin_users")),
+):
+    """Revoke an explicitly granted capability from a user."""
+    rows = (
+        db.query(UserCapability)
+        .filter(UserCapability.user_id == user_id, UserCapability.capability == capability)
+        .all()
+    )
+    if not rows:
+        raise HTTPException(404, "Capability grant not found")
+    for row in rows:
+        db.delete(row)
+    db.commit()
+    return {"user_id": user_id, "revoked": capability}

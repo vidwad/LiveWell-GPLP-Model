@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 from app.core.security import decode_token
 from app.db.models import (
     User, UserRole, ScopeAssignment, ScopeEntityType, ScopePermissionLevel,
+    UserCapability, ROLE_DEFAULT_CAPABILITIES,
 )
 from app.db.session import get_db
 
@@ -79,6 +80,73 @@ require_gp_ops_pm = require_roles(
 require_investor_or_above = require_roles(
     UserRole.GP_ADMIN, UserRole.OPERATIONS_MANAGER, UserRole.PROPERTY_MANAGER, UserRole.INVESTOR
 )
+
+
+# ---------------------------------------------------------------------------
+# Capability-Based Permissions (1.1.7)
+# ---------------------------------------------------------------------------
+
+def get_user_capabilities(user: User, db: Session) -> set[str]:
+    """
+    Return the effective capability set for a user.
+
+    Logic: role defaults UNION explicit DB grants.
+    GP_ADMIN always gets everything.
+    """
+    if user.role == UserRole.GP_ADMIN:
+        return set(ROLE_DEFAULT_CAPABILITIES.get(UserRole.GP_ADMIN, set()))
+
+    # Start with role defaults
+    caps = set(ROLE_DEFAULT_CAPABILITIES.get(user.role, set()))
+
+    # Add explicitly granted capabilities
+    explicit = (
+        db.query(UserCapability.capability)
+        .filter(UserCapability.user_id == user.user_id)
+        .all()
+    )
+    caps.update(row[0] for row in explicit)
+    return caps
+
+
+def require_capability(*capabilities: str):
+    """
+    FastAPI dependency that checks the user has ALL of the given capabilities.
+
+    Usage:
+        @router.post("/distributions/{id}/approve")
+        def approve(user: User = Depends(require_capability("approve_distributions"))):
+            ...
+    """
+    def checker(
+        current_user: User = Depends(get_current_user),
+        db: Session = Depends(get_db),
+    ) -> User:
+        user_caps = get_user_capabilities(current_user, db)
+        missing = set(capabilities) - user_caps
+        if missing:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"Missing capabilities: {', '.join(sorted(missing))}",
+            )
+        return current_user
+    return checker
+
+
+def require_any_capability(*capabilities: str):
+    """Check the user has at least ONE of the given capabilities."""
+    def checker(
+        current_user: User = Depends(get_current_user),
+        db: Session = Depends(get_db),
+    ) -> User:
+        user_caps = get_user_capabilities(current_user, db)
+        if not user_caps.intersection(capabilities):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"Requires one of: {', '.join(sorted(capabilities))}",
+            )
+        return current_user
+    return checker
 
 
 # ---------------------------------------------------------------------------

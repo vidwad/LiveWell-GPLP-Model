@@ -338,6 +338,63 @@ class ScopeAssignment(Base):
     user = relationship("User", back_populates="scope_assignments")
 
 
+class UserCapability(Base):
+    """Fine-grained capability grants for a user.
+
+    Capabilities are action-level permissions (e.g., 'approve_distributions',
+    'manage_debt', 'view_financials') that complement role-based guards.
+    GP_ADMIN gets all capabilities by default; other roles get subsets.
+    """
+    __tablename__ = "user_capabilities"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.user_id"), nullable=False, index=True)
+    capability = Column(String(128), nullable=False, index=True)
+    granted_by = Column(Integer, ForeignKey("users.user_id"), nullable=True)
+    granted_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+
+    user = relationship("User", foreign_keys=[user_id], backref="capabilities")
+
+
+# Well-known capabilities (not exhaustive — extensible by adding new strings)
+CAPABILITIES = {
+    "view_financials",
+    "manage_properties",
+    "approve_distributions",
+    "manage_debt",
+    "manage_construction",
+    "manage_staff",
+    "manage_residents",
+    "manage_investors",
+    "create_reports",
+    "manage_grants",
+    "manage_documents",
+    "transition_stages",
+    "manage_valuations",
+    "manage_waterfall",
+    "admin_users",
+}
+
+# Default capabilities per role (GP_ADMIN gets ALL)
+ROLE_DEFAULT_CAPABILITIES: dict[str, set[str]] = {
+    UserRole.GP_ADMIN: CAPABILITIES,
+    UserRole.OPERATIONS_MANAGER: {
+        "view_financials", "manage_properties", "manage_debt",
+        "manage_construction", "manage_staff", "manage_residents",
+        "create_reports", "manage_grants", "manage_documents",
+        "transition_stages", "manage_valuations",
+    },
+    UserRole.PROPERTY_MANAGER: {
+        "view_financials", "manage_properties", "manage_staff",
+        "manage_residents", "manage_construction", "create_reports",
+        "manage_documents", "manage_grants",
+    },
+    UserRole.INVESTOR: {
+        "view_financials", "create_reports",
+    },
+}
+
+
 class AuditLog(Base):
     """Tracks high-risk actions for governance and compliance."""
     __tablename__ = "audit_log"
