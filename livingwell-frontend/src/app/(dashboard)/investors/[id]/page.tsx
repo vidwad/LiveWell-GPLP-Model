@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useCallback } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import {
   ArrowLeft,
@@ -68,6 +69,8 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { formatCurrency, formatDate } from "@/lib/utils";
+import { investors as investorsApi } from "@/lib/api";
+import { Phone, Calendar, MessageSquare, Pencil } from "lucide-react";
 import { DocumentList } from "@/components/documents/DocumentList";
 import { UploadDocumentModal } from "@/components/documents/UploadDocumentModal";
 import type { Subscription, SubscriptionStatus } from "@/types/investment";
@@ -758,6 +761,10 @@ export default function InvestorDetailPage({
             <Mail className="mr-1.5 h-4 w-4" />
             Messages
           </TabsTrigger>
+          <TabsTrigger value="crm">
+            <Clock className="mr-1.5 h-4 w-4" />
+            CRM Activity
+          </TabsTrigger>
           <TabsTrigger value="profile">
             <User className="mr-1.5 h-4 w-4" />
             Profile
@@ -926,6 +933,11 @@ export default function InvestorDetailPage({
         </TabsContent>
 
         {/* ── Profile Tab ────────────────────────────────────────── */}
+        {/* ── CRM Activity Tab ────────────────────────────────── */}
+        <TabsContent value="crm">
+          <CRMActivityTab investorId={investorId} />
+        </TabsContent>
+
         <TabsContent value="profile">
           <Card>
             <CardHeader>
@@ -954,6 +966,258 @@ export default function InvestorDetailPage({
           </Card>
         </TabsContent>
       </Tabs>
+    </div>
+  );
+}
+
+
+// ── CRM Activity Tab (embedded in investor detail) ─────────────────────
+
+const ACTIVITY_TYPES = [
+  { value: "call", label: "Call", icon: Phone },
+  { value: "email", label: "Email", icon: Mail },
+  { value: "meeting", label: "Meeting", icon: Calendar },
+  { value: "note", label: "Note", icon: FileText },
+  { value: "follow_up", label: "Follow-up", icon: Clock },
+];
+
+const ACTIVITY_ICONS: Record<string, typeof Phone> = {
+  call: Phone,
+  email: Mail,
+  meeting: Calendar,
+  note: FileText,
+  follow_up: Clock,
+  document: FileText,
+  status_change: Check,
+  task: CheckCircle2,
+};
+
+function CRMActivityTab({ investorId }: { investorId: number }) {
+  const queryClient = useQueryClient();
+  const [showForm, setShowForm] = useState(false);
+  const [form, setForm] = useState({
+    activity_type: "call",
+    subject: "",
+    body: "",
+    outcome: "",
+    follow_up_date: "",
+    follow_up_notes: "",
+    meeting_date: "",
+    meeting_location: "",
+    attendees: "",
+  });
+
+  const { data: activities = [], isLoading } = useQuery({
+    queryKey: ["crm-activities", investorId],
+    queryFn: () => investorsApi.getActivities(investorId),
+    enabled: !!investorId,
+  });
+
+  const { data: followUps = [] } = useQuery({
+    queryKey: ["crm-followups", investorId],
+    queryFn: () => investorsApi.getFollowUps(investorId),
+    enabled: !!investorId,
+  });
+
+  const createMutation = useMutation({
+    mutationFn: (data: object) => investorsApi.createActivity(investorId, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["crm-activities", investorId] });
+      queryClient.invalidateQueries({ queryKey: ["crm-followups", investorId] });
+      setForm({ activity_type: "call", subject: "", body: "", outcome: "", follow_up_date: "", follow_up_notes: "", meeting_date: "", meeting_location: "", attendees: "" });
+      setShowForm(false);
+    },
+  });
+
+  const markDoneMutation = useMutation({
+    mutationFn: (activityId: number) => investorsApi.updateActivity(activityId, { is_follow_up_done: true }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["crm-activities", investorId] });
+      queryClient.invalidateQueries({ queryKey: ["crm-followups", investorId] });
+    },
+  });
+
+  const pendingFollowUps = followUps.filter((f: any) => !f.is_follow_up_done);
+  const today = new Date().toISOString().slice(0, 10);
+
+  return (
+    <div className="space-y-4">
+      {/* Quick stats + actions */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-4">
+          <div className="text-center">
+            <p className="text-2xl font-bold">{activities.length}</p>
+            <p className="text-xs text-muted-foreground">Activities</p>
+          </div>
+          <Separator orientation="vertical" className="h-8" />
+          <div className="text-center">
+            <p className="text-2xl font-bold text-amber-600">{pendingFollowUps.length}</p>
+            <p className="text-xs text-muted-foreground">Follow-ups</p>
+          </div>
+        </div>
+        <div className="flex gap-2">
+          <Link href="/investor-onboarding">
+            <Button variant="outline" size="sm">
+              <ArrowRight className="h-3.5 w-3.5 mr-1.5" />
+              CRM Board
+            </Button>
+          </Link>
+          <Button size="sm" onClick={() => setShowForm(!showForm)}>
+            <Plus className="h-3.5 w-3.5 mr-1.5" />
+            {showForm ? "Cancel" : "Log Activity"}
+          </Button>
+        </div>
+      </div>
+
+      {/* Log Activity Form */}
+      {showForm && (
+        <Card>
+          <CardContent className="p-4 space-y-3">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <div className="col-span-2 sm:col-span-1">
+                <Label className="text-xs">Type</Label>
+                <Select value={form.activity_type} onValueChange={(v) => setForm((f) => ({ ...f, activity_type: v }))}>
+                  <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {ACTIVITY_TYPES.map((t) => (
+                      <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="col-span-2 sm:col-span-3">
+                <Label className="text-xs">Subject</Label>
+                <Input className="mt-1" value={form.subject} onChange={(e) => setForm((f) => ({ ...f, subject: e.target.value }))} placeholder="Brief description" />
+              </div>
+            </div>
+            <div>
+              <Label className="text-xs">Notes</Label>
+              <Textarea className="mt-1" rows={3} value={form.body} onChange={(e) => setForm((f) => ({ ...f, body: e.target.value }))} placeholder="Details of the interaction..." />
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <div>
+                <Label className="text-xs">Outcome</Label>
+                <Input className="mt-1" value={form.outcome} onChange={(e) => setForm((f) => ({ ...f, outcome: e.target.value }))} placeholder="e.g. Left voicemail" />
+              </div>
+              <div>
+                <Label className="text-xs">Follow-up Date</Label>
+                <Input type="date" className="mt-1" value={form.follow_up_date} onChange={(e) => setForm((f) => ({ ...f, follow_up_date: e.target.value }))} />
+              </div>
+              {form.activity_type === "meeting" && (
+                <>
+                  <div>
+                    <Label className="text-xs">Meeting Date</Label>
+                    <Input type="datetime-local" className="mt-1" value={form.meeting_date} onChange={(e) => setForm((f) => ({ ...f, meeting_date: e.target.value }))} />
+                  </div>
+                  <div>
+                    <Label className="text-xs">Location</Label>
+                    <Input className="mt-1" value={form.meeting_location} onChange={(e) => setForm((f) => ({ ...f, meeting_location: e.target.value }))} placeholder="Office / Zoom" />
+                  </div>
+                </>
+              )}
+            </div>
+            <Button size="sm" onClick={() => createMutation.mutate(form)} disabled={!form.subject || createMutation.isPending}>
+              {createMutation.isPending ? "Saving..." : "Save Activity"}
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Pending Follow-ups */}
+      {pendingFollowUps.length > 0 && (
+        <Card className="border-amber-200 bg-amber-50/30">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm flex items-center gap-2 text-amber-700">
+              <Clock className="h-4 w-4" />
+              Pending Follow-ups ({pendingFollowUps.length})
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            {pendingFollowUps.map((fu: any) => {
+              const isOverdue = fu.follow_up_date < today;
+              return (
+                <div key={fu.activity_id} className={`flex items-center justify-between rounded-md border p-2 ${isOverdue ? "border-red-300 bg-red-50" : "bg-white"}`}>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-medium truncate">{fu.subject}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {fu.follow_up_date} {isOverdue && <Badge variant="destructive" className="ml-1 text-[10px]">Overdue</Badge>}
+                    </p>
+                  </div>
+                  <Button variant="ghost" size="sm" onClick={() => markDoneMutation.mutate(fu.activity_id)}>
+                    <CheckCircle2 className="h-4 w-4 text-green-600" />
+                  </Button>
+                </div>
+              );
+            })}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Activity Timeline */}
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm">Activity Timeline</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {isLoading ? (
+            <div className="space-y-3">
+              {[1, 2, 3].map((i) => <Skeleton key={i} className="h-16" />)}
+            </div>
+          ) : activities.length === 0 ? (
+            <p className="text-sm text-muted-foreground py-4 text-center">No activities logged yet. Click "Log Activity" to start tracking interactions.</p>
+          ) : (
+            <div className="space-y-0">
+              {activities.map((a: any, idx: number) => {
+                const TypeIcon = ACTIVITY_ICONS[a.activity_type] || MessageSquare;
+                const iconColors: Record<string, string> = {
+                  call: "text-blue-600 bg-blue-50",
+                  email: "text-purple-600 bg-purple-50",
+                  meeting: "text-green-600 bg-green-50",
+                  note: "text-gray-600 bg-gray-50",
+                  follow_up: "text-amber-600 bg-amber-50",
+                  status_change: "text-emerald-600 bg-emerald-50",
+                };
+                const color = iconColors[a.activity_type] || "text-gray-600 bg-gray-50";
+
+                return (
+                  <div key={a.activity_id} className="flex gap-3 py-3 border-b last:border-0">
+                    {/* Timeline dot */}
+                    <div className="flex flex-col items-center">
+                      <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${color}`}>
+                        <TypeIcon className="h-4 w-4" />
+                      </div>
+                      {idx < activities.length - 1 && <div className="w-px flex-1 bg-border mt-1" />}
+                    </div>
+                    {/* Content */}
+                    <div className="flex-1 min-w-0 pb-1">
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="text-sm font-medium truncate">{a.subject}</p>
+                        <span className="text-[10px] text-muted-foreground whitespace-nowrap">
+                          {a.created_at ? new Date(a.created_at).toLocaleDateString("en-CA", { month: "short", day: "numeric" }) : ""}
+                        </span>
+                      </div>
+                      {a.body && <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{a.body}</p>}
+                      {a.outcome && (
+                        <p className="text-xs mt-1">
+                          <span className="font-medium">Outcome:</span> {a.outcome}
+                        </p>
+                      )}
+                      {a.follow_up_date && (
+                        <p className="text-xs text-amber-600 mt-1">
+                          <Clock className="inline h-3 w-3 mr-0.5" />
+                          Follow-up: {a.follow_up_date}
+                          {a.is_follow_up_done && <Badge className="ml-1 text-[9px] bg-green-100 text-green-700">Done</Badge>}
+                        </p>
+                      )}
+                      {a.created_by && <p className="text-[10px] text-muted-foreground mt-1">by {a.created_by}</p>}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }

@@ -2172,3 +2172,44 @@ class AreaResearch(Base):
 
     property = relationship("Property")
     creator = relationship("User")
+
+
+# ---------------------------------------------------------------------------
+# CRM Activity Log
+# ---------------------------------------------------------------------------
+
+class CRMActivityType(str, enum.Enum):
+    call = "call"
+    email = "email"
+    meeting = "meeting"
+    note = "note"
+    document = "document"
+    status_change = "status_change"
+    task = "task"
+    follow_up = "follow_up"
+
+
+class CRMActivity(Base):
+    """Tracks all CRM interactions with an investor — calls, emails, meetings, notes."""
+    __tablename__ = "crm_activities"
+
+    activity_id = Column(Integer, primary_key=True, autoincrement=True)
+    investor_id = Column(Integer, ForeignKey("investors.investor_id"), nullable=False, index=True)
+    activity_type = Column(_enum(CRMActivityType), nullable=False)
+    subject = Column(String(512), nullable=False)
+    body = Column(Text, nullable=True)
+    outcome = Column(String(256), nullable=True)  # e.g. "Left voicemail", "Committed $250K", "Requested docs"
+    follow_up_date = Column(Date, nullable=True)
+    follow_up_notes = Column(String(512), nullable=True)
+    is_follow_up_done = Column(Boolean, default=False, nullable=False)
+    # Meeting-specific
+    meeting_date = Column(DateTime, nullable=True)
+    meeting_location = Column(String(256), nullable=True)
+    attendees = Column(String(512), nullable=True)  # comma-separated names
+    # Metadata
+    created_by = Column(Integer, ForeignKey("users.user_id"), nullable=True)
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    updated_at = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    investor = relationship("Investor", backref="crm_activities")
+    creator = relationship("User")

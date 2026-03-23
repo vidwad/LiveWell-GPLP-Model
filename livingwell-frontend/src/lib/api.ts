@@ -229,6 +229,19 @@ export const investors = {
   getMessages: (id: number) => apiClient.get<Message[]>(`/api/investor/investors/${id}/messages`).then(r => r.data),
   getDistributions: (id: number) => apiClient.get<InvestorDistributionHistory>(`/api/investor/investors/${id}/distributions`).then(r => r.data),
   calculateWaterfall: (data: WaterfallInput) => apiClient.post<WaterfallResult>("/api/investor/waterfall/calculate", data).then(r => r.data),
+  // CRM
+  getActivities: (investorId: number, type?: string) =>
+    apiClient.get(`/api/investor/investors/${investorId}/activities`, { params: type ? { activity_type: type } : {} }).then(r => r.data),
+  createActivity: (investorId: number, data: object) =>
+    apiClient.post(`/api/investor/investors/${investorId}/activities`, data).then(r => r.data),
+  updateActivity: (activityId: number, data: object) =>
+    apiClient.patch(`/api/investor/activities/${activityId}`, data).then(r => r.data),
+  deleteActivity: (activityId: number) =>
+    apiClient.delete(`/api/investor/activities/${activityId}`),
+  editInvestor: (investorId: number, data: object) =>
+    apiClient.patch(`/api/investor/investors/${investorId}/edit`, data).then(r => r.data),
+  getFollowUps: (investorId?: number) =>
+    apiClient.get(`/api/investor/investors/${investorId || 0}/follow-ups`).then(r => r.data),
 };
 
 // ── Communities ──────────────────────────────────────────────────────

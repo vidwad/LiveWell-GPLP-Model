@@ -7,8 +7,11 @@ This file retains: Investor CRUD, Dashboard, Documents, Messages, Waterfall.
 import datetime
 from decimal import Decimal
 
+from typing import Optional
+
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import Response
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.core.deps import get_current_user, require_gp_admin, require_gp_or_ops, require_investor_or_above
@@ -1125,4 +1128,207 @@ def list_tax_documents(
         "k1_uploaded": uploaded,
         "k1_pending": pending,
         "investors": result,
+    }
+
+
+# ===========================================================================
+# CRM Activity Log
+# ===========================================================================
+
+from app.db.models import CRMActivity, CRMActivityType
+
+
+class CRMActivityCreate(BaseModel):
+    activity_type: str
+    subject: str
+    body: Optional[str] = None
+    outcome: Optional[str] = None
+    follow_up_date: Optional[str] = None
+    follow_up_notes: Optional[str] = None
+    meeting_date: Optional[str] = None
+    meeting_location: Optional[str] = None
+    attendees: Optional[str] = None
+
+
+class CRMActivityUpdate(BaseModel):
+    subject: Optional[str] = None
+    body: Optional[str] = None
+    outcome: Optional[str] = None
+    follow_up_date: Optional[str] = None
+    follow_up_notes: Optional[str] = None
+    is_follow_up_done: Optional[bool] = None
+    meeting_date: Optional[str] = None
+    meeting_location: Optional[str] = None
+    attendees: Optional[str] = None
+
+
+@router.get("/investors/{investor_id}/activities")
+def list_crm_activities(
+    investor_id: int,
+    activity_type: Optional[str] = None,
+    limit: int = 50,
+    db: Session = Depends(get_db),
+    _: User = Depends(require_gp_or_ops),
+):
+    """List CRM activities for an investor, newest first."""
+    query = db.query(CRMActivity).filter(CRMActivity.investor_id == investor_id)
+    if activity_type:
+        query = query.filter(CRMActivity.activity_type == activity_type)
+    activities = query.order_by(CRMActivity.created_at.desc()).limit(limit).all()
+
+    return [
+        {
+            "activity_id": a.activity_id,
+            "investor_id": a.investor_id,
+            "activity_type": a.activity_type.value if hasattr(a.activity_type, "value") else a.activity_type,
+            "subject": a.subject,
+            "body": a.body,
+            "outcome": a.outcome,
+            "follow_up_date": str(a.follow_up_date) if a.follow_up_date else None,
+            "follow_up_notes": a.follow_up_notes,
+            "is_follow_up_done": a.is_follow_up_done,
+            "meeting_date": a.meeting_date.isoformat() if a.meeting_date else None,
+            "meeting_location": a.meeting_location,
+            "attendees": a.attendees,
+            "created_by": a.creator.full_name if a.creator else None,
+            "created_at": a.created_at.isoformat() if a.created_at else None,
+            "updated_at": a.updated_at.isoformat() if a.updated_at else None,
+        }
+        for a in activities
+    ]
+
+
+@router.post("/investors/{investor_id}/activities", status_code=201)
+def create_crm_activity(
+    investor_id: int,
+    payload: CRMActivityCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_gp_or_ops),
+):
+    """Log a CRM activity (call, email, meeting, note)."""
+    from datetime import datetime as dt, date as _date
+
+    investor = db.query(Investor).filter(Investor.investor_id == investor_id).first()
+    if not investor:
+        raise HTTPException(404, "Investor not found")
+
+    activity = CRMActivity(
+        investor_id=investor_id,
+        activity_type=CRMActivityType(payload.activity_type),
+        subject=payload.subject,
+        body=payload.body,
+        outcome=payload.outcome,
+        follow_up_date=_date.fromisoformat(payload.follow_up_date) if payload.follow_up_date else None,
+        follow_up_notes=payload.follow_up_notes,
+        meeting_date=dt.fromisoformat(payload.meeting_date) if payload.meeting_date else None,
+        meeting_location=payload.meeting_location,
+        attendees=payload.attendees,
+        created_by=current_user.user_id,
+    )
+    db.add(activity)
+    db.commit()
+    db.refresh(activity)
+
+    return {
+        "activity_id": activity.activity_id,
+        "activity_type": activity.activity_type.value,
+        "subject": activity.subject,
+        "created_at": activity.created_at.isoformat(),
+    }
+
+
+@router.patch("/activities/{activity_id}")
+def update_crm_activity(
+    activity_id: int,
+    payload: CRMActivityUpdate,
+    db: Session = Depends(get_db),
+    _: User = Depends(require_gp_or_ops),
+):
+    """Update a CRM activity."""
+    from datetime import datetime as dt, date as _date
+
+    activity = db.query(CRMActivity).filter(CRMActivity.activity_id == activity_id).first()
+    if not activity:
+        raise HTTPException(404, "Activity not found")
+
+    for field, val in payload.model_dump(exclude_unset=True).items():
+        if field == "follow_up_date" and val:
+            val = _date.fromisoformat(val)
+        elif field == "meeting_date" and val:
+            val = dt.fromisoformat(val)
+        setattr(activity, field, val)
+
+    db.commit()
+    db.refresh(activity)
+    return {"status": "updated", "activity_id": activity.activity_id}
+
+
+@router.delete("/activities/{activity_id}", status_code=204)
+def delete_crm_activity(
+    activity_id: int,
+    db: Session = Depends(get_db),
+    _: User = Depends(require_gp_or_ops),
+):
+    activity = db.query(CRMActivity).filter(CRMActivity.activity_id == activity_id).first()
+    if not activity:
+        raise HTTPException(404, "Activity not found")
+    db.delete(activity)
+    db.commit()
+
+
+@router.get("/investors/{investor_id}/follow-ups")
+def list_pending_follow_ups(
+    investor_id: int | None = None,
+    db: Session = Depends(get_db),
+    _: User = Depends(require_gp_or_ops),
+):
+    """List pending follow-ups across all investors (or for a specific one)."""
+    query = db.query(CRMActivity).filter(
+        CRMActivity.follow_up_date.isnot(None),
+        CRMActivity.is_follow_up_done == False,
+    )
+    if investor_id:
+        query = query.filter(CRMActivity.investor_id == investor_id)
+
+    activities = query.order_by(CRMActivity.follow_up_date.asc()).limit(50).all()
+    return [
+        {
+            "activity_id": a.activity_id,
+            "investor_id": a.investor_id,
+            "investor_name": a.investor.name if a.investor else None,
+            "activity_type": a.activity_type.value if hasattr(a.activity_type, "value") else a.activity_type,
+            "subject": a.subject,
+            "follow_up_date": str(a.follow_up_date),
+            "follow_up_notes": a.follow_up_notes,
+            "created_at": a.created_at.isoformat() if a.created_at else None,
+        }
+        for a in activities
+    ]
+
+
+@router.patch("/investors/{investor_id}/edit")
+def edit_investor_crm(
+    investor_id: int,
+    payload: dict,
+    db: Session = Depends(get_db),
+    _: User = Depends(require_gp_or_ops),
+):
+    """Edit investor fields from the CRM (name, email, phone, notes, entity_type, etc.)."""
+    investor = db.query(Investor).filter(Investor.investor_id == investor_id).first()
+    if not investor:
+        raise HTTPException(404, "Investor not found")
+
+    allowed = {"name", "email", "phone", "address", "entity_type", "jurisdiction",
+               "accredited_status", "exemption_type", "tax_id", "banking_info", "notes"}
+    for key, val in payload.items():
+        if key in allowed:
+            setattr(investor, key, val if val != "" else None)
+
+    db.commit()
+    db.refresh(investor)
+    return {
+        "investor_id": investor.investor_id,
+        "name": investor.name,
+        "email": investor.email,
+        "status": "updated",
     }

@@ -79,7 +79,6 @@ const NAV_SECTIONS: NavSection[] = [
     roles: [GP, INV],
     items: [
       { href: "/investment", label: "LP Funds", icon: Landmark, roles: [GP] },
-      { href: "/distributions", label: "Distributions", icon: DollarSign, roles: [GP] },
       { href: "/investors", label: "Investors", icon: TrendingUp, roles: [GP, INV] },
       { href: "/investor-onboarding", label: "CRM & Onboarding", icon: UserPlus, roles: [GP] },
     ],
@@ -91,6 +90,7 @@ const NAV_SECTIONS: NavSection[] = [
     roles: [GP, PM],
     items: [
       { href: "/portfolio", label: "Properties", icon: Building2, roles: [GP, PM] },
+      { href: "/area-research", label: "Area Research", icon: MapPin, roles: [GP] },
       { href: "/lifecycle", label: "Lifecycle", icon: GitBranch, roles: [GP, PM] },
       { href: "/analytics", label: "Portfolio Analytics", icon: PieChart, roles: [GP] },
       { href: "/lp-comparison", label: "LP Comparison", icon: GitBranch, roles: [GP] },
@@ -104,13 +104,14 @@ const NAV_SECTIONS: NavSection[] = [
     roles: [GP, OP, PM],
     items: [
       { href: "/communities", label: "Communities", icon: Home, roles: [GP, OP, PM] },
-      { href: "/operations", label: "Operations P&L", icon: Activity, roles: [GP, OP, PM] },
-      { href: "/vacancy-alerts", label: "Vacancy Alerts", icon: AlertTriangle, roles: [GP, OP, PM] },
       { href: "/maintenance", label: "Maintenance", icon: Wrench, roles: [GP, OP, PM] },
-      { href: "/operator/turnovers", label: "Unit Turnovers", icon: RefreshCw, roles: [GP, OP, PM] },
-      { href: "/staffing", label: "Staffing", icon: Users, roles: [GP, OP, PM] },
       { href: "/arrears-aging", label: "Arrears Aging", icon: DollarSign, roles: [GP, OP] },
+      { href: "/vacancy-alerts", label: "Vacancy Alerts", icon: AlertTriangle, roles: [GP, OP, PM] },
+      { href: "/operator/turnovers", label: "Unit Turnovers", icon: RefreshCw, roles: [GP, OP, PM] },
+      { href: "/operations", label: "Operations P&L", icon: Activity, roles: [GP, OP, PM] },
+      { href: "/staffing", label: "Staffing", icon: Users, roles: [GP, OP, PM] },
       { href: "/variance-alerts", label: "Variance Alerts", icon: AlertTriangle, roles: [GP, OP] },
+      { href: "/funding", label: "Grants & Funding", icon: HandCoins, roles: [GP, OP] },
     ],
   },
 
@@ -124,30 +125,21 @@ const NAV_SECTIONS: NavSection[] = [
       { href: "/cash-flow", label: "Cash Flow", icon: Banknote, roles: [GP] },
       { href: "/debt-maturity", label: "Debt Maturity", icon: Landmark, roles: [GP] },
       { href: "/tax-documents", label: "K-1 Tax Docs", icon: FileText, roles: [GP] },
-      { href: "/documents", label: "Documents", icon: FolderOpen, roles: [GP] },
     ],
   },
 
   // ── GP Admin: Administration ──
   {
     section: "Administration",
-    roles: [GP],
-    items: [
-      { href: "/operator", label: "Operators", icon: ClipboardList, roles: [GP] },
-      { href: "/property-managers", label: "Property Managers", icon: Settings, roles: [GP, PM] },
-      { href: "/etransfers", label: "eTransfers", icon: Send, roles: [GP] },
-      { href: "/funding", label: "Grants & Funding", icon: HandCoins, roles: [GP, OP] },
-      { href: "/settings", label: "Settings", icon: Settings, roles: [GP] },
-    ],
-  },
-
-  // ── AI Assistant: all platform users ──
-  {
-    section: "",
-    roles: ALL_PLATFORM,
+    roles: [GP, PM],
     items: [
       { href: "/ai", label: "AI Assistant", icon: Sparkles, roles: ALL_PLATFORM },
-      { href: "/area-research", label: "Area Research", icon: MapPin, roles: [GP, OP] },
+      { href: "/property-managers", label: "Property Managers", icon: Settings, roles: [GP, PM] },
+      { href: "/operator", label: "Operators", icon: ClipboardList, roles: [GP] },
+      { href: "/documents", label: "Documents", icon: FolderOpen, roles: [GP] },
+      { href: "/distributions", label: "Distributions", icon: DollarSign, roles: [GP] },
+      { href: "/etransfers", label: "eTransfers", icon: Send, roles: [GP] },
+      { href: "/settings", label: "Settings", icon: Settings, roles: [GP] },
     ],
   },
 ];
