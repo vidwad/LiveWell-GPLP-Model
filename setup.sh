@@ -28,28 +28,17 @@ if ! docker compose version &> /dev/null; then
     sudo apt-get install -y docker-compose-plugin
 fi
 
-# ── 3. Clone the repo (private — needs GitHub token) ─────────
+# ── 3. Clone the repo ────────────────────────────────────────
 REPO_DIR="LiveWell-GPLP-Model"
 if [ ! -f "docker-compose.yml" ]; then
     if [ ! -d "$REPO_DIR" ]; then
-        echo ""
-        echo "This repository is private. You need a GitHub Personal Access Token."
-        echo "Generate one at: https://github.com/settings/tokens"
-        echo "(Select 'repo' scope for full access to private repositories)"
-        echo ""
-        read -p "GitHub Username [vidwad]: " GH_USER
-        GH_USER=${GH_USER:-vidwad}
-        read -sp "GitHub Personal Access Token: " GH_TOKEN
-        echo ""
         echo "Cloning repository..."
-        git clone https://${GH_USER}:${GH_TOKEN}@github.com/vidwad/LiveWell-GPLP-Model.git
-        # Store credentials for future git pull
+        git clone https://github.com/vidwad/LiveWell-GPLP-Model.git
         cd "$REPO_DIR"
-        git config credential.helper store
-        echo "https://${GH_USER}:${GH_TOKEN}@github.com" > ~/.git-credentials
-        chmod 600 ~/.git-credentials
     else
         cd "$REPO_DIR"
+        echo "Pulling latest changes..."
+        git pull origin master
     fi
 else
     # Already inside the repo directory
@@ -107,7 +96,7 @@ docker compose up -d --build
 # ── 7. Wait for services to be healthy ────────────────────────
 echo ""
 echo "Waiting for services to start..."
-sleep 20
+sleep 30
 
 # Check backend health
 HEALTH=$(curl -s http://localhost:8000/healthz 2>/dev/null || echo "not ready")
