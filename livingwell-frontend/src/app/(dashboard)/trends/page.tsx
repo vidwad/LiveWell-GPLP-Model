@@ -86,7 +86,7 @@ export default function TrendsPage() {
           <CardContent className="pt-4 pb-3 px-4">
             <p className="text-xs text-muted-foreground font-medium">Occupancy Rate</p>
             <p className="text-xl font-bold text-green-700">
-              {data?.occupancy_rate ? `${(data.occupancy_rate * 100).toFixed(1)}%` : "—"}
+              {data?.occupancy_rate ? `${data.occupancy_rate.toFixed(1)}%` : "—"}
             </p>
             <p className="text-xs text-muted-foreground">
               {data?.occupied_units ?? 0} / {data?.total_units ?? 0} beds
