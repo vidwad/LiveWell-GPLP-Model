@@ -53,20 +53,24 @@ class Settings(BaseSettings):
     @property
     def cors_origins(self) -> list[str]:
         """Return allowed CORS origins based on environment."""
-        if self.ENVIRONMENT == "production":
-            # In production, only allow the configured frontend URL
-            origins = [self.FRONTEND_URL]
-            # Also allow common Vercel preview URLs
-            if "vercel.app" in self.FRONTEND_URL:
-                origins.append("https://*.vercel.app")
-            return origins
-        # In development, allow specific localhost origins
-        # (wildcard '*' is incompatible with withCredentials: true)
-        return [
+        origins = [
+            self.FRONTEND_URL,
             "http://localhost:3000",
             "http://127.0.0.1:3000",
-            self.FRONTEND_URL,
         ]
+        if self.ENVIRONMENT == "production":
+            # Also allow the frontend URL without port (for reverse-proxy setups)
+            from urllib.parse import urlparse
+            parsed = urlparse(self.FRONTEND_URL)
+            base = f"{parsed.scheme}://{parsed.hostname}"
+            origins.append(base)
+            # Common port variants
+            origins.append(f"{base}:3000")
+            origins.append(f"{base}:8000")
+            if "vercel.app" in self.FRONTEND_URL:
+                origins.append("https://*.vercel.app")
+        # Deduplicate while preserving order
+        return list(dict.fromkeys(origins))
 
 
 settings = Settings()

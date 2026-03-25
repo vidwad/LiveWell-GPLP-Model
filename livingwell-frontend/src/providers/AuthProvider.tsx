@@ -30,6 +30,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setIsLoading(false);
       return;
     }
+    // Ensure the flag cookie is set for middleware
+    document.cookie = "lwc_token_present=1; path=/; max-age=604800; SameSite=Lax";
     apiClient
       .get<User>("/api/auth/me")
       .then((r) => setUser(r.data))
@@ -43,9 +45,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const login = async (email: string, password: string) => {
     const { data } = await apiClient.post("/api/auth/login", { email, password });
-    // Server sets httpOnly cookies; also store in localStorage as fallback
+    // Store tokens in localStorage
     localStorage.setItem("lwc_access_token", data.access_token);
     localStorage.setItem("lwc_refresh_token", data.refresh_token);
+    // Set a flag cookie so Next.js middleware knows the user is logged in
+    document.cookie = "lwc_token_present=1; path=/; max-age=604800; SameSite=Lax";
     const me = await apiClient.get<User>("/api/auth/me");
     setUser(me.data);
   };

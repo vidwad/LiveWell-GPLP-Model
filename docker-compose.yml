@@ -38,7 +38,7 @@ services:
       ENVIRONMENT: ${ENVIRONMENT:-production}
       JWT_SECRET_KEY: ${JWT_SECRET_KEY:-change_me_in_production_use_openssl_rand_hex_32}
       JWT_ALGORITHM: HS256
-      FRONTEND_URL: ${FRONTEND_URL:-http://localhost}
+      FRONTEND_URL: ${FRONTEND_URL:-http://165.22.226.72:3000}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       SEED_DB: ${SEED_DB:-true}
     ports:
@@ -52,7 +52,7 @@ services:
       context: ./livingwell-frontend
       dockerfile: Dockerfile
       args:
-        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-/api}
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://165.22.226.72:8000}
     restart: unless-stopped
     depends_on:
       - backend

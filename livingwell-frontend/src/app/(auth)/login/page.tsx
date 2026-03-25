@@ -25,7 +25,8 @@ export default function LoginPage() {
     setLoading(true);
     try {
       await login(email, password);
-      router.push("/dashboard");
+      // Use full page navigation so middleware sees the new cookie
+      window.location.href = "/dashboard";
     } catch {
       const message = "Invalid email or password";
       setError(message);

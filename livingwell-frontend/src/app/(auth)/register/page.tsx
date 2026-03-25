@@ -45,7 +45,7 @@ export default function RegisterPage() {
         role,
       });
       await login(email, password);
-      router.push("/dashboard");
+      window.location.href = "/dashboard";
     } catch (err: unknown) {
       const message = getApiErrorMessage(err, "Registration failed");
       setError(message);
