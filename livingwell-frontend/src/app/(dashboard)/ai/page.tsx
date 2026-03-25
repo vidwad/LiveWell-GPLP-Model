@@ -436,18 +436,18 @@ function UnderwritingTab() {
               </CardContent>
             </Card>
           </div>
-          {data.conditions && (data.conditions as string[]).length > 0 && (
+          {Array.isArray(data.conditions) && (data.conditions as string[]).length > 0 ? (
             <Card>
               <CardHeader><CardTitle>Conditions to Proceed</CardTitle></CardHeader>
               <CardContent>
                 <ul className="space-y-1">
-                  {(data.conditions as string[]).map((c, i) => (
+                  {(data.conditions as string[]).map((c: string, i: number) => (
                     <li key={i} className="text-sm flex gap-2"><span className="text-muted-foreground">&#9744;</span>{c}</li>
                   ))}
                 </ul>
               </CardContent>
             </Card>
-          )}
+          ) : null}
         </div>
       )}
     </div>
