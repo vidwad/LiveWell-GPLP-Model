@@ -179,8 +179,8 @@ export default function InvestorOnboardingPage() {
 
   // Quick-add lead mutation
   const addLeadMutation = useMutation({
-    mutationFn: (params: Record<string, string | number>) =>
-      apiClient.post("/api/investor/leads/quick-add", null, { params }).then(r => r.data),
+    mutationFn: (data: Record<string, string | number>) =>
+      apiClient.post("/api/investor/leads/quick-add", data).then(r => r.data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["onboarding-investors"] });
       setLeadForm({ name: "", email: "", phone: "", lp_id: "", indicated_amount: "", source: "", notes: "" });
@@ -331,7 +331,7 @@ export default function InvestorOnboardingPage() {
         if (amountIdx !== -1 && fields[amountIdx]) params.indicated_amount = parseFloat(fields[amountIdx]);
 
         try {
-          await apiClient.post("/api/investor/leads/quick-add", null, { params });
+          await apiClient.post("/api/investor/leads/quick-add", params);
           imported++;
         } catch {
           failed++;

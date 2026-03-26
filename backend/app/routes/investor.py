@@ -859,19 +859,23 @@ def get_lp_ioi_summary(
     )
 
 
+class QuickAddLeadBody(BaseModel):
+    name: str
+    email: str
+    lp_id: Optional[int] = None
+    indicated_amount: Optional[float] = None
+    phone: Optional[str] = None
+    source: Optional[str] = None
+    notes: Optional[str] = None
+    entity_type: Optional[str] = None
+    jurisdiction: Optional[str] = None
+    accredited_status: Optional[str] = None
+    address: Optional[str] = None
+
+
 @router.post("/leads/quick-add", status_code=201)
 def quick_add_lead(
-    name: str,
-    email: str,
-    lp_id: int | None = None,
-    indicated_amount: float | None = None,
-    phone: str | None = None,
-    source: str | None = None,
-    notes: str | None = None,
-    entity_type: str | None = None,
-    jurisdiction: str | None = None,
-    accredited_status: str | None = None,
-    address: str | None = None,
+    body: QuickAddLeadBody,
     db: Session = Depends(get_db),
     _: User = Depends(require_gp_or_ops),
 ):
@@ -879,39 +883,40 @@ def quick_add_lead(
 
     This is the CRM entry point: captures a potential investor and their
     interest in a specific LP, all in one step.
+    Accepts a JSON body for robust handling of addresses with commas, special chars, etc.
     """
     from decimal import Decimal
 
     # Check for existing investor
-    existing = db.query(Investor).filter(Investor.email == email).first()
+    existing = db.query(Investor).filter(Investor.email == body.email).first()
     if existing:
         inv = existing
     else:
         inv = Investor(
-            name=name,
-            email=email,
-            phone=phone,
-            entity_type=entity_type,
-            jurisdiction=jurisdiction,
-            address=address,
-            accredited_status=accredited_status or "pending",
+            name=body.name,
+            email=body.email,
+            phone=body.phone,
+            entity_type=body.entity_type,
+            jurisdiction=body.jurisdiction,
+            address=body.address,
+            accredited_status=body.accredited_status or "pending",
             onboarding_status=OnboardingStatus.lead,
-            notes=notes,
+            notes=body.notes,
         )
         db.add(inv)
         db.flush()
 
     # Create IOI if LP and amount provided
     ioi = None
-    if lp_id and indicated_amount:
-        lp = db.query(LPEntity).filter(LPEntity.lp_id == lp_id).first()
+    if body.lp_id and body.indicated_amount:
+        lp = db.query(LPEntity).filter(LPEntity.lp_id == body.lp_id).first()
         if lp:
             ioi = IndicationOfInterest(
                 investor_id=inv.investor_id,
-                lp_id=lp_id,
-                indicated_amount=Decimal(str(indicated_amount)),
-                source=source,
-                notes=notes,
+                lp_id=body.lp_id,
+                indicated_amount=Decimal(str(body.indicated_amount)),
+                source=body.source,
+                notes=body.notes,
             )
             db.add(ioi)
             db.flush()
@@ -925,8 +930,8 @@ def quick_add_lead(
         "onboarding_status": inv.onboarding_status.value if inv.onboarding_status else "lead",
         "ioi_id": ioi.ioi_id if ioi else None,
         "ioi_amount": float(ioi.indicated_amount) if ioi else None,
-        "message": f"{'New lead' if not existing else 'Existing investor'} '{name}' added"
-                   + (f" with ${indicated_amount:,.0f} IOI" if ioi else ""),
+        "message": f"{'New lead' if not existing else 'Existing investor'} '{body.name}' added"
+                   + (f" with ${body.indicated_amount:,.0f} IOI" if ioi else ""),
     }
 
 
