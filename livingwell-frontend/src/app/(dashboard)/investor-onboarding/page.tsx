@@ -339,7 +339,7 @@ export default function InvestorOnboardingPage() {
 
       // Auto-map columns by matching header names
       const autoMapping: Record<string, string> = {};
-      const fieldKeys = ["name", "email", "phone", "entity_type", "jurisdiction", "accredited_status", "address", "source", "notes", "indicated_amount"];
+      const fieldKeys = ["name", "email", "phone", "address", "entity_type", "jurisdiction", "accredited_status", "exemption_type", "tax_id", "banking_info", "onboarding_status", "source", "notes", "indicated_amount"];
       headers.forEach((h, idx) => {
         const normalized = h.toLowerCase().replace(/[^a-z0-9]/g, "_");
         for (const fk of fieldKeys) {
@@ -392,7 +392,7 @@ export default function InvestorOnboardingPage() {
       if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { failed++; continue; }
 
       const body: Record<string, string | number> = { name, email };
-      const optionalFields = ["phone", "source", "notes", "entity_type", "jurisdiction", "accredited_status", "address"];
+      const optionalFields = ["phone", "address", "entity_type", "jurisdiction", "accredited_status", "exemption_type", "tax_id", "banking_info", "onboarding_status", "source", "notes"];
       for (const field of optionalFields) {
         if (fieldToCol[field] !== undefined && row[fieldToCol[field]]) {
           body[field] = row[fieldToCol[field]];
