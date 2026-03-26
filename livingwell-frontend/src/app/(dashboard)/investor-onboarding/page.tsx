@@ -304,38 +304,91 @@ export default function InvestorOnboardingPage() {
     URL.revokeObjectURL(url);
   }, [investors]);
 
-  // ── CSV parsing helper ──
-  function parseCsvLine(line: string): string[] {
-    const fields: string[] = [];
-    let current = "";
+  // ── Full RFC-4180 CSV parser (handles multi-line quoted fields, commas, newlines) ──
+  function parseCsvFull(text: string): string[][] {
+    const rows: string[][] = [];
+    let row: string[] = [];
+    let field = "";
     let inQuotes = false;
-    for (const ch of line) {
-      if (ch === '"') { inQuotes = !inQuotes; continue; }
-      if (ch === "," && !inQuotes) { fields.push(current.trim()); current = ""; continue; }
-      current += ch;
+    let i = 0;
+
+    while (i < text.length) {
+      const ch = text[i];
+
+      if (inQuotes) {
+        if (ch === '"') {
+          // Check for escaped quote ("")
+          if (i + 1 < text.length && text[i + 1] === '"') {
+            field += '"';
+            i += 2;
+            continue;
+          }
+          // End of quoted field
+          inQuotes = false;
+          i++;
+          continue;
+        }
+        // Any character inside quotes (including newlines) is part of the field
+        field += ch;
+        i++;
+        continue;
+      }
+
+      // Not in quotes
+      if (ch === '"') {
+        inQuotes = true;
+        i++;
+        continue;
+      }
+      if (ch === ',') {
+        row.push(field.trim());
+        field = "";
+        i++;
+        continue;
+      }
+      if (ch === '\r') {
+        // Skip \r, handle \r\n as single newline
+        i++;
+        continue;
+      }
+      if (ch === '\n') {
+        row.push(field.trim());
+        field = "";
+        if (row.some((cell) => cell !== "")) {
+          rows.push(row);
+        }
+        row = [];
+        i++;
+        continue;
+      }
+      field += ch;
+      i++;
     }
-    fields.push(current.trim());
-    return fields;
+
+    // Push last field and row
+    row.push(field.trim());
+    if (row.some((cell) => cell !== "")) {
+      rows.push(row);
+    }
+
+    return rows;
   }
 
   // ── CSV Import Step 1: Parse file and open mapping modal ──
   const handleImport = useCallback(async (file: File) => {
     try {
       const text = await file.text();
-      const lines = text.split("\n").filter((l) => l.trim());
-      if (lines.length < 2) {
+      const allParsedRows = parseCsvFull(text);
+      if (allParsedRows.length < 2) {
         alert("CSV file must have a header row and at least one data row.");
         return;
       }
 
-      // Parse headers
-      const headers = parseCsvLine(lines[0]).map((h) => h.replace(/['"]/g, "").trim());
+      // First row is headers
+      const headers = allParsedRows[0].map((h) => h.replace(/['"]/g, "").trim());
 
-      // Parse all data rows
-      const allRows: string[][] = [];
-      for (let i = 1; i < lines.length; i++) {
-        allRows.push(parseCsvLine(lines[i]));
-      }
+      // Remaining rows are data
+      const allRows = allParsedRows.slice(1);
 
       // Auto-map columns by matching header names
       const autoMapping: Record<string, string> = {};
