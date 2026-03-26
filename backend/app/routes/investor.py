@@ -163,6 +163,42 @@ def update_investor(
     return inv
 
 
+@router.delete("/investors/{investor_id}", status_code=204)
+def delete_investor(
+    investor_id: int,
+    db: Session = Depends(get_db),
+    _: User = Depends(require_gp_admin),
+):
+    """Delete an investor record. GP Admin only."""
+    inv = _get_investor_or_404(investor_id, db)
+    # Delete related IOIs
+    db.query(IndicationOfInterest).filter(IndicationOfInterest.investor_id == investor_id).delete()
+    db.delete(inv)
+    db.commit()
+
+
+class BulkDeleteBody(BaseModel):
+    investor_ids: list[int]
+
+
+@router.post("/investors/bulk-delete", status_code=200)
+def bulk_delete_investors(
+    body: BulkDeleteBody,
+    db: Session = Depends(get_db),
+    _: User = Depends(require_gp_admin),
+):
+    """Bulk delete investor records. GP Admin only."""
+    deleted = 0
+    for inv_id in body.investor_ids:
+        inv = db.query(Investor).filter(Investor.investor_id == inv_id).first()
+        if inv:
+            db.query(IndicationOfInterest).filter(IndicationOfInterest.investor_id == inv_id).delete()
+            db.delete(inv)
+            deleted += 1
+    db.commit()
+    return {"deleted": deleted, "requested": len(body.investor_ids)}
+
+
 # ---------------------------------------------------------------------------
 # Subscriptions by Investor
 # ---------------------------------------------------------------------------
@@ -859,23 +895,27 @@ def get_lp_ioi_summary(
     )
 
 
+class QuickAddLeadBody(BaseModel):
+    name: str
+    email: str
+    lp_id: Optional[int] = None
+    indicated_amount: Optional[float] = None
+    phone: Optional[str] = None
+    address: Optional[str] = None
+    entity_type: Optional[str] = None
+    jurisdiction: Optional[str] = None
+    accredited_status: Optional[str] = None
+    exemption_type: Optional[str] = None
+    tax_id: Optional[str] = None
+    banking_info: Optional[str] = None
+    onboarding_status: Optional[str] = None
+    source: Optional[str] = None
+    notes: Optional[str] = None
+
+
 @router.post("/leads/quick-add", status_code=201)
 def quick_add_lead(
-    name: str,
-    email: str,
-    lp_id: int | None = None,
-    indicated_amount: float | None = None,
-    phone: str | None = None,
-    address: str | None = None,
-    entity_type: str | None = None,
-    jurisdiction: str | None = None,
-    accredited_status: str | None = None,
-    exemption_type: str | None = None,
-    tax_id: str | None = None,
-    banking_info: str | None = None,
-    onboarding_status: str | None = None,
-    source: str | None = None,
-    notes: str | None = None,
+    body: QuickAddLeadBody,
     db: Session = Depends(get_db),
     _: User = Depends(require_gp_or_ops),
 ):
@@ -883,43 +923,44 @@ def quick_add_lead(
 
     This is the CRM entry point: captures a potential investor and their
     interest in a specific LP, all in one step.
-    Accepts all investor fields for CSV import compatibility.
+    Accepts a JSON body for robust handling of addresses with commas, special chars, etc.
+    All investor fields supported for CSV import compatibility.
     """
     from decimal import Decimal
 
     # Check for existing investor
-    existing = db.query(Investor).filter(Investor.email == email).first()
+    existing = db.query(Investor).filter(Investor.email == body.email).first()
     if existing:
         inv = existing
     else:
         inv = Investor(
-            name=name,
-            email=email,
-            phone=phone,
-            address=address,
-            entity_type=entity_type,
-            jurisdiction=jurisdiction,
-            accredited_status=accredited_status or "pending",
-            exemption_type=exemption_type,
-            tax_id=tax_id,
-            banking_info=banking_info,
-            onboarding_status=OnboardingStatus(onboarding_status) if onboarding_status else OnboardingStatus.lead,
-            notes=notes,
+            name=body.name,
+            email=body.email,
+            phone=body.phone,
+            address=body.address,
+            entity_type=body.entity_type,
+            jurisdiction=body.jurisdiction,
+            accredited_status=body.accredited_status or "pending",
+            exemption_type=body.exemption_type,
+            tax_id=body.tax_id,
+            banking_info=body.banking_info,
+            onboarding_status=OnboardingStatus(body.onboarding_status) if body.onboarding_status else OnboardingStatus.lead,
+            notes=body.notes,
         )
         db.add(inv)
         db.flush()
 
     # Create IOI if LP and amount provided
     ioi = None
-    if lp_id and indicated_amount:
-        lp = db.query(LPEntity).filter(LPEntity.lp_id == lp_id).first()
+    if body.lp_id and body.indicated_amount:
+        lp = db.query(LPEntity).filter(LPEntity.lp_id == body.lp_id).first()
         if lp:
             ioi = IndicationOfInterest(
                 investor_id=inv.investor_id,
-                lp_id=lp_id,
-                indicated_amount=Decimal(str(indicated_amount)),
-                source=source,
-                notes=notes,
+                lp_id=body.lp_id,
+                indicated_amount=Decimal(str(body.indicated_amount)),
+                source=body.source,
+                notes=body.notes,
             )
             db.add(ioi)
             db.flush()
@@ -933,8 +974,8 @@ def quick_add_lead(
         "onboarding_status": inv.onboarding_status.value if inv.onboarding_status else "lead",
         "ioi_id": ioi.ioi_id if ioi else None,
         "ioi_amount": float(ioi.indicated_amount) if ioi else None,
-        "message": f"{'New lead' if not existing else 'Existing investor'} '{name}' added"
-                   + (f" with ${indicated_amount:,.0f} IOI" if ioi else ""),
+        "message": f"{'New lead' if not existing else 'Existing investor'} '{body.name}' added"
+                   + (f" with ${body.indicated_amount:,.0f} IOI" if ioi else ""),
     }
 
 
