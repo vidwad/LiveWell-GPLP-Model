@@ -163,6 +163,42 @@ def update_investor(
     return inv
 
 
+@router.delete("/investors/{investor_id}", status_code=204)
+def delete_investor(
+    investor_id: int,
+    db: Session = Depends(get_db),
+    _: User = Depends(require_gp_admin),
+):
+    """Delete an investor record. GP Admin only."""
+    inv = _get_investor_or_404(investor_id, db)
+    # Delete related IOIs
+    db.query(IndicationOfInterest).filter(IndicationOfInterest.investor_id == investor_id).delete()
+    db.delete(inv)
+    db.commit()
+
+
+class BulkDeleteBody(BaseModel):
+    investor_ids: list[int]
+
+
+@router.post("/investors/bulk-delete", status_code=200)
+def bulk_delete_investors(
+    body: BulkDeleteBody,
+    db: Session = Depends(get_db),
+    _: User = Depends(require_gp_admin),
+):
+    """Bulk delete investor records. GP Admin only."""
+    deleted = 0
+    for inv_id in body.investor_ids:
+        inv = db.query(Investor).filter(Investor.investor_id == inv_id).first()
+        if inv:
+            db.query(IndicationOfInterest).filter(IndicationOfInterest.investor_id == inv_id).delete()
+            db.delete(inv)
+            deleted += 1
+    db.commit()
+    return {"deleted": deleted, "requested": len(body.investor_ids)}
+
+
 # ---------------------------------------------------------------------------
 # Subscriptions by Investor
 # ---------------------------------------------------------------------------
