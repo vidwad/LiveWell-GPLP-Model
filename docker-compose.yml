@@ -40,6 +40,8 @@ services:
       JWT_ALGORITHM: HS256
       FRONTEND_URL: ${FRONTEND_URL:-http://165.22.226.72:3000}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      RESEND_API_KEY: ${RESEND_API_KEY:-}
+      RESEND_FROM_EMAIL: ${RESEND_FROM_EMAIL:-onboarding@resend.dev}
       SEED_DB: ${SEED_DB:-true}
     ports:
       - "8000:8000"

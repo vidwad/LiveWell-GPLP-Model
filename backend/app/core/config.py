@@ -25,6 +25,10 @@ class Settings(BaseSettings):
     # CORS — comma-separated list of allowed origins for production
     FRONTEND_URL: str = Field("http://localhost:3000", validation_alias="FRONTEND_URL")
 
+    # Email (Resend)
+    RESEND_API_KEY: str = Field("", validation_alias="RESEND_API_KEY")
+    RESEND_FROM_EMAIL: str = Field("onboarding@resend.dev", validation_alias="RESEND_FROM_EMAIL")
+
     # External APIs
     OPENAI_API_KEY: str = Field("", validation_alias="OPENAI_API_KEY")
     ANTHROPIC_API_KEY: str = Field("", validation_alias="ANTHROPIC_API_KEY")

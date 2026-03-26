@@ -337,13 +337,26 @@ def create_invitation(
     db.commit()
     db.refresh(invite)
 
+    # Send invitation email via Resend
+    invite_url = f"/accept-invite?token={invite.token}"
+    from app.services.email import send_invitation_email
+    email_sent = send_invitation_email(
+        to_email=invite.email,
+        invite_url=invite_url,
+        inviter_name=current_user.full_name or current_user.email,
+        role=invite.role.value,
+        personal_message=payload.message,
+        invitee_name=payload.full_name,
+    )
+
     return {
         "invitation_id": invite.invitation_id,
         "email": invite.email,
         "role": invite.role.value,
         "token": invite.token,
-        "invite_url": f"/accept-invite?token={invite.token}",
+        "invite_url": invite_url,
         "expires_at": str(invite.expires_at),
+        "email_sent": email_sent,
     }
 
 
