@@ -255,13 +255,19 @@ export default function InvestorOnboardingPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [importing, setImporting] = useState(false);
 
-  // ── CSV Export ──
+  // ── CSV Export (all investor fields) ──
+  const CSV_FIELDS = [
+    "investor_id", "name", "email", "phone", "address", "entity_type",
+    "jurisdiction", "accredited_status", "exemption_type", "tax_id",
+    "banking_info", "onboarding_status", "notes",
+    "onboarding_started_at", "onboarding_completed_at", "invited_at",
+    "approved_at", "created_at",
+  ];
   const handleExport = useCallback(() => {
     const list = investors ?? [];
     if (list.length === 0) return;
-    const headers = ["name", "email", "phone", "entity_type", "onboarding_status", "accredited_status", "jurisdiction", "notes"];
-    const rows = list.map((inv) =>
-      headers.map((h) => {
+    const rows = list.map((inv: any) =>
+      CSV_FIELDS.map((h) => {
         const val = inv[h] ?? "";
         const str = String(val);
         return str.includes(",") || str.includes('"') || str.includes("\n")
@@ -269,7 +275,7 @@ export default function InvestorOnboardingPage() {
           : str;
       }).join(",")
     );
-    const csv = [headers.join(","), ...rows].join("\n");
+    const csv = [CSV_FIELDS.join(","), ...rows].join("\n");
     const blob = new Blob([csv], { type: "text/csv" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -279,69 +285,141 @@ export default function InvestorOnboardingPage() {
     URL.revokeObjectURL(url);
   }, [investors]);
 
-  // ── CSV Import ──
-  const handleImport = useCallback(async (file: File) => {
-    setImporting(true);
+  // ── CSV Import with Column Mapping ──
+  const IMPORTABLE_FIELDS: { value: string; label: string; required?: boolean }[] = [
+    { value: "name", label: "Name *", required: true },
+    { value: "email", label: "Email *", required: true },
+    { value: "phone", label: "Phone" },
+    { value: "address", label: "Address" },
+    { value: "entity_type", label: "Entity Type" },
+    { value: "jurisdiction", label: "Jurisdiction" },
+    { value: "accredited_status", label: "Accredited Status" },
+    { value: "exemption_type", label: "Exemption Type" },
+    { value: "tax_id", label: "Tax ID" },
+    { value: "banking_info", label: "Banking Info" },
+    { value: "onboarding_status", label: "Onboarding Status" },
+    { value: "notes", label: "Notes" },
+    { value: "source", label: "Lead Source" },
+    { value: "indicated_amount", label: "Indicated Amount" },
+  ];
+  const [importStep, setImportStep] = useState<"idle" | "mapping" | "importing">("idle");
+  const [csvHeaders, setCsvHeaders] = useState<string[]>([]);
+  const [csvPreview, setCsvPreview] = useState<string[][]>([]);
+  const [csvAllRows, setCsvAllRows] = useState<string[][]>([]);
+  const [columnMapping, setColumnMapping] = useState<Record<number, string>>({});
+
+  // Step 1: Parse CSV and show mapping dialog
+  const handleFileSelect = useCallback(async (file: File) => {
     try {
       const text = await file.text();
       const lines = text.split("\n").filter((l) => l.trim());
-      if (lines.length < 2) { setImporting(false); return; }
+      if (lines.length < 2) { alert("CSV must have a header row and at least one data row"); return; }
 
-      // Parse header
-      const headers = lines[0].split(",").map((h) => h.trim().toLowerCase().replace(/['"]/g, ""));
-      const nameIdx = headers.indexOf("name");
-      const emailIdx = headers.indexOf("email");
-      if (nameIdx === -1 || emailIdx === -1) {
-        alert("CSV must have 'name' and 'email' columns");
-        setImporting(false);
-        return;
-      }
-
-      let imported = 0;
-      let failed = 0;
-      for (let i = 1; i < lines.length; i++) {
-        // Simple CSV parsing (handles quoted fields)
+      // Parse all rows
+      const parseRow = (line: string): string[] => {
         const fields: string[] = [];
         let current = "";
         let inQuotes = false;
-        for (const ch of lines[i]) {
+        for (const ch of line) {
           if (ch === '"') { inQuotes = !inQuotes; continue; }
           if (ch === "," && !inQuotes) { fields.push(current.trim()); current = ""; continue; }
           current += ch;
         }
         fields.push(current.trim());
+        return fields;
+      };
 
-        const name = fields[nameIdx];
-        const email = fields[emailIdx];
-        if (!name || !email) continue;
+      const headers = parseRow(lines[0]);
+      const dataRows = lines.slice(1).map(parseRow);
+      const preview = dataRows.slice(0, 3);
 
-        const params: Record<string, string | number> = { name, email };
-        const phoneIdx = headers.indexOf("phone");
-        if (phoneIdx !== -1 && fields[phoneIdx]) params.phone = fields[phoneIdx];
-        const sourceIdx = headers.indexOf("source");
-        if (sourceIdx !== -1 && fields[sourceIdx]) params.source = fields[sourceIdx];
-        const notesIdx = headers.indexOf("notes");
-        if (notesIdx !== -1 && fields[notesIdx]) params.notes = fields[notesIdx];
-        const amountIdx = headers.indexOf("indicated_amount");
-        if (amountIdx !== -1 && fields[amountIdx]) params.indicated_amount = parseFloat(fields[amountIdx]);
+      setCsvHeaders(headers);
+      setCsvPreview(preview);
+      setCsvAllRows(dataRows);
 
-        try {
-          await apiClient.post("/api/investor/leads/quick-add", null, { params });
-          imported++;
-        } catch {
-          failed++;
+      // Auto-map columns by matching header names (case-insensitive)
+      const autoMapping: Record<number, string> = {};
+      headers.forEach((h, idx) => {
+        const normalized = h.toLowerCase().replace(/[\s_-]+/g, "_").replace(/['"]/g, "");
+        const match = IMPORTABLE_FIELDS.find(
+          (f) => f.value === normalized
+            || f.label.toLowerCase().replace(" *", "") === normalized
+            || (normalized === "first_name" && f.value === "name")
+            || (normalized === "full_name" && f.value === "name")
+            || (normalized === "email_address" && f.value === "email")
+            || (normalized === "phone_number" && f.value === "phone")
+            || (normalized === "amount" && f.value === "indicated_amount")
+            || (normalized === "status" && f.value === "onboarding_status")
+            || (normalized === "type" && f.value === "entity_type")
+        );
+        if (match) autoMapping[idx] = match.value;
+      });
+      setColumnMapping(autoMapping);
+      setImportStep("mapping");
+    } catch {
+      alert("Failed to read CSV file");
+    } finally {
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  }, []);
+
+  // Step 2: Execute import with user-confirmed mapping
+  const executeImport = useCallback(async () => {
+    setImportStep("importing");
+    setImporting(true);
+
+    // Validate required fields are mapped
+    const mappedFields = new Set(Object.values(columnMapping));
+    if (!mappedFields.has("name") || !mappedFields.has("email")) {
+      alert("You must map at least 'Name' and 'Email' columns");
+      setImportStep("mapping");
+      setImporting(false);
+      return;
+    }
+
+    // Build reverse map: field name → column index
+    const fieldToCol: Record<string, number> = {};
+    for (const [colIdx, fieldName] of Object.entries(columnMapping)) {
+      if (fieldName) fieldToCol[fieldName] = parseInt(colIdx);
+    }
+
+    let imported = 0;
+    let failed = 0;
+    for (const row of csvAllRows) {
+      const name = row[fieldToCol["name"]]?.trim();
+      const email = row[fieldToCol["email"]]?.trim();
+      if (!name || !email) continue;
+
+      const params: Record<string, string | number> = {};
+      for (const [field, colIdx] of Object.entries(fieldToCol)) {
+        const val = row[colIdx]?.trim();
+        if (val) {
+          if (field === "indicated_amount") {
+            const num = parseFloat(val.replace(/[,$]/g, ""));
+            if (!isNaN(num)) params[field] = num;
+          } else {
+            params[field] = val;
+          }
         }
       }
 
-      queryClient.invalidateQueries({ queryKey: ["onboarding-investors"] });
-      alert(`Import complete: ${imported} added, ${failed} failed (duplicates or errors)`);
-    } catch (err) {
-      alert("Failed to read CSV file");
-    } finally {
-      setImporting(false);
-      if (fileInputRef.current) fileInputRef.current.value = "";
+      try {
+        await apiClient.post("/api/investor/leads/quick-add", null, { params });
+        imported++;
+      } catch {
+        failed++;
+      }
     }
-  }, [queryClient]);
+
+    queryClient.invalidateQueries({ queryKey: ["onboarding-investors"] });
+    alert(`Import complete: ${imported} added, ${failed} failed (duplicates or errors)`);
+    setImportStep("idle");
+    setImporting(false);
+    setCsvHeaders([]);
+    setCsvPreview([]);
+    setCsvAllRows([]);
+    setColumnMapping({});
+  }, [columnMapping, csvAllRows, queryClient]);
 
   if (investorsLoading) {
     return (
@@ -415,7 +493,7 @@ export default function InvestorOnboardingPage() {
             className="hidden"
             onChange={(e) => {
               const file = e.target.files?.[0];
-              if (file) handleImport(file);
+              if (file) handleFileSelect(file);
             }}
           />
           <Button onClick={() => setShowAddLead(!showAddLead)} variant={showAddLead ? "secondary" : "default"}>
@@ -717,6 +795,149 @@ export default function InvestorOnboardingPage() {
           </div>
         )}
       </div>
+
+      {/* ── CSV Import Mapping Modal ── */}
+      {importStep !== "idle" && (
+        <>
+          <div className="fixed inset-0 z-50 bg-black/50" onClick={() => { setImportStep("idle"); setImporting(false); }} />
+          <div className="fixed inset-x-4 top-[10%] bottom-[10%] z-50 mx-auto max-w-3xl overflow-y-auto rounded-lg border bg-background p-6 shadow-xl">
+            <div className="mb-4 flex items-center justify-between">
+              <h2 className="text-lg font-bold">
+                {importStep === "mapping" ? "Map CSV Columns" : "Importing..."}
+              </h2>
+              <button
+                onClick={() => { setImportStep("idle"); setImporting(false); }}
+                className="rounded p-1 hover:bg-muted"
+              >
+                <XCircle className="h-5 w-5" />
+              </button>
+            </div>
+
+            {importStep === "mapping" && (
+              <div className="space-y-6">
+                <p className="text-sm text-muted-foreground">
+                  We found <strong>{csvHeaders.length}</strong> columns and <strong>{csvAllRows.length}</strong> data rows.
+                  Map each CSV column to the correct investor field, or leave as "Skip" to ignore.
+                </p>
+
+                {/* Mapping table */}
+                <div className="overflow-x-auto rounded border">
+                  <table className="w-full text-sm">
+                    <thead className="bg-muted/50">
+                      <tr>
+                        <th className="p-2 text-left font-medium">CSV Column</th>
+                        <th className="p-2 text-left font-medium">Preview (Row 1)</th>
+                        <th className="p-2 text-left font-medium">Maps To</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y">
+                      {csvHeaders.map((header, idx) => (
+                        <tr key={idx} className={columnMapping[idx] ? "bg-green-50 dark:bg-green-950/20" : ""}>
+                          <td className="p-2 font-mono text-xs">{header}</td>
+                          <td className="p-2 text-xs text-muted-foreground max-w-[200px] truncate">
+                            {csvPreview[0]?.[idx] ?? "—"}
+                          </td>
+                          <td className="p-2">
+                            <select
+                              value={columnMapping[idx] ?? ""}
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                setColumnMapping((prev) => {
+                                  const next = { ...prev };
+                                  // Remove any other column mapped to this field
+                                  if (val) {
+                                    for (const [k, v] of Object.entries(next)) {
+                                      if (v === val && parseInt(k) !== idx) delete next[parseInt(k)];
+                                    }
+                                  }
+                                  if (val) next[idx] = val;
+                                  else delete next[idx];
+                                  return next;
+                                });
+                              }}
+                              className="w-full rounded border px-2 py-1 text-sm"
+                            >
+                              <option value="">— Skip —</option>
+                              {IMPORTABLE_FIELDS.map((f) => (
+                                <option key={f.value} value={f.value}>
+                                  {f.label}
+                                </option>
+                              ))}
+                            </select>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Preview of mapped data */}
+                {csvPreview.length > 0 && (
+                  <div>
+                    <p className="mb-2 text-sm font-medium">Preview (first {csvPreview.length} rows after mapping):</p>
+                    <div className="overflow-x-auto rounded border">
+                      <table className="w-full text-xs">
+                        <thead className="bg-muted/50">
+                          <tr>
+                            {Object.entries(columnMapping)
+                              .sort(([a], [b]) => parseInt(a) - parseInt(b))
+                              .map(([colIdx, field]) => (
+                                <th key={colIdx} className="p-1.5 text-left font-medium">
+                                  {IMPORTABLE_FIELDS.find((f) => f.value === field)?.label ?? field}
+                                </th>
+                              ))}
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y">
+                          {csvPreview.map((row, ri) => (
+                            <tr key={ri}>
+                              {Object.entries(columnMapping)
+                                .sort(([a], [b]) => parseInt(a) - parseInt(b))
+                                .map(([colIdx]) => (
+                                  <td key={colIdx} className="p-1.5 max-w-[150px] truncate">
+                                    {row[parseInt(colIdx)] ?? ""}
+                                  </td>
+                                ))}
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+
+                {/* Validation */}
+                {(!Object.values(columnMapping).includes("name") || !Object.values(columnMapping).includes("email")) && (
+                  <p className="text-sm text-red-600 font-medium">
+                    ⚠ You must map both "Name" and "Email" columns to proceed.
+                  </p>
+                )}
+
+                {/* Actions */}
+                <div className="flex justify-end gap-3">
+                  <Button variant="outline" onClick={() => { setImportStep("idle"); }}>
+                    Cancel
+                  </Button>
+                  <Button
+                    onClick={executeImport}
+                    disabled={!Object.values(columnMapping).includes("name") || !Object.values(columnMapping).includes("email")}
+                  >
+                    <Upload className="h-4 w-4 mr-2" />
+                    Import {csvAllRows.length} Records
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            {importStep === "importing" && (
+              <div className="flex flex-col items-center justify-center py-12 gap-4">
+                <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                <p className="text-sm text-muted-foreground">Importing records...</p>
+              </div>
+            )}
+          </div>
+        </>
+      )}
     </div>
   );
 }

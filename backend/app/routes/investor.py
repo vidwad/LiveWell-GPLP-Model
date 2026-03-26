@@ -866,6 +866,14 @@ def quick_add_lead(
     lp_id: int | None = None,
     indicated_amount: float | None = None,
     phone: str | None = None,
+    address: str | None = None,
+    entity_type: str | None = None,
+    jurisdiction: str | None = None,
+    accredited_status: str | None = None,
+    exemption_type: str | None = None,
+    tax_id: str | None = None,
+    banking_info: str | None = None,
+    onboarding_status: str | None = None,
     source: str | None = None,
     notes: str | None = None,
     db: Session = Depends(get_db),
@@ -875,6 +883,7 @@ def quick_add_lead(
 
     This is the CRM entry point: captures a potential investor and their
     interest in a specific LP, all in one step.
+    Accepts all investor fields for CSV import compatibility.
     """
     from decimal import Decimal
 
@@ -887,8 +896,14 @@ def quick_add_lead(
             name=name,
             email=email,
             phone=phone,
-            accredited_status="pending",
-            onboarding_status=OnboardingStatus.lead,
+            address=address,
+            entity_type=entity_type,
+            jurisdiction=jurisdiction,
+            accredited_status=accredited_status or "pending",
+            exemption_type=exemption_type,
+            tax_id=tax_id,
+            banking_info=banking_info,
+            onboarding_status=OnboardingStatus(onboarding_status) if onboarding_status else OnboardingStatus.lead,
             notes=notes,
         )
         db.add(inv)
