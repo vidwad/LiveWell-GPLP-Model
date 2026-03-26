@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useMemo, useCallback, useRef, useEffect } from "react";
-import { createPortal } from "react-dom";
+// createPortal removed — using direct fixed overlay instead
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiClient, investors as investorsApi } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -141,7 +141,7 @@ export default function InvestorOnboardingPage() {
   const [selectedInvestorId, setSelectedInvestorId] = useState<number | null>(null);
   const [showAddLead, setShowAddLead] = useState(false);
   const [leadForm, setLeadForm] = useState({ name: "", email: "", phone: "", lp_id: "", indicated_amount: "", source: "", notes: "" });
-  const [viewMode, setViewMode] = useState<"kanban" | "table">("kanban");
+  const [viewMode, setViewMode] = useState<"kanban" | "table">("table");
   const [sortField, setSortField] = useState<string>("name");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
   const [statusFilter, setStatusFilter] = useState<string>("all");
@@ -446,6 +446,7 @@ export default function InvestorOnboardingPage() {
     }
 
     let imported = 0;
+    let skippedDuplicates = 0;
     let failed = 0;
 
     for (const row of csvAllRows) {
@@ -469,8 +470,12 @@ export default function InvestorOnboardingPage() {
       }
 
       try {
-        await apiClient.post("/api/investor/leads/quick-add", body);
-        imported++;
+        const resp = await apiClient.post("/api/investor/leads/quick-add", body);
+        if (resp.data?.is_new === false) {
+          skippedDuplicates++;
+        } else {
+          imported++;
+        }
       } catch {
         failed++;
       }
@@ -482,7 +487,10 @@ export default function InvestorOnboardingPage() {
     setCsvPreviewRows([]);
     setCsvHeaders([]);
     setColumnMapping({});
-    alert(`Import complete: ${imported} added, ${failed} failed (duplicates or errors)`);
+    const parts = [`${imported} new leads added`];
+    if (skippedDuplicates > 0) parts.push(`${skippedDuplicates} duplicates skipped`);
+    if (failed > 0) parts.push(`${failed} failed`);
+    alert(`Import complete: ${parts.join(", ")}`);
   }, [columnMapping, csvAllRows, queryClient]);
 
   if (investorsLoading) {
@@ -865,6 +873,113 @@ export default function InvestorOnboardingPage() {
           </div>
         )}
       </div>
+
+      {/* ── CSV Column Mapping Modal ── */}
+      {showMappingModal && (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 p-4">
+          <div className="bg-background rounded-xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col">
+            <div className="flex items-center justify-between px-6 py-4 border-b">
+              <div>
+                <h2 className="text-lg font-bold">Map CSV Columns</h2>
+                <p className="text-sm text-muted-foreground">
+                  {csvAllRows.length} row{csvAllRows.length !== 1 ? "s" : ""} detected. Map each CSV column to the correct investor field.
+                </p>
+              </div>
+              <button
+                onClick={() => { setShowMappingModal(false); setCsvHeaders([]); setCsvPreviewRows([]); setCsvAllRows([]); setColumnMapping({}); }}
+                className="text-muted-foreground hover:text-foreground text-xl leading-none px-2"
+              >
+                &times;
+              </button>
+            </div>
+            <div className="flex-1 overflow-auto px-6 py-4">
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm border-collapse">
+                  <thead>
+                    <tr className="border-b bg-muted/50">
+                      <th className="text-left px-3 py-2 font-medium text-muted-foreground w-12">#</th>
+                      <th className="text-left px-3 py-2 font-medium text-muted-foreground">CSV Column</th>
+                      <th className="text-left px-3 py-2 font-medium text-muted-foreground">Map To</th>
+                      <th className="text-left px-3 py-2 font-medium text-muted-foreground">Preview</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {csvHeaders.map((header: string, colIdx: number) => (
+                      <tr key={colIdx} className="border-b hover:bg-muted/30">
+                        <td className="px-3 py-2 text-muted-foreground">{colIdx + 1}</td>
+                        <td className="px-3 py-2 font-medium">{header}</td>
+                        <td className="px-3 py-2">
+                          <select
+                            value={columnMapping[String(colIdx)] ?? ""}
+                            onChange={(e) => {
+                              const newMapping = { ...columnMapping };
+                              if (e.target.value) {
+                                for (const k of Object.keys(newMapping)) {
+                                  if (newMapping[k] === e.target.value) delete newMapping[k];
+                                }
+                                newMapping[String(colIdx)] = e.target.value;
+                              } else {
+                                delete newMapping[String(colIdx)];
+                              }
+                              setColumnMapping(newMapping);
+                            }}
+                            className="w-full rounded-md border px-2 py-1.5 text-sm bg-background"
+                          >
+                            {INVESTOR_FIELDS.map((f: any) => (
+                              <option key={f.key} value={f.key}>{f.label}</option>
+                            ))}
+                          </select>
+                        </td>
+                        <td className="px-3 py-2">
+                          <div className="flex flex-col gap-0.5">
+                            {csvPreviewRows.slice(0, 3).map((row: string[], rIdx: number) => (
+                              <span key={rIdx} className="text-xs text-muted-foreground max-w-[200px] block whitespace-pre-line line-clamp-2">
+                                {row[colIdx] ?? <span className="italic">empty</span>}
+                              </span>
+                            ))}
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <div className="mt-4 p-3 rounded-lg bg-muted/50 text-sm">
+                <div className="font-medium mb-1">Mapping Summary</div>
+                <div className="flex flex-wrap gap-2">
+                  {INVESTOR_FIELDS.filter((f: any) => f.key).map((f: any) => {
+                    const mappedCol = Object.entries(columnMapping).find(([, v]) => v === f.key);
+                    const isMapped = !!mappedCol;
+                    const isRequired = f.key === "name";
+                    return (
+                      <span
+                        key={f.key}
+                        className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs ${
+                          isMapped ? "bg-green-100 text-green-800" : isRequired ? "bg-red-100 text-red-800" : "bg-gray-100 text-gray-500"
+                        }`}
+                      >
+                        {isMapped ? <CheckCircle2 className="h-3 w-3" /> : isRequired ? <XCircle className="h-3 w-3" /> : null}
+                        {f.label}
+                        {isMapped && <span className="text-[10px] opacity-70">&larr; {csvHeaders[parseInt(mappedCol![0])]}</span>}
+                      </span>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+            <div className="flex items-center justify-between px-6 py-4 border-t bg-muted/30">
+              <p className="text-xs text-muted-foreground">Required fields marked with *. Unmapped columns will be skipped.</p>
+              <div className="flex gap-2">
+                <Button variant="outline" size="sm" onClick={() => { setShowMappingModal(false); setCsvHeaders([]); setCsvPreviewRows([]); setCsvAllRows([]); setColumnMapping({}); }}>Cancel</Button>
+                <Button size="sm" onClick={executeImport} disabled={!Object.values(columnMapping).includes("name")}>
+                  <Upload className="h-3.5 w-3.5 mr-1.5" />
+                  Import {csvAllRows.length} Row{csvAllRows.length !== 1 ? "s" : ""}
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -1792,146 +1907,8 @@ function InvestorDetailDrawer({
               </div>
             )}
           </>
-        )}      </div>
-
-      {/* ── CSV Column Mapping Modal (rendered via Portal to escape overflow-hidden) ── */}
-      {showMappingModal && typeof document !== "undefined" && createPortal(
-        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 p-4">
-          <div className="bg-background rounded-xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col">
-            {/* Modal Header */}
-            <div className="flex items-center justify-between px-6 py-4 border-b">
-              <div>
-                <h2 className="text-lg font-bold">Map CSV Columns</h2>
-                <p className="text-sm text-muted-foreground">
-                  {csvAllRows.length} row{csvAllRows.length !== 1 ? "s" : ""} detected. Map each CSV column to the correct investor field.
-                </p>
-              </div>
-              <button
-                onClick={() => { setShowMappingModal(false); setCsvHeaders([]); setCsvPreviewRows([]); setCsvAllRows([]); setColumnMapping({}); }}
-                className="text-muted-foreground hover:text-foreground text-xl leading-none px-2"
-              >
-                &times;
-              </button>
-            </div>
-
-            {/* Mapping Table */}
-            <div className="flex-1 overflow-auto px-6 py-4">
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm border-collapse">
-                  <thead>
-                    <tr className="border-b bg-muted/50">
-                      <th className="text-left px-3 py-2 font-medium text-muted-foreground w-12">#</th>
-                      <th className="text-left px-3 py-2 font-medium text-muted-foreground">CSV Column</th>
-                      <th className="text-left px-3 py-2 font-medium text-muted-foreground">Map To</th>
-                      <th className="text-left px-3 py-2 font-medium text-muted-foreground">Preview (first rows)</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {csvHeaders.map((header, colIdx) => (
-                      <tr key={colIdx} className="border-b hover:bg-muted/30">
-                        <td className="px-3 py-2 text-muted-foreground">{colIdx + 1}</td>
-                        <td className="px-3 py-2 font-medium">{header}</td>
-                        <td className="px-3 py-2">
-                          <select
-                            value={columnMapping[String(colIdx)] ?? ""}
-                            onChange={(e) => {
-                              const newMapping = { ...columnMapping };
-                              if (e.target.value) {
-                                // Remove any other column mapped to this field
-                                for (const k of Object.keys(newMapping)) {
-                                  if (newMapping[k] === e.target.value) delete newMapping[k];
-                                }
-                                newMapping[String(colIdx)] = e.target.value;
-                              } else {
-                                delete newMapping[String(colIdx)];
-                              }
-                              setColumnMapping(newMapping);
-                            }}
-                            className="w-full rounded-md border px-2 py-1.5 text-sm bg-background"
-                          >
-                            {INVESTOR_FIELDS.map((f) => (
-                              <option key={f.key} value={f.key}>{f.label}</option>
-                            ))}
-                          </select>
-                        </td>
-                        <td className="px-3 py-2">
-                          <div className="flex flex-col gap-0.5">
-                            {csvPreviewRows.slice(0, 3).map((row, rIdx) => (
-                              <span key={rIdx} className="text-xs text-muted-foreground truncate max-w-[200px] block">
-                                {row[colIdx] ?? <span className="italic">empty</span>}
-                              </span>
-                            ))}
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-
-              {/* Mapping Summary */}
-              <div className="mt-4 p-3 rounded-lg bg-muted/50 text-sm">
-                <div className="font-medium mb-1">Mapping Summary</div>
-                <div className="flex flex-wrap gap-2">
-                  {INVESTOR_FIELDS.filter(f => f.key).map((f) => {
-                    const mappedCol = Object.entries(columnMapping).find(([, v]) => v === f.key);
-                    const isMapped = !!mappedCol;
-                    const isRequired = f.key === "name";
-                    return (
-                      <span
-                        key={f.key}
-                        className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs ${
-                          isMapped
-                            ? "bg-green-100 text-green-800"
-                            : isRequired
-                            ? "bg-red-100 text-red-800"
-                            : "bg-gray-100 text-gray-500"
-                        }`}
-                      >
-                        {isMapped ? (
-                          <CheckCircle2 className="h-3 w-3" />
-                        ) : isRequired ? (
-                          <XCircle className="h-3 w-3" />
-                        ) : null}
-                        {f.label}
-                        {isMapped && (
-                          <span className="text-[10px] opacity-70">
-                            &larr; {csvHeaders[parseInt(mappedCol![0])]}
-                          </span>
-                        )}
-                      </span>
-                    );
-                  })}
-                </div>
-              </div>
-            </div>
-
-            {/* Modal Footer */}
-            <div className="flex items-center justify-between px-6 py-4 border-t bg-muted/30">
-              <p className="text-xs text-muted-foreground">
-                Required fields marked with *. Unmapped columns will be skipped.
-              </p>
-              <div className="flex gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => { setShowMappingModal(false); setCsvHeaders([]); setCsvPreviewRows([]); setCsvAllRows([]); setColumnMapping({}); }}
-                >
-                  Cancel
-                </Button>
-                <Button
-                  size="sm"
-                  onClick={executeImport}
-                  disabled={!Object.values(columnMapping).includes("name")}
-                >
-                  <Upload className="h-3.5 w-3.5 mr-1.5" />
-                  Import {csvAllRows.length} Row{csvAllRows.length !== 1 ? "s" : ""}
-                </Button>
-              </div>
-            </div>
-          </div>
-        </div>
-      , document.body)}
+        )}
+      </div>
     </div>
   );
 }

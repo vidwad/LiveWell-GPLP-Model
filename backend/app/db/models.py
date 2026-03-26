@@ -546,12 +546,12 @@ class Investor(Base):
     investor_id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.user_id"), nullable=True, unique=True)
     name = Column(String(256), nullable=False)         # legal name
-    email = Column(String(256), nullable=False, unique=True)
+    email = Column(String(256), nullable=True, unique=True, index=True)  # nullable for early-stage leads
     phone = Column(String(64), nullable=True)
-    address = Column(String(512), nullable=True)
+    address = Column(Text, nullable=True)               # supports multi-line addresses
     entity_type = Column(String(64), nullable=True)    # individual, trust, corporation, etc.
     jurisdiction = Column(String(128), nullable=True)   # province / state / country
-    accredited_status = Column(String(32), nullable=False)
+    accredited_status = Column(String(32), nullable=True, default="pending")
     exemption_type = Column(String(128), nullable=True) # accreditation exemption type
     accreditation_verified_at = Column(Date, nullable=True)
     accreditation_expires_at = Column(Date, nullable=True)

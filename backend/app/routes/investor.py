@@ -928,16 +928,19 @@ def quick_add_lead(
     """
     from decimal import Decimal
 
-    # Check for existing investor (only if email provided)
+    # Check for existing investor by email (if provided) or by name
     existing = None
     if body.email:
         existing = db.query(Investor).filter(Investor.email == body.email).first()
+    if not existing and body.name:
+        existing = db.query(Investor).filter(Investor.name == body.name).first()
     if existing:
         inv = existing
+        is_new = False
     else:
         inv = Investor(
             name=body.name,
-            email=body.email,
+            email=body.email if body.email else None,
             phone=body.phone,
             address=body.address,
             entity_type=body.entity_type,
@@ -949,8 +952,13 @@ def quick_add_lead(
             onboarding_status=OnboardingStatus(body.onboarding_status) if body.onboarding_status else OnboardingStatus.lead,
             notes=body.notes,
         )
+        is_new = True
         db.add(inv)
-        db.flush()
+        try:
+            db.flush()
+        except Exception:
+            db.rollback()
+            return {"investor_id": None, "name": body.name, "is_new": False, "message": f"Skipped duplicate: '{body.name}'"}
 
     # Create IOI if LP and amount provided
     ioi = None
@@ -972,7 +980,7 @@ def quick_add_lead(
     return {
         "investor_id": inv.investor_id,
         "name": inv.name,
-        "is_new": not existing,
+        "is_new": is_new,
         "onboarding_status": inv.onboarding_status.value if inv.onboarding_status else "lead",
         "ioi_id": ioi.ioi_id if ioi else None,
         "ioi_amount": float(ioi.indicated_amount) if ioi else None,
