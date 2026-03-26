@@ -868,6 +868,10 @@ def quick_add_lead(
     phone: str | None = None,
     source: str | None = None,
     notes: str | None = None,
+    entity_type: str | None = None,
+    jurisdiction: str | None = None,
+    accredited_status: str | None = None,
+    address: str | None = None,
     db: Session = Depends(get_db),
     _: User = Depends(require_gp_or_ops),
 ):
@@ -887,7 +891,10 @@ def quick_add_lead(
             name=name,
             email=email,
             phone=phone,
-            accredited_status="pending",
+            entity_type=entity_type,
+            jurisdiction=jurisdiction,
+            address=address,
+            accredited_status=accredited_status or "pending",
             onboarding_status=OnboardingStatus.lead,
             notes=notes,
         )

@@ -259,7 +259,7 @@ export default function InvestorOnboardingPage() {
   const handleExport = useCallback(() => {
     const list = investors ?? [];
     if (list.length === 0) return;
-    const headers = ["name", "email", "phone", "entity_type", "onboarding_status", "accredited_status", "jurisdiction", "notes"];
+    const headers = ["name", "email", "phone", "entity_type", "accredited_status", "jurisdiction", "address", "onboarding_status", "notes"];
     const rows = list.map((inv) =>
       headers.map((h) => {
         const val = inv[h] ?? "";
@@ -315,13 +315,18 @@ export default function InvestorOnboardingPage() {
         const email = fields[emailIdx];
         if (!name || !email) continue;
 
+        // Validate email format
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+          failed++;
+          continue;
+        }
+
         const params: Record<string, string | number> = { name, email };
-        const phoneIdx = headers.indexOf("phone");
-        if (phoneIdx !== -1 && fields[phoneIdx]) params.phone = fields[phoneIdx];
-        const sourceIdx = headers.indexOf("source");
-        if (sourceIdx !== -1 && fields[sourceIdx]) params.source = fields[sourceIdx];
-        const notesIdx = headers.indexOf("notes");
-        if (notesIdx !== -1 && fields[notesIdx]) params.notes = fields[notesIdx];
+        const optionalFields = ["phone", "source", "notes", "entity_type", "jurisdiction", "accredited_status", "address"];
+        for (const field of optionalFields) {
+          const idx = headers.indexOf(field);
+          if (idx !== -1 && fields[idx]) params[field] = fields[idx];
+        }
         const amountIdx = headers.indexOf("indicated_amount");
         if (amountIdx !== -1 && fields[amountIdx]) params.indicated_amount = parseFloat(fields[amountIdx]);
 
