@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useMemo, useCallback, useRef } from "react";
+import { useState, useMemo, useCallback, useRef, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiClient, investors as investorsApi } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -1793,9 +1794,9 @@ function InvestorDetailDrawer({
           </>
         )}      </div>
 
-      {/* ── CSV Column Mapping Modal ── */}
-      {showMappingModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+      {/* ── CSV Column Mapping Modal (rendered via Portal to escape overflow-hidden) ── */}
+      {showMappingModal && typeof document !== "undefined" && createPortal(
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 p-4">
           <div className="bg-background rounded-xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col">
             {/* Modal Header */}
             <div className="flex items-center justify-between px-6 py-4 border-b">
@@ -1930,7 +1931,7 @@ function InvestorDetailDrawer({
             </div>
           </div>
         </div>
-      )}
+      , document.body)}
     </div>
   );
 }
