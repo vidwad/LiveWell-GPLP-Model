@@ -196,7 +196,7 @@ export default function PortfolioPage() {
             </div>
 
             {/* LP Fund */}
-            <Select value={lpFilter} onValueChange={setLpFilter}>
+            <Select value={lpFilter} onValueChange={(v) => setLpFilter(v ?? "")}>
               <SelectTrigger className="w-[180px] h-9 text-sm">
                 <SelectValue placeholder="LP Fund" />
               </SelectTrigger>
@@ -211,7 +211,7 @@ export default function PortfolioPage() {
             </Select>
 
             {/* Community */}
-            <Select value={communityFilter} onValueChange={setCommunityFilter}>
+            <Select value={communityFilter} onValueChange={(v) => setCommunityFilter(v ?? "")}>
               <SelectTrigger className="w-[180px] h-9 text-sm">
                 <SelectValue placeholder="Community" />
               </SelectTrigger>
@@ -226,7 +226,7 @@ export default function PortfolioPage() {
             </Select>
 
             {/* City */}
-            <Select value={cityFilter} onValueChange={setCityFilter}>
+            <Select value={cityFilter} onValueChange={(v) => setCityFilter(v ?? "")}>
               <SelectTrigger className="w-[160px] h-9 text-sm">
                 <SelectValue placeholder="City" />
               </SelectTrigger>
@@ -241,7 +241,7 @@ export default function PortfolioPage() {
             </Select>
 
             {/* Development Stage */}
-            <Select value={stageFilter} onValueChange={setStageFilter}>
+            <Select value={stageFilter} onValueChange={(v) => setStageFilter(v ?? "")}>
               <SelectTrigger className="w-[180px] h-9 text-sm">
                 <SelectValue placeholder="Stage" />
               </SelectTrigger>

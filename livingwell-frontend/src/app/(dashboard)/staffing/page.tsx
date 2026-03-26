@@ -246,7 +246,7 @@ export default function StaffingPage() {
         </div>
         <div className="flex items-center gap-3">
           {communities && communities.length > 1 && (
-            <Select value={communityFilter} onValueChange={setCommunityFilter}>
+            <Select value={communityFilter} onValueChange={(v) => setCommunityFilter(v ?? "")}>
               <SelectTrigger className="w-[200px]">
                 <SelectValue placeholder="All Communities" />
               </SelectTrigger>
@@ -310,6 +310,7 @@ export default function StaffingPage() {
             <CardHeader className="flex flex-row items-center justify-between">
               <CardTitle className="text-base">Staff Members</CardTitle>
               <Dialog open={staffOpen} onOpenChange={(open) => { setStaffOpen(open); if (!open) setStaffForm(emptyStaffForm); }}>
+                {/* @ts-expect-error radix-ui asChild type */}
                 <DialogTrigger asChild>
                   <Button size="sm"><UserPlus className="h-4 w-4 mr-1.5" />Add Staff</Button>
                 </DialogTrigger>
@@ -319,7 +320,7 @@ export default function StaffingPage() {
                     <div className="grid grid-cols-2 gap-3">
                       <div className="col-span-2 space-y-1">
                         <Label className="text-xs">Community</Label>
-                        <Select value={staffForm.community_id} onValueChange={(v) => setStaffForm((f) => ({ ...f, community_id: v }))}>
+                        <Select value={staffForm.community_id} onValueChange={(v) => setStaffForm((f) => ({ ...f, community_id: v ?? "" }))}>
                           <SelectTrigger><SelectValue placeholder="Select..." /></SelectTrigger>
                           <SelectContent>
                             {communities?.map((c: { community_id: number; name: string }) => (
@@ -338,7 +339,7 @@ export default function StaffingPage() {
                       </div>
                       <div className="space-y-1">
                         <Label className="text-xs">Role</Label>
-                        <Select value={staffForm.role} onValueChange={(v) => setStaffForm((f) => ({ ...f, role: v }))}>
+                        <Select value={staffForm.role} onValueChange={(v) => setStaffForm((f) => ({ ...f, role: v ?? "" }))}>
                           <SelectTrigger><SelectValue /></SelectTrigger>
                           <SelectContent>
                             {Object.entries(ROLE_LABELS).map(([k, v]) => (
@@ -456,6 +457,7 @@ export default function StaffingPage() {
               )}
             </div>
             <Dialog open={shiftOpen} onOpenChange={(open) => { setShiftOpen(open); if (!open) setShiftForm(emptyShiftForm); }}>
+              {/* @ts-expect-error radix-ui asChild type */}
               <DialogTrigger asChild>
                 <Button size="sm"><Plus className="h-4 w-4 mr-1.5" />Add Shift</Button>
               </DialogTrigger>
@@ -465,7 +467,7 @@ export default function StaffingPage() {
                   <div className="grid grid-cols-2 gap-3">
                     <div className="col-span-2 space-y-1">
                       <Label className="text-xs">Staff Member</Label>
-                      <Select value={shiftForm.staff_id} onValueChange={(v) => setShiftForm((f) => ({ ...f, staff_id: v }))}>
+                      <Select value={shiftForm.staff_id} onValueChange={(v) => setShiftForm((f) => ({ ...f, staff_id: v ?? "" }))}>
                         <SelectTrigger><SelectValue placeholder="Select..." /></SelectTrigger>
                         <SelectContent>
                           {(staff ?? []).filter((s: StaffMember) => s.status === "active").map((s: StaffMember) => (

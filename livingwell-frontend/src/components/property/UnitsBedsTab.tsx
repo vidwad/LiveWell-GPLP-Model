@@ -214,6 +214,7 @@ export function UnitsBedsTab({ propertyId, canEdit }: UnitsBedsTabProps) {
               <div className="flex items-center gap-2">
               {/* CSV Import Dialog */}
               <Dialog open={showImport} onOpenChange={(open) => { setShowImport(open); if (!open) setImportResult(null); }}>
+                {/* @ts-expect-error radix-ui asChild type */}
                 <DialogTrigger asChild>
                   <Button size="sm" variant="outline"><Upload className="h-4 w-4 mr-1" />Import CSV</Button>
                 </DialogTrigger>
@@ -272,6 +273,7 @@ export function UnitsBedsTab({ propertyId, canEdit }: UnitsBedsTabProps) {
                 </DialogContent>
               </Dialog>
               <Dialog open={showAddUnit} onOpenChange={setShowAddUnit}>
+                {/* @ts-expect-error radix-ui asChild type */}
                 <DialogTrigger asChild>
                   <Button size="sm"><Plus className="h-4 w-4 mr-1" />Add Unit</Button>
                 </DialogTrigger>

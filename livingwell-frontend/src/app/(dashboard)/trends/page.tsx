@@ -124,7 +124,7 @@ export default function TrendsPage() {
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="month" tick={{ fontSize: 11 }} />
                 <YAxis tickFormatter={(v) => formatCompact(v)} tick={{ fontSize: 11 }} />
-                <Tooltip formatter={(v: number) => formatCurrency(v)} />
+                <Tooltip formatter={(v: any) => formatCurrency(v as number)} />
                 <Area
                   type="monotone"
                   dataKey="revenue"
@@ -156,7 +156,7 @@ export default function TrendsPage() {
                   <CartesianGrid strokeDasharray="3 3" />
                   <XAxis dataKey="month" tick={{ fontSize: 10 }} />
                   <YAxis tickFormatter={(v) => formatCompact(v)} tick={{ fontSize: 11 }} />
-                  <Tooltip formatter={(v: number) => formatCurrency(v)} />
+                  <Tooltip formatter={(v: any) => formatCurrency(v as number)} />
                   <Bar dataKey="contributed" name="Capital Deployed" fill="#3b82f6" radius={[2, 2, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
@@ -208,7 +208,7 @@ export default function TrendsPage() {
                     cx="50%"
                     cy="50%"
                     outerRadius={100}
-                    label={({ stage, count }) => `${stage} (${count})`}
+                    label={({ stage, count }: any) => `${stage} (${count})`}
                   >
                     {stageBreakdown.map((_: unknown, idx: number) => (
                       <Cell key={idx} fill={COLORS[idx % COLORS.length]} />
@@ -232,7 +232,7 @@ export default function TrendsPage() {
             </CardHeader>
             <CardContent>
               <ResponsiveContainer width="100%" height={280}>
-                <BarChart data={funds.map((f: Record<string, unknown>) => ({
+                <BarChart data={funds.map((f: any) => ({
                   name: f.lp_name,
                   NOI: f.total_noi,
                   Value: f.total_value,
@@ -240,7 +240,7 @@ export default function TrendsPage() {
                   <CartesianGrid strokeDasharray="3 3" />
                   <XAxis dataKey="name" tick={{ fontSize: 10 }} />
                   <YAxis tickFormatter={(v) => formatCompact(v)} tick={{ fontSize: 11 }} />
-                  <Tooltip formatter={(v: number) => formatCurrency(v)} />
+                  <Tooltip formatter={(v: any) => formatCurrency(v as number)} />
                   <Legend />
                   <Bar dataKey="NOI" fill="#10b981" radius={[2, 2, 0, 0]} />
                   <Bar dataKey="Value" fill="#3b82f6" radius={[2, 2, 0, 0]} />

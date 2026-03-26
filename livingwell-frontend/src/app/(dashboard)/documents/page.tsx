@@ -234,6 +234,7 @@ export default function DocumentsPage() {
           </p>
         </div>
         <Dialog open={uploadOpen} onOpenChange={setUploadOpen}>
+          {/* @ts-expect-error radix-ui asChild type */}
           <DialogTrigger asChild>
             <Button>
               <Upload className="h-4 w-4 mr-1.5" />
@@ -248,7 +249,7 @@ export default function DocumentsPage() {
               <div className="grid grid-cols-2 gap-3">
                 <div className="col-span-2 space-y-1">
                   <Label className="text-xs">Property</Label>
-                  <Select value={uploadForm.property_id} onValueChange={(v) => setUploadForm((f) => ({ ...f, property_id: v }))}>
+                  <Select value={uploadForm.property_id} onValueChange={(v) => setUploadForm((f) => ({ ...f, property_id: v ?? "" }))}>
                     <SelectTrigger><SelectValue placeholder="Select property..." /></SelectTrigger>
                     <SelectContent>
                       {properties?.map((p) => (
@@ -265,7 +266,7 @@ export default function DocumentsPage() {
                 </div>
                 <div className="space-y-1">
                   <Label className="text-xs">Category</Label>
-                  <Select value={uploadForm.category} onValueChange={(v) => setUploadForm((f) => ({ ...f, category: v }))}>
+                  <Select value={uploadForm.category} onValueChange={(v) => setUploadForm((f) => ({ ...f, category: v ?? "" }))}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
                       {Object.entries(CATEGORY_LABELS).map(([k, v]) => (
@@ -372,7 +373,7 @@ export default function DocumentsPage() {
           />
         </div>
         {properties && properties.length > 1 && (
-          <Select value={filterProperty} onValueChange={setFilterProperty}>
+          <Select value={filterProperty} onValueChange={(v) => setFilterProperty(v ?? "")}>
             <SelectTrigger className="w-[220px]">
               <SelectValue placeholder="All Properties" />
             </SelectTrigger>

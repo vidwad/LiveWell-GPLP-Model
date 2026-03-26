@@ -620,7 +620,7 @@ function InvestorCommunicationsTab() {
             </div>
             <div className="space-y-1.5">
               <Label className="text-xs">Communication Type</Label>
-              <Select value={commType} onValueChange={setCommType}>
+              <Select value={commType} onValueChange={(v) => setCommType(v ?? "")}>
                 <SelectTrigger className="w-[220px]">
                   <SelectValue />
                 </SelectTrigger>
@@ -777,10 +777,10 @@ function AreaResearchTab() {
 
       {data && (
         <div className="space-y-4 animate-in fade-in slide-in-from-bottom-4">
-          {data.summary && (
+          {!!data.summary && (
             <Card className="border-blue-200 bg-blue-50/30">
               <CardContent className="pt-4">
-                <p className="text-sm leading-relaxed">{data.summary as string}</p>
+                <p className="text-sm leading-relaxed">{String(data.summary)}</p>
               </CardContent>
             </Card>
           )}
@@ -827,7 +827,7 @@ function FundingResearchTab() {
         <CardContent className="flex gap-4 items-end">
           <div className="space-y-1.5">
             <Label className="text-xs">Community Type</Label>
-            <Select value={communityType} onValueChange={setCommunityType}>
+            <Select value={communityType} onValueChange={(v) => setCommunityType(v ?? "")}>
               <SelectTrigger className="w-[200px]">
                 <SelectValue placeholder="Select type..." />
               </SelectTrigger>

@@ -134,10 +134,6 @@ export const portfolio = {
   bulkCreateBeds: (propertyId: number, unitId: number, beds: object[]) =>
     apiClient.post(`/api/portfolio/properties/${propertyId}/units/bulk-beds`, beds, { params: { unit_id: unitId } }).then(r => r.data),
 
-  // Property Lookup
-  lookupProperty: (data: { address: string; city: string; province?: string }) =>
-    apiClient.post("/api/portfolio/lookup", data).then(r => r.data),
-
   // Initialize units from lookup data
   initializeUnits: (propertyId: number, data: { bedrooms?: number; bathrooms?: number; building_sqft?: number; estimated_monthly_rent?: number }) =>
     apiClient.post(`/api/portfolio/properties/${propertyId}/initialize-units`, data).then(r => r.data),

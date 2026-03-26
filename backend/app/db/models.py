@@ -2213,3 +2213,35 @@ class CRMActivity(Base):
 
     investor = relationship("Investor", backref="crm_activities")
     creator = relationship("User")
+
+
+# ---------------------------------------------------------------------------
+# User Invitations
+# ---------------------------------------------------------------------------
+
+class InvitationStatus(str, enum.Enum):
+    pending = "pending"
+    accepted = "accepted"
+    expired = "expired"
+    revoked = "revoked"
+
+
+class UserInvitation(Base):
+    """Tracks user invitations sent by admins."""
+    __tablename__ = "user_invitations"
+
+    invitation_id = Column(Integer, primary_key=True, index=True)
+    email = Column(String(256), nullable=False)
+    role = Column(_enum(UserRole), nullable=False)
+    full_name = Column(String(256), nullable=True)
+    token = Column(String(128), nullable=False, unique=True, index=True)
+    status = Column(_enum(InvitationStatus), nullable=False, default=InvitationStatus.pending)
+    invited_by = Column(Integer, ForeignKey("users.user_id"), nullable=False)
+    accepted_by_user_id = Column(Integer, ForeignKey("users.user_id"), nullable=True)
+    message = Column(Text, nullable=True)  # optional personal message
+    expires_at = Column(DateTime, nullable=False)
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    accepted_at = Column(DateTime, nullable=True)
+
+    inviter = relationship("User", foreign_keys=[invited_by])
+    accepted_user = relationship("User", foreign_keys=[accepted_by_user_id])

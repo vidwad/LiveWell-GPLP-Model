@@ -451,6 +451,7 @@ export function ConstructionBudgetTab({ propertyId, canEdit }: Props) {
           <CardTitle className="text-base">Expense Line Items</CardTitle>
           {canEdit && (
             <Dialog open={expenseOpen} onOpenChange={(open) => { setExpenseOpen(open); if (!open) setExpenseForm(emptyExpenseForm); }}>
+              {/* @ts-expect-error radix-ui asChild type */}
               <DialogTrigger asChild>
                 <Button size="sm">
                   <Plus className="h-4 w-4 mr-1.5" />
@@ -465,7 +466,7 @@ export function ConstructionBudgetTab({ propertyId, canEdit }: Props) {
                   <div className="grid grid-cols-2 gap-3">
                     <div className="col-span-2 space-y-1">
                       <Label className="text-xs">Category</Label>
-                      <Select value={expenseForm.category} onValueChange={(v) => setExpenseForm((f) => ({ ...f, category: v }))}>
+                      <Select value={expenseForm.category} onValueChange={(v) => setExpenseForm((f) => ({ ...f, category: v ?? "" }))}>
                         <SelectTrigger><SelectValue /></SelectTrigger>
                         <SelectContent>
                           {EXPENSE_CATEGORIES.map((c) => (
@@ -549,7 +550,7 @@ export function ConstructionBudgetTab({ propertyId, canEdit }: Props) {
                       return (
                         <TableRow key={exp.expense_id} className="bg-blue-50/50">
                           <TableCell>
-                            <Select value={expenseForm.category} onValueChange={(v) => setExpenseForm((f) => ({ ...f, category: v }))}>
+                            <Select value={expenseForm.category} onValueChange={(v) => setExpenseForm((f) => ({ ...f, category: v ?? "" }))}>
                               <SelectTrigger className="h-8 w-[130px]"><SelectValue /></SelectTrigger>
                               <SelectContent>
                                 {EXPENSE_CATEGORIES.map((c) => (
@@ -636,6 +637,7 @@ export function ConstructionBudgetTab({ propertyId, canEdit }: Props) {
           <CardTitle className="text-base">Construction Draw Schedule</CardTitle>
           {canEdit && constructionLoans.length > 0 && (
             <Dialog open={drawOpen} onOpenChange={(open) => { setDrawOpen(open); if (!open) setDrawForm(emptyDrawForm); }}>
+              {/* @ts-expect-error radix-ui asChild type */}
               <DialogTrigger asChild>
                 <Button size="sm">
                   <Plus className="h-4 w-4 mr-1.5" />
@@ -650,7 +652,7 @@ export function ConstructionBudgetTab({ propertyId, canEdit }: Props) {
                   <div className="grid grid-cols-2 gap-3">
                     <div className="col-span-2 space-y-1">
                       <Label className="text-xs">Construction Loan</Label>
-                      <Select value={drawForm.debt_id} onValueChange={(v) => setDrawForm((f) => ({ ...f, debt_id: v }))}>
+                      <Select value={drawForm.debt_id} onValueChange={(v) => setDrawForm((f) => ({ ...f, debt_id: v ?? "" }))}>
                         <SelectTrigger><SelectValue placeholder="Select loan..." /></SelectTrigger>
                         <SelectContent>
                           {constructionLoans.map((d: DebtFacility) => (

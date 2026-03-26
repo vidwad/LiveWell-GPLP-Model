@@ -292,7 +292,7 @@ export default function PropertyDetailPage({ params }: { params: { id: string } 
             propertyId={propertyId}
             address={property?.address}
             city={property?.city}
-            zoning={property?.zoning}
+            zoning={property?.zoning ?? undefined}
             latitude={property?.latitude ? Number(property.latitude) : undefined}
             longitude={property?.longitude ? Number(property.longitude) : undefined}
           />

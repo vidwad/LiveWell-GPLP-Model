@@ -395,6 +395,7 @@ export function ValuationTab({ propertyId, canEdit }: Props) {
           <CardTitle className="text-base">Valuation History</CardTitle>
           {canEdit && (
             <Dialog open={manualOpen} onOpenChange={setManualOpen}>
+              {/* @ts-expect-error radix-ui asChild type */}
               <DialogTrigger asChild>
                 <Button size="sm">
                   <Plus className="h-4 w-4 mr-1.5" />
@@ -431,7 +432,7 @@ export function ValuationTab({ propertyId, canEdit }: Props) {
                       <Label className="text-xs">Method</Label>
                       <Select
                         value={manualForm.method}
-                        onValueChange={(v) => setManualForm((f) => ({ ...f, method: v }))}
+                        onValueChange={(v) => setManualForm((f) => ({ ...f, method: v ?? "" }))}
                       >
                         <SelectTrigger><SelectValue /></SelectTrigger>
                         <SelectContent>

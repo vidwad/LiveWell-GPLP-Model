@@ -30,24 +30,24 @@ export type Capability =
  * Used for optimistic client-side checks before the API response arrives.
  */
 const ROLE_DEFAULTS: Record<string, Set<Capability>> = {
-  GP_ADMIN: new Set([
+  GP_ADMIN: new Set<Capability>([
     "view_financials", "manage_properties", "approve_distributions",
     "manage_debt", "manage_construction", "manage_staff", "manage_residents",
     "manage_investors", "create_reports", "manage_grants", "manage_documents",
     "transition_stages", "manage_valuations", "manage_waterfall", "admin_users",
   ]),
-  OPERATIONS_MANAGER: new Set([
+  OPERATIONS_MANAGER: new Set<Capability>([
     "view_financials", "manage_properties", "manage_debt",
     "manage_construction", "manage_staff", "manage_residents",
     "create_reports", "manage_grants", "manage_documents",
     "transition_stages", "manage_valuations",
   ]),
-  PROPERTY_MANAGER: new Set([
+  PROPERTY_MANAGER: new Set<Capability>([
     "view_financials", "manage_properties", "manage_staff",
     "manage_residents", "manage_construction", "create_reports",
     "manage_documents", "manage_grants",
   ]),
-  INVESTOR: new Set(["view_financials", "create_reports"]),
+  INVESTOR: new Set<Capability>(["view_financials", "create_reports"]),
 };
 
 /**

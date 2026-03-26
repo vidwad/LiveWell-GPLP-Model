@@ -104,6 +104,7 @@ function EditPropertyDialog({ property, onSaved }: { property: Record<string, an
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
+      {/* @ts-expect-error radix-ui asChild type */}
       <DialogTrigger asChild>
         <Button variant="outline" size="sm" className="gap-1.5">
           <Pencil className="h-3.5 w-3.5" />

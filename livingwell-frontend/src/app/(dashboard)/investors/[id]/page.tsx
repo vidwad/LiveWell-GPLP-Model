@@ -360,6 +360,7 @@ function SubscriptionWorkflowCard({
                 <div className="flex gap-2">
                   {sub.status !== "draft" && (
                     <Dialog>
+                      {/* @ts-expect-error radix-ui asChild type */}
                       <DialogTrigger asChild>
                         <Button variant="outline" size="sm" className="text-red-600 hover:text-red-700">
                           <Ban className="mr-1 h-3.5 w-3.5" />
@@ -392,6 +393,7 @@ function SubscriptionWorkflowCard({
                   )}
 
                   <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
+                    {/* @ts-expect-error radix-ui asChild type */}
                     <DialogTrigger asChild>
                       <Button size="sm">
                         <ArrowRight className="mr-1 h-3.5 w-3.5" />
@@ -519,6 +521,7 @@ function NewSubscriptionDialog({
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
+      {/* @ts-expect-error radix-ui asChild type */}
       <DialogTrigger asChild>
         <Button size="sm">
           <Plus className="mr-1 h-3.5 w-3.5" />
@@ -1076,7 +1079,7 @@ function CRMActivityTab({ investorId }: { investorId: number }) {
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
               <div className="col-span-2 sm:col-span-1">
                 <Label className="text-xs">Type</Label>
-                <Select value={form.activity_type} onValueChange={(v) => setForm((f) => ({ ...f, activity_type: v }))}>
+                <Select value={form.activity_type} onValueChange={(v) => setForm((f) => ({ ...f, activity_type: v ?? "" }))}>
                   <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     {ACTIVITY_TYPES.map((t) => (

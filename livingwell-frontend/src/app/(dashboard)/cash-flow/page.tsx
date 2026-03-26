@@ -262,7 +262,7 @@ export default function CashFlowPage() {
                     tickFormatter={(v) => formatCompact(v)}
                   />
                   <Tooltip
-                    formatter={(v: number) => formatCurrency(v)}
+                    formatter={(v: any) => formatCurrency(v as number)}
                     labelFormatter={(l) => `Year ${l.replace("Yr ", "")}`}
                   />
                   <Legend />
@@ -302,7 +302,7 @@ export default function CashFlowPage() {
                   <CartesianGrid strokeDasharray="3 3" />
                   <XAxis dataKey="name" tick={{ fontSize: 12 }} />
                   <YAxis tick={{ fontSize: 12 }} tickFormatter={(v) => formatCompact(v)} />
-                  <Tooltip formatter={(v: number) => formatCurrency(v)} />
+                  <Tooltip formatter={(v: any) => formatCurrency(v as number)} />
                   <Legend />
                   <Bar dataKey="noi" name="NOI" fill="#10b981" radius={[2, 2, 0, 0]} />
                   <Bar dataKey="debtService" name="Debt Service" fill="#ef4444" radius={[2, 2, 0, 0]} />

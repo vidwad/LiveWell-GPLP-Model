@@ -1543,21 +1543,21 @@ function InvestorDetailDrawer({
                             {(act.activity_type as string) || "note"}
                           </Badge>
                         </div>
-                        {act.body && (
+                        {!!act.body && (
                           <p className="mt-0.5 text-xs text-muted-foreground line-clamp-2">
-                            {act.body as string}
+                            {String(act.body)}
                           </p>
                         )}
-                        {act.outcome && (
+                        {!!act.outcome && (
                           <p className="mt-0.5 text-xs">
                             <span className="text-muted-foreground">Outcome:</span>{" "}
-                            {act.outcome as string}
+                            {String(act.outcome)}
                           </p>
                         )}
                         <div className="mt-1 flex items-center gap-3 text-[11px] text-muted-foreground">
                           <span>{ts}</span>
-                          {act.created_by_name && (
-                            <span>by {act.created_by_name as string}</span>
+                          {!!act.created_by_name && (
+                            <span>by {String(act.created_by_name)}</span>
                           )}
                         </div>
                       </div>
@@ -1626,9 +1626,9 @@ function InvestorDetailDrawer({
                             </Badge>
                           )}
                         </div>
-                        {fu.follow_up_notes && (
+                        {!!fu.follow_up_notes && (
                           <p className="mt-0.5 text-xs text-muted-foreground">
-                            {fu.follow_up_notes as string}
+                            {String(fu.follow_up_notes)}
                           </p>
                         )}
                         {fuDate && (

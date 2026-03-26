@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { investors } from "@/lib/api";
+import { investors, apiClient } from "@/lib/api";
 import type { InvestorCreate, WaterfallInput } from "@/types/investor";
 
 export function useInvestors() {

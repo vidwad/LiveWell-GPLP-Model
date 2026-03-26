@@ -118,10 +118,10 @@ export function TrendChart({
               }}
             />
             <Tooltip
-              formatter={(value: number, name: string) => {
-                const config = METRIC_CONFIG[name];
-                return [config ? fmt(value, config.format) : value, config?.label || name];
-              }}
+              formatter={((value: any, name: any) => {
+                const config = METRIC_CONFIG[name as string];
+                return [config ? fmt(value as number, config.format) : value, config?.label || name];
+              }) as any}
               labelFormatter={(label) => `Period: ${label}`}
             />
             <Legend

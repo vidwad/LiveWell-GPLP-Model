@@ -94,6 +94,7 @@ export function LifecycleTab({ propertyId, stage, canEdit, userRole }: Lifecycle
             </CardTitle>
             {canEdit && allowedTransitions && (allowedTransitions as { allowed_transitions: string[] }).allowed_transitions?.length > 0 && (
               <Dialog open={showTransitionDialog} onOpenChange={setShowTransitionDialog}>
+                {/* @ts-expect-error radix-ui asChild type */}
                 <DialogTrigger asChild>
                   <Button size="sm" variant="outline">
                     <ArrowRight className="mr-1.5 h-4 w-4" />
@@ -133,7 +134,7 @@ export function LifecycleTab({ propertyId, stage, canEdit, userRole }: Lifecycle
                       <Label>Target Stage</Label>
                       <Select
                         value={transitionForm.to_stage}
-                        onValueChange={(v) => setTransitionForm((f) => ({ ...f, to_stage: v }))}
+                        onValueChange={(v) => setTransitionForm((f) => ({ ...f, to_stage: v ?? "" }))}
                       >
                         <SelectTrigger>
                           <SelectValue placeholder="Select target stage" />
@@ -268,6 +269,7 @@ export function LifecycleTab({ propertyId, stage, canEdit, userRole }: Lifecycle
             </CardTitle>
             {canEdit && (
               <Dialog open={showMilestoneDialog} onOpenChange={setShowMilestoneDialog}>
+                {/* @ts-expect-error radix-ui asChild type */}
                 <DialogTrigger asChild>
                   <Button size="sm" variant="outline">
                     <Plus className="mr-1.5 h-4 w-4" />
@@ -283,9 +285,9 @@ export function LifecycleTab({ propertyId, stage, canEdit, userRole }: Lifecycle
                       e.preventDefault();
                       try {
                         await createMilestone.mutateAsync({
-                          title: milestoneForm.title,
+                          title: milestoneForm.title ?? "",
                           description: milestoneForm.description || undefined,
-                          target_date: milestoneForm.target_date || undefined,
+                          target_date: milestoneForm.target_date ?? "",
                           stage: (milestoneForm.stage || stage) as DevelopmentStage,
                         });
                         toast.success("Milestone added");
@@ -326,7 +328,7 @@ export function LifecycleTab({ propertyId, stage, canEdit, userRole }: Lifecycle
                         <Label>Stage</Label>
                         <Select
                           value={milestoneForm.stage || stage}
-                          onValueChange={(v) => setMilestoneForm((f) => ({ ...f, stage: v }))}
+                          onValueChange={(v) => setMilestoneForm((f) => ({ ...f, stage: v ?? "" }))}
                         >
                           <SelectTrigger>
                             <SelectValue />

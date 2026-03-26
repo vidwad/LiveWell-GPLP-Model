@@ -237,7 +237,7 @@ export default function LPComparisonPage() {
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="name" tick={{ fontSize: 11 }} />
                 <YAxis tickFormatter={(v) => formatCompact(v)} tick={{ fontSize: 11 }} />
-                <Tooltip formatter={(v: number) => formatCurrency(v)} />
+                <Tooltip formatter={(v: any) => formatCurrency(v as number)} />
                 <Legend />
                 <Bar dataKey="Portfolio Value" fill="#3b82f6" radius={[2, 2, 0, 0]} />
                 <Bar dataKey="Total Debt" fill="#ef4444" radius={[2, 2, 0, 0]} />
@@ -257,7 +257,7 @@ export default function LPComparisonPage() {
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="name" tick={{ fontSize: 11 }} />
                 <YAxis tickFormatter={(v) => formatCompact(v)} tick={{ fontSize: 11 }} />
-                <Tooltip formatter={(v: number) => formatCurrency(v)} />
+                <Tooltip formatter={(v: any) => formatCurrency(v as number)} />
                 <Legend />
                 <Bar dataKey="NOI" fill="#10b981" radius={[2, 2, 0, 0]} />
                 <Bar dataKey="Cash Flow" fill="#3b82f6" radius={[2, 2, 0, 0]} />

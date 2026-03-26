@@ -139,6 +139,7 @@ const NAV_SECTIONS: NavSection[] = [
       { href: "/documents", label: "Documents", icon: FolderOpen, roles: [GP] },
       { href: "/distributions", label: "Distributions", icon: DollarSign, roles: [GP] },
       { href: "/etransfers", label: "eTransfers", icon: Send, roles: [GP] },
+      { href: "/user-management", label: "User Management", icon: Users, roles: [GP] },
       { href: "/settings", label: "Settings", icon: Settings, roles: [GP] },
     ],
   },

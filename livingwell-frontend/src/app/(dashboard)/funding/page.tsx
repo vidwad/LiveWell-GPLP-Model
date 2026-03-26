@@ -268,9 +268,9 @@ export default function FundingPage() {
                       </div>
                     </div>
                     <div className="text-xs text-gray-500">
-                      <span className="font-medium">Eligibility:</span> {opp.eligibility_summary as string}
+                      <span className="font-medium">Eligibility:</span> {String(opp.eligibility_summary)}
                     </div>
-                    {opp.url_hint && (
+                    {!!opp.url_hint && (
                       <div className="flex items-center gap-1 text-xs text-purple-600">
                         <ExternalLink className="h-3 w-3" />
                         {opp.url_hint as string}

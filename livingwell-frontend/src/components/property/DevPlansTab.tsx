@@ -269,7 +269,7 @@ export function DevPlansTab({ propertyId, canEdit }: DevPlansTabProps) {
                     </div>
                     <div className="space-y-2">
                       <Label>Status</Label>
-                      <Select value={String(editPlanForm.status)} onValueChange={(v) => setEditPlanForm((f) => ({ ...f, status: v }))}>
+                      <Select value={String(editPlanForm.status)} onValueChange={(v) => setEditPlanForm((f) => ({ ...f, status: v ?? "" }))}>
                         <SelectTrigger><SelectValue /></SelectTrigger>
                         <SelectContent>
                           <SelectItem value="draft">Draft</SelectItem>
@@ -281,7 +281,7 @@ export function DevPlansTab({ propertyId, canEdit }: DevPlansTabProps) {
                     </div>
                     <div className="space-y-2">
                       <Label>Pricing Mode</Label>
-                      <Select value={String(editPlanForm.rent_pricing_mode)} onValueChange={(v) => setEditPlanForm((f) => ({ ...f, rent_pricing_mode: v }))}>
+                      <Select value={String(editPlanForm.rent_pricing_mode)} onValueChange={(v) => setEditPlanForm((f) => ({ ...f, rent_pricing_mode: v ?? "" }))}>
                         <SelectTrigger><SelectValue /></SelectTrigger>
                         <SelectContent>
                           <SelectItem value="by_bed">By Bed</SelectItem>

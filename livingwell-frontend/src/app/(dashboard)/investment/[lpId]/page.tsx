@@ -570,7 +570,7 @@ export default function LPDetailPage() {
                       </div>
                       <div className="text-right">
                         <p className="text-xs text-muted-foreground">Calculated Amount</p>
-                        <p className="text-sm font-semibold tabular-nums">{lp.gross_subscriptions && lp.selling_commission_percent ? formatCurrency(lp.gross_subscriptions * (lp.selling_commission_percent / 100)) : "—"}</p>
+                        <p className="text-sm font-semibold tabular-nums">{lp.gross_subscriptions && lp.selling_commission_percent ? formatCurrency(Number(lp.gross_subscriptions) * (Number(lp.selling_commission_percent) / 100)) : "—"}</p>
                       </div>
                     </div>
                   </div>
@@ -843,9 +843,9 @@ export default function LPDetailPage() {
 
           {/* Unit Summary KPIs */}
           {holdings && holdings.length > 0 && (() => {
-            const totalUnits = holdings.reduce((s, h) => s + Number(h.units_held || 0), 0);
-            const totalCost = holdings.reduce((s, h) => s + Number(h.cost_basis || 0), 0);
-            const totalUnreturned = holdings.reduce((s, h) => s + Number(h.unreturned_capital || 0), 0);
+            const totalUnits = holdings.reduce((s: any, h: any) => s + Number(h.units_held || 0), 0);
+            const totalCost = holdings.reduce((s: any, h: any) => s + Number(h.cost_basis || 0), 0);
+            const totalUnreturned = holdings.reduce((s: any, h: any) => s + Number(h.unreturned_capital || 0), 0);
             const authorized = Number(lp?.total_units_authorized || 0);
             return (
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
@@ -878,7 +878,7 @@ export default function LPDetailPage() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {holdings.map((h) => (
+                      {holdings.map((h: any) => (
                         <TableRow key={h.holding_id}>
                           <TableCell className="font-medium text-sm">{h.investor_name ?? `#${h.investor_id}`}</TableCell>
                           <TableCell className="text-right tabular-nums text-sm font-semibold">{fmtNum(h.units_held)}</TableCell>
@@ -904,11 +904,11 @@ export default function LPDetailPage() {
                       {/* Total row */}
                       <TableRow className="bg-muted/50 font-semibold">
                         <TableCell className="text-sm">Total</TableCell>
-                        <TableCell className="text-right tabular-nums text-sm">{fmtNum(holdings.reduce((s, h) => s + Number(h.units_held || 0), 0))}</TableCell>
+                        <TableCell className="text-right tabular-nums text-sm">{fmtNum(holdings.reduce((s: any, h: any) => s + Number(h.units_held || 0), 0))}</TableCell>
                         <TableCell className="text-right text-sm">—</TableCell>
-                        <TableCell className="text-right tabular-nums text-sm">{fmtPct(String(holdings.reduce((s, h) => s + Number(h.ownership_percent || 0), 0).toFixed(4)))}</TableCell>
-                        <TableCell className="text-right tabular-nums text-sm">{formatCurrency(String(holdings.reduce((s, h) => s + Number(h.cost_basis || 0), 0)))}</TableCell>
-                        <TableCell className="text-right tabular-nums text-sm">{formatCurrency(String(holdings.reduce((s, h) => s + Number(h.unreturned_capital || 0), 0)))}</TableCell>
+                        <TableCell className="text-right tabular-nums text-sm">{fmtPct(String(holdings.reduce((s: any, h: any) => s + Number(h.ownership_percent || 0), 0).toFixed(4)))}</TableCell>
+                        <TableCell className="text-right tabular-nums text-sm">{formatCurrency(String(holdings.reduce((s: any, h: any) => s + Number(h.cost_basis || 0), 0)))}</TableCell>
+                        <TableCell className="text-right tabular-nums text-sm">{formatCurrency(String(holdings.reduce((s: any, h: any) => s + Number(h.unreturned_capital || 0), 0)))}</TableCell>
                         <TableCell colSpan={3}></TableCell>
                       </TableRow>
                     </TableBody>

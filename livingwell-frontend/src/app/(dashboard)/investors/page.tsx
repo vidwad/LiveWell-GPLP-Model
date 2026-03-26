@@ -315,7 +315,7 @@ export default function InvestorsPage() {
           </div>
 
           {/* LP Fund Filter */}
-          <Select value={lpFilter} onValueChange={setLpFilter}>
+          <Select value={lpFilter} onValueChange={(v) => setLpFilter(v ?? "")}>
             <SelectTrigger className="w-[180px]">
               <SelectValue placeholder="LP Fund" />
             </SelectTrigger>
@@ -330,7 +330,7 @@ export default function InvestorsPage() {
           </Select>
 
           {/* Status Filter */}
-          <Select value={statusFilter} onValueChange={setStatusFilter}>
+          <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v ?? "")}>
             <SelectTrigger className="w-[160px]">
               <SelectValue placeholder="Status" />
             </SelectTrigger>
@@ -345,7 +345,7 @@ export default function InvestorsPage() {
           </Select>
 
           {/* Action Items Filter */}
-          <Select value={actionFilter} onValueChange={setActionFilter}>
+          <Select value={actionFilter} onValueChange={(v) => setActionFilter(v ?? "")}>
             <SelectTrigger className="w-[160px]">
               <SelectValue placeholder="Action Items" />
             </SelectTrigger>
@@ -378,7 +378,7 @@ export default function InvestorsPage() {
 
         {/* Second row: additional filters */}
         <div className="flex flex-wrap items-center gap-2">
-          <Select value={accreditedFilter} onValueChange={setAccreditedFilter}>
+          <Select value={accreditedFilter} onValueChange={(v) => setAccreditedFilter(v ?? "")}>
             <SelectTrigger className="w-[160px]">
               <SelectValue placeholder="Accreditation" />
             </SelectTrigger>
@@ -390,7 +390,7 @@ export default function InvestorsPage() {
             </SelectContent>
           </Select>
 
-          <Select value={entityFilter} onValueChange={setEntityFilter}>
+          <Select value={entityFilter} onValueChange={(v) => setEntityFilter(v ?? "")}>
             <SelectTrigger className="w-[160px]">
               <SelectValue placeholder="Entity Type" />
             </SelectTrigger>

@@ -166,7 +166,7 @@ export default function TimelinePage() {
           <label className="mb-1 block text-sm font-medium">
             Filter by Property
           </label>
-          <Select value={filterPropertyId} onValueChange={setFilterPropertyId}>
+          <Select value={filterPropertyId} onValueChange={(v) => setFilterPropertyId(v ?? "")}>
             <SelectTrigger>
               <SelectValue placeholder="All properties" />
             </SelectTrigger>
