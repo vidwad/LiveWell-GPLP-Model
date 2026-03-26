@@ -265,7 +265,7 @@ export default function InvestorOnboardingPage() {
   const INVESTOR_FIELDS = [
     { key: "", label: "-- Skip --" },
     { key: "name", label: "Name *", required: true },
-    { key: "email", label: "Email *", required: true },
+    { key: "email", label: "Email" },
     { key: "phone", label: "Phone" },
     { key: "address", label: "Address" },
     { key: "entity_type", label: "Entity Type" },
@@ -421,8 +421,8 @@ export default function InvestorOnboardingPage() {
   const executeImport = useCallback(async () => {
     // Validate required fields are mapped
     const mappedFields = Object.values(columnMapping);
-    if (!mappedFields.includes("name") || !mappedFields.includes("email")) {
-      alert("You must map both 'Name' and 'Email' columns before importing.");
+    if (!mappedFields.includes("name")) {
+      alert("You must map the 'Name' column before importing.");
       return;
     }
 
@@ -440,11 +440,14 @@ export default function InvestorOnboardingPage() {
 
     for (const row of csvAllRows) {
       const name = row[fieldToCol["name"]] ?? "";
-      const email = row[fieldToCol["email"]] ?? "";
-      if (!name || !email) { failed++; continue; }
-      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { failed++; continue; }
+      if (!name) { failed++; continue; }
 
-      const body: Record<string, string | number> = { name, email };
+      const email = fieldToCol["email"] !== undefined ? (row[fieldToCol["email"]] ?? "") : "";
+      // Skip rows with invalid email format (but allow empty email)
+      if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { failed++; continue; }
+
+      const body: Record<string, string | number> = { name };
+      if (email) body.email = email;
       const optionalFields = ["phone", "address", "entity_type", "jurisdiction", "accredited_status", "exemption_type", "tax_id", "banking_info", "onboarding_status", "source", "notes"];
       for (const field of optionalFields) {
         if (fieldToCol[field] !== undefined && row[fieldToCol[field]]) {
@@ -1857,7 +1860,7 @@ function InvestorDetailDrawer({
                   {INVESTOR_FIELDS.filter(f => f.key).map((f) => {
                     const mappedCol = Object.entries(columnMapping).find(([, v]) => v === f.key);
                     const isMapped = !!mappedCol;
-                    const isRequired = f.key === "name" || f.key === "email";
+                    const isRequired = f.key === "name";
                     return (
                       <span
                         key={f.key}
@@ -1903,7 +1906,7 @@ function InvestorDetailDrawer({
                 <Button
                   size="sm"
                   onClick={executeImport}
-                  disabled={!Object.values(columnMapping).includes("name") || !Object.values(columnMapping).includes("email")}
+                  disabled={!Object.values(columnMapping).includes("name")}
                 >
                   <Upload className="h-3.5 w-3.5 mr-1.5" />
                   Import {csvAllRows.length} Row{csvAllRows.length !== 1 ? "s" : ""}

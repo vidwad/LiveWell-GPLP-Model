@@ -897,7 +897,7 @@ def get_lp_ioi_summary(
 
 class QuickAddLeadBody(BaseModel):
     name: str
-    email: str
+    email: Optional[str] = None
     lp_id: Optional[int] = None
     indicated_amount: Optional[float] = None
     phone: Optional[str] = None
@@ -928,8 +928,10 @@ def quick_add_lead(
     """
     from decimal import Decimal
 
-    # Check for existing investor
-    existing = db.query(Investor).filter(Investor.email == body.email).first()
+    # Check for existing investor (only if email provided)
+    existing = None
+    if body.email:
+        existing = db.query(Investor).filter(Investor.email == body.email).first()
     if existing:
         inv = existing
     else:
