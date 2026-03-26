@@ -376,9 +376,12 @@ export default function InvestorOnboardingPage() {
 
   // ── CSV Import Step 1: Parse file and open mapping modal ──
   const handleImport = useCallback(async (file: File) => {
+    console.log('[IMPORT] handleImport called with:', file.name);
     try {
       const text = await file.text();
+      console.log('[IMPORT] File text length:', text.length, 'First 200 chars:', text.substring(0, 200));
       const allParsedRows = parseCsvFull(text);
+      console.log('[IMPORT] Parsed rows:', allParsedRows.length);
       if (allParsedRows.length < 2) {
         alert("CSV file must have a header row and at least one data row.");
         return;
@@ -405,13 +408,19 @@ export default function InvestorOnboardingPage() {
         }
       });
 
+      console.log('[IMPORT] Headers:', headers);
+      console.log('[IMPORT] Auto-mapping:', autoMapping);
+      console.log('[IMPORT] Data rows:', allRows.length);
       setCsvHeaders(headers);
       setCsvPreviewRows(allRows.slice(0, 5));
       setCsvAllRows(allRows);
       setColumnMapping(autoMapping);
+      console.log('[IMPORT] About to setShowMappingModal(true)');
       setShowMappingModal(true);
+      console.log('[IMPORT] setShowMappingModal(true) called');
     } catch (err) {
-      alert("Failed to read CSV file");
+      console.error('[IMPORT] ERROR:', err);
+      alert("Failed to read CSV file: " + (err instanceof Error ? err.message : String(err)));
     } finally {
       if (fileInputRef.current) fileInputRef.current.value = "";
     }
@@ -546,8 +555,14 @@ export default function InvestorOnboardingPage() {
             accept=".csv"
             className="hidden"
             onChange={(e) => {
+              console.log('[IMPORT] onChange fired, files:', e.target.files?.length);
               const file = e.target.files?.[0];
-              if (file) handleImport(file);
+              if (file) {
+                console.log('[IMPORT] Calling handleImport with file:', file.name, file.size);
+                handleImport(file);
+              } else {
+                console.log('[IMPORT] No file selected');
+              }
             }}
           />
           <Button onClick={() => setShowAddLead(!showAddLead)} variant={showAddLead ? "secondary" : "default"}>
