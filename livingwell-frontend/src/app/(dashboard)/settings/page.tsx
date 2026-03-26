@@ -23,6 +23,7 @@ import {
   ChevronRight,
   ExternalLink,
   CircleDot,
+  Mail,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -101,6 +102,11 @@ const CATEGORY_CONFIG: Record<
     description: "Model selection and AI feature settings",
     icon: Brain,
   },
+  email: {
+    title: "Email Configuration",
+    description: "Email service settings for invitations and notifications",
+    icon: Mail,
+  },
   general: {
     title: "General",
     description: "Platform environment and URL configuration",
@@ -115,6 +121,7 @@ function getKeyIcon(key: string): React.ElementType {
   if (key.includes("OPENAI")) return Brain;
   if (key.includes("GOOGLE") || key.includes("MAP")) return Map;
   if (key.includes("CLAUDE")) return Sparkles;
+  if (key.includes("RESEND") || key.includes("EMAIL")) return Mail;
   return Settings;
 }
 
@@ -445,7 +452,7 @@ export default function SettingsPage() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="grid gap-3 sm:grid-cols-3">
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
               {status.integrations.map((integration) => (
                 <IntegrationCard
                   key={integration.key}
@@ -469,7 +476,7 @@ export default function SettingsPage() {
       )}
 
       {/* Settings by Category */}
-      {["api_keys", "ai", "general"].map((category) => {
+      {["api_keys", "ai", "email", "general"].map((category) => {
         const categorySettings = grouped[category];
         if (!categorySettings || categorySettings.length === 0) return null;
 

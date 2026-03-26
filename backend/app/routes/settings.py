@@ -49,6 +49,20 @@ DEFAULT_SETTINGS = [
         "is_secret": True,
     },
     {
+        "key": "RESEND_API_KEY",
+        "category": "api_keys",
+        "label": "Resend API Key (Email)",
+        "description": "Powers invitation emails sent to new users. Free tier: 100 emails/day. Sign up at resend.com.",
+        "is_secret": True,
+    },
+    {
+        "key": "RESEND_FROM_EMAIL",
+        "category": "email",
+        "label": "Sender Email Address",
+        "description": "The 'From' address for invitation emails. Use onboarding@resend.dev for testing, or verify your own domain in Resend for a custom sender.",
+        "is_secret": False,
+    },
+    {
         "key": "CLAUDE_MODEL",
         "category": "ai",
         "label": "Claude Model",
@@ -101,6 +115,10 @@ def _ensure_defaults(db: Session):
                 env_value = env_settings.FRONTEND_URL or ""
             elif defn["key"] == "ENVIRONMENT":
                 env_value = env_settings.ENVIRONMENT or "development"
+            elif defn["key"] == "RESEND_API_KEY":
+                env_value = env_settings.RESEND_API_KEY or ""
+            elif defn["key"] == "RESEND_FROM_EMAIL":
+                env_value = env_settings.RESEND_FROM_EMAIL or "onboarding@resend.dev"
             # GOOGLE_MAPS_API_KEY is frontend-only (NEXT_PUBLIC_), not in backend env
 
             setting = PlatformSetting(
@@ -310,6 +328,15 @@ def get_integration_status(
                     "Radius Visualization",
                 ],
             },
+            {
+                "key": "RESEND_API_KEY",
+                "name": "Resend (Email)",
+                "status": "configured" if settings.get("RESEND_API_KEY") else "not_configured",
+                "features": [
+                    "Invitation Emails",
+                    "User Onboarding Notifications",
+                ],
+            },
         ],
         "ai_model": settings.get("CLAUDE_MODEL", "claude-sonnet-4-20250514"),
         "environment": settings.get("ENVIRONMENT", "development"),
@@ -338,6 +365,10 @@ def _apply_setting_to_runtime(key: str, value: str):
         env_settings.CLAUDE_MODEL = value
     elif key == "OPENAI_API_KEY":
         env_settings.OPENAI_API_KEY = value
+    elif key == "RESEND_API_KEY":
+        env_settings.RESEND_API_KEY = value
+    elif key == "RESEND_FROM_EMAIL":
+        env_settings.RESEND_FROM_EMAIL = value
 
 
 def get_setting_value(db: Session, key: str) -> Optional[str]:

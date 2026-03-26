@@ -6,6 +6,33 @@ from app.core.config import settings
 logger = logging.getLogger(__name__)
 
 
+def _get_resend_config() -> tuple[str, str]:
+    """Get Resend API key and from-email, checking DB settings first, then env."""
+    api_key = settings.RESEND_API_KEY
+    from_email = settings.RESEND_FROM_EMAIL or "onboarding@resend.dev"
+
+    # Try to read from DB (UI-configured values take priority)
+    try:
+        from app.db.session import SessionLocal
+        from app.db.models import PlatformSetting
+
+        db = SessionLocal()
+        try:
+            for s in db.query(PlatformSetting).filter(
+                PlatformSetting.key.in_(["RESEND_API_KEY", "RESEND_FROM_EMAIL"])
+            ).all():
+                if s.key == "RESEND_API_KEY" and s.value:
+                    api_key = s.value
+                elif s.key == "RESEND_FROM_EMAIL" and s.value:
+                    from_email = s.value
+        finally:
+            db.close()
+    except Exception:
+        pass  # Fall back to env vars
+
+    return api_key, from_email
+
+
 def send_invitation_email(
     to_email: str,
     invite_url: str,
@@ -15,12 +42,14 @@ def send_invitation_email(
     invitee_name: str | None = None,
 ) -> bool:
     """Send an invitation email via Resend. Returns True on success."""
-    if not settings.RESEND_API_KEY:
+    api_key, from_email = _get_resend_config()
+
+    if not api_key:
         logger.warning("RESEND_API_KEY not set — skipping email send")
         return False
 
     import resend
-    resend.api_key = settings.RESEND_API_KEY
+    resend.api_key = api_key
 
     # Build the full invite URL
     frontend_url = settings.FRONTEND_URL.rstrip("/")
@@ -103,7 +132,7 @@ def send_invitation_email(
 
     try:
         result = resend.Emails.send({
-            "from": settings.RESEND_FROM_EMAIL,
+            "from": from_email,
             "to": [to_email],
             "subject": f"You're invited to join Living Well Communities as {role_display}",
             "html": html_body,
