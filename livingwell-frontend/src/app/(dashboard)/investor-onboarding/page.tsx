@@ -1920,7 +1920,8 @@ function InvestorDetailDrawer({
   );
 }
 
-// ── Helpers ──────────────────────────────────────────────────────────────────ion getStageIndex(status: OnboardingStatus): number {
+// ── Helpers ──────────────────────────────────────────────────────────────────
+function getStageIndex(status: OnboardingStatus): number {
   const order: OnboardingStatus[] = [
     "lead",
     "invited",
