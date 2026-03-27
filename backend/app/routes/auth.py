@@ -3,6 +3,7 @@ from collections import defaultdict
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from jose import JWTError
+from pydantic import BaseModel as _BaseModel
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
