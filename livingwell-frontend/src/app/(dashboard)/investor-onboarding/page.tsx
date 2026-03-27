@@ -164,6 +164,12 @@ export default function InvestorOnboardingPage() {
     queryFn: fetchInvestors,
   });
 
+  // Fetch user directory for assignment dropdown
+  const { data: userDirectory = [] } = useQuery<Array<{ user_id: number; full_name: string; role: string }>>({
+    queryKey: ["user-directory"],
+    queryFn: () => apiClient.get("/api/auth/users/directory").then((r) => r.data),
+  });
+
   // Fetch onboarding detail for selected investor
   const { data: onboardingDetail, isLoading: detailLoading } = useQuery({
     queryKey: ["onboarding-detail", selectedInvestorId],
@@ -741,6 +747,7 @@ export default function InvestorOnboardingPage() {
                           { key: "phone", label: "Phone" },
                           { key: "entity_type", label: "Entity" },
                           { key: "investor_status", label: "Status" },
+                          { key: "assigned_users", label: "Assigned To" },
                         ].map((col) => (
                           <th
                             key={col.key}
@@ -790,6 +797,19 @@ export default function InvestorOnboardingPage() {
                                 <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold ${stageMeta?.bgColor} ${stageMeta?.color}`}>
                                   {stageMeta?.label ?? status}
                                 </span>
+                              </td>
+                              <td className="px-3 py-2.5">
+                                {(inv.assigned_users as Array<{user_id: number; user_name: string}>)?.length > 0 ? (
+                                  <div className="flex flex-wrap gap-1">
+                                    {(inv.assigned_users as Array<{user_id: number; user_name: string}>).map((u) => (
+                                      <span key={u.user_id} className="inline-flex items-center rounded-full bg-blue-50 px-2 py-0.5 text-[10px] text-blue-700">
+                                        {u.user_name?.split(" ")[0] || "?"}
+                                      </span>
+                                    ))}
+                                  </div>
+                                ) : (
+                                  <span className="text-xs text-muted-foreground">—</span>
+                                )}
                               </td>
                               <td className="px-3 py-2.5">
                                 {(() => {
@@ -898,6 +918,7 @@ export default function InvestorOnboardingPage() {
               }
               isTransitioning={transitionMutation.isPending}
               isChecklistUpdating={checklistMutation.isPending}
+              userDirectory={userDirectory}
             />
           </div>
         )}
@@ -1141,6 +1162,7 @@ function InvestorDetailDrawer({
   isChecklistUpdating,
   isExpanded,
   onToggleExpand,
+  userDirectory = [],
 }: {
   investorId: number;
   detail: OnboardingDetail | null;
@@ -1152,6 +1174,7 @@ function InvestorDetailDrawer({
   isChecklistUpdating: boolean;
   isExpanded?: boolean;
   onToggleExpand?: () => void;
+  userDirectory?: Array<{ user_id: number; full_name: string; role: string }>;
 }) {
   const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState<DrawerTab>("profile");
@@ -1641,6 +1664,70 @@ function InvestorDetailDrawer({
                     </div>
                   </div>
                 )}
+              </CardContent>
+            </Card>
+
+            {/* Assigned To */}
+            <Card>
+              <CardHeader className="p-4 pb-2">
+                <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                  <Users className="h-4 w-4" />
+                  Assigned To
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="p-4 pt-0">
+                <div className="space-y-2">
+                  {/* Current assignments */}
+                  {(investor.assigned_users as Array<{user_id: number; user_name: string}> || []).map((a: any) => (
+                    <div key={a.user_id} className="flex items-center justify-between rounded border p-2">
+                      <span className="text-sm">{a.user_name}</span>
+                      <button
+                        className="text-xs text-red-500 hover:text-red-700"
+                        onClick={async () => {
+                          try {
+                            await apiClient.delete(`/api/investor/investors/${investor.investor_id}/assignments/${a.user_id}`);
+                            queryClient.invalidateQueries({ queryKey: ["onboarding-investors"] });
+                            queryClient.invalidateQueries({ queryKey: ["onboarding-detail", investor.investor_id] });
+                          } catch { alert("Failed to remove assignment"); }
+                        }}
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  ))}
+                  {/* Add assignment */}
+                  <div className="flex gap-2">
+                    <select
+                      id={`assign-user-${investor.investor_id}`}
+                      className="flex-1 rounded border bg-background px-2 py-1.5 text-sm"
+                    >
+                      <option value="">Add user...</option>
+                      {userDirectory
+                        .filter((u: any) => !(investor.assigned_users as Array<{user_id: number}> || []).some((a: any) => a.user_id === u.user_id))
+                        .map((u: any) => (
+                          <option key={u.user_id} value={u.user_id}>{u.full_name} ({u.role})</option>
+                        ))
+                      }
+                    </select>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={async () => {
+                        const sel = document.getElementById(`assign-user-${investor.investor_id}`) as HTMLSelectElement;
+                        const userId = parseInt(sel?.value);
+                        if (!userId) return;
+                        try {
+                          await apiClient.post(`/api/investor/investors/${investor.investor_id}/assignments`, { user_id: userId });
+                          queryClient.invalidateQueries({ queryKey: ["onboarding-investors"] });
+                          queryClient.invalidateQueries({ queryKey: ["onboarding-detail", investor.investor_id] });
+                          sel.value = "";
+                        } catch { alert("Failed to assign user"); }
+                      }}
+                    >
+                      Assign
+                    </Button>
+                  </div>
+                </div>
               </CardContent>
             </Card>
 

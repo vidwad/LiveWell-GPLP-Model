@@ -620,12 +620,22 @@ def revoke_invitation(
 # User Management (list/update users)
 # ---------------------------------------------------------------------------
 
+@router.get("/users/directory")
+def user_directory(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Simple user directory for assignment dropdowns. Any authenticated user can call this."""
+    users = db.query(User).filter(User.is_active == True).order_by(User.full_name).all()
+    return [{"user_id": u.user_id, "full_name": u.full_name, "role": u.role.value} for u in users]
+
+
 @router.get("/users")
 def list_users(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_capability("admin_users")),
 ):
-    """List all platform users."""
+    """List all platform users (admin only)."""
     users = db.query(User).order_by(User.user_id).all()
     return [{
         "user_id": u.user_id,

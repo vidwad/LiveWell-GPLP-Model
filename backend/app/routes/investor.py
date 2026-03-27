@@ -72,27 +72,45 @@ def _get_investor_or_404(investor_id: int, db: Session) -> Investor:
 # Investors
 # ---------------------------------------------------------------------------
 
-@router.get("/investors", response_model=list[InvestorOut])
+@router.get("/investors")
 def list_investors(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """List investors. Admins see all. Others see only their assigned contacts + new leads."""
+    """List investors with assigned users. Admins see all. Others see only their assigned contacts + new leads."""
     if current_user.role == UserRole.GP_ADMIN:
-        return db.query(Investor).all()
+        investors = db.query(Investor).all()
+    else:
+        # Non-admin: see new_lead (unassigned) + contacts assigned to them
+        from sqlalchemy import or_
+        assigned_ids = [
+            ca.investor_id for ca in
+            db.query(ContactAssignment).filter(ContactAssignment.user_id == current_user.user_id).all()
+        ]
+        investors = db.query(Investor).filter(
+            or_(
+                Investor.investor_status == InvestorStatus.new_lead,
+                Investor.investor_id.in_(assigned_ids) if assigned_ids else False,
+            )
+        ).all()
 
-    # Non-admin: see new_lead (unassigned) + contacts assigned to them
-    from sqlalchemy import or_
-    assigned_ids = [
-        ca.investor_id for ca in
-        db.query(ContactAssignment).filter(ContactAssignment.user_id == current_user.user_id).all()
-    ]
-    return db.query(Investor).filter(
-        or_(
-            Investor.investor_status == InvestorStatus.new_lead,
-            Investor.investor_id.in_(assigned_ids) if assigned_ids else False,
-        )
-    ).all()
+    # Attach assigned user names to each investor
+    result = []
+    for inv in investors:
+        d = {c.name: getattr(inv, c.name) for c in inv.__table__.columns}
+        # Convert enums to string values
+        if d.get("investor_status"):
+            d["investor_status"] = d["investor_status"].value if hasattr(d["investor_status"], "value") else str(d["investor_status"])
+        if d.get("onboarding_status"):
+            d["onboarding_status"] = d["onboarding_status"].value if hasattr(d["onboarding_status"], "value") else str(d["onboarding_status"])
+        # Add assigned users
+        assignments = db.query(ContactAssignment).filter(ContactAssignment.investor_id == inv.investor_id).all()
+        d["assigned_users"] = [
+            {"user_id": a.user_id, "user_name": a.user.full_name if a.user else None}
+            for a in assignments
+        ]
+        result.append(d)
+    return result
 
 
 @router.get("/investors-summary", response_model=list[InvestorSummary])
@@ -954,7 +972,7 @@ class QuickAddLeadBody(BaseModel):
 def quick_add_lead(
     body: QuickAddLeadBody,
     db: Session = Depends(get_db),
-    _: User = Depends(require_gp_or_ops),
+    current_user: User = Depends(require_gp_or_ops),
 ):
     """Quick-add a new lead — creates investor record + optional IOI in one call.
 
@@ -962,6 +980,7 @@ def quick_add_lead(
     interest in a specific LP, all in one step.
     Accepts a JSON body for robust handling of addresses with commas, special chars, etc.
     All investor fields supported for CSV import compatibility.
+    Non-admin users are auto-assigned to contacts they create.
     """
     from decimal import Decimal
 
@@ -1020,6 +1039,20 @@ def quick_add_lead(
             )
             db.add(ioi)
             db.flush()
+
+    # Auto-assign to current user if they're not GP_ADMIN
+    if is_new and current_user.role != UserRole.GP_ADMIN:
+        existing_assignment = db.query(ContactAssignment).filter(
+            ContactAssignment.investor_id == inv.investor_id,
+            ContactAssignment.user_id == current_user.user_id,
+        ).first()
+        if not existing_assignment:
+            db.add(ContactAssignment(
+                investor_id=inv.investor_id,
+                user_id=current_user.user_id,
+                assigned_by=current_user.user_id,
+                notes="Auto-assigned on create",
+            ))
 
     db.commit()
 
