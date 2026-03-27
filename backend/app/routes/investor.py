@@ -19,7 +19,7 @@ from app.db.models import (
     Investor, InvestorDocument, InvestorMessage, User, UserRole,
     Subscription, Holding, DistributionAllocation, DistributionEvent, LPEntity,
     OnboardingStatus, OnboardingChecklistItem, IndicationOfInterest, IOIStatus,
-    DocumentType,
+    DocumentType, InvestorStatus, ContactAssignment,
 )
 from app.db.session import get_db
 from app.schemas.investor import (
@@ -75,9 +75,24 @@ def _get_investor_or_404(investor_id: int, db: Session) -> Investor:
 @router.get("/investors", response_model=list[InvestorOut])
 def list_investors(
     db: Session = Depends(get_db),
-    _: User = Depends(require_gp_or_ops),
+    current_user: User = Depends(get_current_user),
 ):
-    return db.query(Investor).all()
+    """List investors. Admins see all. Others see only their assigned contacts + new leads."""
+    if current_user.role == UserRole.GP_ADMIN:
+        return db.query(Investor).all()
+
+    # Non-admin: see new_lead (unassigned) + contacts assigned to them
+    from sqlalchemy import or_
+    assigned_ids = [
+        ca.investor_id for ca in
+        db.query(ContactAssignment).filter(ContactAssignment.user_id == current_user.user_id).all()
+    ]
+    return db.query(Investor).filter(
+        or_(
+            Investor.investor_status == InvestorStatus.new_lead,
+            Investor.investor_id.in_(assigned_ids) if assigned_ids else False,
+        )
+    ).all()
 
 
 @router.get("/investors-summary", response_model=list[InvestorSummary])
@@ -909,6 +924,7 @@ class QuickAddLeadBody(BaseModel):
     tax_id: Optional[str] = None
     banking_info: Optional[str] = None
     onboarding_status: Optional[str] = None
+    investor_status: Optional[str] = None
     source: Optional[str] = None
     notes: Optional[str] = None
 
@@ -950,6 +966,7 @@ def quick_add_lead(
             tax_id=body.tax_id,
             banking_info=body.banking_info,
             onboarding_status=OnboardingStatus(body.onboarding_status) if body.onboarding_status else OnboardingStatus.lead,
+            investor_status=InvestorStatus(body.investor_status) if body.investor_status else InvestorStatus.new_lead,
             notes=body.notes,
         )
         is_new = True
@@ -1385,7 +1402,8 @@ def edit_investor_crm(
         raise HTTPException(404, "Investor not found")
 
     allowed = {"name", "email", "phone", "address", "entity_type", "jurisdiction",
-               "accredited_status", "exemption_type", "tax_id", "banking_info", "notes"}
+               "accredited_status", "exemption_type", "tax_id", "banking_info", "notes",
+               "investor_status"}
     for key, val in payload.items():
         if key in allowed:
             setattr(investor, key, val if val != "" else None)
@@ -1397,4 +1415,136 @@ def edit_investor_crm(
         "name": investor.name,
         "email": investor.email,
         "status": "updated",
+    }
+
+
+# ===========================================================================
+# Contact Assignments (CRM ownership)
+# ===========================================================================
+
+@router.get("/investors/{investor_id}/assignments")
+def list_assignments(
+    investor_id: int,
+    db: Session = Depends(get_db),
+    _: User = Depends(get_current_user),
+):
+    """List all users assigned to this investor contact."""
+    assignments = db.query(ContactAssignment).filter(
+        ContactAssignment.investor_id == investor_id
+    ).all()
+    return [{
+        "assignment_id": a.assignment_id,
+        "investor_id": a.investor_id,
+        "user_id": a.user_id,
+        "user_name": a.user.full_name if a.user else None,
+        "user_email": a.user.email if a.user else None,
+        "user_role": a.user.role.value if a.user else None,
+        "assigned_at": str(a.assigned_at),
+        "assigned_by_name": a.assigner.full_name if a.assigner else None,
+        "notes": a.notes,
+    } for a in assignments]
+
+
+class AssignContactBody(BaseModel):
+    user_id: int
+    notes: str | None = None
+
+
+@router.post("/investors/{investor_id}/assignments", status_code=201)
+def assign_contact(
+    investor_id: int,
+    body: AssignContactBody,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_gp_or_ops),
+):
+    """Assign a user to this investor contact. Auto-updates status from new_lead to warm_lead."""
+    investor = db.query(Investor).filter(Investor.investor_id == investor_id).first()
+    if not investor:
+        raise HTTPException(404, "Investor not found")
+    user = db.query(User).filter(User.user_id == body.user_id).first()
+    if not user:
+        raise HTTPException(404, "User not found")
+
+    # Check for duplicate
+    existing = db.query(ContactAssignment).filter(
+        ContactAssignment.investor_id == investor_id,
+        ContactAssignment.user_id == body.user_id,
+    ).first()
+    if existing:
+        return {"assignment_id": existing.assignment_id, "message": "Already assigned"}
+
+    assignment = ContactAssignment(
+        investor_id=investor_id,
+        user_id=body.user_id,
+        assigned_by=current_user.user_id,
+        notes=body.notes,
+    )
+    db.add(assignment)
+
+    # Auto-advance from new_lead when first assigned
+    if investor.investor_status == InvestorStatus.new_lead:
+        investor.investor_status = InvestorStatus.warm_lead
+
+    db.commit()
+    db.refresh(assignment)
+    return {
+        "assignment_id": assignment.assignment_id,
+        "investor_id": investor_id,
+        "user_id": body.user_id,
+        "user_name": user.full_name,
+        "message": f"Assigned {user.full_name} to {investor.name}",
+    }
+
+
+@router.delete("/investors/{investor_id}/assignments/{user_id}")
+def unassign_contact(
+    investor_id: int,
+    user_id: int,
+    db: Session = Depends(get_db),
+    _: User = Depends(require_gp_or_ops),
+):
+    """Remove a user assignment from this investor contact."""
+    assignment = db.query(ContactAssignment).filter(
+        ContactAssignment.investor_id == investor_id,
+        ContactAssignment.user_id == user_id,
+    ).first()
+    if not assignment:
+        raise HTTPException(404, "Assignment not found")
+    db.delete(assignment)
+    db.commit()
+    return {"message": "Unassigned"}
+
+
+# ===========================================================================
+# Investor Status Updates
+# ===========================================================================
+
+class UpdateInvestorStatusBody(BaseModel):
+    investor_status: str
+
+
+@router.patch("/investors/{investor_id}/status")
+def update_investor_status(
+    investor_id: int,
+    body: UpdateInvestorStatusBody,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_gp_or_ops),
+):
+    """Update the sales pipeline status of an investor contact."""
+    investor = db.query(Investor).filter(Investor.investor_id == investor_id).first()
+    if not investor:
+        raise HTTPException(404, "Investor not found")
+    try:
+        new_status = InvestorStatus(body.investor_status)
+    except ValueError:
+        valid = [s.value for s in InvestorStatus]
+        raise HTTPException(400, f"Invalid status. Valid: {', '.join(valid)}")
+
+    old_status = investor.investor_status
+    investor.investor_status = new_status
+    db.commit()
+    return {
+        "investor_id": investor_id,
+        "old_status": old_status.value if old_status else None,
+        "new_status": new_status.value,
     }

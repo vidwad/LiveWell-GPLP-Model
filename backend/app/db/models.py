@@ -540,6 +540,16 @@ class OnboardingStatus(str, enum.Enum):
     rejected = "rejected"                 # Did not pass review
 
 
+class InvestorStatus(str, enum.Enum):
+    """Sales pipeline status for investor contacts."""
+    new_lead = "new_lead"                # No contact at all
+    warm_lead = "warm_lead"              # Referral or inbound (ad, social media)
+    prospect = "prospect"                # Initial call/email/interaction occurred
+    hot_prospect = "hot_prospect"        # Actively interested in investing
+    investor = "investor"                # Signed subscription agreements
+    write_off = "write_off"              # Not worth pursuing / not interested
+
+
 class Investor(Base):
     __tablename__ = "investors"
 
@@ -552,6 +562,11 @@ class Investor(Base):
     entity_type = Column(String(64), nullable=True)    # individual, trust, corporation, etc.
     jurisdiction = Column(String(128), nullable=True)   # province / state / country
     accredited_status = Column(String(32), nullable=True, default="pending")
+
+    # Sales pipeline status
+    investor_status = Column(
+        _enum(InvestorStatus), nullable=False, default=InvestorStatus.new_lead
+    )
     exemption_type = Column(String(128), nullable=True) # accreditation exemption type
     accreditation_verified_at = Column(Date, nullable=True)
     accreditation_expires_at = Column(Date, nullable=True)
@@ -588,6 +603,25 @@ class Investor(Base):
     onboarding_checklist = relationship(
         "OnboardingChecklistItem", back_populates="investor", cascade="all, delete-orphan"
     )
+    assigned_users = relationship(
+        "ContactAssignment", back_populates="investor", cascade="all, delete-orphan"
+    )
+
+
+class ContactAssignment(Base):
+    """Assigns an investor/lead to one or more platform users for CRM ownership."""
+    __tablename__ = "contact_assignments"
+
+    assignment_id = Column(Integer, primary_key=True, index=True)
+    investor_id = Column(Integer, ForeignKey("investors.investor_id"), nullable=False, index=True)
+    user_id = Column(Integer, ForeignKey("users.user_id"), nullable=False, index=True)
+    assigned_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    assigned_by = Column(Integer, ForeignKey("users.user_id"), nullable=True)
+    notes = Column(String(512), nullable=True)
+
+    investor = relationship("Investor", back_populates="assigned_users")
+    user = relationship("User", foreign_keys=[user_id])
+    assigner = relationship("User", foreign_keys=[assigned_by])
 
 
 class OnboardingChecklistItem(Base):

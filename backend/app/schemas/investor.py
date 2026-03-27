@@ -43,11 +43,19 @@ class InvestorOut(BaseModel):
     address: str | None = None
     entity_type: str | None = None
     accredited_status: str | None = "pending"
+    investor_status: str | None = "new_lead"
     onboarding_status: str | None = "lead"
+    jurisdiction: str | None = None
+    exemption_type: str | None = None
+    tax_id: str | None = None
+    banking_info: str | None = None
+    notes: str | None = None
     onboarding_started_at: Optional[datetime.datetime] = None
     onboarding_completed_at: Optional[datetime.datetime] = None
     invited_at: Optional[datetime.datetime] = None
     approved_at: Optional[datetime.datetime] = None
+    created_at: Optional[datetime.datetime] = None
+    updated_at: Optional[datetime.datetime] = None
 
     model_config = {"from_attributes": True}
 
