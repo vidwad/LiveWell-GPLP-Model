@@ -57,7 +57,8 @@ type InvestorStatusType =
   | "prospect"
   | "hot_prospect"
   | "investor"
-  | "write_off";
+  | "write_off"
+  | "archived";
 
 interface InvestorRecord {
   investor_id: number;
@@ -249,7 +250,7 @@ export default function InvestorOnboardingPage() {
   const sortedInvestors = useMemo(() => {
     let list = investors ?? [];
     if (statusFilter !== "all") {
-      list = list.filter((inv) => (inv.investor_status ?? "new_lead") === statusFilter);
+      list = list.filter((inv: any) => (inv.investor_status ?? "new_lead") === statusFilter);
     }
     return [...list].sort((a, b) => {
       const aVal = String(a[sortField] ?? "").toLowerCase();
@@ -310,7 +311,7 @@ export default function InvestorOnboardingPage() {
     const list = investors ?? [];
     if (list.length === 0) return;
     const headers = ["investor_id", "name", "email", "phone", "address", "entity_type", "jurisdiction", "accredited_status", "exemption_type", "tax_id", "banking_info", "investor_status", "onboarding_status", "notes", "onboarding_started_at", "onboarding_completed_at", "invited_at", "approved_at", "created_at"];
-    const rows = list.map((inv) =>
+    const rows = list.map((inv: any) =>
       headers.map((h) => {
         const val = inv[h] ?? "";
         const str = String(val);
@@ -1195,6 +1196,8 @@ function InvestorDetailDrawer({
 }) {
   const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState<DrawerTab>("profile");
+  const [researchLoading, setResearchLoading] = useState<number | null>(null);
+  const [researchResult, setResearchResult] = useState<{ summary: string; details: string } | null>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [editForm, setEditForm] = useState({
     name: "",
@@ -1664,17 +1667,21 @@ function InvestorDetailDrawer({
                             Search
                           </button>
                           <button
-                            className="text-[10px] px-1.5 py-0.5 rounded bg-green-50 text-green-700 hover:bg-green-100"
+                            className="text-[10px] px-1.5 py-0.5 rounded bg-green-50 text-green-700 hover:bg-green-100 disabled:opacity-50"
+                            disabled={!!researchLoading}
                             onClick={async () => {
+                              setResearchLoading(investor.investor_id);
+                              setResearchResult(null);
                               try {
                                 const r = await apiClient.post(`/api/investor/investors/${investor.investor_id}/linkedin-fetch`);
-                                alert("Public intelligence report fetched and added to Notes.");
+                                setResearchResult({ summary: r.data.summary, details: r.data.research_details });
                                 queryClient.invalidateQueries({ queryKey: ["onboarding-investors"] });
                                 queryClient.invalidateQueries({ queryKey: ["onboarding-detail", investor.investor_id] });
                               } catch (e: any) { alert(e?.response?.data?.detail || "Research failed"); }
+                              finally { setResearchLoading(null); }
                             }}
                           >
-                            Research
+                            {researchLoading === investor.investor_id ? "Researching..." : "Research"}
                           </button>
                           {(investor.linkedin_url as string) && (
                             <a
@@ -1692,6 +1699,41 @@ function InvestorDetailDrawer({
                         <p><a href={investor.linkedin_url as string} target="_blank" rel="noopener" className="text-blue-600 hover:underline text-xs truncate block">{investor.linkedin_url as string}</a></p>
                       ) : <p className="text-muted-foreground text-sm">—</p>}
                     </div>
+
+                    {/* Research Progress & Results */}
+                    {researchLoading === investor.investor_id && (
+                      <div className="col-span-2 rounded-lg border border-blue-200 bg-blue-50/50 p-3 space-y-2">
+                        <div className="flex items-center gap-2">
+                          <Loader2 className="h-4 w-4 animate-spin text-blue-600" />
+                          <span className="text-sm font-medium text-blue-700">Researching {investor.name}...</span>
+                        </div>
+                        <p className="text-xs text-blue-600">Searching LinkedIn, Google, company websites, professional directories, and news sources.</p>
+                        <div className="h-1.5 w-full rounded-full bg-blue-100 overflow-hidden">
+                          <div className="h-full bg-blue-500 rounded-full animate-pulse" style={{ width: "60%" }} />
+                        </div>
+                      </div>
+                    )}
+
+                    {researchResult && !researchLoading && (
+                      <div className="col-span-2 space-y-3">
+                        <div className="rounded-lg border border-green-200 bg-green-50/50 p-3">
+                          <div className="flex items-center gap-1.5 mb-1.5">
+                            <CheckCircle2 className="h-3.5 w-3.5 text-green-600" />
+                            <span className="text-xs font-semibold text-green-700">Research Summary</span>
+                          </div>
+                          <p className="text-xs leading-relaxed">{researchResult.summary}</p>
+                        </div>
+                        <details className="rounded-lg border p-3">
+                          <summary className="text-xs font-semibold cursor-pointer text-muted-foreground hover:text-foreground">
+                            Full Research Details
+                          </summary>
+                          <div className="mt-2 text-xs whitespace-pre-wrap leading-relaxed text-muted-foreground max-h-[300px] overflow-y-auto">
+                            {researchResult.details}
+                          </div>
+                        </details>
+                      </div>
+                    )}
+
                     <div>
                       <span className="text-xs text-muted-foreground">Risk Tolerance</span>
                       <p className="capitalize">{(investor.risk_tolerance as string) || "—"}</p>

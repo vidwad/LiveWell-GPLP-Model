@@ -1185,16 +1185,34 @@ def linkedin_fetch_info(
         )
         info = response.output_text.strip()
 
-        # Append to notes
+        # Generate a 1-2 paragraph executive summary
+        summary_prompt = (
+            f"Summarize the following research about {inv.name} in 1-2 short paragraphs. "
+            f"Focus on their professional background, investment relevance, and whether they "
+            f"would likely qualify as an accredited investor. Keep it concise and actionable "
+            f"for a CRM user.\n\n{info}"
+        )
+        try:
+            summary_resp = client.responses.create(
+                model="gpt-4o",
+                input=summary_prompt,
+            )
+            summary = summary_resp.output_text.strip()
+        except Exception:
+            summary = info[:500] + "..."
+
+        # Store research details and summary separately
         timestamp = datetime.datetime.utcnow().strftime("%Y-%m-%d")
-        note_header = f"\n\n--- Public Intelligence Report ({timestamp}) ---\n"
+        note_header = f"\n\n--- Research Summary ({timestamp}) ---\n"
+        detail_header = f"\n\n--- Full Research Details ({timestamp}) ---\n"
         existing_notes = inv.notes or ""
-        inv.notes = existing_notes + note_header + info
+        inv.notes = existing_notes + note_header + summary + detail_header + info
         db.commit()
 
         return {
             "investor_id": investor_id,
-            "linkedin_info": info,
+            "summary": summary,
+            "research_details": info,
             "notes_updated": True,
         }
     except Exception as e:
