@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useAuth } from "@/providers/AuthProvider";
 import { apiClient } from "@/lib/api";
 import { useMutation } from "@tanstack/react-query";
@@ -57,6 +57,7 @@ interface ProfileForm {
   linkedin_url: string;
   bio: string;
   timezone: string;
+  profile_photo_url: string;
 }
 
 interface PasswordForm {
@@ -91,7 +92,10 @@ export default function ProfilePage() {
     linkedin_url: "",
     bio: "",
     timezone: "America/Edmonton",
+    profile_photo_url: "",
   });
+  const photoInputRef = useRef<HTMLInputElement>(null);
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
 
   // Password form state
   const [passwordForm, setPasswordForm] = useState<PasswordForm>({
@@ -112,9 +116,9 @@ export default function ProfilePage() {
         ...prev,
         full_name: user.full_name ?? "",
       }));
-      // Fetch extended profile data
+      // Fetch extended profile data from /me
       apiClient
-        .get("/api/auth/me/profile")
+        .get("/api/auth/me")
         .then((res) => {
           const data = res.data;
           setProfile({
@@ -124,6 +128,7 @@ export default function ProfilePage() {
             linkedin_url: data.linkedin_url ?? "",
             bio: data.bio ?? "",
             timezone: data.timezone ?? "America/Edmonton",
+            profile_photo_url: data.profile_photo_url ?? "",
           });
           if (data.google_calendar_email) {
             setGoogleConnected(true);
@@ -275,19 +280,58 @@ export default function ProfilePage() {
         <div className="lg:col-span-1">
           <Card>
             <CardContent className="flex flex-col items-center pt-6 pb-6 space-y-4">
-              {/* Avatar with initials */}
+              {/* Avatar with photo upload */}
               <div className="relative group">
-                <div className="h-24 w-24 rounded-full bg-primary/10 flex items-center justify-center text-primary text-2xl font-bold">
-                  {initials}
-                </div>
+                {profile.profile_photo_url ? (
+                  <img
+                    src={profile.profile_photo_url.startsWith("http") ? profile.profile_photo_url : `${apiClient.defaults.baseURL}${profile.profile_photo_url}`}
+                    alt="Profile"
+                    className="h-24 w-24 rounded-full object-cover border-2 border-border"
+                  />
+                ) : (
+                  <div className="h-24 w-24 rounded-full bg-primary/10 flex items-center justify-center text-primary text-2xl font-bold">
+                    {initials}
+                  </div>
+                )}
+                <input
+                  ref={photoInputRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={async (e) => {
+                    const file = e.target.files?.[0];
+                    if (!file) return;
+                    if (file.size > 5 * 1024 * 1024) { alert("Photo must be under 5MB"); return; }
+                    setUploadingPhoto(true);
+                    try {
+                      const formData = new FormData();
+                      formData.append("file", file);
+                      formData.append("document_type", "profile_photo");
+                      const uploadResp = await apiClient.post("/api/documents/upload", formData, {
+                        headers: { "Content-Type": "multipart/form-data" },
+                      });
+                      const photoUrl = uploadResp.data?.file_url || uploadResp.data?.url;
+                      if (photoUrl) {
+                        await apiClient.patch("/api/auth/me/profile", { profile_photo_url: photoUrl });
+                        setProfile((p) => ({ ...p, profile_photo_url: photoUrl }));
+                      }
+                    } catch { alert("Failed to upload photo"); }
+                    finally { setUploadingPhoto(false); if (photoInputRef.current) photoInputRef.current.value = ""; }
+                  }}
+                />
                 <button
                   className="absolute inset-0 flex items-center justify-center rounded-full bg-black/40 text-white opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
-                  onClick={() => {
-                    /* Upload photo - future */
-                  }}
+                  onClick={() => photoInputRef.current?.click()}
+                  disabled={uploadingPhoto}
                 >
-                  <Camera className="h-5 w-5 mr-1" />
-                  <span className="text-xs">Upload</span>
+                  {uploadingPhoto ? (
+                    <span className="text-xs">Uploading...</span>
+                  ) : (
+                    <>
+                      <Camera className="h-5 w-5 mr-1" />
+                      <span className="text-xs">Upload</span>
+                    </>
+                  )}
                 </button>
               </div>
 

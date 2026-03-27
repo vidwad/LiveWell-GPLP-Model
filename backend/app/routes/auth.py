@@ -207,6 +207,7 @@ class UpdateProfileBody(_BaseModel):
     full_name: str | None = None
     phone: str | None = None
     linkedin_url: str | None = None
+    profile_photo_url: str | None = None
     title: str | None = None
     bio: str | None = None
     timezone: str | None = None
