@@ -51,12 +51,21 @@ type OnboardingStatus =
   | "suspended"
   | "rejected";
 
+type InvestorStatusType =
+  | "new_lead"
+  | "warm_lead"
+  | "prospect"
+  | "hot_prospect"
+  | "investor"
+  | "write_off";
+
 interface InvestorRecord {
   investor_id: number;
   name: string;
   email: string;
   phone?: string | null;
   entity_type?: string | null;
+  investor_status?: InvestorStatusType;
   onboarding_status: OnboardingStatus;
   [key: string]: unknown;
 }
@@ -84,25 +93,23 @@ interface OnboardingDetail {
 
 // ── Constants ────────────────────────────────────────────────────────
 
-const STAGES: { key: OnboardingStatus; label: string; color: string; bgColor: string; borderColor: string }[] = [
-  { key: "lead", label: "Lead", color: "text-gray-700", bgColor: "bg-gray-100", borderColor: "border-gray-300" },
-  { key: "invited", label: "Invited", color: "text-blue-700", bgColor: "bg-blue-50", borderColor: "border-blue-300" },
-  { key: "documents_pending", label: "Documents Pending", color: "text-yellow-700", bgColor: "bg-yellow-50", borderColor: "border-yellow-300" },
-  { key: "under_review", label: "Under Review", color: "text-orange-700", bgColor: "bg-orange-50", borderColor: "border-orange-300" },
-  { key: "approved", label: "Approved", color: "text-green-700", bgColor: "bg-green-50", borderColor: "border-green-300" },
-  { key: "active", label: "Active", color: "text-emerald-700", bgColor: "bg-emerald-50", borderColor: "border-emerald-300" },
-  { key: "suspended", label: "Suspended", color: "text-red-700", bgColor: "bg-red-50", borderColor: "border-red-300" },
-  { key: "rejected", label: "Rejected", color: "text-red-700", bgColor: "bg-red-50", borderColor: "border-red-300" },
+// Sales Pipeline stages (investor_status)
+const STAGES: { key: string; label: string; color: string; bgColor: string; borderColor: string }[] = [
+  { key: "new_lead", label: "New Lead", color: "text-gray-700", bgColor: "bg-gray-100", borderColor: "border-gray-300" },
+  { key: "warm_lead", label: "Warm Lead", color: "text-blue-700", bgColor: "bg-blue-50", borderColor: "border-blue-300" },
+  { key: "prospect", label: "Prospect", color: "text-yellow-700", bgColor: "bg-yellow-50", borderColor: "border-yellow-300" },
+  { key: "hot_prospect", label: "Hot Prospect", color: "text-orange-700", bgColor: "bg-orange-50", borderColor: "border-orange-300" },
+  { key: "investor", label: "Investor", color: "text-green-700", bgColor: "bg-green-50", borderColor: "border-green-300" },
+  { key: "write_off", label: "Write-off", color: "text-red-700", bgColor: "bg-red-50", borderColor: "border-red-300" },
 ];
 
-const KANBAN_STAGES: OnboardingStatus[] = ["lead", "invited", "documents_pending", "under_review", "approved"];
+const KANBAN_STAGES: string[] = ["new_lead", "warm_lead", "prospect", "hot_prospect", "investor"];
 
-const STAGE_ACTIONS: Record<string, { label: string; nextStatus: OnboardingStatus; icon: React.ElementType }> = {
-  lead: { label: "Send Invite", nextStatus: "invited", icon: Mail },
-  invited: { label: "Start Documents", nextStatus: "documents_pending", icon: FileCheck },
-  documents_pending: { label: "Submit for Review", nextStatus: "under_review", icon: ShieldCheck },
-  under_review: { label: "Approve", nextStatus: "approved", icon: CheckCircle2 },
-  approved: { label: "Activate", nextStatus: "active", icon: CheckCircle2 },
+const STAGE_ACTIONS: Record<string, { label: string; nextStatus: string; icon: React.ElementType }> = {
+  new_lead: { label: "Mark Warm", nextStatus: "warm_lead", icon: Mail },
+  warm_lead: { label: "Mark Prospect", nextStatus: "prospect", icon: Phone },
+  prospect: { label: "Mark Hot", nextStatus: "hot_prospect", icon: CheckCircle2 },
+  hot_prospect: { label: "Convert to Investor", nextStatus: "investor", icon: ShieldCheck },
 };
 
 const ENTITY_LABELS: Record<string, string> = {
@@ -127,6 +134,11 @@ function fetchOnboardingDetail(investorId: number): Promise<OnboardingDetail> {
 }
 
 function transitionStatus(investorId: number, newStatus: string) {
+  // Use investor_status endpoint for sales pipeline transitions
+  return apiClient.patch(`/api/investor/investors/${investorId}/status`, { investor_status: newStatus }).then((r) => r.data);
+}
+
+function transitionOnboardingStatus(investorId: number, newStatus: string) {
   return apiClient.patch(`/api/investor/investors/${investorId}/onboarding/status`, { new_status: newStatus }).then((r) => r.data);
 }
 
@@ -199,21 +211,19 @@ export default function InvestorOnboardingPage() {
     },
   });
 
-  // Group investors by status
+  // Group investors by investor_status (sales pipeline)
   const grouped = useMemo(() => {
-    const map: Record<OnboardingStatus, InvestorRecord[]> = {
-      lead: [],
-      invited: [],
-      documents_pending: [],
-      under_review: [],
-      approved: [],
-      active: [],
-      suspended: [],
-      rejected: [],
+    const map: Record<string, InvestorRecord[]> = {
+      new_lead: [],
+      warm_lead: [],
+      prospect: [],
+      hot_prospect: [],
+      investor: [],
+      write_off: [],
     };
     if (investors) {
       for (const inv of investors) {
-        const status = inv.onboarding_status ?? "lead";
+        const status = inv.investor_status ?? "new_lead";
         if (map[status]) {
           map[status].push(inv);
         }
@@ -226,7 +236,7 @@ export default function InvestorOnboardingPage() {
   const sortedInvestors = useMemo(() => {
     let list = investors ?? [];
     if (statusFilter !== "all") {
-      list = list.filter((inv) => (inv.onboarding_status ?? "lead") === statusFilter);
+      list = list.filter((inv) => (inv.investor_status ?? "new_lead") === statusFilter);
     }
     return [...list].sort((a, b) => {
       const aVal = String(a[sortField] ?? "").toLowerCase();
@@ -275,6 +285,7 @@ export default function InvestorOnboardingPage() {
     { key: "exemption_type", label: "Exemption Type" },
     { key: "tax_id", label: "Tax ID" },
     { key: "banking_info", label: "Banking Info" },
+    { key: "investor_status", label: "Pipeline Status" },
     { key: "onboarding_status", label: "Onboarding Status" },
     { key: "source", label: "Lead Source" },
     { key: "notes", label: "Notes" },
@@ -285,7 +296,7 @@ export default function InvestorOnboardingPage() {
   const handleExport = useCallback(() => {
     const list = investors ?? [];
     if (list.length === 0) return;
-    const headers = ["investor_id", "name", "email", "phone", "address", "entity_type", "jurisdiction", "accredited_status", "exemption_type", "tax_id", "banking_info", "onboarding_status", "notes", "onboarding_started_at", "onboarding_completed_at", "invited_at", "approved_at", "created_at"];
+    const headers = ["investor_id", "name", "email", "phone", "address", "entity_type", "jurisdiction", "accredited_status", "exemption_type", "tax_id", "banking_info", "investor_status", "onboarding_status", "notes", "onboarding_started_at", "onboarding_completed_at", "invited_at", "approved_at", "created_at"];
     const rows = list.map((inv) =>
       headers.map((h) => {
         const val = inv[h] ?? "";
@@ -396,7 +407,7 @@ export default function InvestorOnboardingPage() {
 
       // Auto-map columns by matching header names
       const autoMapping: Record<string, string> = {};
-      const fieldKeys = ["name", "email", "phone", "address", "entity_type", "jurisdiction", "accredited_status", "exemption_type", "tax_id", "banking_info", "onboarding_status", "source", "notes", "indicated_amount"];
+      const fieldKeys = ["name", "email", "phone", "address", "entity_type", "jurisdiction", "accredited_status", "exemption_type", "tax_id", "banking_info", "investor_status", "onboarding_status", "source", "notes", "indicated_amount"];
       headers.forEach((h, idx) => {
         const normalized = h.toLowerCase().replace(/[^a-z0-9]/g, "_");
         for (const fk of fieldKeys) {
@@ -459,7 +470,7 @@ export default function InvestorOnboardingPage() {
 
       const body: Record<string, string | number> = { name };
       if (email) body.email = email;
-      const optionalFields = ["phone", "address", "entity_type", "jurisdiction", "accredited_status", "exemption_type", "tax_id", "banking_info", "onboarding_status", "source", "notes"];
+      const optionalFields = ["phone", "address", "entity_type", "jurisdiction", "accredited_status", "exemption_type", "tax_id", "banking_info", "investor_status", "onboarding_status", "source", "notes"];
       for (const field of optionalFields) {
         if (fieldToCol[field] !== undefined && row[fieldToCol[field]]) {
           body[field] = row[fieldToCol[field]];
@@ -722,7 +733,7 @@ export default function InvestorOnboardingPage() {
                           { key: "email", label: "Email" },
                           { key: "phone", label: "Phone" },
                           { key: "entity_type", label: "Entity" },
-                          { key: "onboarding_status", label: "Status" },
+                          { key: "investor_status", label: "Status" },
                         ].map((col) => (
                           <th
                             key={col.key}
@@ -747,7 +758,7 @@ export default function InvestorOnboardingPage() {
                         </tr>
                       ) : (
                         sortedInvestors.map((inv) => {
-                          const status = inv.onboarding_status ?? "lead";
+                          const status = inv.investor_status ?? "new_lead";
                           const stageMeta = STAGES.find((s) => s.key === status);
                           const action = STAGE_ACTIONS[status];
                           return (
@@ -995,7 +1006,7 @@ function InvestorKanbanCard({
   isTransitioning,
 }: {
   investor: InvestorRecord;
-  stage: OnboardingStatus;
+  stage: string;
   isSelected: boolean;
   onSelect: () => void;
   onTransition: (newStatus: string) => void;
@@ -1242,10 +1253,10 @@ function InvestorDetailDrawer({
   }
 
   const investor = detail.investor;
-  const currentStage = investor.onboarding_status;
+  const currentStage = investor.investor_status ?? "new_lead";
   const currentStageMeta = STAGES.find((s) => s.key === currentStage);
   const action = STAGE_ACTIONS[currentStage];
-  const canApprove = currentStage !== "under_review" || detail.is_ready_for_approval;
+  const canApprove = true; // investor_status doesn't have doc approval gating
   const progressPercent = Math.round(
     (detail.completed_steps / Math.max(detail.total_steps, 1)) * 100
   );
@@ -1520,27 +1531,27 @@ function InvestorDetailDrawer({
                     {action.label}
                   </Button>
                 )}
-                {(currentStage === "under_review" || currentStage === "documents_pending") && (
+                {currentStage !== "write_off" && currentStage !== "investor" && (
                   <Button
                     variant="destructive"
                     className="w-full"
                     disabled={isTransitioning}
-                    onClick={() => onTransition("rejected")}
+                    onClick={() => onTransition("write_off")}
                   >
                     {isTransitioning ? (
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                     ) : (
                       <XCircle className="mr-2 h-4 w-4" />
                     )}
-                    Reject
+                    Write Off
                   </Button>
                 )}
-                {currentStage === "active" && (
+                {currentStage === "investor" && (
                   <Button
                     variant="destructive"
                     className="w-full"
                     disabled={isTransitioning}
-                    onClick={() => onTransition("suspended")}
+                    onClick={() => onTransition("write_off")}
                   >
                     {isTransitioning ? (
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
