@@ -1657,96 +1657,7 @@ function InvestorDetailDrawer({
               </CardContent>
             </Card>
 
-            {/* Schedule Follow-up Card */}
-            <Card>
-              <CardHeader className="p-4 pb-2">
-                <CardTitle className="text-sm font-semibold flex items-center gap-2">
-                  <Calendar className="h-4 w-4" />
-                  Schedule Follow-up
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="p-4 pt-0">
-                <div className="grid grid-cols-2 gap-2">
-                  <div>
-                    <label className="text-xs text-muted-foreground">Type</label>
-                    <select
-                      className="mt-0.5 w-full rounded border bg-background px-2 py-1.5 text-sm"
-                      id={`fu-type-${investor.investor_id}`}
-                      defaultValue="call"
-                    >
-                      <option value="call">Phone Call</option>
-                      <option value="email">Email</option>
-                      <option value="meeting">Meeting</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="text-xs text-muted-foreground">Date</label>
-                    <input
-                      type="date"
-                      className="mt-0.5 w-full rounded border bg-background px-2 py-1.5 text-sm"
-                      id={`fu-date-${investor.investor_id}`}
-                    />
-                  </div>
-                  <div>
-                    <label className="text-xs text-muted-foreground">Time (optional)</label>
-                    <input
-                      type="time"
-                      className="mt-0.5 w-full rounded border bg-background px-2 py-1.5 text-sm"
-                      id={`fu-time-${investor.investor_id}`}
-                    />
-                  </div>
-                  <div>
-                    <label className="text-xs text-muted-foreground">Subject</label>
-                    <input
-                      type="text"
-                      className="mt-0.5 w-full rounded border bg-background px-2 py-1.5 text-sm"
-                      placeholder="Optional"
-                      id={`fu-subject-${investor.investor_id}`}
-                    />
-                  </div>
-                  <div className="col-span-2">
-                    <label className="text-xs text-muted-foreground">Notes</label>
-                    <input
-                      type="text"
-                      className="mt-0.5 w-full rounded border bg-background px-2 py-1.5 text-sm"
-                      placeholder="Optional notes"
-                      id={`fu-notes-${investor.investor_id}`}
-                    />
-                  </div>
-                  <div className="col-span-2">
-                    <Button
-                      size="sm"
-                      className="w-full"
-                      onClick={async () => {
-                        const fuType = (document.getElementById(`fu-type-${investor.investor_id}`) as HTMLSelectElement)?.value;
-                        const fuDate = (document.getElementById(`fu-date-${investor.investor_id}`) as HTMLInputElement)?.value;
-                        const fuTime = (document.getElementById(`fu-time-${investor.investor_id}`) as HTMLInputElement)?.value;
-                        const fuSubject = (document.getElementById(`fu-subject-${investor.investor_id}`) as HTMLInputElement)?.value;
-                        const fuNotes = (document.getElementById(`fu-notes-${investor.investor_id}`) as HTMLInputElement)?.value;
-                        if (!fuDate) { alert("Please select a date"); return; }
-                        try {
-                          await apiClient.post(`/api/investor/investors/${investor.investor_id}/schedule-followup`, {
-                            follow_up_type: fuType, follow_up_date: fuDate, follow_up_time: fuTime,
-                            subject: fuSubject, notes: fuNotes,
-                          });
-                          alert(`Follow-up ${fuType} scheduled for ${fuDate}`);
-                          // Clear form
-                          (document.getElementById(`fu-date-${investor.investor_id}`) as HTMLInputElement).value = "";
-                          (document.getElementById(`fu-time-${investor.investor_id}`) as HTMLInputElement).value = "";
-                          (document.getElementById(`fu-subject-${investor.investor_id}`) as HTMLInputElement).value = "";
-                          (document.getElementById(`fu-notes-${investor.investor_id}`) as HTMLInputElement).value = "";
-                        } catch { alert("Failed to schedule follow-up"); }
-                      }}
-                    >
-                      <Calendar className="h-3.5 w-3.5 mr-1.5" />
-                      Schedule
-                    </Button>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Onboarding status + transition */}
+            {/* Onboarding Progress + Actions */}
             <Card>
               <CardContent className="p-4 space-y-2">
                 <div className="flex items-center justify-between text-sm">
@@ -1821,59 +1732,6 @@ function InvestorDetailDrawer({
               </div>
             </div>
 
-            {/* Checklist */}
-            <div>
-              <h3 className="mb-2 text-sm font-semibold">Onboarding Checklist</h3>
-              <div className="space-y-1">
-                {detail.checklist.map((item) => (
-                  <label
-                    key={item.item_id}
-                    className="flex items-center gap-3 rounded-lg border p-3 transition-colors hover:bg-muted/50 cursor-pointer"
-                  >
-                    <input
-                      type="checkbox"
-                      checked={item.is_completed}
-                      disabled={isChecklistUpdating}
-                      onChange={(e) => onChecklistToggle(item.item_id, e.target.checked)}
-                      className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary shrink-0"
-                    />
-                    <div className="min-w-0 flex-1">
-                      <span
-                        className={`text-sm ${
-                          item.is_completed ? "line-through text-muted-foreground" : ""
-                        }`}
-                      >
-                        {item.step_label || item.label}
-                      </span>
-                      {item.is_required && (
-                        <span className="ml-2 text-[10px] font-medium text-red-500">Required</span>
-                      )}
-                      {item.document_id && (
-                        <span className="ml-2 inline-flex items-center gap-0.5 text-[10px] font-medium text-blue-600">
-                          <Paperclip className="h-2.5 w-2.5" />
-                          Doc attached
-                        </span>
-                      )}
-                      {item.notes && (
-                        <p className="text-[11px] text-muted-foreground mt-0.5 truncate">
-                          {item.notes}
-                        </p>
-                      )}
-                    </div>
-                    {item.is_completed ? (
-                      <CheckCircle2 className="h-4 w-4 text-green-500 shrink-0" />
-                    ) : (
-                      <Clock className="h-4 w-4 text-muted-foreground shrink-0" />
-                    )}
-                  </label>
-                ))}
-                {detail.checklist.length === 0 && (
-                  <p className="py-4 text-center text-sm text-muted-foreground">
-                    No checklist items configured
-                  </p>
-                )}
-              </div>
-            </div>
           </>
         )}
 
@@ -1882,6 +1740,66 @@ function InvestorDetailDrawer({
         ================================================================ */}
         {activeTab === "activity" && (
           <>
+            {/* Schedule Follow-up Card */}
+            <Card>
+              <CardHeader className="p-4 pb-2">
+                <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                  <Calendar className="h-4 w-4" />
+                  Schedule Follow-up
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="p-4 pt-0">
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="text-xs text-muted-foreground">Type</label>
+                    <select className="mt-0.5 w-full rounded border bg-background px-2 py-1.5 text-sm" id={`fu-type-${investor.investor_id}`} defaultValue="call">
+                      <option value="call">Phone Call</option>
+                      <option value="email">Email</option>
+                      <option value="meeting">Meeting</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-xs text-muted-foreground">Date</label>
+                    <input type="date" className="mt-0.5 w-full rounded border bg-background px-2 py-1.5 text-sm" id={`fu-date-${investor.investor_id}`} />
+                  </div>
+                  <div>
+                    <label className="text-xs text-muted-foreground">Time</label>
+                    <input type="time" className="mt-0.5 w-full rounded border bg-background px-2 py-1.5 text-sm" id={`fu-time-${investor.investor_id}`} />
+                  </div>
+                  <div>
+                    <label className="text-xs text-muted-foreground">Subject</label>
+                    <input type="text" className="mt-0.5 w-full rounded border bg-background px-2 py-1.5 text-sm" placeholder="Optional" id={`fu-subject-${investor.investor_id}`} />
+                  </div>
+                  <div className="col-span-2">
+                    <label className="text-xs text-muted-foreground">Notes</label>
+                    <input type="text" className="mt-0.5 w-full rounded border bg-background px-2 py-1.5 text-sm" placeholder="Optional notes" id={`fu-notes-${investor.investor_id}`} />
+                  </div>
+                  <div className="col-span-2">
+                    <Button size="sm" className="w-full" onClick={async () => {
+                      const fuType = (document.getElementById(`fu-type-${investor.investor_id}`) as HTMLSelectElement)?.value;
+                      const fuDate = (document.getElementById(`fu-date-${investor.investor_id}`) as HTMLInputElement)?.value;
+                      const fuTime = (document.getElementById(`fu-time-${investor.investor_id}`) as HTMLInputElement)?.value;
+                      const fuSubject = (document.getElementById(`fu-subject-${investor.investor_id}`) as HTMLInputElement)?.value;
+                      const fuNotes = (document.getElementById(`fu-notes-${investor.investor_id}`) as HTMLInputElement)?.value;
+                      if (!fuDate) { alert("Please select a date"); return; }
+                      try {
+                        await apiClient.post(`/api/investor/investors/${investor.investor_id}/schedule-followup`, {
+                          follow_up_type: fuType, follow_up_date: fuDate, follow_up_time: fuTime, subject: fuSubject, notes: fuNotes,
+                        });
+                        alert(`Follow-up ${fuType} scheduled for ${fuDate}`);
+                        (document.getElementById(`fu-date-${investor.investor_id}`) as HTMLInputElement).value = "";
+                        (document.getElementById(`fu-time-${investor.investor_id}`) as HTMLInputElement).value = "";
+                        (document.getElementById(`fu-subject-${investor.investor_id}`) as HTMLInputElement).value = "";
+                        (document.getElementById(`fu-notes-${investor.investor_id}`) as HTMLInputElement).value = "";
+                      } catch { alert("Failed to schedule follow-up"); }
+                    }}>
+                      <Calendar className="h-3.5 w-3.5 mr-1.5" />
+                      Schedule
+                    </Button>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
             {/* Log activity toggle */}
             <div>
               <Button
@@ -2097,6 +2015,50 @@ function InvestorDetailDrawer({
                 })}
               </div>
             )}
+
+            {/* Onboarding Checklist */}
+            <Card>
+              <CardHeader className="p-4 pb-2">
+                <CardTitle className="text-sm font-semibold">Onboarding Checklist</CardTitle>
+                <div className="flex items-center gap-2 mt-1">
+                  <Progress value={progressPercent} className="h-2 flex-1" />
+                  <span className="text-xs text-muted-foreground">{detail.completed_steps}/{detail.total_steps}</span>
+                </div>
+              </CardHeader>
+              <CardContent className="p-4 pt-0">
+                <div className="space-y-1">
+                  {detail.checklist.map((item) => (
+                    <label
+                      key={item.item_id}
+                      className="flex items-center gap-3 rounded-lg border p-2.5 transition-colors hover:bg-muted/50 cursor-pointer"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={item.is_completed}
+                        disabled={isChecklistUpdating}
+                        onChange={(e) => onChecklistToggle(item.item_id, e.target.checked)}
+                        className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary shrink-0"
+                      />
+                      <div className="min-w-0 flex-1">
+                        <span className={`text-sm ${item.is_completed ? "line-through text-muted-foreground" : ""}`}>
+                          {item.step_label || item.label}
+                        </span>
+                        {item.is_required && <span className="ml-2 text-[10px] font-medium text-red-500">Required</span>}
+                        {item.document_id && (
+                          <span className="ml-2 inline-flex items-center gap-0.5 text-[10px] font-medium text-blue-600">
+                            <Paperclip className="h-2.5 w-2.5" /> Doc
+                          </span>
+                        )}
+                      </div>
+                      {item.is_completed ? <CheckCircle2 className="h-4 w-4 text-green-500 shrink-0" /> : <Clock className="h-4 w-4 text-muted-foreground shrink-0" />}
+                    </label>
+                  ))}
+                  {detail.checklist.length === 0 && (
+                    <p className="py-4 text-center text-sm text-muted-foreground">No checklist items configured</p>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
           </>
         )}
 
