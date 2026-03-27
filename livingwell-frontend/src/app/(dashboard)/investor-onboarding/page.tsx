@@ -2250,7 +2250,6 @@ function InvestorDocumentsTab({ investorId }: { investorId: number }) {
       formData.append("document_type", uploadType);
       await apiClient.post(`/api/investor/investors/${investorId}/documents`, formData, {
         headers: { "Content-Type": "multipart/form-data" },
-        params: { document_type: uploadType },
       });
       queryClient.invalidateQueries({ queryKey: ["investor-documents", investorId] });
     } catch {

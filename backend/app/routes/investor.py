@@ -9,7 +9,7 @@ from decimal import Decimal
 
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, Form as _Form, HTTPException, Query, status
 from fastapi.responses import Response
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
@@ -323,40 +323,7 @@ def _build_dashboard(inv: Investor, db: Session) -> InvestorDashboard:
     )
 
 
-# ---------------------------------------------------------------------------
-# Documents
-# ---------------------------------------------------------------------------
-
-@router.post("/investors/{investor_id}/documents", response_model=DocumentOut)
-def upload_document(
-    investor_id: int,
-    payload: DocumentCreate,
-    db: Session = Depends(get_db),
-    _: User = Depends(require_gp_or_ops),
-):
-    _get_investor_or_404(investor_id, db)
-    doc = InvestorDocument(
-        investor_id=investor_id,
-        upload_date=datetime.datetime.utcnow(),
-        **payload.model_dump()
-    )
-    db.add(doc)
-    db.commit()
-    db.refresh(doc)
-    return doc
-
-
-@router.get("/investors/{investor_id}/documents", response_model=list[DocumentOut])
-def list_documents(
-    investor_id: int,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(require_investor_or_above),
-):
-    inv = _get_investor_or_404(investor_id, db)
-    if current_user.role == UserRole.INVESTOR and inv.user_id != current_user.user_id:
-        raise HTTPException(status_code=403, detail="Access denied")
-    return sorted(inv.documents, key=lambda x: x.upload_date, reverse=True) if inv.documents else []
-
+# (Old document routes removed — replaced by CRM document routes below)
 
 # ---------------------------------------------------------------------------
 # Messages
@@ -1085,10 +1052,19 @@ def linkedin_search(
     if not inv:
         raise HTTPException(404, "Investor not found")
 
-    from app.services.ai import _get_openai_client
-    client = _get_openai_client()
-    if not client:
+    try:
+        from openai import OpenAI as _OpenAI
+    except ImportError:
+        raise HTTPException(400, "OpenAI package not installed")
+    from app.db.models import PlatformSetting
+    setting = db.query(PlatformSetting).filter(PlatformSetting.key == "OPENAI_API_KEY").first()
+    api_key = setting.value if setting else None
+    if not api_key:
+        import os
+        api_key = os.environ.get("OPENAI_API_KEY")
+    if not api_key:
         raise HTTPException(400, "OpenAI API key not configured. Add it in Settings.")
+    client = _OpenAI(api_key=api_key)
 
     location = inv.jurisdiction or ""
     entity = inv.entity_type or ""
@@ -1150,10 +1126,19 @@ def linkedin_fetch_info(
     if not inv.linkedin_url:
         raise HTTPException(400, "No LinkedIn URL set for this investor. Search for it first.")
 
-    from app.services.ai import _get_openai_client
-    client = _get_openai_client()
-    if not client:
+    try:
+        from openai import OpenAI as _OpenAI
+    except ImportError:
+        raise HTTPException(400, "OpenAI package not installed")
+    from app.db.models import PlatformSetting
+    setting = db.query(PlatformSetting).filter(PlatformSetting.key == "OPENAI_API_KEY").first()
+    api_key = setting.value if setting else None
+    if not api_key:
+        import os
+        api_key = os.environ.get("OPENAI_API_KEY")
+    if not api_key:
         raise HTTPException(400, "OpenAI API key not configured. Add it in Settings.")
+    client = _OpenAI(api_key=api_key)
 
     prompt = (
         f"Look up this LinkedIn profile: {inv.linkedin_url}\n"
@@ -1251,8 +1236,8 @@ def list_investor_documents(
 def upload_investor_document(
     investor_id: int,
     file: UploadFile = FastAPIFile(...),
-    document_type: str = "other",
-    title: str | None = None,
+    document_type: str = Query("other"),
+    title: str | None = Query(None),
     db: Session = Depends(get_db),
     current_user: User = Depends(require_gp_or_ops),
 ):
