@@ -115,7 +115,7 @@ const ENTITY_LABELS: Record<string, string> = {
 // ── API helpers ──────────────────────────────────────────────────────
 
 function fetchInvestors(): Promise<InvestorRecord[]> {
-  return apiClient.get("/api/investment/investors?limit=10000").then((r) => {
+  return apiClient.get("/api/investment/investors?limit=5000").then((r) => {
     const data = r.data;
     if (Array.isArray(data)) return data;
     return data.items ?? [];

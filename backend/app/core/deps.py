@@ -368,13 +368,13 @@ class PaginationParams:
             return pg.paginate(query)
     """
 
-    MAX_LIMIT = 500
+    MAX_LIMIT = 5000
     DEFAULT_LIMIT = 100
 
     def __init__(
         self,
         skip: int = _Query(0, ge=0, description="Number of records to skip"),
-        limit: int = _Query(100, ge=1, le=500, description="Max records to return (1-500)"),
+        limit: int = _Query(100, ge=1, le=5000, description="Max records to return (1-5000)"),
     ):
         self.skip = skip
         self.limit = min(limit, self.MAX_LIMIT)
