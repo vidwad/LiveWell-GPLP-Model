@@ -1203,6 +1203,12 @@ def linkedin_fetch_info(
 
         # Store research details and summary separately
         timestamp = datetime.datetime.utcnow().strftime("%Y-%m-%d")
+        # Save to dedicated research fields (persists across sessions)
+        inv.research_summary = summary
+        inv.research_details = info
+        inv.research_date = datetime.datetime.utcnow()
+
+        # Also append to notes for historical record
         note_header = f"\n\n--- Research Summary ({timestamp}) ---\n"
         detail_header = f"\n\n--- Full Research Details ({timestamp}) ---\n"
         existing_notes = inv.notes or ""

@@ -599,6 +599,11 @@ class Investor(Base):
     banking_info = Column(Text, nullable=True)          # encrypted or reference
     notes = Column(Text, nullable=True)
 
+    # Research data (persisted from AI research)
+    research_summary = Column(Text, nullable=True)
+    research_details = Column(Text, nullable=True)
+    research_date = Column(DateTime, nullable=True)
+
     # KYC / Relationship fields
     linkedin_url = Column(String(512), nullable=True)
     risk_tolerance = Column(String(32), nullable=True)   # conservative, moderate, aggressive

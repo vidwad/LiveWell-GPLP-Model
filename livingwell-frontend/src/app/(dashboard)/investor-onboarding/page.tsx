@@ -1198,6 +1198,22 @@ function InvestorDetailDrawer({
   const [activeTab, setActiveTab] = useState<DrawerTab>("profile");
   const [researchLoading, setResearchLoading] = useState<number | null>(null);
   const [researchResult, setResearchResult] = useState<{ summary: string; details: string } | null>(null);
+
+  // Load saved research from investor record
+  useEffect(() => {
+    if (detail?.investor) {
+      const inv = detail.investor;
+      if (inv.research_summary || inv.research_details) {
+        setResearchResult({
+          summary: (inv.research_summary as string) || "",
+          details: (inv.research_details as string) || "",
+        });
+      } else {
+        setResearchResult(null);
+      }
+    }
+  }, [detail]);
+
   const [isEditing, setIsEditing] = useState(false);
   const [editForm, setEditForm] = useState({
     name: "",
