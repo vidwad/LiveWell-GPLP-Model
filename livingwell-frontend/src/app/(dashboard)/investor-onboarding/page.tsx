@@ -785,21 +785,32 @@ export default function InvestorOnboardingPage() {
                                 </span>
                               </td>
                               <td className="px-3 py-2.5">
-                                {action && (
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    className="h-7 text-xs"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      transitionMutation.mutate({ investorId: inv.investor_id, newStatus: action.nextStatus });
+                                {(() => {
+                                  const requiresContact = !["new_lead", "warm_lead"].includes(status);
+                                  const missingContact = requiresContact && (!inv.email && !inv.phone);
+                                  return (
+                                  <select
+                                    value={status}
+                                    className="rounded border px-2 py-1 text-xs bg-background min-w-[120px]"
+                                    onClick={(e) => e.stopPropagation()}
+                                    onChange={(e) => {
+                                      const newStatus = e.target.value;
+                                      const needsContact = !["new_lead", "warm_lead"].includes(newStatus);
+                                      if (needsContact && !inv.email && !inv.phone) {
+                                        alert(`Cannot move to "${STAGES.find(s => s.key === newStatus)?.label}" without an email or phone number. Please update the contact details first.`);
+                                        e.target.value = status;
+                                        return;
+                                      }
+                                      transitionMutation.mutate({ investorId: inv.investor_id, newStatus });
                                     }}
                                     disabled={transitionMutation.isPending}
                                   >
-                                    {action.label}
-                                    <ChevronRight className="ml-1 h-3 w-3" />
-                                  </Button>
-                                )}
+                                    {STAGES.map((s) => (
+                                      <option key={s.key} value={s.key}>{s.label}</option>
+                                    ))}
+                                  </select>
+                                  );
+                                })()}
                               </td>
                             </tr>
                           );

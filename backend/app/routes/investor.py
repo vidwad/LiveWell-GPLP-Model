@@ -1540,6 +1540,15 @@ def update_investor_status(
         valid = [s.value for s in InvestorStatus]
         raise HTTPException(400, f"Invalid status. Valid: {', '.join(valid)}")
 
+    # Require email or phone for statuses beyond warm_lead
+    contact_required = {InvestorStatus.prospect, InvestorStatus.hot_prospect, InvestorStatus.investor}
+    if new_status in contact_required and not investor.email and not investor.phone:
+        raise HTTPException(
+            400,
+            "Cannot advance to this status without an email or phone number. "
+            "Please update the contact details first."
+        )
+
     old_status = investor.investor_status
     investor.investor_status = new_status
     db.commit()
