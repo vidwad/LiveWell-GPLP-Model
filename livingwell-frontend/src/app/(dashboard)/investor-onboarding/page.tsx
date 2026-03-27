@@ -1572,7 +1572,7 @@ function InvestorDetailDrawer({
                     </div>
                     <div>
                       <span className="text-xs text-muted-foreground">Email</span>
-                      <p className="truncate">{investor.email}</p>
+                      <p className="truncate">{(investor.email as string) || "—"}</p>
                     </div>
                     <div>
                       <span className="text-xs text-muted-foreground">Phone</span>
@@ -1580,15 +1580,11 @@ function InvestorDetailDrawer({
                     </div>
                     <div>
                       <span className="text-xs text-muted-foreground">Entity Type</span>
-                      <p>
-                        {investor.entity_type
-                          ? ENTITY_LABELS[investor.entity_type] ?? investor.entity_type
-                          : "—"}
-                      </p>
+                      <p>{investor.entity_type ? (ENTITY_LABELS[investor.entity_type] ?? investor.entity_type) : "—"}</p>
                     </div>
                     <div className="col-span-2">
                       <span className="text-xs text-muted-foreground">Address</span>
-                      <p>{(investor.address as string) || "—"}</p>
+                      <p className="whitespace-pre-line">{(investor.address as string) || "—"}</p>
                     </div>
                     <div>
                       <span className="text-xs text-muted-foreground">Jurisdiction</span>
@@ -1596,62 +1592,46 @@ function InvestorDetailDrawer({
                     </div>
                     <div>
                       <span className="text-xs text-muted-foreground">Accredited Status</span>
-                      <p>{(investor.accredited_status as string) || "—"}</p>
+                      <p className="capitalize">{(investor.accredited_status as string) || "—"}</p>
                     </div>
-                    {(investor.linkedin_url as string) && (
-                      <div className="col-span-2">
-                        <span className="text-xs text-muted-foreground">LinkedIn</span>
+                    <div className="col-span-2">
+                      <span className="text-xs text-muted-foreground">LinkedIn</span>
+                      {(investor.linkedin_url as string) ? (
                         <p><a href={investor.linkedin_url as string} target="_blank" rel="noopener" className="text-blue-600 hover:underline text-xs truncate block">{investor.linkedin_url as string}</a></p>
-                      </div>
-                    )}
-                    {(investor.risk_tolerance as string) && (
-                      <div>
-                        <span className="text-xs text-muted-foreground">Risk Tolerance</span>
-                        <p className="capitalize">{investor.risk_tolerance as string}</p>
-                      </div>
-                    )}
-                    {(investor.re_knowledge as string) && (
-                      <div>
-                        <span className="text-xs text-muted-foreground">RE Knowledge</span>
-                        <p className="capitalize">{investor.re_knowledge as string}</p>
-                      </div>
-                    )}
-                    {(investor.income_range as string) && (
-                      <div>
-                        <span className="text-xs text-muted-foreground">Income Range</span>
-                        <p>{investor.income_range as string}</p>
-                      </div>
-                    )}
-                    {(investor.net_worth_range as string) && (
-                      <div>
-                        <span className="text-xs text-muted-foreground">Net Worth</span>
-                        <p>{investor.net_worth_range as string}</p>
-                      </div>
-                    )}
-                    {(investor.other_investments as string) && (
-                      <div className="col-span-2">
-                        <span className="text-xs text-muted-foreground">Other Investments</span>
-                        <p className="text-xs">{investor.other_investments as string}</p>
-                      </div>
-                    )}
-                    {(investor.investment_goals as string) && (
-                      <div className="col-span-2">
-                        <span className="text-xs text-muted-foreground">Investment Goals</span>
-                        <p className="text-xs">{investor.investment_goals as string}</p>
-                      </div>
-                    )}
-                    {(investor.referral_source as string) && (
-                      <div className="col-span-2">
-                        <span className="text-xs text-muted-foreground">Referral Source</span>
-                        <p className="text-xs">{investor.referral_source as string}</p>
-                      </div>
-                    )}
-                    {(investor.notes as string) && (
-                      <div className="col-span-2">
-                        <span className="text-xs text-muted-foreground">Notes</span>
-                        <p className="whitespace-pre-wrap text-xs">{investor.notes as string}</p>
-                      </div>
-                    )}
+                      ) : <p className="text-muted-foreground">—</p>}
+                    </div>
+                    <div>
+                      <span className="text-xs text-muted-foreground">Risk Tolerance</span>
+                      <p className="capitalize">{(investor.risk_tolerance as string) || "—"}</p>
+                    </div>
+                    <div>
+                      <span className="text-xs text-muted-foreground">RE Knowledge</span>
+                      <p className="capitalize">{(investor.re_knowledge as string) || "—"}</p>
+                    </div>
+                    <div>
+                      <span className="text-xs text-muted-foreground">Income Range</span>
+                      <p>{(investor.income_range as string) || "—"}</p>
+                    </div>
+                    <div>
+                      <span className="text-xs text-muted-foreground">Net Worth</span>
+                      <p>{(investor.net_worth_range as string) || "—"}</p>
+                    </div>
+                    <div className="col-span-2">
+                      <span className="text-xs text-muted-foreground">Other Investments</span>
+                      <p className="text-xs">{(investor.other_investments as string) || "—"}</p>
+                    </div>
+                    <div className="col-span-2">
+                      <span className="text-xs text-muted-foreground">Investment Goals</span>
+                      <p className="text-xs">{(investor.investment_goals as string) || "—"}</p>
+                    </div>
+                    <div className="col-span-2">
+                      <span className="text-xs text-muted-foreground">Referral Source</span>
+                      <p className="text-xs">{(investor.referral_source as string) || "—"}</p>
+                    </div>
+                    <div className="col-span-2">
+                      <span className="text-xs text-muted-foreground">Notes</span>
+                      <p className="whitespace-pre-wrap text-xs">{(investor.notes as string) || "—"}</p>
+                    </div>
                   </div>
                 )}
               </CardContent>
