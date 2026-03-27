@@ -1626,10 +1626,46 @@ function InvestorDetailDrawer({
                       <p className="capitalize">{(investor.accredited_status as string) || "—"}</p>
                     </div>
                     <div className="col-span-2">
-                      <span className="text-xs text-muted-foreground">LinkedIn</span>
+                      <div className="flex items-center justify-between mb-0.5">
+                        <span className="text-xs text-muted-foreground">LinkedIn</span>
+                        <div className="flex gap-1">
+                          <button
+                            className="text-[10px] px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 hover:bg-blue-100"
+                            onClick={async () => {
+                              try {
+                                const r = await apiClient.post(`/api/investor/investors/${investor.investor_id}/linkedin-search`);
+                                if (r.data.found) {
+                                  alert(`Found: ${r.data.linkedin_url}`);
+                                  queryClient.invalidateQueries({ queryKey: ["onboarding-investors"] });
+                                  queryClient.invalidateQueries({ queryKey: ["onboarding-detail", investor.investor_id] });
+                                } else {
+                                  alert("LinkedIn profile not found. Try adding more details (email, location) and search again.");
+                                }
+                              } catch (e: any) { alert(e?.response?.data?.detail || "Search failed"); }
+                            }}
+                          >
+                            Search
+                          </button>
+                          {(investor.linkedin_url as string) && (
+                            <button
+                              className="text-[10px] px-1.5 py-0.5 rounded bg-green-50 text-green-700 hover:bg-green-100"
+                              onClick={async () => {
+                                try {
+                                  const r = await apiClient.post(`/api/investor/investors/${investor.investor_id}/linkedin-fetch`);
+                                  alert("LinkedIn info fetched and added to Notes.");
+                                  queryClient.invalidateQueries({ queryKey: ["onboarding-investors"] });
+                                  queryClient.invalidateQueries({ queryKey: ["onboarding-detail", investor.investor_id] });
+                                } catch (e: any) { alert(e?.response?.data?.detail || "Fetch failed"); }
+                              }}
+                            >
+                              Fetch Info
+                            </button>
+                          )}
+                        </div>
+                      </div>
                       {(investor.linkedin_url as string) ? (
                         <p><a href={investor.linkedin_url as string} target="_blank" rel="noopener" className="text-blue-600 hover:underline text-xs truncate block">{investor.linkedin_url as string}</a></p>
-                      ) : <p className="text-muted-foreground">—</p>}
+                      ) : <p className="text-muted-foreground text-sm">—</p>}
                     </div>
                     <div>
                       <span className="text-xs text-muted-foreground">Risk Tolerance</span>
@@ -1668,31 +1704,7 @@ function InvestorDetailDrawer({
               </CardContent>
             </Card>
 
-            {/* Onboarding Progress + Actions */}
-            <Card>
-              <CardContent className="p-4 space-y-2">
-                <div className="flex items-center justify-between text-sm">
-                  <span className="font-medium">Onboarding Progress</span>
-                  <span className="text-muted-foreground">
-                    {detail.completed_steps}/{detail.total_steps} steps
-                  </span>
-                </div>
-                <Progress value={progressPercent} className="h-2" />
-                <div className="flex items-center justify-between text-xs text-muted-foreground">
-                  <span>
-                    Required: {detail.completed_required}/{detail.required_steps}
-                  </span>
-                  {detail.is_ready_for_approval && (
-                    <span className="flex items-center gap-1 text-green-600 font-medium">
-                      <CheckCircle2 className="h-3 w-3" />
-                      Ready for approval
-                    </span>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Status change */}
+            {/* Pipeline Status */}
             <Card>
               <CardHeader className="p-4 pb-2">
                 <CardTitle className="text-sm font-semibold">Pipeline Status</CardTitle>
@@ -1733,6 +1745,30 @@ function InvestorDetailDrawer({
                     {action.label}
                   </Button>
                 )}
+              </CardContent>
+            </Card>
+
+            {/* Onboarding Progress */}
+            <Card>
+              <CardContent className="p-4 space-y-2">
+                <div className="flex items-center justify-between text-sm">
+                  <span className="font-medium">Onboarding Progress</span>
+                  <span className="text-muted-foreground">
+                    {detail.completed_steps}/{detail.total_steps} steps
+                  </span>
+                </div>
+                <Progress value={progressPercent} className="h-2" />
+                <div className="flex items-center justify-between text-xs text-muted-foreground">
+                  <span>
+                    Required: {detail.completed_required}/{detail.required_steps}
+                  </span>
+                  {detail.is_ready_for_approval && (
+                    <span className="flex items-center gap-1 text-green-600 font-medium">
+                      <CheckCircle2 className="h-3 w-3" />
+                      Ready for approval
+                    </span>
+                  )}
+                </div>
               </CardContent>
             </Card>
 
