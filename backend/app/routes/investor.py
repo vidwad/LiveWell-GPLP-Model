@@ -1165,14 +1165,6 @@ def linkedin_fetch_info(
         )
         info = response.output_text.strip()
 
-        # Auto-update fields if we can extract them
-        lines = info.lower()
-        if not inv.title:
-            for marker in ["current job title", "current role", "title:"]:
-                if marker in lines:
-                    # Try to extract title from the response
-                    pass
-
         # Append to notes
         timestamp = datetime.datetime.utcnow().strftime("%Y-%m-%d")
         note_header = f"\n\n--- LinkedIn Profile Summary ({timestamp}) ---\n"
