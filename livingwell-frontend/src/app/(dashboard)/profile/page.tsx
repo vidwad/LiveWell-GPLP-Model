@@ -306,13 +306,11 @@ export default function ProfilePage() {
                     try {
                       const formData = new FormData();
                       formData.append("file", file);
-                      formData.append("document_type", "profile_photo");
-                      const uploadResp = await apiClient.post("/api/documents/upload", formData, {
+                      const uploadResp = await apiClient.post("/api/auth/me/profile-photo", formData, {
                         headers: { "Content-Type": "multipart/form-data" },
                       });
-                      const photoUrl = uploadResp.data?.file_url || uploadResp.data?.url;
+                      const photoUrl = uploadResp.data?.url;
                       if (photoUrl) {
-                        await apiClient.patch("/api/auth/me/profile", { profile_photo_url: photoUrl });
                         setProfile((p) => ({ ...p, profile_photo_url: photoUrl }));
                       }
                     } catch { alert("Failed to upload photo"); }

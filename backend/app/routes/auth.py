@@ -227,13 +227,40 @@ def update_profile(
     return {"status": "updated", "user_id": current_user.user_id}
 
 
+from fastapi import UploadFile, File as FastAPIFile
+import uuid
+from pathlib import Path as _Path
+
+
 @router.post("/me/profile-photo")
 def upload_profile_photo(
+    file: UploadFile = FastAPIFile(...),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Placeholder for profile photo upload. Returns the upload URL format."""
-    return {"message": "Use /api/documents/upload with type=profile_photo, then PATCH /me/profile with the URL"}
+    """Upload a profile photo. Saves to /uploads/profile-photos/ and updates user record."""
+    if not file.content_type or not file.content_type.startswith("image/"):
+        raise HTTPException(400, "File must be an image")
+
+    # Save file
+    uploads_dir = _Path(__file__).resolve().parent.parent.parent / "uploads" / "profile-photos"
+    uploads_dir.mkdir(parents=True, exist_ok=True)
+
+    ext = file.filename.rsplit(".", 1)[-1] if file.filename and "." in file.filename else "jpg"
+    filename = f"{current_user.user_id}_{uuid.uuid4().hex[:8]}.{ext}"
+    filepath = uploads_dir / filename
+
+    with open(filepath, "wb") as f:
+        content = file.file.read()
+        if len(content) > 5 * 1024 * 1024:
+            raise HTTPException(400, "File must be under 5MB")
+        f.write(content)
+
+    photo_url = f"/uploads/profile-photos/{filename}"
+    current_user.profile_photo_url = photo_url
+    db.commit()
+
+    return {"url": photo_url, "filename": filename}
 
 
 @router.patch("/me/password")
