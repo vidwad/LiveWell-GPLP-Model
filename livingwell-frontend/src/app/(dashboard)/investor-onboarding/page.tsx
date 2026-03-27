@@ -1667,70 +1667,6 @@ function InvestorDetailDrawer({
               </CardContent>
             </Card>
 
-            {/* Assigned To */}
-            <Card>
-              <CardHeader className="p-4 pb-2">
-                <CardTitle className="text-sm font-semibold flex items-center gap-2">
-                  <Users className="h-4 w-4" />
-                  Assigned To
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="p-4 pt-0">
-                <div className="space-y-2">
-                  {/* Current assignments */}
-                  {(investor.assigned_users as Array<{user_id: number; user_name: string}> || []).map((a: any) => (
-                    <div key={a.user_id} className="flex items-center justify-between rounded border p-2">
-                      <span className="text-sm">{a.user_name}</span>
-                      <button
-                        className="text-xs text-red-500 hover:text-red-700"
-                        onClick={async () => {
-                          try {
-                            await apiClient.delete(`/api/investor/investors/${investor.investor_id}/assignments/${a.user_id}`);
-                            queryClient.invalidateQueries({ queryKey: ["onboarding-investors"] });
-                            queryClient.invalidateQueries({ queryKey: ["onboarding-detail", investor.investor_id] });
-                          } catch { alert("Failed to remove assignment"); }
-                        }}
-                      >
-                        Remove
-                      </button>
-                    </div>
-                  ))}
-                  {/* Add assignment */}
-                  <div className="flex gap-2">
-                    <select
-                      id={`assign-user-${investor.investor_id}`}
-                      className="flex-1 rounded border bg-background px-2 py-1.5 text-sm"
-                    >
-                      <option value="">Add user...</option>
-                      {userDirectory
-                        .filter((u: any) => !(investor.assigned_users as Array<{user_id: number}> || []).some((a: any) => a.user_id === u.user_id))
-                        .map((u: any) => (
-                          <option key={u.user_id} value={u.user_id}>{u.full_name} ({u.role})</option>
-                        ))
-                      }
-                    </select>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={async () => {
-                        const sel = document.getElementById(`assign-user-${investor.investor_id}`) as HTMLSelectElement;
-                        const userId = parseInt(sel?.value);
-                        if (!userId) return;
-                        try {
-                          await apiClient.post(`/api/investor/investors/${investor.investor_id}/assignments`, { user_id: userId });
-                          queryClient.invalidateQueries({ queryKey: ["onboarding-investors"] });
-                          queryClient.invalidateQueries({ queryKey: ["onboarding-detail", investor.investor_id] });
-                          sel.value = "";
-                        } catch { alert("Failed to assign user"); }
-                      }}
-                    >
-                      Assign
-                    </Button>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
             {/* Onboarding Progress + Actions */}
             <Card>
               <CardContent className="p-4 space-y-2">
@@ -1796,6 +1732,68 @@ function InvestorDetailDrawer({
                     {action.label}
                   </Button>
                 )}
+              </CardContent>
+            </Card>
+
+            {/* Assigned To */}
+            <Card>
+              <CardHeader className="p-4 pb-2">
+                <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                  <Users className="h-4 w-4" />
+                  Assigned To
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="p-4 pt-0">
+                <div className="space-y-2">
+                  {(investor.assigned_users as Array<{user_id: number; user_name: string}> || []).map((a: any) => (
+                    <div key={a.user_id} className="flex items-center justify-between rounded border p-2">
+                      <span className="text-sm">{a.user_name}</span>
+                      <button
+                        className="text-xs text-red-500 hover:text-red-700"
+                        onClick={async () => {
+                          try {
+                            await apiClient.delete(`/api/investor/investors/${investor.investor_id}/assignments/${a.user_id}`);
+                            queryClient.invalidateQueries({ queryKey: ["onboarding-investors"] });
+                            queryClient.invalidateQueries({ queryKey: ["onboarding-detail", investor.investor_id] });
+                          } catch { alert("Failed to remove assignment"); }
+                        }}
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  ))}
+                  <div className="flex gap-2">
+                    <select
+                      id={`assign-user-${investor.investor_id}`}
+                      className="flex-1 rounded border bg-background px-2 py-1.5 text-sm"
+                    >
+                      <option value="">Add user...</option>
+                      {userDirectory
+                        .filter((u: any) => !(investor.assigned_users as Array<{user_id: number}> || []).some((a: any) => a.user_id === u.user_id))
+                        .map((u: any) => (
+                          <option key={u.user_id} value={u.user_id}>{u.full_name} ({u.role})</option>
+                        ))
+                      }
+                    </select>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={async () => {
+                        const sel = document.getElementById(`assign-user-${investor.investor_id}`) as HTMLSelectElement;
+                        const userId = parseInt(sel?.value);
+                        if (!userId) return;
+                        try {
+                          await apiClient.post(`/api/investor/investors/${investor.investor_id}/assignments`, { user_id: userId });
+                          queryClient.invalidateQueries({ queryKey: ["onboarding-investors"] });
+                          queryClient.invalidateQueries({ queryKey: ["onboarding-detail", investor.investor_id] });
+                          sel.value = "";
+                        } catch { alert("Failed to assign user"); }
+                      }}
+                    >
+                      Assign
+                    </Button>
+                  </div>
+                </div>
               </CardContent>
             </Card>
 
