@@ -531,18 +531,20 @@ _DEFAULT_CHECKLIST = [
     ("re_knowledge_review", "Real estate investment knowledge reviewed", False, 4),
     ("financial_profile", "Income & net worth profile captured", False, 5),
     ("investment_goals", "Investment goals & timeline discussed", False, 6),
+    ("ioi_obtained", "Obtain Indication of Interest amount", True, 7),
     # Phase 2: KYC & Compliance
-    ("kyc_identity", "KYC — Government-issued photo ID", True, 7),
-    ("kyc_address", "KYC — Proof of address (utility bill or bank statement)", True, 8),
-    ("accreditation_cert", "Accreditation certificate or self-certification", True, 9),
-    ("aml_screening", "AML/KYC screening completed", True, 10),
+    ("kyc_identity", "KYC — Government-issued photo ID", True, 8),
+    ("kyc_address", "KYC — Proof of address (utility bill or bank statement)", True, 9),
+    ("accreditation_cert", "Accreditation certificate or self-certification", True, 10),
+    ("aml_screening", "AML/KYC screening completed", True, 11),
     # Phase 3: Investment Documentation
-    ("subscription_agreement", "Signed subscription agreement", True, 11),
-    ("banking_info", "Banking / eTransfer information", True, 12),
-    ("tax_form", "Tax form (T5013 consent or W-8BEN)", True, 13),
+    ("ioi_form_signed", "Indication of Interest form signed", True, 12),
+    ("subscription_agreement", "Signed subscription agreement", True, 13),
+    ("banking_info", "Banking / eTransfer information", True, 14),
+    ("tax_form", "Tax form (T5013 consent or W-8BEN)", True, 15),
     # Phase 4: Onboarding Complete
-    ("welcome_call", "Welcome call with GP", False, 14),
-    ("portal_access", "Investor portal access set up", False, 15),
+    ("welcome_call", "Welcome call with GP", False, 16),
+    ("portal_access", "Investor portal access set up", False, 17),
 ]
 
 
@@ -1066,6 +1068,133 @@ def quick_add_lead(
         "message": f"{'New lead' if not existing else 'Existing investor'} '{body.name}' added"
                    + (f" with ${body.indicated_amount:,.0f} IOI" if ioi else ""),
     }
+
+
+# ---------------------------------------------------------------------------
+# Investor Documents (CRM)
+# ---------------------------------------------------------------------------
+
+from fastapi import UploadFile, File as FastAPIFile
+import uuid
+from pathlib import Path as _Path
+
+
+# Document template definitions (downloadable blank forms)
+DOCUMENT_TEMPLATES = {
+    "information_package": {"title": "Information Package", "filename": "Living_Well_Information_Package.pdf"},
+    "indication_of_interest": {"title": "Indication of Interest Form", "filename": "IOI_Form.pdf"},
+    "subscription_agreement": {"title": "Subscription Agreement", "filename": "Subscription_Agreement.pdf"},
+    "partnership_agreement": {"title": "Partnership Agreement", "filename": "Partnership_Agreement.pdf"},
+    "banking_form": {"title": "Banking Information Form", "filename": "Banking_Form.pdf"},
+    "tax_form": {"title": "Tax Form (T5013 / W-8BEN)", "filename": "Tax_Form.pdf"},
+    "accreditation_certificate": {"title": "Accreditation Self-Certification", "filename": "Accreditation_Certificate.pdf"},
+}
+
+
+@router.get("/investors/{investor_id}/documents")
+def list_investor_documents(
+    investor_id: int,
+    db: Session = Depends(get_db),
+    _: User = Depends(get_current_user),
+):
+    """List all documents for an investor, grouped by category."""
+    docs = db.query(InvestorDocument).filter(
+        InvestorDocument.investor_id == investor_id
+    ).order_by(InvestorDocument.upload_date.desc()).all()
+
+    return [{
+        "document_id": d.document_id,
+        "investor_id": d.investor_id,
+        "title": d.title,
+        "document_type": d.document_type.value if d.document_type else "other",
+        "file_url": d.file_url,
+        "upload_date": str(d.upload_date) if d.upload_date else None,
+        "is_viewed": d.is_viewed,
+    } for d in docs]
+
+
+@router.post("/investors/{investor_id}/documents", status_code=201)
+def upload_investor_document(
+    investor_id: int,
+    file: UploadFile = FastAPIFile(...),
+    document_type: str = "other",
+    title: str | None = None,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_gp_or_ops),
+):
+    """Upload a document for an investor."""
+    inv = db.query(Investor).filter(Investor.investor_id == investor_id).first()
+    if not inv:
+        raise HTTPException(404, "Investor not found")
+
+    uploads_dir = _Path(__file__).resolve().parent.parent.parent / "uploads" / "investor-docs"
+    uploads_dir.mkdir(parents=True, exist_ok=True)
+
+    ext = file.filename.rsplit(".", 1)[-1] if file.filename and "." in file.filename else "pdf"
+    filename = f"{investor_id}_{document_type}_{uuid.uuid4().hex[:8]}.{ext}"
+    filepath = uploads_dir / filename
+
+    content = file.file.read()
+    if len(content) > 20 * 1024 * 1024:
+        raise HTTPException(400, "File must be under 20MB")
+    with open(filepath, "wb") as f:
+        f.write(content)
+
+    file_url = f"/uploads/investor-docs/{filename}"
+    doc_title = title or (DOCUMENT_TEMPLATES.get(document_type, {}).get("title") or file.filename or document_type)
+
+    try:
+        doc_type_enum = DocumentType(document_type)
+    except ValueError:
+        doc_type_enum = DocumentType.other
+
+    doc = InvestorDocument(
+        investor_id=investor_id,
+        title=doc_title,
+        document_type=doc_type_enum,
+        file_url=file_url,
+        upload_date=datetime.datetime.utcnow(),
+    )
+    db.add(doc)
+    db.commit()
+    db.refresh(doc)
+
+    return {
+        "document_id": doc.document_id,
+        "title": doc.title,
+        "document_type": document_type,
+        "file_url": file_url,
+    }
+
+
+@router.delete("/investors/{investor_id}/documents/{document_id}")
+def delete_investor_document(
+    investor_id: int,
+    document_id: int,
+    db: Session = Depends(get_db),
+    _: User = Depends(require_gp_or_ops),
+):
+    """Delete an investor document."""
+    doc = db.query(InvestorDocument).filter(
+        InvestorDocument.document_id == document_id,
+        InvestorDocument.investor_id == investor_id,
+    ).first()
+    if not doc:
+        raise HTTPException(404, "Document not found")
+    db.delete(doc)
+    db.commit()
+    return {"status": "deleted"}
+
+
+@router.get("/document-templates")
+def list_document_templates(
+    _: User = Depends(get_current_user),
+):
+    """List available document templates for download."""
+    return [
+        {"key": k, "title": v["title"], "filename": v["filename"]}
+        for k, v in DOCUMENT_TEMPLATES.items()
+    ]
 
 
 # ---------------------------------------------------------------------------

@@ -130,12 +130,25 @@ class DistributionType(str, enum.Enum):
 
 
 class DocumentType(str, enum.Enum):
+    # Onboarding & KYC
+    information_package = "information_package"
+    indication_of_interest = "indication_of_interest"
+    investor_id_document = "investor_id_document"
+    proof_of_address = "proof_of_address"
+    accreditation_certificate = "accreditation_certificate"
+    aml_kyc_report = "aml_kyc_report"
+    # Investment
     subscription_agreement = "subscription_agreement"
     partnership_agreement = "partnership_agreement"
+    # Account
+    banking_form = "banking_form"
     tax_form = "tax_form"
+    # Reporting
     quarterly_report = "quarterly_report"
     capital_call = "capital_call"
     distribution_notice = "distribution_notice"
+    investor_statement = "investor_statement"
+    # Property
     appraisal = "appraisal"
     insurance = "insurance"
     other = "other"

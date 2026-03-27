@@ -1149,7 +1149,7 @@ const EMPTY_ACTIVITY_FORM = {
   meeting_attendees: "",
 };
 
-type DrawerTab = "profile" | "activity" | "followups";
+type DrawerTab = "profile" | "activity" | "followups" | "documents";
 
 function InvestorDetailDrawer({
   investorId,
@@ -1322,6 +1322,7 @@ function InvestorDetailDrawer({
     { key: "profile", label: "Profile" },
     { key: "activity", label: "Activity Log" },
     { key: "followups", label: "Follow-ups" },
+    { key: "documents", label: "Documents" },
   ];
 
   return (
@@ -2163,7 +2164,194 @@ function InvestorDetailDrawer({
             )}
           </>
         )}
+
+        {/* ================================================================
+            TAB 4: DOCUMENTS
+        ================================================================ */}
+        {activeTab === "documents" && (
+          <InvestorDocumentsTab investorId={investorId} />
+        )}
       </div>
+    </div>
+  );
+}
+
+// ── Investor Documents Tab ──────────────────────────────────────────────
+
+const DOC_CATEGORIES = [
+  { key: "information_package", label: "Information Package", group: "Onboarding" },
+  { key: "indication_of_interest", label: "Indication of Interest", group: "Onboarding" },
+  { key: "investor_id_document", label: "Photo ID (KYC)", group: "Onboarding" },
+  { key: "proof_of_address", label: "Proof of Address", group: "Onboarding" },
+  { key: "accreditation_certificate", label: "Accreditation Certificate", group: "Onboarding" },
+  { key: "aml_kyc_report", label: "AML/KYC Report", group: "Onboarding" },
+  { key: "subscription_agreement", label: "Subscription Agreement", group: "Investment" },
+  { key: "partnership_agreement", label: "Partnership Agreement", group: "Investment" },
+  { key: "banking_form", label: "Banking Information", group: "Account" },
+  { key: "tax_form", label: "Tax Form (T5013 / W-8BEN)", group: "Account" },
+  { key: "quarterly_report", label: "Quarterly Report", group: "Reporting" },
+  { key: "investor_statement", label: "Investor Statement", group: "Reporting" },
+  { key: "distribution_notice", label: "Distribution Notice", group: "Reporting" },
+  { key: "other", label: "Other", group: "Other" },
+];
+
+function InvestorDocumentsTab({ investorId }: { investorId: number }) {
+  const queryClient = useQueryClient();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [uploadType, setUploadType] = useState("other");
+  const [uploading, setUploading] = useState(false);
+
+  const { data: documents = [], isLoading } = useQuery<Array<Record<string, any>>>({
+    queryKey: ["investor-documents", investorId],
+    queryFn: () => apiClient.get(`/api/investor/investors/${investorId}/documents`).then((r) => r.data),
+  });
+
+  const handleUpload = async (file: File) => {
+    setUploading(true);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("document_type", uploadType);
+      await apiClient.post(`/api/investor/investors/${investorId}/documents`, formData, {
+        headers: { "Content-Type": "multipart/form-data" },
+        params: { document_type: uploadType },
+      });
+      queryClient.invalidateQueries({ queryKey: ["investor-documents", investorId] });
+    } catch {
+      alert("Failed to upload document");
+    } finally {
+      setUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  };
+
+  // Group documents by category
+  const groups = useMemo(() => {
+    const map: Record<string, typeof documents> = {};
+    for (const doc of documents) {
+      const group = DOC_CATEGORIES.find((c) => c.key === doc.document_type)?.group || "Other";
+      if (!map[group]) map[group] = [];
+      map[group].push(doc);
+    }
+    return map;
+  }, [documents]);
+
+  return (
+    <div className="space-y-4">
+      {/* Upload section */}
+      <Card>
+        <CardHeader className="p-4 pb-2">
+          <CardTitle className="text-sm font-semibold flex items-center gap-2">
+            <FileText className="h-4 w-4" />
+            Upload Document
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="p-4 pt-0">
+          <div className="flex gap-2">
+            <select
+              value={uploadType}
+              onChange={(e) => setUploadType(e.target.value)}
+              className="flex-1 rounded border bg-background px-2 py-1.5 text-sm"
+            >
+              {DOC_CATEGORIES.map((c) => (
+                <option key={c.key} value={c.key}>{c.label}</option>
+              ))}
+            </select>
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={uploading}
+              onClick={() => fileInputRef.current?.click()}
+            >
+              {uploading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5 mr-1" />}
+              Upload
+            </Button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              className="hidden"
+              accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,.xlsx,.csv"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) handleUpload(file);
+              }}
+            />
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Template downloads */}
+      <Card>
+        <CardHeader className="p-4 pb-2">
+          <CardTitle className="text-sm font-semibold">Download Templates</CardTitle>
+        </CardHeader>
+        <CardContent className="p-4 pt-0">
+          <div className="grid grid-cols-2 gap-2">
+            {DOC_CATEGORIES.filter((c) => ["Onboarding", "Investment", "Account"].includes(c.group)).map((c) => (
+              <button
+                key={c.key}
+                className="flex items-center gap-2 rounded border p-2 text-xs hover:bg-muted/50 transition-colors text-left"
+                onClick={() => alert(`Template "${c.label}" download — templates can be uploaded to /uploads/templates/ on the server.`)}
+              >
+                <Download className="h-3 w-3 text-muted-foreground shrink-0" />
+                <span className="truncate">{c.label}</span>
+              </button>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Uploaded documents */}
+      {isLoading ? (
+        <div className="space-y-2">
+          <Skeleton className="h-10 w-full" />
+          <Skeleton className="h-10 w-full" />
+        </div>
+      ) : documents.length === 0 ? (
+        <p className="py-6 text-center text-sm text-muted-foreground">No documents uploaded yet.</p>
+      ) : (
+        Object.entries(groups).map(([group, docs]) => (
+          <Card key={group}>
+            <CardHeader className="p-4 pb-2">
+              <CardTitle className="text-sm font-semibold">{group}</CardTitle>
+            </CardHeader>
+            <CardContent className="p-4 pt-0">
+              <div className="space-y-1.5">
+                {docs.map((doc: any) => (
+                  <div key={doc.document_id} className="flex items-center justify-between rounded border p-2.5">
+                    <div className="min-w-0 flex-1">
+                      <a
+                        href={doc.file_url?.startsWith("http") ? doc.file_url : `${apiClient.defaults.baseURL}${doc.file_url}`}
+                        target="_blank"
+                        rel="noopener"
+                        className="text-sm font-medium text-blue-600 hover:underline truncate block"
+                      >
+                        {doc.title}
+                      </a>
+                      <p className="text-[10px] text-muted-foreground">
+                        {DOC_CATEGORIES.find((c) => c.key === doc.document_type)?.label || doc.document_type}
+                        {doc.upload_date && ` · ${new Date(doc.upload_date).toLocaleDateString()}`}
+                      </p>
+                    </div>
+                    <button
+                      className="text-xs text-red-500 hover:text-red-700 shrink-0 ml-2"
+                      onClick={async () => {
+                        if (!confirm("Delete this document?")) return;
+                        try {
+                          await apiClient.delete(`/api/investor/investors/${investorId}/documents/${doc.document_id}`);
+                          queryClient.invalidateQueries({ queryKey: ["investor-documents", investorId] });
+                        } catch { alert("Failed to delete"); }
+                      }}
+                    >
+                      Delete
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        ))
+      )}
     </div>
   );
 }
