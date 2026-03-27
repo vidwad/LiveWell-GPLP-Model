@@ -571,6 +571,7 @@ class InvestorStatus(str, enum.Enum):
     hot_prospect = "hot_prospect"        # Actively interested in investing
     investor = "investor"                # Signed subscription agreements
     write_off = "write_off"              # Not worth pursuing / not interested
+    archived = "archived"                # Written-off and archived from active list
 
 
 class Investor(Base):

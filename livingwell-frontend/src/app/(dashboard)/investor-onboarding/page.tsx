@@ -101,6 +101,7 @@ const STAGES: { key: string; label: string; color: string; bgColor: string; bord
   { key: "hot_prospect", label: "Hot Prospect", color: "text-orange-700", bgColor: "bg-orange-50", borderColor: "border-orange-300" },
   { key: "investor", label: "Investor", color: "text-green-700", bgColor: "bg-green-50", borderColor: "border-green-300" },
   { key: "write_off", label: "Write-off", color: "text-red-700", bgColor: "bg-red-50", borderColor: "border-red-300" },
+  { key: "archived", label: "Archived", color: "text-gray-400", bgColor: "bg-gray-50", borderColor: "border-gray-200" },
 ];
 
 const KANBAN_STAGES: string[] = ["new_lead", "warm_lead", "prospect", "hot_prospect", "investor"];
@@ -157,11 +158,16 @@ export default function InvestorOnboardingPage() {
   const [sortField, setSortField] = useState<string>("name");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
   const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [showArchived, setShowArchived] = useState(false);
 
   // Fetch all investors
   const { data: investors, isLoading: investorsLoading } = useQuery({
-    queryKey: ["onboarding-investors"],
-    queryFn: fetchInvestors,
+    queryKey: ["onboarding-investors", showArchived],
+    queryFn: () => apiClient.get(`/api/investment/investors?limit=5000${showArchived ? "&include_archived=true" : ""}`).then((r) => {
+      const data = r.data;
+      if (Array.isArray(data)) return data;
+      return data.items ?? [];
+    }),
   });
 
   // Fetch user directory for assignment dropdown
@@ -226,6 +232,7 @@ export default function InvestorOnboardingPage() {
       hot_prospect: [],
       investor: [],
       write_off: [],
+      archived: [],
     };
     if (investors) {
       for (const inv of investors) {
@@ -561,6 +568,16 @@ export default function InvestorOnboardingPage() {
               List
             </button>
           </div>
+          {/* Show Archived toggle */}
+          <label className="flex items-center gap-1.5 text-xs cursor-pointer">
+            <input
+              type="checkbox"
+              checked={showArchived}
+              onChange={(e) => setShowArchived(e.target.checked)}
+              className="h-3.5 w-3.5 rounded"
+            />
+            Archived
+          </label>
           {/* Import/Export */}
           <Button variant="outline" size="sm" onClick={handleExport} disabled={!investors?.length}>
             <Download className="h-3.5 w-3.5 mr-1.5" />
@@ -822,7 +839,7 @@ export default function InvestorOnboardingPage() {
                                     onClick={(e) => e.stopPropagation()}
                                     onChange={(e) => {
                                       const newStatus = e.target.value;
-                                      const needsContact = !["new_lead", "warm_lead", "write_off"].includes(newStatus);
+                                      const needsContact = !["new_lead", "warm_lead", "write_off", "archived"].includes(newStatus);
                                       if (needsContact && !inv.email && !inv.phone) {
                                         alert(`Cannot move to "${STAGES.find(s => s.key === newStatus)?.label}" without an email or phone number. Please update the contact details first.`);
                                         e.target.value = status;
@@ -1726,7 +1743,7 @@ function InvestorDetailDrawer({
                     disabled={isTransitioning}
                     onChange={(e) => {
                       const newStatus = e.target.value;
-                      const needsContact = !["new_lead", "warm_lead", "write_off"].includes(newStatus);
+                      const needsContact = !["new_lead", "warm_lead", "write_off", "archived"].includes(newStatus);
                       if (needsContact && !investor.email && !investor.phone) {
                         alert(`Cannot move to "${STAGES.find(s => s.key === newStatus)?.label}" without an email or phone number. Please update the contact details first.`);
                         return;
@@ -1751,6 +1768,30 @@ function InvestorDetailDrawer({
                       <action.icon className="mr-2 h-4 w-4" />
                     )}
                     {action.label}
+                  </Button>
+                )}
+                {currentStage === "write_off" && (
+                  <Button
+                    variant="outline"
+                    className="w-full text-gray-500"
+                    disabled={isTransitioning}
+                    onClick={() => {
+                      if (confirm("Archive this contact? It will be hidden from the active list but all data will be preserved.")) {
+                        onTransition("archived");
+                      }
+                    }}
+                  >
+                    Archive Contact
+                  </Button>
+                )}
+                {currentStage === "archived" && (
+                  <Button
+                    variant="outline"
+                    className="w-full"
+                    disabled={isTransitioning}
+                    onClick={() => onTransition("write_off")}
+                  >
+                    Restore from Archive
                   </Button>
                 )}
               </CardContent>

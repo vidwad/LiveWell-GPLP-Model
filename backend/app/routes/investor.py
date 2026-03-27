@@ -74,12 +74,16 @@ def _get_investor_or_404(investor_id: int, db: Session) -> Investor:
 
 @router.get("/investors")
 def list_investors(
+    include_archived: bool = False,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """List investors with assigned users. Admins see all. Others see only their assigned contacts + new leads."""
+    """List investors with assigned users. Archived contacts hidden by default (?include_archived=true to show)."""
     if current_user.role == UserRole.GP_ADMIN:
-        investors = db.query(Investor).all()
+        query = db.query(Investor)
+        if not include_archived:
+            query = query.filter(Investor.investor_status != InvestorStatus.archived)
+        investors = query.all()
     else:
         # Non-admin: see new_lead (unassigned) + contacts assigned to them
         from sqlalchemy import or_
@@ -87,12 +91,15 @@ def list_investors(
             ca.investor_id for ca in
             db.query(ContactAssignment).filter(ContactAssignment.user_id == current_user.user_id).all()
         ]
-        investors = db.query(Investor).filter(
+        query = db.query(Investor).filter(
             or_(
                 Investor.investor_status == InvestorStatus.new_lead,
                 Investor.investor_id.in_(assigned_ids) if assigned_ids else False,
             )
-        ).all()
+        )
+        if not include_archived:
+            query = query.filter(Investor.investor_status != InvestorStatus.archived)
+        investors = query.all()
 
     # Attach assigned user names to each investor
     result = []
