@@ -822,7 +822,7 @@ export default function InvestorOnboardingPage() {
                                     onClick={(e) => e.stopPropagation()}
                                     onChange={(e) => {
                                       const newStatus = e.target.value;
-                                      const needsContact = !["new_lead", "warm_lead"].includes(newStatus);
+                                      const needsContact = !["new_lead", "warm_lead", "write_off"].includes(newStatus);
                                       if (needsContact && !inv.email && !inv.phone) {
                                         alert(`Cannot move to "${STAGES.find(s => s.key === newStatus)?.label}" without an email or phone number. Please update the contact details first.`);
                                         e.target.value = status;
@@ -1726,7 +1726,7 @@ function InvestorDetailDrawer({
                     disabled={isTransitioning}
                     onChange={(e) => {
                       const newStatus = e.target.value;
-                      const needsContact = !["new_lead", "warm_lead"].includes(newStatus);
+                      const needsContact = !["new_lead", "warm_lead", "write_off"].includes(newStatus);
                       if (needsContact && !investor.email && !investor.phone) {
                         alert(`Cannot move to "${STAGES.find(s => s.key === newStatus)?.label}" without an email or phone number. Please update the contact details first.`);
                         return;
