@@ -1941,7 +1941,7 @@ function InvestorDetailDrawer({
               </Card>
             )}
 
-            {/* Activity list */}
+            {/* Activity list — paginated (3 at a time) */}
             {activitiesLoading ? (
               <div className="space-y-3">
                 <Skeleton className="h-16 w-full" />
@@ -1953,52 +1953,7 @@ function InvestorDetailDrawer({
                 No activities logged yet.
               </p>
             ) : (
-              <div className="space-y-2">
-                {(activities as Array<Record<string, unknown>>).map((act) => {
-                  const Icon =
-                    ACTIVITY_ICONS[(act.activity_type as string) || "note"] || FileText;
-                  const ts = act.created_at
-                    ? new Date(act.created_at as string).toLocaleString()
-                    : "";
-                  return (
-                    <div
-                      key={act.id as number}
-                      className="flex gap-3 rounded-lg border p-3"
-                    >
-                      <div className="mt-0.5 shrink-0">
-                        <Icon className="h-4 w-4 text-muted-foreground" />
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-2">
-                          <span className="text-sm font-medium truncate">
-                            {act.subject as string}
-                          </span>
-                          <Badge variant="outline" className="text-[10px] shrink-0">
-                            {(act.activity_type as string) || "note"}
-                          </Badge>
-                        </div>
-                        {!!act.body && (
-                          <p className="mt-0.5 text-xs text-muted-foreground line-clamp-2">
-                            {String(act.body)}
-                          </p>
-                        )}
-                        {!!act.outcome && (
-                          <p className="mt-0.5 text-xs">
-                            <span className="text-muted-foreground">Outcome:</span>{" "}
-                            {String(act.outcome)}
-                          </p>
-                        )}
-                        <div className="mt-1 flex items-center gap-3 text-[11px] text-muted-foreground">
-                          <span>{ts}</span>
-                          {!!act.created_by_name && (
-                            <span>by {String(act.created_by_name)}</span>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
+              <ActivityListPaginated activities={activities as Array<Record<string, unknown>>} />
             )}
 
             {/* Onboarding Checklist */}
@@ -2129,6 +2084,71 @@ function InvestorDetailDrawer({
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
+// ── Paginated Activity List ──────────────────────────────────────────────
+const ACTIVITIES_PAGE_SIZE = 3;
+
+function ActivityListPaginated({ activities }: { activities: Array<Record<string, unknown>> }) {
+  const [visibleCount, setVisibleCount] = useState(ACTIVITIES_PAGE_SIZE);
+  const visible = activities.slice(0, visibleCount);
+  const hasMore = visibleCount < activities.length;
+  const hasPrev = visibleCount > ACTIVITIES_PAGE_SIZE;
+
+  return (
+    <div className="space-y-2">
+      {visible.map((act) => {
+        const Icon = ACTIVITY_ICONS[(act.activity_type as string) || "note"] || FileText;
+        const ts = act.created_at ? new Date(act.created_at as string).toLocaleString() : "";
+        return (
+          <div key={act.id as number} className="flex gap-3 rounded-lg border p-3">
+            <div className="mt-0.5 shrink-0">
+              <Icon className="h-4 w-4 text-muted-foreground" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-medium truncate">{act.subject as string}</span>
+                <Badge variant="outline" className="text-[10px] shrink-0">
+                  {(act.activity_type as string) || "note"}
+                </Badge>
+              </div>
+              {!!act.body && (
+                <p className="mt-0.5 text-xs text-muted-foreground line-clamp-2">{String(act.body)}</p>
+              )}
+              {!!act.outcome && (
+                <p className="mt-0.5 text-xs">
+                  <span className="text-muted-foreground">Outcome:</span> {String(act.outcome)}
+                </p>
+              )}
+              <div className="mt-1 flex items-center gap-3 text-[11px] text-muted-foreground">
+                <span>{ts}</span>
+                {!!act.created_by_name && <span>by {String(act.created_by_name)}</span>}
+              </div>
+            </div>
+          </div>
+        );
+      })}
+      {(hasMore || hasPrev) && (
+        <div className="flex items-center justify-between pt-1">
+          <span className="text-xs text-muted-foreground">
+            Showing {Math.min(visibleCount, activities.length)} of {activities.length}
+          </span>
+          <div className="flex gap-2">
+            {hasPrev && (
+              <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => setVisibleCount(ACTIVITIES_PAGE_SIZE)}>
+                Show less
+              </Button>
+            )}
+            {hasMore && (
+              <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => setVisibleCount((c) => c + ACTIVITIES_PAGE_SIZE)}>
+                Show more
+              </Button>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function getStageIndex(status: OnboardingStatus): number {
   const order: OnboardingStatus[] = [
     "lead",
