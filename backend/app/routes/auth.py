@@ -179,9 +179,111 @@ def logout(response: Response):
     return {"message": "Logged out"}
 
 
-@router.get("/me", response_model=UserOut)
+@router.get("/me")
 def me(current_user: User = Depends(get_current_user)):
-    return current_user
+    return {
+        "user_id": current_user.user_id,
+        "email": current_user.email,
+        "full_name": current_user.full_name,
+        "role": current_user.role.value,
+        "is_active": current_user.is_active,
+        "phone": current_user.phone,
+        "linkedin_url": current_user.linkedin_url,
+        "profile_photo_url": current_user.profile_photo_url,
+        "title": current_user.title,
+        "bio": current_user.bio,
+        "timezone": current_user.timezone,
+        "google_calendar_connected": current_user.google_calendar_connected,
+        "google_calendar_email": current_user.google_calendar_email,
+    }
+
+
+# ---------------------------------------------------------------------------
+# User Profile
+# ---------------------------------------------------------------------------
+
+class UpdateProfileBody(_BaseModel):
+    full_name: str | None = None
+    phone: str | None = None
+    linkedin_url: str | None = None
+    title: str | None = None
+    bio: str | None = None
+    timezone: str | None = None
+
+
+@router.patch("/me/profile")
+def update_profile(
+    body: UpdateProfileBody,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Update the current user's profile."""
+    for field, val in body.model_dump(exclude_unset=True).items():
+        setattr(current_user, field, val)
+    db.commit()
+    db.refresh(current_user)
+    return {"status": "updated", "user_id": current_user.user_id}
+
+
+@router.post("/me/profile-photo")
+def upload_profile_photo(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Placeholder for profile photo upload. Returns the upload URL format."""
+    return {"message": "Use /api/documents/upload with type=profile_photo, then PATCH /me/profile with the URL"}
+
+
+@router.patch("/me/password")
+def change_password(
+    payload: dict,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Change the current user's password."""
+    old_password = payload.get("old_password")
+    new_password = payload.get("new_password")
+    if not old_password or not new_password:
+        raise HTTPException(400, "Both old_password and new_password required")
+    if not verify_password(old_password, current_user.hashed_password):
+        raise HTTPException(400, "Current password is incorrect")
+    if len(new_password) < 8:
+        raise HTTPException(400, "New password must be at least 8 characters")
+    current_user.hashed_password = hash_password(new_password)
+    db.commit()
+    return {"status": "password_changed"}
+
+
+# ---------------------------------------------------------------------------
+# Google Calendar Integration
+# ---------------------------------------------------------------------------
+
+@router.post("/me/google-calendar/connect")
+def connect_google_calendar(
+    payload: dict,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Store Google Calendar email for calendar event links."""
+    email = payload.get("google_email")
+    if not email:
+        raise HTTPException(400, "google_email required")
+    current_user.google_calendar_connected = True
+    current_user.google_calendar_email = email
+    db.commit()
+    return {"status": "connected", "google_calendar_email": email}
+
+
+@router.delete("/me/google-calendar/disconnect")
+def disconnect_google_calendar(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Disconnect Google Calendar."""
+    current_user.google_calendar_connected = False
+    current_user.google_calendar_email = None
+    db.commit()
+    return {"status": "disconnected"}
 
 
 # ---------------------------------------------------------------------------

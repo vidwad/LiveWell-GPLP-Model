@@ -1763,14 +1763,19 @@ function InvestorDetailDrawer({
                       const fuNotes = (document.getElementById(`fu-notes-${investor.investor_id}`) as HTMLInputElement)?.value;
                       if (!fuDate) { alert("Please select a date"); return; }
                       try {
-                        await apiClient.post(`/api/investor/investors/${investor.investor_id}/schedule-followup`, {
+                        const resp = await apiClient.post(`/api/investor/investors/${investor.investor_id}/schedule-followup`, {
                           follow_up_type: fuType, follow_up_date: fuDate, follow_up_time: fuTime, subject: fuSubject, notes: fuNotes,
                         });
-                        alert(`Follow-up ${fuType} scheduled for ${fuDate}`);
+                        const gcalUrl = resp.data?.google_calendar_url;
+                        if (gcalUrl && confirm(`Follow-up ${fuType} scheduled for ${fuDate}.\n\nAdd to Google Calendar?`)) {
+                          window.open(gcalUrl, "_blank");
+                        }
                         (document.getElementById(`fu-date-${investor.investor_id}`) as HTMLInputElement).value = "";
                         (document.getElementById(`fu-time-${investor.investor_id}`) as HTMLInputElement).value = "";
                         (document.getElementById(`fu-subject-${investor.investor_id}`) as HTMLInputElement).value = "";
                         (document.getElementById(`fu-notes-${investor.investor_id}`) as HTMLInputElement).value = "";
+                        queryClient.invalidateQueries({ queryKey: ["crm-activities", investor.investor_id] });
+                        queryClient.invalidateQueries({ queryKey: ["crm-followups", investor.investor_id] });
                       } catch { alert("Failed to schedule follow-up"); }
                     }}>
                       <Calendar className="h-3.5 w-3.5 mr-1.5" />

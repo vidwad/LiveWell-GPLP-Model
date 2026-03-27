@@ -329,6 +329,16 @@ class User(Base):
     role = Column(_enum(UserRole), nullable=False, default=UserRole.INVESTOR)
     is_active = Column(Boolean, default=True, nullable=False)
 
+    # Profile fields
+    phone = Column(String(64), nullable=True)
+    linkedin_url = Column(String(512), nullable=True)
+    profile_photo_url = Column(String(1024), nullable=True)
+    title = Column(String(256), nullable=True)         # job title
+    bio = Column(Text, nullable=True)
+    timezone = Column(String(64), nullable=True, default="America/Edmonton")
+    google_calendar_connected = Column(Boolean, default=False, nullable=False)
+    google_calendar_email = Column(String(256), nullable=True)
+
     scope_assignments = relationship(
         "ScopeAssignment", back_populates="user", cascade="all, delete-orphan"
     )

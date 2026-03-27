@@ -1642,6 +1642,27 @@ def schedule_followup(
     db.commit()
     db.refresh(activity)
 
+    # Build Google Calendar event link
+    from urllib.parse import quote
+    start_dt = body.follow_up_date.replace("-", "")
+    if body.follow_up_time:
+        start_dt += "T" + body.follow_up_time.replace(":", "") + "00"
+        # End time = 30 minutes later
+        h, m = int(body.follow_up_time.split(":")[0]), int(body.follow_up_time.split(":")[1])
+        end_m = m + 30
+        end_h = h + end_m // 60
+        end_m = end_m % 60
+        end_dt = body.follow_up_date.replace("-", "") + f"T{end_h:02d}{end_m:02d}00"
+    else:
+        end_dt = start_dt  # all-day event
+
+    gcal_url = (
+        f"https://calendar.google.com/calendar/render?action=TEMPLATE"
+        f"&text={quote(subject)}"
+        f"&dates={start_dt}/{end_dt}"
+        f"&details={quote(body.notes or '')}"
+    )
+
     return {
         "activity_id": activity.activity_id,
         "investor_id": investor_id,
@@ -1650,4 +1671,5 @@ def schedule_followup(
         "time": body.follow_up_time,
         "subject": subject,
         "message": f"Follow-up {body.follow_up_type} scheduled for {body.follow_up_date}",
+        "google_calendar_url": gcal_url,
     }

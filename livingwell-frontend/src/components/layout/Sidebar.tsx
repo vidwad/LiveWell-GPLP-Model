@@ -226,7 +226,9 @@ export function Sidebar() {
       {user && (
         <div className="border-t border-border p-4">
           <div className="mb-2">
-            <p className="text-sm font-medium truncate">{user.full_name ?? user.email}</p>
+            <Link href="/profile" className="text-sm font-medium truncate hover:underline block">
+              {user.full_name ?? user.email}
+            </Link>
             <p className="text-xs text-muted-foreground truncate">
               {roleLabels[user.role] || user.role.replace(/_/g, " ")}
             </p>
