@@ -100,9 +100,11 @@ def list_investors_summary(
     db: Session = Depends(get_db),
     _: User = Depends(require_gp_or_ops),
 ):
-    """Return all investors with subscription summary data for the list view."""
+    """Return investors with investor_status='investor' and subscription summary data."""
     from decimal import Decimal as D
-    investors = db.query(Investor).all()
+    investors = db.query(Investor).filter(
+        Investor.investor_status == InvestorStatus.investor
+    ).all()
     terminal = {"issued", "closed", "rejected", "withdrawn", "cancelled"}
     result = []
     for inv in investors:
