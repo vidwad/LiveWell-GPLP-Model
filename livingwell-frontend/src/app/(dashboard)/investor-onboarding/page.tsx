@@ -853,7 +853,7 @@ export default function InvestorOnboardingPage() {
 
         {/* Detail Drawer */}
         {selectedInvestorId && (
-          <div className={`fixed inset-y-0 right-0 z-40 w-full border-l bg-background shadow-lg transition-all duration-200 ${drawerExpanded ? "lg:absolute lg:inset-y-auto lg:top-0 lg:h-full lg:w-[65%]" : "max-w-md lg:absolute lg:inset-y-auto lg:top-0 lg:h-full lg:w-[420px]"}`}>
+          <div className={`fixed inset-y-0 right-0 z-40 border-l bg-background shadow-lg transition-all duration-200 overflow-y-auto ${drawerExpanded ? "w-full lg:w-[65%]" : "w-full max-w-md lg:w-[420px]"}`}>
             <InvestorDetailDrawer
               investorId={selectedInvestorId}
               detail={onboardingDetail ?? null}
