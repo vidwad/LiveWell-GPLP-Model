@@ -225,13 +225,21 @@ export function Sidebar() {
       {/* User footer */}
       {user && (
         <div className="border-t border-border p-4">
-          <div className="mb-2">
-            <Link href="/profile" className="text-sm font-medium truncate hover:underline block">
-              {user.full_name ?? user.email}
+          <div className="mb-2 flex items-center gap-2.5">
+            {/* Profile photo — visible on mobile, hidden on desktop (shown in header instead) */}
+            <Link href="/profile" className="shrink-0 md:hidden">
+              <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center text-primary text-xs font-bold overflow-hidden">
+                {(user.full_name || user.email || "?").charAt(0).toUpperCase()}
+              </div>
             </Link>
-            <p className="text-xs text-muted-foreground truncate">
-              {roleLabels[user.role] || user.role.replace(/_/g, " ")}
-            </p>
+            <div className="min-w-0">
+              <Link href="/profile" className="text-sm font-medium truncate hover:underline block">
+                {user.full_name ?? user.email}
+              </Link>
+              <p className="text-xs text-muted-foreground truncate">
+                {roleLabels[user.role] || user.role.replace(/_/g, " ")}
+              </p>
+            </div>
           </div>
           <div className="flex items-center justify-between">
             <button
