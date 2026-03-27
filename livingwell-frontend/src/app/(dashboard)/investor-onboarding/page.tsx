@@ -1717,9 +1717,30 @@ function InvestorDetailDrawer({
                     {researchResult && !researchLoading && (
                       <div className="col-span-2 space-y-3">
                         <div className="rounded-lg border border-green-200 bg-green-50/50 p-3">
-                          <div className="flex items-center gap-1.5 mb-1.5">
-                            <CheckCircle2 className="h-3.5 w-3.5 text-green-600" />
-                            <span className="text-xs font-semibold text-green-700">Research Summary</span>
+                          <div className="flex items-center justify-between mb-1.5">
+                            <div className="flex items-center gap-1.5">
+                              <CheckCircle2 className="h-3.5 w-3.5 text-green-600" />
+                              <span className="text-xs font-semibold text-green-700">Research Summary</span>
+                            </div>
+                            <button
+                              className="text-[10px] px-2 py-0.5 rounded bg-white border hover:bg-gray-50 flex items-center gap-1"
+                              onClick={() => {
+                                if (typeof window !== "undefined" && "speechSynthesis" in window) {
+                                  if (window.speechSynthesis.speaking) {
+                                    window.speechSynthesis.cancel();
+                                    return;
+                                  }
+                                  const utterance = new SpeechSynthesisUtterance(researchResult.summary);
+                                  utterance.rate = 0.95;
+                                  utterance.pitch = 1;
+                                  window.speechSynthesis.speak(utterance);
+                                } else {
+                                  alert("Text-to-speech is not supported in this browser.");
+                                }
+                              }}
+                            >
+                              {typeof window !== "undefined" && window.speechSynthesis?.speaking ? "⏹ Stop" : "🔊 Read Aloud"}
+                            </button>
                           </div>
                           <p className="text-xs leading-relaxed">{researchResult.summary}</p>
                         </div>
