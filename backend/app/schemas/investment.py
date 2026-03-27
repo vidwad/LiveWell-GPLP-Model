@@ -572,12 +572,12 @@ class OperatorEntityOut(OperatorEntityBase):
 
 class InvestorBase(BaseModel):
     name: str
-    email: str
+    email: Optional[str] = None
     phone: Optional[str] = None
     address: Optional[str] = None
     entity_type: Optional[str] = None
     jurisdiction: Optional[str] = None
-    accredited_status: str = "accredited"
+    accredited_status: Optional[str] = "pending"
     exemption_type: Optional[str] = None
     tax_id: Optional[str] = None
     banking_info: Optional[str] = None

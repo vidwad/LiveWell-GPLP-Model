@@ -17,11 +17,11 @@ from app.db.models import DocumentType
 
 class InvestorCreate(BaseModel):
     name: str
-    email: str
+    email: str | None = None
     phone: str | None = None
     address: str | None = None
     entity_type: str | None = None
-    accredited_status: str
+    accredited_status: str | None = "pending"
     user_id: int | None = None
 
 
@@ -38,11 +38,11 @@ class InvestorOut(BaseModel):
     investor_id: int
     user_id: int | None
     name: str
-    email: str
-    phone: str | None
-    address: str | None
-    entity_type: str | None
-    accredited_status: str
+    email: str | None = None
+    phone: str | None = None
+    address: str | None = None
+    entity_type: str | None = None
+    accredited_status: str | None = "pending"
     onboarding_status: str | None = "lead"
     onboarding_started_at: Optional[datetime.datetime] = None
     onboarding_completed_at: Optional[datetime.datetime] = None
@@ -56,10 +56,10 @@ class InvestorSummary(BaseModel):
     """Investor summary for the list view with subscription & action data."""
     investor_id: int
     name: str
-    email: str
+    email: str | None = None
     phone: str | None = None
     entity_type: str | None = None
-    accredited_status: str = "accredited"
+    accredited_status: str | None = "pending"
     total_committed: Decimal = Decimal("0")
     total_funded: Decimal = Decimal("0")
     subscription_count: int = 0
