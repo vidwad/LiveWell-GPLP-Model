@@ -680,20 +680,27 @@ export default function InvestorOnboardingPage() {
         </Card>
       )}
 
-      {/* Pipeline Summary Bar */}
+      {/* Pipeline Summary Bar — click to filter */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-7">
-        {STAGES.map((stage) => (
-          <Card key={stage.key} className={`${stage.borderColor} border`}>
-            <CardContent className="p-3">
-              <p className={`text-[10px] font-medium uppercase tracking-wider ${stage.color}`}>
-                {stage.label}
-              </p>
-              <p className={`mt-1 text-2xl font-bold ${stage.color}`}>
-                {grouped[stage.key]?.length ?? 0}
-              </p>
-            </CardContent>
-          </Card>
-        ))}
+        {STAGES.map((stage) => {
+          const isActive = statusFilter === stage.key;
+          return (
+            <Card
+              key={stage.key}
+              className={`${stage.borderColor} border cursor-pointer transition-all hover:shadow-md ${isActive ? "ring-2 ring-primary shadow-md" : ""}`}
+              onClick={() => setStatusFilter(isActive ? "all" : stage.key)}
+            >
+              <CardContent className="p-3">
+                <p className={`text-[10px] font-medium uppercase tracking-wider ${stage.color}`}>
+                  {stage.label}
+                </p>
+                <p className={`mt-1 text-2xl font-bold ${stage.color}`}>
+                  {grouped[stage.key]?.length ?? 0}
+                </p>
+              </CardContent>
+            </Card>
+          );
+        })}
       </div>
 
       {/* Board / Table + Drawer container */}
