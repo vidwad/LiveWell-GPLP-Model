@@ -1646,20 +1646,28 @@ function InvestorDetailDrawer({
                           >
                             Search
                           </button>
+                          <button
+                            className="text-[10px] px-1.5 py-0.5 rounded bg-green-50 text-green-700 hover:bg-green-100"
+                            onClick={async () => {
+                              try {
+                                const r = await apiClient.post(`/api/investor/investors/${investor.investor_id}/linkedin-fetch`);
+                                alert("Public intelligence report fetched and added to Notes.");
+                                queryClient.invalidateQueries({ queryKey: ["onboarding-investors"] });
+                                queryClient.invalidateQueries({ queryKey: ["onboarding-detail", investor.investor_id] });
+                              } catch (e: any) { alert(e?.response?.data?.detail || "Research failed"); }
+                            }}
+                          >
+                            Research
+                          </button>
                           {(investor.linkedin_url as string) && (
-                            <button
-                              className="text-[10px] px-1.5 py-0.5 rounded bg-green-50 text-green-700 hover:bg-green-100"
-                              onClick={async () => {
-                                try {
-                                  const r = await apiClient.post(`/api/investor/investors/${investor.investor_id}/linkedin-fetch`);
-                                  alert("LinkedIn info fetched and added to Notes.");
-                                  queryClient.invalidateQueries({ queryKey: ["onboarding-investors"] });
-                                  queryClient.invalidateQueries({ queryKey: ["onboarding-detail", investor.investor_id] });
-                                } catch (e: any) { alert(e?.response?.data?.detail || "Fetch failed"); }
-                              }}
+                            <a
+                              href={investor.linkedin_url as string}
+                              target="_blank"
+                              rel="noopener"
+                              className="text-[10px] px-1.5 py-0.5 rounded bg-blue-600 text-white hover:bg-blue-700"
                             >
-                              Fetch Info
-                            </button>
+                              View
+                            </a>
                           )}
                         </div>
                       </div>

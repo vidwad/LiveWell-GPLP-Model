@@ -1074,6 +1074,7 @@ def linkedin_search(
         f"{'Location: ' + location if location else ''}\n"
         f"{'Type: ' + entity if entity else ''}\n"
         f"{'Email: ' + inv.email if inv.email else ''}\n\n"
+        f"Search LinkedIn, Google, company websites, and professional directories.\n"
         f"Return ONLY the LinkedIn profile URL (https://linkedin.com/in/...). "
         f"If you cannot find a matching profile, return 'NOT_FOUND'."
     )
@@ -1118,13 +1119,11 @@ def linkedin_fetch_info(
     db: Session = Depends(get_db),
     _: User = Depends(require_gp_or_ops),
 ):
-    """Use OpenAI to fetch valuable information from an investor's LinkedIn profile."""
+    """Use OpenAI web search to gather publicly available info about this investor
+    from LinkedIn, Google, company websites, news, and professional directories."""
     inv = db.query(Investor).filter(Investor.investor_id == investor_id).first()
     if not inv:
         raise HTTPException(404, "Investor not found")
-
-    if not inv.linkedin_url:
-        raise HTTPException(400, "No LinkedIn URL set for this investor. Search for it first.")
 
     try:
         from openai import OpenAI as _OpenAI
@@ -1140,21 +1139,35 @@ def linkedin_fetch_info(
         raise HTTPException(400, "OpenAI API key not configured. Add it in Settings.")
     client = _OpenAI(api_key=api_key)
 
+    linkedin_line = f"LinkedIn: {inv.linkedin_url}\n" if inv.linkedin_url else ""
+    location = inv.jurisdiction or ""
+    entity = inv.entity_type or ""
+    email_domain = inv.email.split("@")[1] if inv.email and "@" in inv.email else ""
+
     prompt = (
-        f"Look up this LinkedIn profile: {inv.linkedin_url}\n"
-        f"Person: {inv.name}\n\n"
-        f"Extract and summarize the following information in a structured format:\n"
+        f"Research this person using all publicly available sources — LinkedIn, Google, "
+        f"company websites, news articles, professional directories, regulatory filings:\n\n"
+        f"Name: {inv.name}\n"
+        f"{linkedin_line}"
+        f"{'Email domain: ' + email_domain if email_domain else ''}\n"
+        f"{'Location: ' + location if location else ''}\n"
+        f"{'Profession/Type: ' + entity if entity else ''}\n\n"
+        f"Compile a CRM intelligence report with:\n"
         f"1. Current Job Title & Company\n"
         f"2. Industry / Sector\n"
-        f"3. Years of Experience (approximate)\n"
+        f"3. Career History (key roles, years of experience)\n"
         f"4. Education (degrees, institutions)\n"
         f"5. Location (city, province/state)\n"
-        f"6. Key Skills & Expertise\n"
-        f"7. Notable Connections or Board Memberships\n"
-        f"8. Investment-relevant signals (real estate mentions, finance background, entrepreneurship)\n"
-        f"9. Estimated professional seniority (C-suite, VP, Director, Manager, etc.)\n"
-        f"10. Any red flags or concerns for accredited investor qualification\n\n"
-        f"Format as a concise summary that would be useful for a CRM note about this potential investor."
+        f"6. Key Skills & Professional Expertise\n"
+        f"7. Board Memberships, Associations, or Community Involvement\n"
+        f"8. Investment Signals (real estate experience, finance background, "
+        f"business ownership, entrepreneurship, wealth indicators)\n"
+        f"9. Professional Seniority Level (C-suite, VP, Director, etc.)\n"
+        f"10. Estimated Accredited Investor Likelihood (based on profession, seniority, business ownership)\n"
+        f"11. News Mentions or Public Awards\n"
+        f"12. Any Concerns or Red Flags\n\n"
+        f"Use ONLY publicly available information. If a field has no data, say 'Not found'. "
+        f"Format as a concise but thorough intelligence brief useful for investor relations."
     )
 
     try:
@@ -1167,7 +1180,7 @@ def linkedin_fetch_info(
 
         # Append to notes
         timestamp = datetime.datetime.utcnow().strftime("%Y-%m-%d")
-        note_header = f"\n\n--- LinkedIn Profile Summary ({timestamp}) ---\n"
+        note_header = f"\n\n--- Public Intelligence Report ({timestamp}) ---\n"
         existing_notes = inv.notes or ""
         inv.notes = existing_notes + note_header + info
         db.commit()
