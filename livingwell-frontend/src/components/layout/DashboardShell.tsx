@@ -24,7 +24,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
       <Sidebar />
       <div className="flex-1 flex flex-col overflow-hidden">
         {/* Top header bar — desktop only */}
-        <header className="hidden md:flex items-center justify-end gap-3 px-6 py-3 border-b border-border bg-card shrink-0">
+        <header className="hidden md:flex items-center justify-end gap-3 px-6 py-4 md:py-5 border-b border-border bg-card shrink-0">
           <NotificationBell />
           <Link href="/profile" className="flex items-center gap-2.5 hover:opacity-80 transition-opacity">
             {photoUrl ? (
