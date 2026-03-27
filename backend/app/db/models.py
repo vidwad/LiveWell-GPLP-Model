@@ -575,6 +575,16 @@ class Investor(Base):
     banking_info = Column(Text, nullable=True)          # encrypted or reference
     notes = Column(Text, nullable=True)
 
+    # KYC / Relationship fields
+    linkedin_url = Column(String(512), nullable=True)
+    risk_tolerance = Column(String(32), nullable=True)   # conservative, moderate, aggressive
+    re_knowledge = Column(String(32), nullable=True)     # none, beginner, intermediate, expert
+    other_investments = Column(Text, nullable=True)      # stocks, bonds, crypto, private equity, etc.
+    income_range = Column(String(64), nullable=True)     # e.g. "100k-250k", "250k-500k", "500k+"
+    net_worth_range = Column(String(64), nullable=True)  # e.g. "500k-1M", "1M-5M", "5M+"
+    investment_goals = Column(Text, nullable=True)       # free text: retirement, growth, income, etc.
+    referral_source = Column(String(256), nullable=True) # who referred them or how they found us
+
     # Onboarding
     onboarding_status = Column(
         _enum(OnboardingStatus), nullable=False, default=OnboardingStatus.lead

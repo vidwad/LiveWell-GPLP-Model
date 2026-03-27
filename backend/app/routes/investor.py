@@ -506,14 +506,25 @@ def investor_statement_pdf(
 
 # Default checklist steps created for every new investor
 _DEFAULT_CHECKLIST = [
-    ("kyc_identity", "KYC — Government-issued photo ID", True, 1),
-    ("kyc_address", "KYC — Proof of address (utility bill or bank statement)", True, 2),
-    ("accreditation_cert", "Accreditation certificate or self-certification", True, 3),
-    ("subscription_agreement", "Signed subscription agreement", True, 4),
-    ("banking_info", "Banking / eTransfer information", True, 5),
-    ("tax_form", "Tax form (T5013 consent or W-8BEN)", True, 6),
-    ("aml_screening", "AML/KYC screening completed", True, 7),
-    ("welcome_call", "Welcome call with GP", False, 8),
+    # Phase 1: Relationship Building
+    ("info_package_sent", "Information package sent", False, 1),
+    ("intro_meeting", "Introductory meeting / call", False, 2),
+    ("risk_assessment", "Risk tolerance assessment completed", False, 3),
+    ("re_knowledge_review", "Real estate investment knowledge reviewed", False, 4),
+    ("financial_profile", "Income & net worth profile captured", False, 5),
+    ("investment_goals", "Investment goals & timeline discussed", False, 6),
+    # Phase 2: KYC & Compliance
+    ("kyc_identity", "KYC — Government-issued photo ID", True, 7),
+    ("kyc_address", "KYC — Proof of address (utility bill or bank statement)", True, 8),
+    ("accreditation_cert", "Accreditation certificate or self-certification", True, 9),
+    ("aml_screening", "AML/KYC screening completed", True, 10),
+    # Phase 3: Investment Documentation
+    ("subscription_agreement", "Signed subscription agreement", True, 11),
+    ("banking_info", "Banking / eTransfer information", True, 12),
+    ("tax_form", "Tax form (T5013 consent or W-8BEN)", True, 13),
+    # Phase 4: Onboarding Complete
+    ("welcome_call", "Welcome call with GP", False, 14),
+    ("portal_access", "Investor portal access set up", False, 15),
 ]
 
 
@@ -929,6 +940,14 @@ class QuickAddLeadBody(BaseModel):
     investor_status: Optional[str] = None
     source: Optional[str] = None
     notes: Optional[str] = None
+    linkedin_url: Optional[str] = None
+    risk_tolerance: Optional[str] = None
+    re_knowledge: Optional[str] = None
+    other_investments: Optional[str] = None
+    income_range: Optional[str] = None
+    net_worth_range: Optional[str] = None
+    investment_goals: Optional[str] = None
+    referral_source: Optional[str] = None
 
 
 @router.post("/leads/quick-add", status_code=201)
@@ -970,6 +989,14 @@ def quick_add_lead(
             onboarding_status=OnboardingStatus(body.onboarding_status) if body.onboarding_status else OnboardingStatus.lead,
             investor_status=InvestorStatus(body.investor_status) if body.investor_status else InvestorStatus.new_lead,
             notes=body.notes,
+            linkedin_url=body.linkedin_url,
+            risk_tolerance=body.risk_tolerance,
+            re_knowledge=body.re_knowledge,
+            other_investments=body.other_investments,
+            income_range=body.income_range,
+            net_worth_range=body.net_worth_range,
+            investment_goals=body.investment_goals,
+            referral_source=body.referral_source,
         )
         is_new = True
         db.add(inv)
@@ -1405,7 +1432,9 @@ def edit_investor_crm(
 
     allowed = {"name", "email", "phone", "address", "entity_type", "jurisdiction",
                "accredited_status", "exemption_type", "tax_id", "banking_info", "notes",
-               "investor_status"}
+               "investor_status", "linkedin_url", "risk_tolerance", "re_knowledge",
+               "other_investments", "income_range", "net_worth_range", "investment_goals",
+               "referral_source"}
     for key, val in payload.items():
         if key in allowed:
             setattr(investor, key, val if val != "" else None)
@@ -1558,4 +1587,67 @@ def update_investor_status(
         "investor_id": investor_id,
         "old_status": old_status.value if old_status else None,
         "new_status": new_status.value,
+    }
+
+
+# ===========================================================================
+# Follow-up Scheduler
+# ===========================================================================
+
+class ScheduleFollowUpBody(BaseModel):
+    follow_up_type: str  # call, email, meeting
+    follow_up_date: str  # ISO date string
+    follow_up_time: Optional[str] = None  # HH:MM
+    subject: Optional[str] = None
+    notes: Optional[str] = None
+
+
+@router.post("/investors/{investor_id}/schedule-followup", status_code=201)
+def schedule_followup(
+    investor_id: int,
+    body: ScheduleFollowUpBody,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Schedule a follow-up call, email, or meeting. Creates a CRM activity with follow_up_date."""
+    from app.db.models import CRMActivity, CRMActivityType
+    from datetime import date as _date
+
+    investor = db.query(Investor).filter(Investor.investor_id == investor_id).first()
+    if not investor:
+        raise HTTPException(404, "Investor not found")
+
+    # Map follow_up_type to CRM activity type
+    type_map = {
+        "call": CRMActivityType.call,
+        "email": CRMActivityType.email,
+        "meeting": CRMActivityType.meeting,
+    }
+    activity_type = type_map.get(body.follow_up_type, CRMActivityType.follow_up)
+
+    subject = body.subject or f"Follow-up {body.follow_up_type} with {investor.name}"
+    follow_date = _date.fromisoformat(body.follow_up_date)
+
+    activity = CRMActivity(
+        investor_id=investor_id,
+        activity_type=activity_type,
+        subject=subject,
+        body=body.notes,
+        follow_up_date=follow_date,
+        follow_up_notes=f"Scheduled {body.follow_up_type}" + (f" at {body.follow_up_time}" if body.follow_up_time else ""),
+        is_follow_up_done=False,
+        created_by=current_user.user_id,
+    )
+    db.add(activity)
+    db.commit()
+    db.refresh(activity)
+
+    return {
+        "activity_id": activity.activity_id,
+        "investor_id": investor_id,
+        "type": body.follow_up_type,
+        "date": body.follow_up_date,
+        "time": body.follow_up_time,
+        "subject": subject,
+        "message": f"Follow-up {body.follow_up_type} scheduled for {body.follow_up_date}",
     }

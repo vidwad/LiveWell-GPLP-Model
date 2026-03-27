@@ -50,6 +50,14 @@ class InvestorOut(BaseModel):
     tax_id: str | None = None
     banking_info: str | None = None
     notes: str | None = None
+    linkedin_url: str | None = None
+    risk_tolerance: str | None = None
+    re_knowledge: str | None = None
+    other_investments: str | None = None
+    income_range: str | None = None
+    net_worth_range: str | None = None
+    investment_goals: str | None = None
+    referral_source: str | None = None
     onboarding_started_at: Optional[datetime.datetime] = None
     onboarding_completed_at: Optional[datetime.datetime] = None
     invited_at: Optional[datetime.datetime] = None

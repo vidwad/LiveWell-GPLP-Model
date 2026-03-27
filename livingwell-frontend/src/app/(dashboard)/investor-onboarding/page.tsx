@@ -1158,6 +1158,14 @@ function InvestorDetailDrawer({
     jurisdiction: "",
     accredited_status: "",
     notes: "",
+    linkedin_url: "",
+    risk_tolerance: "",
+    re_knowledge: "",
+    other_investments: "",
+    income_range: "",
+    net_worth_range: "",
+    investment_goals: "",
+    referral_source: "",
   });
   const [activityForm, setActivityForm] = useState({ ...EMPTY_ACTIVITY_FORM });
   const [showActivityForm, setShowActivityForm] = useState(false);
@@ -1218,6 +1226,14 @@ function InvestorDetailDrawer({
       jurisdiction: (inv.jurisdiction as string) || "",
       accredited_status: (inv.accredited_status as string) || "",
       notes: (inv.notes as string) || "",
+      linkedin_url: (inv.linkedin_url as string) || "",
+      risk_tolerance: (inv.risk_tolerance as string) || "",
+      re_knowledge: (inv.re_knowledge as string) || "",
+      other_investments: (inv.other_investments as string) || "",
+      income_range: (inv.income_range as string) || "",
+      net_worth_range: (inv.net_worth_range as string) || "",
+      investment_goals: (inv.investment_goals as string) || "",
+      referral_source: (inv.referral_source as string) || "",
     });
     setIsEditing(true);
   }, [detail]);
@@ -1446,6 +1462,99 @@ function InvestorDetailDrawer({
                       />
                     </div>
                     <div className="col-span-2">
+                      <label className="text-xs text-muted-foreground">LinkedIn URL</label>
+                      <input
+                        className="mt-0.5 w-full rounded border bg-background px-2 py-1.5 text-sm"
+                        placeholder="https://linkedin.com/in/..."
+                        value={editForm.linkedin_url ?? ""}
+                        onChange={(e) => setEditForm((f: any) => ({ ...f, linkedin_url: e.target.value }))}
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs text-muted-foreground">Risk Tolerance</label>
+                      <select
+                        className="mt-0.5 w-full rounded border bg-background px-2 py-1.5 text-sm"
+                        value={editForm.risk_tolerance ?? ""}
+                        onChange={(e) => setEditForm((f: any) => ({ ...f, risk_tolerance: e.target.value }))}
+                      >
+                        <option value="">-- Select --</option>
+                        <option value="conservative">Conservative</option>
+                        <option value="moderate">Moderate</option>
+                        <option value="aggressive">Aggressive</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="text-xs text-muted-foreground">RE Knowledge</label>
+                      <select
+                        className="mt-0.5 w-full rounded border bg-background px-2 py-1.5 text-sm"
+                        value={editForm.re_knowledge ?? ""}
+                        onChange={(e) => setEditForm((f: any) => ({ ...f, re_knowledge: e.target.value }))}
+                      >
+                        <option value="">-- Select --</option>
+                        <option value="none">None</option>
+                        <option value="beginner">Beginner</option>
+                        <option value="intermediate">Intermediate</option>
+                        <option value="expert">Expert</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="text-xs text-muted-foreground">Income Range</label>
+                      <select
+                        className="mt-0.5 w-full rounded border bg-background px-2 py-1.5 text-sm"
+                        value={editForm.income_range ?? ""}
+                        onChange={(e) => setEditForm((f: any) => ({ ...f, income_range: e.target.value }))}
+                      >
+                        <option value="">-- Select --</option>
+                        <option value="under_100k">Under $100K</option>
+                        <option value="100k_250k">$100K - $250K</option>
+                        <option value="250k_500k">$250K - $500K</option>
+                        <option value="500k_1m">$500K - $1M</option>
+                        <option value="1m_plus">$1M+</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="text-xs text-muted-foreground">Net Worth Range</label>
+                      <select
+                        className="mt-0.5 w-full rounded border bg-background px-2 py-1.5 text-sm"
+                        value={editForm.net_worth_range ?? ""}
+                        onChange={(e) => setEditForm((f: any) => ({ ...f, net_worth_range: e.target.value }))}
+                      >
+                        <option value="">-- Select --</option>
+                        <option value="under_500k">Under $500K</option>
+                        <option value="500k_1m">$500K - $1M</option>
+                        <option value="1m_5m">$1M - $5M</option>
+                        <option value="5m_10m">$5M - $10M</option>
+                        <option value="10m_plus">$10M+</option>
+                      </select>
+                    </div>
+                    <div className="col-span-2">
+                      <label className="text-xs text-muted-foreground">Other Investments</label>
+                      <input
+                        className="mt-0.5 w-full rounded border bg-background px-2 py-1.5 text-sm"
+                        placeholder="Stocks, bonds, crypto, private equity..."
+                        value={editForm.other_investments ?? ""}
+                        onChange={(e) => setEditForm((f: any) => ({ ...f, other_investments: e.target.value }))}
+                      />
+                    </div>
+                    <div className="col-span-2">
+                      <label className="text-xs text-muted-foreground">Investment Goals</label>
+                      <input
+                        className="mt-0.5 w-full rounded border bg-background px-2 py-1.5 text-sm"
+                        placeholder="Retirement, income, growth..."
+                        value={editForm.investment_goals ?? ""}
+                        onChange={(e) => setEditForm((f: any) => ({ ...f, investment_goals: e.target.value }))}
+                      />
+                    </div>
+                    <div className="col-span-2">
+                      <label className="text-xs text-muted-foreground">Referral Source</label>
+                      <input
+                        className="mt-0.5 w-full rounded border bg-background px-2 py-1.5 text-sm"
+                        placeholder="Who referred them or how they found us"
+                        value={editForm.referral_source ?? ""}
+                        onChange={(e) => setEditForm((f: any) => ({ ...f, referral_source: e.target.value }))}
+                      />
+                    </div>
+                    <div className="col-span-2">
                       <label className="text-xs text-muted-foreground">Notes</label>
                       <textarea
                         rows={3}
@@ -1489,6 +1598,54 @@ function InvestorDetailDrawer({
                       <span className="text-xs text-muted-foreground">Accredited Status</span>
                       <p>{(investor.accredited_status as string) || "—"}</p>
                     </div>
+                    {(investor.linkedin_url as string) && (
+                      <div className="col-span-2">
+                        <span className="text-xs text-muted-foreground">LinkedIn</span>
+                        <p><a href={investor.linkedin_url as string} target="_blank" rel="noopener" className="text-blue-600 hover:underline text-xs truncate block">{investor.linkedin_url as string}</a></p>
+                      </div>
+                    )}
+                    {(investor.risk_tolerance as string) && (
+                      <div>
+                        <span className="text-xs text-muted-foreground">Risk Tolerance</span>
+                        <p className="capitalize">{investor.risk_tolerance as string}</p>
+                      </div>
+                    )}
+                    {(investor.re_knowledge as string) && (
+                      <div>
+                        <span className="text-xs text-muted-foreground">RE Knowledge</span>
+                        <p className="capitalize">{investor.re_knowledge as string}</p>
+                      </div>
+                    )}
+                    {(investor.income_range as string) && (
+                      <div>
+                        <span className="text-xs text-muted-foreground">Income Range</span>
+                        <p>{investor.income_range as string}</p>
+                      </div>
+                    )}
+                    {(investor.net_worth_range as string) && (
+                      <div>
+                        <span className="text-xs text-muted-foreground">Net Worth</span>
+                        <p>{investor.net_worth_range as string}</p>
+                      </div>
+                    )}
+                    {(investor.other_investments as string) && (
+                      <div className="col-span-2">
+                        <span className="text-xs text-muted-foreground">Other Investments</span>
+                        <p className="text-xs">{investor.other_investments as string}</p>
+                      </div>
+                    )}
+                    {(investor.investment_goals as string) && (
+                      <div className="col-span-2">
+                        <span className="text-xs text-muted-foreground">Investment Goals</span>
+                        <p className="text-xs">{investor.investment_goals as string}</p>
+                      </div>
+                    )}
+                    {(investor.referral_source as string) && (
+                      <div className="col-span-2">
+                        <span className="text-xs text-muted-foreground">Referral Source</span>
+                        <p className="text-xs">{investor.referral_source as string}</p>
+                      </div>
+                    )}
                     {(investor.notes as string) && (
                       <div className="col-span-2">
                         <span className="text-xs text-muted-foreground">Notes</span>
@@ -1497,6 +1654,95 @@ function InvestorDetailDrawer({
                     )}
                   </div>
                 )}
+              </CardContent>
+            </Card>
+
+            {/* Schedule Follow-up Card */}
+            <Card>
+              <CardHeader className="p-4 pb-2">
+                <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                  <Calendar className="h-4 w-4" />
+                  Schedule Follow-up
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="p-4 pt-0">
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="text-xs text-muted-foreground">Type</label>
+                    <select
+                      className="mt-0.5 w-full rounded border bg-background px-2 py-1.5 text-sm"
+                      id={`fu-type-${investor.investor_id}`}
+                      defaultValue="call"
+                    >
+                      <option value="call">Phone Call</option>
+                      <option value="email">Email</option>
+                      <option value="meeting">Meeting</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-xs text-muted-foreground">Date</label>
+                    <input
+                      type="date"
+                      className="mt-0.5 w-full rounded border bg-background px-2 py-1.5 text-sm"
+                      id={`fu-date-${investor.investor_id}`}
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs text-muted-foreground">Time (optional)</label>
+                    <input
+                      type="time"
+                      className="mt-0.5 w-full rounded border bg-background px-2 py-1.5 text-sm"
+                      id={`fu-time-${investor.investor_id}`}
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs text-muted-foreground">Subject</label>
+                    <input
+                      type="text"
+                      className="mt-0.5 w-full rounded border bg-background px-2 py-1.5 text-sm"
+                      placeholder="Optional"
+                      id={`fu-subject-${investor.investor_id}`}
+                    />
+                  </div>
+                  <div className="col-span-2">
+                    <label className="text-xs text-muted-foreground">Notes</label>
+                    <input
+                      type="text"
+                      className="mt-0.5 w-full rounded border bg-background px-2 py-1.5 text-sm"
+                      placeholder="Optional notes"
+                      id={`fu-notes-${investor.investor_id}`}
+                    />
+                  </div>
+                  <div className="col-span-2">
+                    <Button
+                      size="sm"
+                      className="w-full"
+                      onClick={async () => {
+                        const fuType = (document.getElementById(`fu-type-${investor.investor_id}`) as HTMLSelectElement)?.value;
+                        const fuDate = (document.getElementById(`fu-date-${investor.investor_id}`) as HTMLInputElement)?.value;
+                        const fuTime = (document.getElementById(`fu-time-${investor.investor_id}`) as HTMLInputElement)?.value;
+                        const fuSubject = (document.getElementById(`fu-subject-${investor.investor_id}`) as HTMLInputElement)?.value;
+                        const fuNotes = (document.getElementById(`fu-notes-${investor.investor_id}`) as HTMLInputElement)?.value;
+                        if (!fuDate) { alert("Please select a date"); return; }
+                        try {
+                          await apiClient.post(`/api/investor/investors/${investor.investor_id}/schedule-followup`, {
+                            follow_up_type: fuType, follow_up_date: fuDate, follow_up_time: fuTime,
+                            subject: fuSubject, notes: fuNotes,
+                          });
+                          alert(`Follow-up ${fuType} scheduled for ${fuDate}`);
+                          // Clear form
+                          (document.getElementById(`fu-date-${investor.investor_id}`) as HTMLInputElement).value = "";
+                          (document.getElementById(`fu-time-${investor.investor_id}`) as HTMLInputElement).value = "";
+                          (document.getElementById(`fu-subject-${investor.investor_id}`) as HTMLInputElement).value = "";
+                          (document.getElementById(`fu-notes-${investor.investor_id}`) as HTMLInputElement).value = "";
+                        } catch { alert("Failed to schedule follow-up"); }
+                      }}
+                    >
+                      <Calendar className="h-3.5 w-3.5 mr-1.5" />
+                      Schedule
+                    </Button>
+                  </div>
+                </div>
               </CardContent>
             </Card>
 
