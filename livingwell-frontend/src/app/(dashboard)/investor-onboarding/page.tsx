@@ -1755,14 +1755,37 @@ function InvestorDetailDrawer({
               </CardContent>
             </Card>
 
-            {/* Status transition buttons */}
-            <div>
-              <h3 className="mb-2 text-sm font-semibold">Actions</h3>
-              <div className="space-y-2">
+            {/* Status change */}
+            <Card>
+              <CardHeader className="p-4 pb-2">
+                <CardTitle className="text-sm font-semibold">Pipeline Status</CardTitle>
+              </CardHeader>
+              <CardContent className="p-4 pt-0 space-y-3">
+                <div>
+                  <label className="text-xs text-muted-foreground">Current Status</label>
+                  <select
+                    value={currentStage}
+                    className="mt-1 w-full rounded border bg-background px-3 py-2 text-sm"
+                    disabled={isTransitioning}
+                    onChange={(e) => {
+                      const newStatus = e.target.value;
+                      const needsContact = !["new_lead", "warm_lead"].includes(newStatus);
+                      if (needsContact && !investor.email && !investor.phone) {
+                        alert(`Cannot move to "${STAGES.find(s => s.key === newStatus)?.label}" without an email or phone number. Please update the contact details first.`);
+                        return;
+                      }
+                      onTransition(newStatus);
+                    }}
+                  >
+                    {STAGES.map((s) => (
+                      <option key={s.key} value={s.key}>{s.label}</option>
+                    ))}
+                  </select>
+                </div>
                 {action && (
                   <Button
                     className="w-full"
-                    disabled={isTransitioning || !canApprove}
+                    disabled={isTransitioning}
                     onClick={() => onTransition(action.nextStatus)}
                   >
                     {isTransitioning ? (
@@ -1773,38 +1796,8 @@ function InvestorDetailDrawer({
                     {action.label}
                   </Button>
                 )}
-                {currentStage !== "write_off" && currentStage !== "investor" && (
-                  <Button
-                    variant="destructive"
-                    className="w-full"
-                    disabled={isTransitioning}
-                    onClick={() => onTransition("write_off")}
-                  >
-                    {isTransitioning ? (
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    ) : (
-                      <XCircle className="mr-2 h-4 w-4" />
-                    )}
-                    Write Off
-                  </Button>
-                )}
-                {currentStage === "investor" && (
-                  <Button
-                    variant="destructive"
-                    className="w-full"
-                    disabled={isTransitioning}
-                    onClick={() => onTransition("write_off")}
-                  >
-                    {isTransitioning ? (
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    ) : (
-                      <XCircle className="mr-2 h-4 w-4" />
-                    )}
-                    Suspend
-                  </Button>
-                )}
-              </div>
-            </div>
+              </CardContent>
+            </Card>
 
           </>
         )}
