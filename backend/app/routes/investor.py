@@ -2049,7 +2049,7 @@ def transcribe_call_recording(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Upload a voice recording, transcribe via OpenAI Whisper, and save as a CRM activity."""
+    """Upload a voice recording, transcribe via OpenAI Whisper, return transcript."""
     from app.db.models import CRMActivity, CRMActivityType, PlatformSetting
 
     inv = db.query(Investor).filter(Investor.investor_id == investor_id).first()
@@ -2108,3 +2108,55 @@ def transcribe_call_recording(
         "audio_url": audio_url,
         "duration_seconds": None,
     }
+
+
+# ===========================================================================
+# Text-to-Speech (OpenAI TTS)
+# ===========================================================================
+
+class TTSRequest(BaseModel):
+    text: str
+    voice: str = "nova"  # alloy, echo, fable, onyx, nova, shimmer
+
+
+@router.post("/tts")
+def text_to_speech(
+    body: TTSRequest,
+    db: Session = Depends(get_db),
+    _: User = Depends(get_current_user),
+):
+    """Convert text to natural speech using OpenAI TTS. Returns audio file URL."""
+    from app.db.models import PlatformSetting
+
+    try:
+        from openai import OpenAI as _OpenAI
+    except ImportError:
+        raise HTTPException(400, "OpenAI package not installed")
+
+    setting = db.query(PlatformSetting).filter(PlatformSetting.key == "OPENAI_API_KEY").first()
+    api_key = setting.value if setting else None
+    if not api_key:
+        import os
+        api_key = os.environ.get("OPENAI_API_KEY")
+    if not api_key:
+        raise HTTPException(400, "OpenAI API key not configured")
+
+    client = _OpenAI(api_key=api_key)
+
+    try:
+        response = client.audio.speech.create(
+            model="tts-1",
+            voice=body.voice,
+            input=body.text[:4096],  # TTS limit
+        )
+
+        # Save audio file
+        uploads_dir = _Path(__file__).resolve().parent.parent.parent / "uploads" / "tts"
+        uploads_dir.mkdir(parents=True, exist_ok=True)
+        filename = f"tts_{uuid.uuid4().hex[:8]}.mp3"
+        filepath = uploads_dir / filename
+        response.stream_to_file(str(filepath))
+
+        return {"audio_url": f"/uploads/tts/{filename}"}
+    except Exception as e:
+        raise HTTPException(500, f"TTS failed: {str(e)}")

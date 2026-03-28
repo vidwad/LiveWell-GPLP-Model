@@ -1875,25 +1875,7 @@ function InvestorDetailDrawer({
                               <CheckCircle2 className="h-3.5 w-3.5 text-green-600" />
                               <span className="text-xs font-semibold text-green-700">Research Summary</span>
                             </div>
-                            <button
-                              className="text-[10px] px-2 py-0.5 rounded bg-white border hover:bg-gray-50 flex items-center gap-1"
-                              onClick={() => {
-                                if (typeof window !== "undefined" && "speechSynthesis" in window) {
-                                  if (window.speechSynthesis.speaking) {
-                                    window.speechSynthesis.cancel();
-                                    return;
-                                  }
-                                  const utterance = new SpeechSynthesisUtterance(researchResult.summary);
-                                  utterance.rate = 0.95;
-                                  utterance.pitch = 1;
-                                  window.speechSynthesis.speak(utterance);
-                                } else {
-                                  alert("Text-to-speech is not supported in this browser.");
-                                }
-                              }}
-                            >
-                              {typeof window !== "undefined" && window.speechSynthesis?.speaking ? "⏹ Stop" : "🔊 Read Aloud"}
-                            </button>
+                            <TTSButton text={researchResult.summary} />
                           </div>
                           <p className="text-xs leading-relaxed">{researchResult.summary}</p>
                         </div>
@@ -2819,6 +2801,69 @@ function InlineCallRecorder({ investorId, onTranscript }: { investorId: number; 
       <span className="mr-1.5 inline-block h-2 w-2 rounded-full bg-red-500" />
       Record Call & Transcribe
     </Button>
+  );
+}
+
+// ── TTS Button (OpenAI natural voice with browser fallback) ──────────────
+
+function TTSButton({ text }: { text: string }) {
+  const [playing, setPlaying] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+
+  const handleClick = async () => {
+    // If already playing, stop
+    if (playing && audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current = null;
+      setPlaying(false);
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const r = await apiClient.post("/api/investor/tts", { text, voice: "nova" });
+      const audioUrl = r.data.audio_url;
+      const fullUrl = audioUrl.startsWith("http") ? audioUrl : `${apiClient.defaults.baseURL}${audioUrl}`;
+      const audio = new Audio(fullUrl);
+      audioRef.current = audio;
+      audio.onended = () => { setPlaying(false); audioRef.current = null; };
+      audio.onerror = () => {
+        // Fallback to browser TTS
+        if ("speechSynthesis" in window) {
+          const u = new SpeechSynthesisUtterance(text);
+          u.rate = 0.95;
+          u.onend = () => setPlaying(false);
+          window.speechSynthesis.speak(u);
+        }
+        setPlaying(false);
+      };
+      await audio.play();
+      setPlaying(true);
+    } catch {
+      // Fallback to browser TTS
+      if (typeof window !== "undefined" && "speechSynthesis" in window) {
+        const u = new SpeechSynthesisUtterance(text);
+        u.rate = 0.95;
+        u.onend = () => setPlaying(false);
+        window.speechSynthesis.speak(u);
+        setPlaying(true);
+      } else {
+        alert("Text-to-speech not available");
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <button
+      className="text-[10px] px-2 py-0.5 rounded bg-white border hover:bg-gray-50 flex items-center gap-1 disabled:opacity-50"
+      onClick={handleClick}
+      disabled={loading}
+    >
+      {loading ? "Loading..." : playing ? "⏹ Stop" : "🔊 Read Aloud"}
+    </button>
   );
 }
 
