@@ -822,7 +822,7 @@ export default function InvestorOnboardingPage() {
                             <tr
                               key={inv.investor_id}
                               className={`cursor-pointer hover:bg-muted/50 transition-colors ${
-                                selectedInvestorId === inv.investor_id ? "bg-primary/5" : ""
+                                selectedInvestorId === inv.investor_id ? "bg-primary/10 border-l-2 border-l-primary" : ""
                               }`}
                               onClick={() => setSelectedInvestorId(inv.investor_id)}
                             >
