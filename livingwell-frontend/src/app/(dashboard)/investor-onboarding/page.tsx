@@ -1183,11 +1183,11 @@ const ACTIVITY_TYPE_OPTIONS = [
 ];
 
 const EMPTY_ACTIVITY_FORM = {
-  activity_type: "call",
+  activity_type: "note",
   subject: "",
   body: "",
   outcome: "",
-  follow_up_date: "",
+  follow_up_date: new Date().toISOString().slice(0, 10),
   follow_up_notes: "",
   meeting_date: "",
   meeting_location: "",
@@ -1352,9 +1352,10 @@ function InvestorDetailDrawer({
   }, [editMutation, editForm]);
 
   const handleSubmitActivity = useCallback(() => {
+    const autoSubject = activityForm.subject.trim() || `${activityForm.activity_type.charAt(0).toUpperCase() + activityForm.activity_type.slice(1)} - ${new Date().toLocaleDateString()}`;
     const payload: Record<string, unknown> = {
       activity_type: activityForm.activity_type,
-      subject: activityForm.subject,
+      subject: autoSubject,
       body: activityForm.body || null,
       outcome: activityForm.outcome || null,
       follow_up_date: activityForm.follow_up_date || null,
@@ -2168,7 +2169,7 @@ function InvestorDetailDrawer({
                       />
                     </div>
                     <div className="col-span-2">
-                      <label className="text-xs text-muted-foreground">Body</label>
+                      <label className="text-xs text-muted-foreground">Details</label>
                       <textarea
                         rows={3}
                         className="mt-0.5 w-full rounded border bg-background px-2 py-1.5 text-sm resize-none"
@@ -2279,7 +2280,7 @@ function InvestorDetailDrawer({
                     size="sm"
                     className="w-full"
                     disabled={
-                      !activityForm.subject.trim() || createActivityMutation.isPending
+                      (!activityForm.subject.trim() && !activityForm.body.trim()) || createActivityMutation.isPending
                     }
                     onClick={handleSubmitActivity}
                   >
