@@ -2132,7 +2132,7 @@ function InvestorDetailDrawer({
                 onClick={() => setShowActivityForm((v) => !v)}
               >
                 <MessageSquare className="h-3.5 w-3.5 mr-1" />
-                {showActivityForm ? "Cancel" : "Log Activity"}
+                {showActivityForm ? "Cancel" : "Log New Activity"}
               </Button>
             </div>
 
