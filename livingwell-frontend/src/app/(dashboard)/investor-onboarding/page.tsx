@@ -38,6 +38,8 @@ import {
   Maximize2,
   Minimize2,
   MapPin,
+  Linkedin,
+  TrendingUp as TrendIcon,
 } from "lucide-react";
 
 // ── Types ────────────────────────────────────────────────────────────
@@ -1739,101 +1741,107 @@ function InvestorDetailDrawer({
                     </div>
                   </div>
                 ) : (
-                  <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
-                    <div>
-                      <span className="text-xs text-muted-foreground">First Name</span>
-                      <p className="truncate">{(investor.first_name as string) || "—"}</p>
+                  <div className="space-y-4 text-sm">
+                    {/* ── Contact Info ── */}
+                    <div className="rounded-lg border bg-muted/20 p-3 space-y-2.5">
+                      <h4 className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                        <Users className="h-3 w-3" /> Contact
+                      </h4>
+                      <div className="grid grid-cols-2 gap-x-4 gap-y-1.5">
+                        <div>
+                          <span className="text-[10px] text-muted-foreground">First Name</span>
+                          <p className="font-medium truncate">{(investor.first_name as string) || "—"}</p>
+                        </div>
+                        <div>
+                          <span className="text-[10px] text-muted-foreground">Last Name</span>
+                          <p className="font-medium truncate">{(investor.last_name as string) || "—"}</p>
+                        </div>
+                        {(investor.company_name as string) && (
+                          <div className="col-span-2">
+                            <span className="text-[10px] text-muted-foreground">Company / Trust</span>
+                            <p className="font-medium">{investor.company_name as string}</p>
+                          </div>
+                        )}
+                        <div>
+                          <span className="text-[10px] text-muted-foreground">Email</span>
+                          {(investor.email as string) ? (
+                            <p><a href={`mailto:${investor.email}`} className="text-blue-600 hover:underline truncate block">{investor.email as string}</a></p>
+                          ) : <p className="text-muted-foreground">—</p>}
+                        </div>
+                        <div>
+                          <span className="text-[10px] text-muted-foreground">Phone</span>
+                          {(investor.phone as string) ? (
+                            <p><a href={`tel:${investor.phone}`} className="text-blue-600 hover:underline">{investor.phone as string}</a></p>
+                          ) : <p className="text-muted-foreground">—</p>}
+                        </div>
+                        <div>
+                          <span className="text-[10px] text-muted-foreground">Mobile</span>
+                          {(investor.mobile as string) ? (
+                            <p><a href={`tel:${investor.mobile}`} className="text-blue-600 hover:underline">{investor.mobile as string}</a></p>
+                          ) : <p className="text-muted-foreground">—</p>}
+                        </div>
+                        <div>
+                          <span className="text-[10px] text-muted-foreground">Entity Type</span>
+                          <p>{investor.entity_type ? (ENTITY_LABELS[investor.entity_type] ?? investor.entity_type) : "—"}</p>
+                        </div>
+                      </div>
                     </div>
-                    <div>
-                      <span className="text-xs text-muted-foreground">Last Name</span>
-                      <p className="truncate">{(investor.last_name as string) || "—"}</p>
-                    </div>
-                    <div className="col-span-2">
-                      <span className="text-xs text-muted-foreground">Company / Trust</span>
-                      <p>{(investor.company_name as string) || "—"}</p>
-                    </div>
-                    <div>
-                      <span className="text-xs text-muted-foreground">Email</span>
-                      <p className="truncate">{(investor.email as string) || "—"}</p>
-                    </div>
-                    <div>
-                      <span className="text-xs text-muted-foreground">Phone</span>
-                      <p>{(investor.phone as string) || "—"}</p>
-                    </div>
-                    <div>
-                      <span className="text-xs text-muted-foreground">Mobile / Cell</span>
-                      <p>{(investor.mobile as string) || "—"}</p>
-                    </div>
-                    <div>
-                      <span className="text-xs text-muted-foreground">Entity Type</span>
-                      <p>{investor.entity_type ? (ENTITY_LABELS[investor.entity_type] ?? investor.entity_type) : "—"}</p>
-                    </div>
-                    <div className="col-span-2">
-                      <span className="text-xs text-muted-foreground">Street Address</span>
-                      <p>{(investor.street_address as string) || "—"}</p>
-                      {(investor.street_address_2 as string) && (
-                        <p className="text-muted-foreground">{investor.street_address_2 as string}</p>
+
+                    {/* ── Address ── */}
+                    <div className="rounded-lg border bg-muted/20 p-3 space-y-2.5">
+                      <h4 className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                        <MapPin className="h-3 w-3" /> Address
+                      </h4>
+                      <div>
+                        <p className="font-medium">{(investor.street_address as string) || "—"}</p>
+                        {(investor.street_address_2 as string) && <p>{investor.street_address_2 as string}</p>}
+                        <p>
+                          {[investor.city, investor.province, investor.postal_code].filter(Boolean).join(", ") || "—"}
+                        </p>
+                        <p className="text-muted-foreground">{(investor.country as string) || "Canada"}</p>
+                      </div>
+                      {/* Google Map */}
+                      {((investor.street_address as string) || (investor.city as string)) && (
+                        <details className="rounded border overflow-hidden">
+                          <summary className="px-2.5 py-1.5 text-[10px] font-medium cursor-pointer hover:bg-muted/50 flex items-center gap-1">
+                            <MapPin className="h-3 w-3" /> View on Map
+                          </summary>
+                          <iframe
+                            width="100%"
+                            height="180"
+                            style={{ border: 0 }}
+                            loading="lazy"
+                            referrerPolicy="no-referrer-when-downgrade"
+                            src={`https://www.google.com/maps?q=${encodeURIComponent(
+                              [investor.street_address, investor.street_address_2, investor.city, investor.province, investor.postal_code, investor.country || "Canada"].filter(Boolean).join(", ")
+                            )}&output=embed`}
+                          />
+                        </details>
                       )}
                     </div>
-                    <div>
-                      <span className="text-xs text-muted-foreground">City</span>
-                      <p>{(investor.city as string) || "—"}</p>
-                    </div>
-                    <div>
-                      <span className="text-xs text-muted-foreground">Province</span>
-                      <p>{(investor.province as string) || "—"}</p>
-                    </div>
-                    <div>
-                      <span className="text-xs text-muted-foreground">Postal Code</span>
-                      <p>{(investor.postal_code as string) || "—"}</p>
-                    </div>
-                    <div>
-                      <span className="text-xs text-muted-foreground">Country</span>
-                      <p>{(investor.country as string) || "Canada"}</p>
-                    </div>
 
-                    {/* Google Map — expandable */}
-                    {((investor.street_address as string) || (investor.city as string)) && (
-                      <div className="col-span-2">
-                        <details className="rounded-lg border">
-                          <summary className="px-3 py-2 text-xs font-medium cursor-pointer hover:bg-muted/50 flex items-center gap-1.5">
-                            <MapPin className="h-3.5 w-3.5 text-muted-foreground" />
-                            View on Map
-                          </summary>
-                          <div className="p-0">
-                            <iframe
-                              width="100%"
-                              height="200"
-                              style={{ border: 0, borderRadius: "0 0 8px 8px" }}
-                              loading="lazy"
-                              referrerPolicy="no-referrer-when-downgrade"
-                              src={`https://www.google.com/maps?q=${encodeURIComponent(
-                                [
-                                  investor.street_address as string,
-                                  investor.street_address_2 as string,
-                                  investor.city as string,
-                                  investor.province as string,
-                                  investor.postal_code as string,
-                                  investor.country as string || "Canada",
-                                ].filter(Boolean).join(", ")
-                              )}&output=embed`}
-                            />
-                          </div>
-                        </details>
+                    {/* ── Compliance ── */}
+                    <div className="rounded-lg border bg-muted/20 p-3 space-y-2.5">
+                      <h4 className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                        <ShieldCheck className="h-3 w-3" /> Compliance
+                      </h4>
+                      <div className="grid grid-cols-2 gap-x-4 gap-y-1.5">
+                        <div>
+                          <span className="text-[10px] text-muted-foreground">Jurisdiction</span>
+                          <p>{(investor.jurisdiction as string) || "—"}</p>
+                        </div>
+                        <div>
+                          <span className="text-[10px] text-muted-foreground">Accredited Status</span>
+                          <Badge variant="outline" className="text-[10px] mt-0.5">{(investor.accredited_status as string) || "pending"}</Badge>
+                        </div>
                       </div>
-                    )}
-
-                    <div>
-                      <span className="text-xs text-muted-foreground">Jurisdiction</span>
-                      <p>{(investor.jurisdiction as string) || "—"}</p>
                     </div>
-                    <div>
-                      <span className="text-xs text-muted-foreground">Accredited Status</span>
-                      <p className="capitalize">{(investor.accredited_status as string) || "—"}</p>
-                    </div>
-                    <div className="col-span-2">
-                      <div className="flex items-center justify-between mb-0.5">
-                        <span className="text-xs text-muted-foreground">LinkedIn</span>
+                    {/* ── LinkedIn & Research ── */}
+                    <div className="rounded-lg border bg-muted/20 p-3 space-y-2.5">
+                      <div className="flex items-center justify-between">
+                        <h4 className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                          <Linkedin className="h-3 w-3" /> LinkedIn & Research
+                        </h4>
                         <div className="flex gap-1">
                           <button
                             className="text-[10px] px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 hover:bg-blue-100"
@@ -1923,38 +1931,52 @@ function InvestorDetailDrawer({
                       </div>
                     )}
 
-                    <div>
-                      <span className="text-xs text-muted-foreground">Risk Tolerance</span>
-                      <p className="capitalize">{(investor.risk_tolerance as string) || "—"}</p>
+                    {/* ── Investor Profile ── */}
+                    <div className="rounded-lg border bg-muted/20 p-3 space-y-2.5">
+                      <h4 className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                        <TrendIcon className="h-3 w-3" /> Investor Profile
+                      </h4>
+                      <div className="grid grid-cols-2 gap-x-4 gap-y-1.5">
+                        <div>
+                          <span className="text-[10px] text-muted-foreground">Risk Tolerance</span>
+                          <p className="capitalize">{(investor.risk_tolerance as string) || "—"}</p>
+                        </div>
+                        <div>
+                          <span className="text-[10px] text-muted-foreground">RE Knowledge</span>
+                          <p className="capitalize">{(investor.re_knowledge as string) || "—"}</p>
+                        </div>
+                        <div>
+                          <span className="text-[10px] text-muted-foreground">Income Range</span>
+                          <p>{(investor.income_range as string) || "—"}</p>
+                        </div>
+                        <div>
+                          <span className="text-[10px] text-muted-foreground">Net Worth</span>
+                          <p>{(investor.net_worth_range as string) || "—"}</p>
+                        </div>
+                        <div className="col-span-2">
+                          <span className="text-[10px] text-muted-foreground">Other Investments</span>
+                          <p className="text-xs">{(investor.other_investments as string) || "—"}</p>
+                        </div>
+                        <div className="col-span-2">
+                          <span className="text-[10px] text-muted-foreground">Investment Goals</span>
+                          <p className="text-xs">{(investor.investment_goals as string) || "—"}</p>
+                        </div>
+                        <div className="col-span-2">
+                          <span className="text-[10px] text-muted-foreground">Referral Source</span>
+                          <p className="text-xs">{(investor.referral_source as string) || "—"}</p>
+                        </div>
+                      </div>
                     </div>
-                    <div>
-                      <span className="text-xs text-muted-foreground">RE Knowledge</span>
-                      <p className="capitalize">{(investor.re_knowledge as string) || "—"}</p>
-                    </div>
-                    <div>
-                      <span className="text-xs text-muted-foreground">Income Range</span>
-                      <p>{(investor.income_range as string) || "—"}</p>
-                    </div>
-                    <div>
-                      <span className="text-xs text-muted-foreground">Net Worth</span>
-                      <p>{(investor.net_worth_range as string) || "—"}</p>
-                    </div>
-                    <div className="col-span-2">
-                      <span className="text-xs text-muted-foreground">Other Investments</span>
-                      <p className="text-xs">{(investor.other_investments as string) || "—"}</p>
-                    </div>
-                    <div className="col-span-2">
-                      <span className="text-xs text-muted-foreground">Investment Goals</span>
-                      <p className="text-xs">{(investor.investment_goals as string) || "—"}</p>
-                    </div>
-                    <div className="col-span-2">
-                      <span className="text-xs text-muted-foreground">Referral Source</span>
-                      <p className="text-xs">{(investor.referral_source as string) || "—"}</p>
-                    </div>
-                    <div className="col-span-2">
-                      <span className="text-xs text-muted-foreground">Notes</span>
-                      <p className="whitespace-pre-wrap text-xs">{(investor.notes as string) || "—"}</p>
-                    </div>
+
+                    {/* ── Notes ── */}
+                    {(investor.notes as string) && (
+                      <div className="rounded-lg border bg-muted/20 p-3 space-y-1.5">
+                        <h4 className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                          <FileText className="h-3 w-3" /> Notes
+                        </h4>
+                        <p className="whitespace-pre-wrap text-xs leading-relaxed">{investor.notes as string}</p>
+                      </div>
+                    )}
                   </div>
                 )}
               </CardContent>
