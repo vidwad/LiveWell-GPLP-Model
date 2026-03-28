@@ -291,6 +291,7 @@ export default function InvestorOnboardingPage() {
     { key: "", label: "-- Skip --" },
     { key: "first_name", label: "First Name *", required: true },
     { key: "last_name", label: "Last Name" },
+    { key: "company_name", label: "Company Name" },
     { key: "name", label: "Full Name (legacy)" },
     { key: "email", label: "Email" },
     { key: "phone", label: "Phone" },
@@ -319,7 +320,7 @@ export default function InvestorOnboardingPage() {
   const handleExport = useCallback(() => {
     const list = investors ?? [];
     if (list.length === 0) return;
-    const headers = ["investor_id", "first_name", "last_name", "email", "phone", "mobile", "street_address", "street_address_2", "city", "province", "postal_code", "country", "entity_type", "jurisdiction", "accredited_status", "exemption_type", "tax_id", "banking_info", "investor_status", "onboarding_status", "notes", "created_at"];
+    const headers = ["investor_id", "first_name", "last_name", "company_name", "email", "phone", "mobile", "street_address", "street_address_2", "city", "province", "postal_code", "country", "entity_type", "jurisdiction", "accredited_status", "exemption_type", "tax_id", "banking_info", "investor_status", "onboarding_status", "notes", "created_at"];
     const rows = list.map((inv: any) =>
       headers.map((h) => {
         const val = inv[h] ?? "";
@@ -430,7 +431,7 @@ export default function InvestorOnboardingPage() {
 
       // Auto-map columns by matching header names
       const autoMapping: Record<string, string> = {};
-      const fieldKeys = ["first_name", "last_name", "name", "email", "phone", "mobile", "street_address", "street_address_2", "city", "province", "postal_code", "country", "address", "entity_type", "jurisdiction", "accredited_status", "exemption_type", "tax_id", "banking_info", "investor_status", "onboarding_status", "source", "notes", "indicated_amount"];
+      const fieldKeys = ["first_name", "last_name", "company_name", "name", "email", "phone", "mobile", "street_address", "street_address_2", "city", "province", "postal_code", "country", "address", "entity_type", "jurisdiction", "accredited_status", "exemption_type", "tax_id", "banking_info", "investor_status", "onboarding_status", "source", "notes", "indicated_amount"];
       headers.forEach((h, idx) => {
         const normalized = h.toLowerCase().replace(/[^a-z0-9]/g, "_");
         for (const fk of fieldKeys) {
@@ -497,7 +498,7 @@ export default function InvestorOnboardingPage() {
         ? { first_name: name }
         : { name };
       if (email) body.email = email;
-      const optionalFields = ["last_name", "phone", "mobile", "street_address", "street_address_2", "city", "province", "postal_code", "country", "address", "entity_type", "jurisdiction", "accredited_status", "exemption_type", "tax_id", "banking_info", "investor_status", "onboarding_status", "source", "notes"];
+      const optionalFields = ["last_name", "company_name", "phone", "mobile", "street_address", "street_address_2", "city", "province", "postal_code", "country", "address", "entity_type", "jurisdiction", "accredited_status", "exemption_type", "tax_id", "banking_info", "investor_status", "onboarding_status", "source", "notes"];
       for (const field of optionalFields) {
         if (fieldToCol[field] !== undefined && row[fieldToCol[field]]) {
           body[field] = row[fieldToCol[field]];
@@ -1242,6 +1243,7 @@ function InvestorDetailDrawer({
   const [editForm, setEditForm] = useState({
     first_name: "",
     last_name: "",
+    company_name: "",
     email: "",
     phone: "",
     mobile: "",
@@ -1317,6 +1319,7 @@ function InvestorDetailDrawer({
     setEditForm({
       first_name: (inv.first_name as string) || "",
       last_name: (inv.last_name as string) || "",
+      company_name: (inv.company_name as string) || "",
       email: inv.email || "",
       phone: (inv.phone as string) || "",
       mobile: (inv.mobile as string) || "",
@@ -1512,6 +1515,15 @@ function InvestorDetailDrawer({
                         className="mt-0.5 w-full rounded border bg-background px-2 py-1.5 text-sm"
                         value={editForm.last_name}
                         onChange={(e) => setEditForm((f: any) => ({ ...f, last_name: e.target.value }))}
+                      />
+                    </div>
+                    <div className="col-span-2">
+                      <label className="text-xs text-muted-foreground">Company / Trust Name</label>
+                      <input
+                        className="mt-0.5 w-full rounded border bg-background px-2 py-1.5 text-sm"
+                        value={editForm.company_name}
+                        onChange={(e) => setEditForm((f: any) => ({ ...f, company_name: e.target.value }))}
+                        placeholder="Business, trust, or corporation name"
                       />
                     </div>
                     <div className="col-span-2 sm:col-span-1">
@@ -1735,6 +1747,10 @@ function InvestorDetailDrawer({
                     <div>
                       <span className="text-xs text-muted-foreground">Last Name</span>
                       <p className="truncate">{(investor.last_name as string) || "—"}</p>
+                    </div>
+                    <div className="col-span-2">
+                      <span className="text-xs text-muted-foreground">Company / Trust</span>
+                      <p>{(investor.company_name as string) || "—"}</p>
                     </div>
                     <div>
                       <span className="text-xs text-muted-foreground">Email</span>

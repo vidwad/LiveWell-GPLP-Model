@@ -18,6 +18,7 @@ from app.db.models import DocumentType
 class InvestorCreate(BaseModel):
     first_name: str
     last_name: str | None = None
+    company_name: str | None = None
     name: str | None = None  # legacy: auto-computed if not provided
     email: str | None = None
     phone: str | None = None
@@ -37,6 +38,7 @@ class InvestorCreate(BaseModel):
 class InvestorUpdate(BaseModel):
     first_name: str | None = None
     last_name: str | None = None
+    company_name: str | None = None
     name: str | None = None
     email: str | None = None
     phone: str | None = None
@@ -57,6 +59,7 @@ class InvestorOut(BaseModel):
     user_id: int | None
     first_name: str | None = None
     last_name: str | None = None
+    company_name: str | None = None
     name: str | None = None
     email: str | None = None
     phone: str | None = None

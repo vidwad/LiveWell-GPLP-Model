@@ -921,6 +921,7 @@ class QuickAddLeadBody(BaseModel):
     # Name: accepts first_name+last_name OR legacy name field
     first_name: Optional[str] = None
     last_name: Optional[str] = None
+    company_name: Optional[str] = None
     name: Optional[str] = None  # legacy: "First Last" — auto-split if first_name not provided
     email: Optional[str] = None
     lp_id: Optional[int] = None
@@ -1002,6 +1003,7 @@ def quick_add_lead(
         inv = Investor(
             first_name=first_name or "",
             last_name=last_name,
+            company_name=body.company_name,
             name=full_name,
             email=body.email if body.email else None,
             phone=body.phone,
@@ -1779,7 +1781,7 @@ def edit_investor_crm(
     if not investor:
         raise HTTPException(404, "Investor not found")
 
-    allowed = {"first_name", "last_name", "name", "email", "phone", "mobile",
+    allowed = {"first_name", "last_name", "company_name", "name", "email", "phone", "mobile",
                "street_address", "street_address_2", "city", "province", "postal_code", "country",
                "address", "entity_type", "jurisdiction",
                "accredited_status", "exemption_type", "tax_id", "banking_info", "notes",

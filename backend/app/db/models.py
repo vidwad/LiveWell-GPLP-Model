@@ -581,6 +581,7 @@ class Investor(Base):
     user_id = Column(Integer, ForeignKey("users.user_id"), nullable=True, unique=True)
     first_name = Column(String(128), nullable=False)
     last_name = Column(String(128), nullable=True)
+    company_name = Column(String(256), nullable=True)     # business / trust / corporation name
     name = Column(String(256), nullable=True)            # computed: "first last" for backward compat
     email = Column(String(256), nullable=True, unique=True, index=True)
     phone = Column(String(64), nullable=True)            # work / office phone
