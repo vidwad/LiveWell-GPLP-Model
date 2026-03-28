@@ -2046,21 +2046,11 @@ def transcribe_call_recording(
     except Exception as e:
         transcript = f"[Transcription failed: {str(e)}]"
 
-    # Save as CRM activity
-    activity = CRMActivity(
-        investor_id=investor_id,
-        activity_type=CRMActivityType.call,
-        subject=f"Call recording with {inv.name}",
-        body=transcript,
-        outcome=f"Audio: {audio_url}",
-        created_by=current_user.user_id,
-    )
-    db.add(activity)
-    db.commit()
-    db.refresh(activity)
+    # Don't create CRM activity here — the frontend Log Activity form handles that.
+    # This endpoint only transcribes and returns the text.
 
     return {
-        "activity_id": activity.activity_id,
+        "activity_id": None,
         "investor_id": investor_id,
         "transcript": transcript,
         "audio_url": audio_url,
