@@ -2911,90 +2911,128 @@ function InvestorTasksSection({ investorId }: { investorId: number }) {
   const completedTasks = tasks.filter(t => t.is_completed);
 
   return (
-    <Card>
-      <CardHeader className="p-4 pb-2">
+    <Card className="overflow-hidden">
+      <CardHeader className="p-4 pb-3 bg-muted/30 border-b">
         <div className="flex items-center justify-between">
-          <CardTitle className="text-sm font-semibold flex items-center gap-2">
-            <CheckCircle2 className="h-4 w-4" /> Tasks
-          </CardTitle>
-          <Button
-            size="sm"
-            variant="ghost"
-            className="h-7 text-xs"
-            disabled={suggesting}
-            onClick={handleSuggest}
-          >
-            {suggesting ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <Sparkles className="h-3 w-3 mr-1" />}
-            {suggesting ? "Generating..." : "AI Suggest"}
-          </Button>
-        </div>
-      </CardHeader>
-      <CardContent className="p-4 pt-0 space-y-3">
-        {/* Add task form */}
-        <div className="flex gap-2">
-          <input
-            className="flex-1 rounded border bg-background px-2 py-1.5 text-sm"
-            placeholder="Add a task..."
-            value={newTask}
-            onChange={(e) => setNewTask(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && newTask.trim()) addMutation.mutate({ description: newTask.trim(), due_date: newDueDate || undefined });
-            }}
-          />
-          <input
-            type="date"
-            className="rounded border bg-background px-2 py-1.5 text-xs w-32"
-            value={newDueDate}
-            onChange={(e) => setNewDueDate(e.target.value)}
-          />
+          <div className="flex items-center gap-2">
+            <div className="h-7 w-7 rounded-full bg-primary/10 flex items-center justify-center">
+              <CheckCircle2 className="h-3.5 w-3.5 text-primary" />
+            </div>
+            <div>
+              <CardTitle className="text-sm font-semibold">Tasks</CardTitle>
+              <p className="text-[10px] text-muted-foreground">{openTasks.length} open · {completedTasks.length} done</p>
+            </div>
+          </div>
           <Button
             size="sm"
             variant="outline"
-            disabled={!newTask.trim() || addMutation.isPending}
-            onClick={() => addMutation.mutate({ description: newTask.trim(), due_date: newDueDate || undefined })}
+            className="h-7 text-xs gap-1 bg-gradient-to-r from-purple-50 to-blue-50 border-purple-200 text-purple-700 hover:from-purple-100 hover:to-blue-100"
+            disabled={suggesting}
+            onClick={handleSuggest}
           >
-            Add
+            {suggesting ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />}
+            {suggesting ? "Thinking..." : "AI Suggest"}
           </Button>
+        </div>
+      </CardHeader>
+      <CardContent className="p-4 space-y-3">
+        {/* Add task form */}
+        <div className="space-y-2">
+          <div className="flex gap-2">
+            <div className="flex-1 relative">
+              <input
+                className="w-full rounded-lg border bg-background pl-3 pr-3 py-2 text-sm placeholder:text-muted-foreground/60 focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
+                placeholder="What needs to be done?"
+                value={newTask}
+                onChange={(e) => setNewTask(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && newTask.trim()) addMutation.mutate({ description: newTask.trim(), due_date: newDueDate || undefined });
+                }}
+              />
+            </div>
+          </div>
+          <div className="flex gap-2">
+            <div className="flex items-center gap-1.5 flex-1">
+              <Calendar className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+              <input
+                type="date"
+                className="flex-1 rounded-lg border bg-background px-2.5 py-1.5 text-xs focus:ring-2 focus:ring-primary/20"
+                value={newDueDate}
+                onChange={(e) => setNewDueDate(e.target.value)}
+              />
+            </div>
+            <Button
+              size="sm"
+              className="h-8 px-4"
+              disabled={!newTask.trim() || addMutation.isPending}
+              onClick={() => addMutation.mutate({ description: newTask.trim(), due_date: newDueDate || undefined })}
+            >
+              {addMutation.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Add Task"}
+            </Button>
+          </div>
         </div>
 
         {isLoading ? (
-          <div className="space-y-2"><Skeleton className="h-8 w-full" /><Skeleton className="h-8 w-full" /></div>
+          <div className="space-y-2"><Skeleton className="h-12 w-full rounded-lg" /><Skeleton className="h-12 w-full rounded-lg" /></div>
         ) : tasks.length === 0 ? (
-          <p className="py-4 text-center text-xs text-muted-foreground">No tasks yet. Add one above or click AI Suggest.</p>
+          <div className="py-6 text-center">
+            <div className="mx-auto h-10 w-10 rounded-full bg-muted/50 flex items-center justify-center mb-2">
+              <CheckCircle2 className="h-5 w-5 text-muted-foreground/50" />
+            </div>
+            <p className="text-xs text-muted-foreground">No tasks yet</p>
+            <p className="text-[10px] text-muted-foreground/60 mt-0.5">Add one above or click AI Suggest</p>
+          </div>
         ) : (
-          <div className="space-y-1">
+          <div className="space-y-1.5">
             {/* Open tasks */}
             {openTasks.map((t) => {
-              const isOverdue = t.due_date && new Date(t.due_date) < new Date() && !t.is_completed;
+              const isOverdue = t.due_date && new Date(t.due_date) < new Date();
               return (
-                <div key={t.task_id} className={`flex items-start gap-2.5 rounded-lg border p-2.5 ${isOverdue ? "border-red-200 bg-red-50/30" : ""}`}>
-                  <input
-                    type="checkbox"
-                    checked={false}
-                    onChange={() => toggleMutation.mutate({ taskId: t.task_id, isCompleted: true })}
-                    className="mt-0.5 h-4 w-4 rounded border-gray-300 shrink-0"
+                <div
+                  key={t.task_id}
+                  className={`group flex items-start gap-3 rounded-lg border p-3 transition-all hover:shadow-sm ${
+                    isOverdue ? "border-red-200 bg-red-50/40" : "hover:border-primary/30 hover:bg-primary/[0.02]"
+                  }`}
+                >
+                  <button
+                    onClick={() => toggleMutation.mutate({ taskId: t.task_id, isCompleted: true })}
+                    className={`mt-0.5 h-[18px] w-[18px] rounded-full border-2 shrink-0 flex items-center justify-center transition-colors ${
+                      isOverdue ? "border-red-300 hover:bg-red-100" : "border-gray-300 hover:border-primary hover:bg-primary/10"
+                    }`}
                   />
                   <div className="min-w-0 flex-1">
-                    <p className="text-sm">{t.description}</p>
-                    <div className="flex items-center gap-2 mt-0.5">
+                    <p className="text-sm leading-snug">{t.description}</p>
+                    <div className="flex flex-wrap items-center gap-1.5 mt-1">
                       {t.due_date && (
-                        <span className={`text-[10px] ${isOverdue ? "text-red-600 font-medium" : "text-muted-foreground"}`}>
-                          Due: {new Date(t.due_date).toLocaleDateString()}
+                        <span className={`inline-flex items-center gap-0.5 text-[10px] rounded-full px-1.5 py-0 ${
+                          isOverdue ? "bg-red-100 text-red-700 font-medium" : "bg-muted text-muted-foreground"
+                        }`}>
+                          <Clock className="h-2.5 w-2.5" />
+                          {isOverdue ? "Overdue: " : ""}{new Date(t.due_date).toLocaleDateString()}
                         </span>
                       )}
                       {t.source === "ai_suggested" && (
-                        <Badge variant="outline" className="text-[9px] px-1 py-0 h-4">AI</Badge>
+                        <span className="inline-flex items-center gap-0.5 text-[9px] rounded-full bg-purple-50 text-purple-600 px-1.5 py-0">
+                          <Sparkles className="h-2 w-2" /> AI
+                        </span>
                       )}
                       {t.priority === "high" && (
-                        <Badge variant="destructive" className="text-[9px] px-1 py-0 h-4">High</Badge>
+                        <span className="inline-flex items-center text-[9px] rounded-full bg-orange-50 text-orange-600 px-1.5 py-0 font-medium">
+                          ↑ High
+                        </span>
+                      )}
+                      {t.priority === "low" && (
+                        <span className="inline-flex items-center text-[9px] rounded-full bg-blue-50 text-blue-500 px-1.5 py-0">
+                          ↓ Low
+                        </span>
                       )}
                     </div>
                   </div>
                   <button
-                    className="text-[10px] text-red-400 hover:text-red-600 shrink-0"
-                    onClick={() => deleteMutation.mutate(t.task_id)}
+                    className="opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-red-500 shrink-0 mt-0.5"
+                    onClick={() => { if (confirm("Delete this task?")) deleteMutation.mutate(t.task_id); }}
                   >
-                    ✕
+                    <Trash2 className="h-3.5 w-3.5" />
                   </button>
                 </div>
               );
@@ -3002,30 +3040,31 @@ function InvestorTasksSection({ investorId }: { investorId: number }) {
 
             {/* Completed tasks */}
             {completedTasks.length > 0 && (
-              <details className="mt-2">
-                <summary className="text-[10px] text-muted-foreground cursor-pointer hover:text-foreground">
+              <details className="mt-3 rounded-lg border border-dashed">
+                <summary className="px-3 py-2 text-xs text-muted-foreground cursor-pointer hover:text-foreground hover:bg-muted/30 rounded-lg flex items-center gap-1.5 transition-colors">
+                  <CheckCircle2 className="h-3 w-3 text-green-500" />
                   {completedTasks.length} completed task{completedTasks.length !== 1 ? "s" : ""}
                 </summary>
-                <div className="mt-1 space-y-1">
+                <div className="px-1 pb-1 space-y-1">
                   {completedTasks.map((t) => (
-                    <div key={t.task_id} className="flex items-start gap-2.5 rounded-lg border border-dashed p-2.5 opacity-60">
-                      <input
-                        type="checkbox"
-                        checked={true}
-                        onChange={() => toggleMutation.mutate({ taskId: t.task_id, isCompleted: false })}
-                        className="mt-0.5 h-4 w-4 rounded border-gray-300 shrink-0"
-                      />
+                    <div key={t.task_id} className="group flex items-start gap-3 rounded-lg p-2.5 hover:bg-muted/30 transition-colors">
+                      <button
+                        onClick={() => toggleMutation.mutate({ taskId: t.task_id, isCompleted: false })}
+                        className="mt-0.5 h-[18px] w-[18px] rounded-full border-2 border-green-400 bg-green-50 shrink-0 flex items-center justify-center"
+                      >
+                        <CheckCircle2 className="h-3 w-3 text-green-500" />
+                      </button>
                       <div className="min-w-0 flex-1">
-                        <p className="text-sm line-through text-muted-foreground">{t.description}</p>
+                        <p className="text-sm line-through text-muted-foreground/70">{t.description}</p>
                         {t.completed_date && (
-                          <span className="text-[10px] text-muted-foreground">Completed: {new Date(t.completed_date).toLocaleDateString()}</span>
+                          <span className="text-[10px] text-muted-foreground/50">Done {new Date(t.completed_date).toLocaleDateString()}</span>
                         )}
                       </div>
                       <button
-                        className="text-[10px] text-red-400 hover:text-red-600 shrink-0"
+                        className="opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-red-500 shrink-0"
                         onClick={() => deleteMutation.mutate(t.task_id)}
                       >
-                        ✕
+                        <Trash2 className="h-3 w-3" />
                       </button>
                     </div>
                   ))}
