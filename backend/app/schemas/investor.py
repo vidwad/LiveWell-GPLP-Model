@@ -17,9 +17,9 @@ from app.db.models import DocumentType
 
 class InvestorCreate(BaseModel):
     first_name: str
-    last_name: str | None = None
+    last_name: str
     company_name: str | None = None
-    name: str | None = None  # legacy: auto-computed if not provided
+    name: str | None = None  # auto-computed: "first last"
     email: str | None = None
     phone: str | None = None
     mobile: str | None = None

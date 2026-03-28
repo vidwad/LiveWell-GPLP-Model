@@ -985,7 +985,11 @@ def quick_add_lead(
             last_name = parts[1].strip()
         else:
             first_name = body.name.strip()
-    full_name = f"{first_name} {last_name}".strip() if last_name else (first_name or "")
+    # Both required — default last_name to empty string if not provided
+    first_name = first_name or ""
+    last_name = last_name or ""
+    # Auto-compute full name
+    full_name = f"{first_name} {last_name}".strip()
 
     # Resolve address fields
     jurisdiction = body.jurisdiction or body.province

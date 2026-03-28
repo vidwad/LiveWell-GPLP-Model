@@ -290,7 +290,7 @@ export default function InvestorOnboardingPage() {
   const INVESTOR_FIELDS = [
     { key: "", label: "-- Skip --" },
     { key: "first_name", label: "First Name *", required: true },
-    { key: "last_name", label: "Last Name" },
+    { key: "last_name", label: "Last Name *", required: true },
     { key: "company_name", label: "Company Name" },
     { key: "name", label: "Full Name (legacy)" },
     { key: "email", label: "Email" },
@@ -647,7 +647,7 @@ export default function InvestorOnboardingPage() {
                   className="w-full mt-1 rounded-md border px-3 py-2 text-sm" placeholder="First name" />
               </div>
               <div>
-                <label className="text-xs font-medium text-muted-foreground">Last Name</label>
+                <label className="text-xs font-medium text-muted-foreground">Last Name *</label>
                 <input type="text" value={leadForm.last_name} onChange={e => setLeadForm(f => ({...f, last_name: e.target.value}))}
                   className="w-full mt-1 rounded-md border px-3 py-2 text-sm" placeholder="Last name" />
               </div>
@@ -698,8 +698,7 @@ export default function InvestorOnboardingPage() {
             <div className="flex gap-2 mt-3">
               <Button
                 onClick={() => {
-                  const params: Record<string, string | number> = { first_name: leadForm.first_name };
-                  if (leadForm.last_name) params.last_name = leadForm.last_name;
+                  const params: Record<string, string | number> = { first_name: leadForm.first_name, last_name: leadForm.last_name };
                   if (leadForm.email) params.email = leadForm.email;
                   if (leadForm.phone) params.phone = leadForm.phone;
                   if (leadForm.source) params.source = leadForm.source;
@@ -708,7 +707,7 @@ export default function InvestorOnboardingPage() {
                   if (leadForm.indicated_amount) params.indicated_amount = parseFloat(leadForm.indicated_amount);
                   addLeadMutation.mutate(params);
                 }}
-                disabled={!leadForm.first_name || addLeadMutation.isPending}
+                disabled={!leadForm.first_name || !leadForm.last_name || addLeadMutation.isPending}
                 size="sm"
               >
                 {addLeadMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <UserPlus className="h-4 w-4 mr-1" />}
@@ -782,7 +781,7 @@ export default function InvestorOnboardingPage() {
                       <tr className="border-b bg-muted/30">
                         {[
                           { key: "first_name", label: "First Name" },
-                          { key: "last_name", label: "Last Name" },
+                          { key: "last_name", label: "Last Name *", required: true },
                           { key: "email", label: "Email" },
                           { key: "phone", label: "Phone" },
                           { key: "mobile", label: "Cell" },
@@ -1064,7 +1063,7 @@ export default function InvestorOnboardingPage() {
               <p className="text-xs text-muted-foreground">Required fields marked with *. Unmapped columns will be skipped.</p>
               <div className="flex gap-2">
                 <Button variant="outline" size="sm" onClick={() => { setShowMappingModal(false); setCsvHeaders([]); setCsvPreviewRows([]); setCsvAllRows([]); setColumnMapping({}); }}>Cancel</Button>
-                <Button size="sm" onClick={executeImport} disabled={!Object.values(columnMapping).includes("name")}>
+                <Button size="sm" onClick={executeImport} disabled={!Object.values(columnMapping).includes("first_name") && !Object.values(columnMapping).includes("name")}>
                   <Upload className="h-3.5 w-3.5 mr-1.5" />
                   Import {csvAllRows.length} Row{csvAllRows.length !== 1 ? "s" : ""}
                 </Button>
