@@ -2812,10 +2812,16 @@ function TTSButton({ text }: { text: string }) {
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
   const handleClick = async () => {
-    // If already playing, stop
-    if (playing && audioRef.current) {
-      audioRef.current.pause();
-      audioRef.current = null;
+    // If already playing, stop everything
+    if (playing) {
+      if (audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current.currentTime = 0;
+        audioRef.current = null;
+      }
+      if (typeof window !== "undefined" && "speechSynthesis" in window) {
+        window.speechSynthesis.cancel();
+      }
       setPlaying(false);
       return;
     }
