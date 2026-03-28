@@ -764,6 +764,7 @@ export default function InvestorOnboardingPage() {
                           { key: "name", label: "Name" },
                           { key: "email", label: "Email" },
                           { key: "phone", label: "Phone" },
+                          { key: "mobile", label: "Cell" },
                           { key: "entity_type", label: "Entity" },
                           { key: "investor_status", label: "Status" },
                           { key: "assigned_users", label: "Assigned To" },
@@ -805,6 +806,7 @@ export default function InvestorOnboardingPage() {
                               <td className="px-3 py-2.5 font-medium">{inv.name}</td>
                               <td className="px-3 py-2.5 text-muted-foreground">{inv.email}</td>
                               <td className="px-3 py-2.5 text-muted-foreground">{inv.phone || "—"}</td>
+                              <td className="px-3 py-2.5 text-muted-foreground">{(inv.mobile as string) || "—"}</td>
                               <td className="px-3 py-2.5">
                                 {inv.entity_type ? (
                                   <span className="text-xs">{ENTITY_LABELS[inv.entity_type] ?? inv.entity_type}</span>
