@@ -2828,13 +2828,15 @@ function TTSButton({ text }: { text: string }) {
 
     setLoading(true);
     try {
-      const r = await apiClient.post("/api/investor/tts", { text, voice: "nova" });
-      const audioUrl = r.data.audio_url;
-      const fullUrl = audioUrl.startsWith("http") ? audioUrl : `${apiClient.defaults.baseURL}${audioUrl}`;
-      const audio = new Audio(fullUrl);
+      // Stream audio directly from API for faster playback
+      const r = await apiClient.post("/api/investor/tts", { text, voice: "nova" }, { responseType: "blob" });
+      const blob = new Blob([r.data], { type: "audio/mpeg" });
+      const url = URL.createObjectURL(blob);
+      const audio = new Audio(url);
       audioRef.current = audio;
-      audio.onended = () => { setPlaying(false); audioRef.current = null; };
+      audio.onended = () => { setPlaying(false); audioRef.current = null; URL.revokeObjectURL(url); };
       audio.onerror = () => {
+        URL.revokeObjectURL(url);
         // Fallback to browser TTS
         if ("speechSynthesis" in window) {
           const u = new SpeechSynthesisUtterance(text);

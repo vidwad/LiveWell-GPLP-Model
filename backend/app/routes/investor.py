@@ -2156,19 +2156,19 @@ def text_to_speech(
     client = _OpenAI(api_key=api_key)
 
     try:
+        from fastapi.responses import StreamingResponse
+
         response = client.audio.speech.create(
             model="tts-1",
             voice=body.voice,
-            input=body.text[:4096],  # TTS limit
+            input=body.text[:4096],
         )
 
-        # Save audio file
-        uploads_dir = _Path(__file__).resolve().parent.parent.parent / "uploads" / "tts"
-        uploads_dir.mkdir(parents=True, exist_ok=True)
-        filename = f"tts_{uuid.uuid4().hex[:8]}.mp3"
-        filepath = uploads_dir / filename
-        response.stream_to_file(str(filepath))
-
-        return {"audio_url": f"/uploads/tts/{filename}"}
+        # Stream directly to client for faster playback start
+        return StreamingResponse(
+            response.iter_bytes(),
+            media_type="audio/mpeg",
+            headers={"Content-Disposition": "inline; filename=speech.mp3"},
+        )
     except Exception as e:
         raise HTTPException(500, f"TTS failed: {str(e)}")
