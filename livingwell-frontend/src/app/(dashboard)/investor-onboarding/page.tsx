@@ -154,9 +154,9 @@ export default function InvestorOnboardingPage() {
   const queryClient = useQueryClient();
   const [selectedInvestorId, setSelectedInvestorId] = useState<number | null>(null);
   const [showAddLead, setShowAddLead] = useState(false);
-  const [leadForm, setLeadForm] = useState({ name: "", email: "", phone: "", lp_id: "", indicated_amount: "", source: "", notes: "" });
+  const [leadForm, setLeadForm] = useState({ first_name: "", last_name: "", email: "", phone: "", lp_id: "", indicated_amount: "", source: "", notes: "" });
   const [viewMode, setViewMode] = useState<"kanban" | "table">("table");
-  const [sortField, setSortField] = useState<string>("name");
+  const [sortField, setSortField] = useState<string>("first_name");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [showArchived, setShowArchived] = useState(false);
@@ -209,7 +209,7 @@ export default function InvestorOnboardingPage() {
       apiClient.post("/api/investor/leads/quick-add", data).then(r => r.data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["onboarding-investors"] });
-      setLeadForm({ name: "", email: "", phone: "", lp_id: "", indicated_amount: "", source: "", notes: "" });
+      setLeadForm({ first_name: "", last_name: "", email: "", phone: "", lp_id: "", indicated_amount: "", source: "", notes: "" });
       setShowAddLead(false);
     },
   });
@@ -289,11 +289,18 @@ export default function InvestorOnboardingPage() {
 
   const INVESTOR_FIELDS = [
     { key: "", label: "-- Skip --" },
-    { key: "name", label: "Name *", required: true },
+    { key: "first_name", label: "First Name *", required: true },
+    { key: "last_name", label: "Last Name" },
+    { key: "name", label: "Full Name (legacy)" },
     { key: "email", label: "Email" },
     { key: "phone", label: "Phone" },
     { key: "mobile", label: "Mobile / Cell" },
-    { key: "address", label: "Address" },
+    { key: "street_address", label: "Street Address" },
+    { key: "city", label: "City" },
+    { key: "province", label: "Province" },
+    { key: "postal_code", label: "Postal Code" },
+    { key: "country", label: "Country" },
+    { key: "address", label: "Full Address (legacy)" },
     { key: "entity_type", label: "Entity Type" },
     { key: "jurisdiction", label: "Jurisdiction" },
     { key: "accredited_status", label: "Accredited Status" },
@@ -311,7 +318,7 @@ export default function InvestorOnboardingPage() {
   const handleExport = useCallback(() => {
     const list = investors ?? [];
     if (list.length === 0) return;
-    const headers = ["investor_id", "name", "email", "phone", "mobile", "address", "entity_type", "jurisdiction", "accredited_status", "exemption_type", "tax_id", "banking_info", "investor_status", "onboarding_status", "notes", "onboarding_started_at", "onboarding_completed_at", "invited_at", "approved_at", "created_at"];
+    const headers = ["investor_id", "first_name", "last_name", "email", "phone", "mobile", "street_address", "city", "province", "postal_code", "country", "entity_type", "jurisdiction", "accredited_status", "exemption_type", "tax_id", "banking_info", "investor_status", "onboarding_status", "notes", "created_at"];
     const rows = list.map((inv: any) =>
       headers.map((h) => {
         const val = inv[h] ?? "";
@@ -422,7 +429,7 @@ export default function InvestorOnboardingPage() {
 
       // Auto-map columns by matching header names
       const autoMapping: Record<string, string> = {};
-      const fieldKeys = ["name", "email", "phone", "mobile", "address", "entity_type", "jurisdiction", "accredited_status", "exemption_type", "tax_id", "banking_info", "investor_status", "onboarding_status", "source", "notes", "indicated_amount"];
+      const fieldKeys = ["first_name", "last_name", "name", "email", "phone", "mobile", "street_address", "city", "province", "postal_code", "country", "address", "entity_type", "jurisdiction", "accredited_status", "exemption_type", "tax_id", "banking_info", "investor_status", "onboarding_status", "source", "notes", "indicated_amount"];
       headers.forEach((h, idx) => {
         const normalized = h.toLowerCase().replace(/[^a-z0-9]/g, "_");
         for (const fk of fieldKeys) {
@@ -457,7 +464,7 @@ export default function InvestorOnboardingPage() {
   const executeImport = useCallback(async () => {
     // Validate required fields are mapped
     const mappedFields = Object.values(columnMapping);
-    if (!mappedFields.includes("name")) {
+    if (!mappedFields.includes("first_name") && !mappedFields.includes("name")) {
       alert("You must map the 'Name' column before importing.");
       return;
     }
@@ -476,16 +483,20 @@ export default function InvestorOnboardingPage() {
     let failed = 0;
 
     for (const row of csvAllRows) {
-      const name = row[fieldToCol["name"]] ?? "";
+      // Use first_name if mapped, otherwise fall back to legacy name
+      const name = row[fieldToCol["first_name"]] ?? row[fieldToCol["name"]] ?? "";
       if (!name) { failed++; continue; }
 
       const email = fieldToCol["email"] !== undefined ? (row[fieldToCol["email"]] ?? "") : "";
       // Skip rows with invalid email format (but allow empty email)
       if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { failed++; continue; }
 
-      const body: Record<string, string | number> = { name };
+      // Send as first_name if mapped, otherwise as legacy name
+      const body: Record<string, string | number> = fieldToCol["first_name"] !== undefined
+        ? { first_name: name }
+        : { name };
       if (email) body.email = email;
-      const optionalFields = ["phone", "mobile", "address", "entity_type", "jurisdiction", "accredited_status", "exemption_type", "tax_id", "banking_info", "investor_status", "onboarding_status", "source", "notes"];
+      const optionalFields = ["last_name", "phone", "mobile", "street_address", "city", "province", "postal_code", "country", "address", "entity_type", "jurisdiction", "accredited_status", "exemption_type", "tax_id", "banking_info", "investor_status", "onboarding_status", "source", "notes"];
       for (const field of optionalFields) {
         if (fieldToCol[field] !== undefined && row[fieldToCol[field]]) {
           body[field] = row[fieldToCol[field]];
@@ -629,9 +640,14 @@ export default function InvestorOnboardingPage() {
           <CardContent>
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
               <div>
-                <label className="text-xs font-medium text-muted-foreground">Name *</label>
-                <input type="text" value={leadForm.name} onChange={e => setLeadForm(f => ({...f, name: e.target.value}))}
-                  className="w-full mt-1 rounded-md border px-3 py-2 text-sm" placeholder="Full name" />
+                <label className="text-xs font-medium text-muted-foreground">First Name *</label>
+                <input type="text" value={leadForm.first_name} onChange={e => setLeadForm(f => ({...f, first_name: e.target.value}))}
+                  className="w-full mt-1 rounded-md border px-3 py-2 text-sm" placeholder="First name" />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-muted-foreground">Last Name</label>
+                <input type="text" value={leadForm.last_name} onChange={e => setLeadForm(f => ({...f, last_name: e.target.value}))}
+                  className="w-full mt-1 rounded-md border px-3 py-2 text-sm" placeholder="Last name" />
               </div>
               <div>
                 <label className="text-xs font-medium text-muted-foreground">Email *</label>
@@ -680,7 +696,9 @@ export default function InvestorOnboardingPage() {
             <div className="flex gap-2 mt-3">
               <Button
                 onClick={() => {
-                  const params: Record<string, string | number> = { name: leadForm.name, email: leadForm.email };
+                  const params: Record<string, string | number> = { first_name: leadForm.first_name };
+                  if (leadForm.last_name) params.last_name = leadForm.last_name;
+                  if (leadForm.email) params.email = leadForm.email;
                   if (leadForm.phone) params.phone = leadForm.phone;
                   if (leadForm.source) params.source = leadForm.source;
                   if (leadForm.notes) params.notes = leadForm.notes;
@@ -688,7 +706,7 @@ export default function InvestorOnboardingPage() {
                   if (leadForm.indicated_amount) params.indicated_amount = parseFloat(leadForm.indicated_amount);
                   addLeadMutation.mutate(params);
                 }}
-                disabled={!leadForm.name || !leadForm.email || addLeadMutation.isPending}
+                disabled={!leadForm.first_name || addLeadMutation.isPending}
                 size="sm"
               >
                 {addLeadMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <UserPlus className="h-4 w-4 mr-1" />}
@@ -761,7 +779,8 @@ export default function InvestorOnboardingPage() {
                     <thead>
                       <tr className="border-b bg-muted/30">
                         {[
-                          { key: "name", label: "Name" },
+                          { key: "first_name", label: "First Name" },
+                          { key: "last_name", label: "Last Name" },
                           { key: "email", label: "Email" },
                           { key: "phone", label: "Phone" },
                           { key: "mobile", label: "Cell" },
@@ -803,7 +822,8 @@ export default function InvestorOnboardingPage() {
                               }`}
                               onClick={() => setSelectedInvestorId(inv.investor_id)}
                             >
-                              <td className="px-3 py-2.5 font-medium">{inv.name}</td>
+                              <td className="px-3 py-2.5 font-medium">{(inv.first_name as string) || (inv.name as string) || "—"}</td>
+                              <td className="px-3 py-2.5">{(inv.last_name as string) || "—"}</td>
                               <td className="px-3 py-2.5 text-muted-foreground">{inv.email}</td>
                               <td className="px-3 py-2.5 text-muted-foreground">{inv.phone || "—"}</td>
                               <td className="px-3 py-2.5 text-muted-foreground">{(inv.mobile as string) || "—"}</td>
@@ -1093,7 +1113,7 @@ function InvestorKanbanCard({
       <CardContent className="p-3 space-y-2">
         {/* Name & email */}
         <div>
-          <p className="text-sm font-medium leading-tight truncate">{investor.name}</p>
+          <p className="text-sm font-medium leading-tight truncate">{`${investor.first_name || investor.name || ""}${investor.last_name ? " " + investor.last_name : ""}`}</p>
           <p className="text-xs text-muted-foreground truncate">{investor.email}</p>
         </div>
 
@@ -1219,12 +1239,17 @@ function InvestorDetailDrawer({
 
   const [isEditing, setIsEditing] = useState(false);
   const [editForm, setEditForm] = useState({
-    name: "",
+    first_name: "",
+    last_name: "",
     email: "",
     phone: "",
     mobile: "",
     entity_type: "",
-    address: "",
+    street_address: "",
+    city: "",
+    province: "",
+    postal_code: "",
+    country: "Canada",
     jurisdiction: "",
     accredited_status: "",
     notes: "",
@@ -1288,12 +1313,17 @@ function InvestorDetailDrawer({
     if (!detail) return;
     const inv = detail.investor;
     setEditForm({
-      name: inv.name || "",
+      first_name: (inv.first_name as string) || "",
+      last_name: (inv.last_name as string) || "",
       email: inv.email || "",
       phone: (inv.phone as string) || "",
       mobile: (inv.mobile as string) || "",
       entity_type: (inv.entity_type as string) || "",
-      address: (inv.address as string) || "",
+      street_address: (inv.street_address as string) || "",
+      city: (inv.city as string) || "",
+      province: (inv.province as string) || "",
+      postal_code: (inv.postal_code as string) || "",
+      country: (inv.country as string) || "Canada",
       jurisdiction: (inv.jurisdiction as string) || "",
       accredited_status: (inv.accredited_status as string) || "",
       notes: (inv.notes as string) || "",
@@ -1372,7 +1402,7 @@ function InvestorDetailDrawer({
       <div className="shrink-0 border-b">
         <div className="flex items-center justify-between p-4 pb-2">
           <div className="min-w-0 flex-1">
-            <h2 className="text-lg font-semibold truncate">{investor.name}</h2>
+            <h2 className="text-lg font-semibold truncate">{`${investor.first_name || investor.name || ""}${investor.last_name ? " " + investor.last_name : ""}`}</h2>
             <p className="text-xs text-muted-foreground truncate">{investor.email}</p>
           </div>
           <div className="flex items-center gap-1 ml-2 shrink-0">
@@ -1465,12 +1495,20 @@ function InvestorDetailDrawer({
               <CardContent className="p-4 pt-0">
                 {isEditing ? (
                   <div className="grid grid-cols-2 gap-3">
-                    <div className="col-span-2 sm:col-span-1">
-                      <label className="text-xs text-muted-foreground">Name</label>
+                    <div>
+                      <label className="text-xs text-muted-foreground">First Name</label>
                       <input
                         className="mt-0.5 w-full rounded border bg-background px-2 py-1.5 text-sm"
-                        value={editForm.name}
-                        onChange={(e) => setEditForm((f) => ({ ...f, name: e.target.value }))}
+                        value={editForm.first_name}
+                        onChange={(e) => setEditForm((f: any) => ({ ...f, first_name: e.target.value }))}
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs text-muted-foreground">Last Name</label>
+                      <input
+                        className="mt-0.5 w-full rounded border bg-background px-2 py-1.5 text-sm"
+                        value={editForm.last_name}
+                        onChange={(e) => setEditForm((f: any) => ({ ...f, last_name: e.target.value }))}
                       />
                     </div>
                     <div className="col-span-2 sm:col-span-1">
@@ -1514,11 +1552,43 @@ function InvestorDetailDrawer({
                       </select>
                     </div>
                     <div className="col-span-2">
-                      <label className="text-xs text-muted-foreground">Address</label>
+                      <label className="text-xs text-muted-foreground">Street Address</label>
                       <input
                         className="mt-0.5 w-full rounded border bg-background px-2 py-1.5 text-sm"
-                        value={editForm.address}
-                        onChange={(e) => setEditForm((f) => ({ ...f, address: e.target.value }))}
+                        value={editForm.street_address}
+                        onChange={(e) => setEditForm((f: any) => ({ ...f, street_address: e.target.value }))}
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs text-muted-foreground">City</label>
+                      <input
+                        className="mt-0.5 w-full rounded border bg-background px-2 py-1.5 text-sm"
+                        value={editForm.city}
+                        onChange={(e) => setEditForm((f: any) => ({ ...f, city: e.target.value }))}
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs text-muted-foreground">Province</label>
+                      <input
+                        className="mt-0.5 w-full rounded border bg-background px-2 py-1.5 text-sm"
+                        value={editForm.province}
+                        onChange={(e) => setEditForm((f: any) => ({ ...f, province: e.target.value }))}
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs text-muted-foreground">Postal Code</label>
+                      <input
+                        className="mt-0.5 w-full rounded border bg-background px-2 py-1.5 text-sm"
+                        value={editForm.postal_code}
+                        onChange={(e) => setEditForm((f: any) => ({ ...f, postal_code: e.target.value }))}
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs text-muted-foreground">Country</label>
+                      <input
+                        className="mt-0.5 w-full rounded border bg-background px-2 py-1.5 text-sm"
+                        value={editForm.country}
+                        onChange={(e) => setEditForm((f: any) => ({ ...f, country: e.target.value }))}
                       />
                     </div>
                     <div>
@@ -1647,8 +1717,12 @@ function InvestorDetailDrawer({
                 ) : (
                   <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
                     <div>
-                      <span className="text-xs text-muted-foreground">Name</span>
-                      <p className="truncate">{investor.name}</p>
+                      <span className="text-xs text-muted-foreground">First Name</span>
+                      <p className="truncate">{(investor.first_name as string) || "—"}</p>
+                    </div>
+                    <div>
+                      <span className="text-xs text-muted-foreground">Last Name</span>
+                      <p className="truncate">{(investor.last_name as string) || "—"}</p>
                     </div>
                     <div>
                       <span className="text-xs text-muted-foreground">Email</span>
@@ -1667,8 +1741,24 @@ function InvestorDetailDrawer({
                       <p>{investor.entity_type ? (ENTITY_LABELS[investor.entity_type] ?? investor.entity_type) : "—"}</p>
                     </div>
                     <div className="col-span-2">
-                      <span className="text-xs text-muted-foreground">Address</span>
-                      <p className="whitespace-pre-line">{(investor.address as string) || "—"}</p>
+                      <span className="text-xs text-muted-foreground">Street Address</span>
+                      <p>{(investor.street_address as string) || "—"}</p>
+                    </div>
+                    <div>
+                      <span className="text-xs text-muted-foreground">City</span>
+                      <p>{(investor.city as string) || "—"}</p>
+                    </div>
+                    <div>
+                      <span className="text-xs text-muted-foreground">Province</span>
+                      <p>{(investor.province as string) || "—"}</p>
+                    </div>
+                    <div>
+                      <span className="text-xs text-muted-foreground">Postal Code</span>
+                      <p>{(investor.postal_code as string) || "—"}</p>
+                    </div>
+                    <div>
+                      <span className="text-xs text-muted-foreground">Country</span>
+                      <p>{(investor.country as string) || "Canada"}</p>
                     </div>
                     <div>
                       <span className="text-xs text-muted-foreground">Jurisdiction</span>
@@ -1738,7 +1828,7 @@ function InvestorDetailDrawer({
                       <div className="col-span-2 rounded-lg border border-blue-200 bg-blue-50/50 p-3 space-y-2">
                         <div className="flex items-center gap-2">
                           <Loader2 className="h-4 w-4 animate-spin text-blue-600" />
-                          <span className="text-sm font-medium text-blue-700">Researching {investor.name}...</span>
+                          <span className="text-sm font-medium text-blue-700">Researching {`${investor.first_name || investor.name || ""}${investor.last_name ? " " + investor.last_name : ""}`}...</span>
                         </div>
                         <p className="text-xs text-blue-600">Searching LinkedIn, Google, company websites, professional directories, and news sources.</p>
                         <div className="h-1.5 w-full rounded-full bg-blue-100 overflow-hidden">
@@ -2117,7 +2207,7 @@ function InvestorDetailDrawer({
                           onTranscript={(text) => setActivityForm((f) => ({
                             ...f,
                             body: f.body ? f.body + "\n\n--- Call Transcript ---\n" + text : text,
-                            subject: f.subject || `Call with ${investor.name}`,
+                            subject: f.subject || `Call with ${investor.first_name || investor.name || ""}${investor.last_name ? " " + investor.last_name : ""}`,
                           }))}
                         />
                       </div>

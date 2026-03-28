@@ -16,19 +16,35 @@ from app.db.models import DocumentType
 # ---------------------------------------------------------------------------
 
 class InvestorCreate(BaseModel):
-    name: str
+    first_name: str
+    last_name: str | None = None
+    name: str | None = None  # legacy: auto-computed if not provided
     email: str | None = None
     phone: str | None = None
-    address: str | None = None
+    mobile: str | None = None
+    street_address: str | None = None
+    city: str | None = None
+    province: str | None = None
+    postal_code: str | None = None
+    country: str | None = "Canada"
+    address: str | None = None  # legacy: full address string
     entity_type: str | None = None
     accredited_status: str | None = "pending"
     user_id: int | None = None
 
 
 class InvestorUpdate(BaseModel):
+    first_name: str | None = None
+    last_name: str | None = None
     name: str | None = None
     email: str | None = None
     phone: str | None = None
+    mobile: str | None = None
+    street_address: str | None = None
+    city: str | None = None
+    province: str | None = None
+    postal_code: str | None = None
+    country: str | None = None
     address: str | None = None
     entity_type: str | None = None
     accredited_status: str | None = None
@@ -37,9 +53,17 @@ class InvestorUpdate(BaseModel):
 class InvestorOut(BaseModel):
     investor_id: int
     user_id: int | None
-    name: str
+    first_name: str | None = None
+    last_name: str | None = None
+    name: str | None = None
     email: str | None = None
     phone: str | None = None
+    mobile: str | None = None
+    street_address: str | None = None
+    city: str | None = None
+    province: str | None = None
+    postal_code: str | None = None
+    country: str | None = None
     mobile: str | None = None
     address: str | None = None
     entity_type: str | None = None

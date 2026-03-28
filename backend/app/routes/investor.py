@@ -918,12 +918,22 @@ def get_lp_ioi_summary(
 
 
 class QuickAddLeadBody(BaseModel):
-    name: str
+    # Name: accepts first_name+last_name OR legacy name field
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
+    name: Optional[str] = None  # legacy: "First Last" — auto-split if first_name not provided
     email: Optional[str] = None
     lp_id: Optional[int] = None
     indicated_amount: Optional[float] = None
     phone: Optional[str] = None
-    address: Optional[str] = None
+    mobile: Optional[str] = None
+    # Address: accepts split fields OR legacy address string
+    street_address: Optional[str] = None
+    city: Optional[str] = None
+    province: Optional[str] = None
+    postal_code: Optional[str] = None
+    country: Optional[str] = None
+    address: Optional[str] = None  # legacy: full address string
     entity_type: Optional[str] = None
     jurisdiction: Optional[str] = None
     accredited_status: Optional[str] = None
@@ -960,23 +970,49 @@ def quick_add_lead(
     """
     from decimal import Decimal
 
-    # Check for existing investor by email (if provided) or by name
+    # Resolve first_name / last_name from legacy 'name' if needed
+    first_name = body.first_name
+    last_name = body.last_name
+    if not first_name and body.name:
+        parts = body.name.strip().split(",", 1) if "," in (body.name or "") else body.name.strip().rsplit(" ", 1)
+        if len(parts) == 2 and "," in (body.name or ""):
+            last_name = parts[0].strip()
+            first_name = parts[1].strip()
+        elif len(parts) == 2:
+            first_name = parts[0].strip()
+            last_name = parts[1].strip()
+        else:
+            first_name = body.name.strip()
+    full_name = f"{first_name} {last_name}".strip() if last_name else (first_name or "")
+
+    # Resolve address fields
+    jurisdiction = body.jurisdiction or body.province
+
+    # Check for existing investor by email or full name
     existing = None
     if body.email:
         existing = db.query(Investor).filter(Investor.email == body.email).first()
-    if not existing and body.name:
-        existing = db.query(Investor).filter(Investor.name == body.name).first()
+    if not existing and full_name:
+        existing = db.query(Investor).filter(Investor.name == full_name).first()
     if existing:
         inv = existing
         is_new = False
     else:
         inv = Investor(
-            name=body.name,
+            first_name=first_name or "",
+            last_name=last_name,
+            name=full_name,
             email=body.email if body.email else None,
             phone=body.phone,
-            address=body.address,
+            mobile=body.mobile,
+            street_address=body.street_address,
+            city=body.city,
+            province=body.province,
+            postal_code=body.postal_code,
+            country=body.country or "Canada",
+            address=body.address,  # legacy
             entity_type=body.entity_type,
-            jurisdiction=body.jurisdiction,
+            jurisdiction=jurisdiction,
             accredited_status=body.accredited_status or "pending",
             exemption_type=body.exemption_type,
             tax_id=body.tax_id,
@@ -1741,7 +1777,9 @@ def edit_investor_crm(
     if not investor:
         raise HTTPException(404, "Investor not found")
 
-    allowed = {"name", "email", "phone", "mobile", "address", "entity_type", "jurisdiction",
+    allowed = {"first_name", "last_name", "name", "email", "phone", "mobile",
+               "street_address", "city", "province", "postal_code", "country",
+               "address", "entity_type", "jurisdiction",
                "accredited_status", "exemption_type", "tax_id", "banking_info", "notes",
                "investor_status", "linkedin_url", "risk_tolerance", "re_knowledge",
                "other_investments", "income_range", "net_worth_range", "investment_goals",
@@ -1749,6 +1787,12 @@ def edit_investor_crm(
     for key, val in payload.items():
         if key in allowed:
             setattr(investor, key, val if val != "" else None)
+
+    # Auto-compute full name if first/last changed
+    if "first_name" in payload or "last_name" in payload:
+        fn = investor.first_name or ""
+        ln = investor.last_name or ""
+        investor.name = f"{fn} {ln}".strip()
 
     db.commit()
     db.refresh(investor)

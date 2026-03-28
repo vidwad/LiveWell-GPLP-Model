@@ -579,11 +579,18 @@ class Investor(Base):
 
     investor_id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.user_id"), nullable=True, unique=True)
-    name = Column(String(256), nullable=False)         # legal name
-    email = Column(String(256), nullable=True, unique=True, index=True)  # nullable for early-stage leads
+    first_name = Column(String(128), nullable=False)
+    last_name = Column(String(128), nullable=True)
+    name = Column(String(256), nullable=True)            # computed: "first last" for backward compat
+    email = Column(String(256), nullable=True, unique=True, index=True)
     phone = Column(String(64), nullable=True)            # work / office phone
     mobile = Column(String(64), nullable=True)           # personal cell
-    address = Column(Text, nullable=True)               # supports multi-line addresses
+    street_address = Column(Text, nullable=True)
+    city = Column(String(128), nullable=True)
+    province = Column(String(64), nullable=True)         # province / state
+    postal_code = Column(String(20), nullable=True)
+    country = Column(String(64), nullable=True, default="Canada")
+    address = Column(Text, nullable=True)               # legacy: full address string
     entity_type = Column(String(64), nullable=True)    # individual, trust, corporation, etc.
     jurisdiction = Column(String(128), nullable=True)   # province / state / country
     accredited_status = Column(String(32), nullable=True, default="pending")
