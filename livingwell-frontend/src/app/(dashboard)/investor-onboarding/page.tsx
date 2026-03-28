@@ -2286,10 +2286,13 @@ function InvestorDetailDrawer({
                           const subject = encodeURIComponent(activityForm.subject || `Message from Living Well Communities`);
                           const body = encodeURIComponent(activityForm.body || "");
                           window.open(`mailto:${investor.email}?subject=${subject}&body=${body}`, "_blank");
+                          // Auto-save the activity after opening email client
+                          handleSubmitActivity();
                         }}
+                        disabled={(!activityForm.subject.trim() && !activityForm.body.trim()) || createActivityMutation.isPending}
                       >
                         <Mail className="h-3.5 w-3.5 mr-1" />
-                        Send Email
+                        Send & Save
                       </Button>
                     )}
                     <Button
