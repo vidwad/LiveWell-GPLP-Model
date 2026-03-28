@@ -1984,3 +1984,85 @@ def schedule_followup(
         "message": f"Follow-up {body.follow_up_type} scheduled for {body.follow_up_date}",
         "google_calendar_url": gcal_url,
     }
+
+
+# ===========================================================================
+# Voice Recording & Transcription
+# ===========================================================================
+
+@router.post("/investors/{investor_id}/transcribe-call", status_code=201)
+def transcribe_call_recording(
+    investor_id: int,
+    file: UploadFile = FastAPIFile(...),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Upload a voice recording, transcribe via OpenAI Whisper, and save as a CRM activity."""
+    from app.db.models import CRMActivity, CRMActivityType, PlatformSetting
+
+    inv = db.query(Investor).filter(Investor.investor_id == investor_id).first()
+    if not inv:
+        raise HTTPException(404, "Investor not found")
+
+    # Read audio file
+    content = file.file.read()
+    if len(content) > 25 * 1024 * 1024:
+        raise HTTPException(400, "Audio file must be under 25MB")
+
+    # Save audio file
+    uploads_dir = _Path(__file__).resolve().parent.parent.parent / "uploads" / "call-recordings"
+    uploads_dir.mkdir(parents=True, exist_ok=True)
+    ext = file.filename.rsplit(".", 1)[-1] if file.filename and "." in file.filename else "webm"
+    filename = f"{investor_id}_{uuid.uuid4().hex[:8]}.{ext}"
+    filepath = uploads_dir / filename
+    with open(filepath, "wb") as f:
+        f.write(content)
+    audio_url = f"/uploads/call-recordings/{filename}"
+
+    # Transcribe via OpenAI Whisper
+    try:
+        from openai import OpenAI as _OpenAI
+    except ImportError:
+        raise HTTPException(400, "OpenAI package not installed")
+
+    setting = db.query(PlatformSetting).filter(PlatformSetting.key == "OPENAI_API_KEY").first()
+    api_key = setting.value if setting else None
+    if not api_key:
+        import os
+        api_key = os.environ.get("OPENAI_API_KEY")
+    if not api_key:
+        raise HTTPException(400, "OpenAI API key not configured. Add it in Settings.")
+
+    client = _OpenAI(api_key=api_key)
+
+    try:
+        with open(filepath, "rb") as audio_file:
+            transcription = client.audio.transcriptions.create(
+                model="whisper-1",
+                file=audio_file,
+                response_format="text",
+            )
+        transcript = transcription if isinstance(transcription, str) else str(transcription)
+    except Exception as e:
+        transcript = f"[Transcription failed: {str(e)}]"
+
+    # Save as CRM activity
+    activity = CRMActivity(
+        investor_id=investor_id,
+        activity_type=CRMActivityType.call,
+        subject=f"Call recording with {inv.name}",
+        body=transcript,
+        outcome=f"Audio: {audio_url}",
+        created_by=current_user.user_id,
+    )
+    db.add(activity)
+    db.commit()
+    db.refresh(activity)
+
+    return {
+        "activity_id": activity.activity_id,
+        "investor_id": investor_id,
+        "transcript": transcript,
+        "audio_url": audio_url,
+        "duration_seconds": None,
+    }

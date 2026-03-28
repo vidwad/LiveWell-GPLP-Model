@@ -2208,6 +2208,9 @@ function InvestorDetailDrawer({
               </Card>
             )}
 
+            {/* Record Call Card */}
+            <CallRecorderCard investorId={investorId} investorName={investor.name} />
+
             {/* Activity list — paginated (3 at a time) */}
             {activitiesLoading ? (
               <div className="space-y-3">
@@ -2599,6 +2602,141 @@ function ActivityListPaginated({ activities }: { activities: Array<Record<string
         </div>
       )}
     </div>
+  );
+}
+
+// ── Call Recorder ────────────────────────────────────────────────────────
+
+function CallRecorderCard({ investorId, investorName }: { investorId: number; investorName: string }) {
+  const queryClient = useQueryClient();
+  const [recording, setRecording] = useState(false);
+  const [mediaRecorder, setMediaRecorder] = useState<MediaRecorder | null>(null);
+  const [elapsed, setElapsed] = useState(0);
+  const [transcribing, setTranscribing] = useState(false);
+  const [transcript, setTranscript] = useState<string | null>(null);
+  const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const chunksRef = useRef<Blob[]>([]);
+
+  const startRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const recorder = new MediaRecorder(stream, { mimeType: "audio/webm" });
+      chunksRef.current = [];
+      recorder.ondataavailable = (e) => { if (e.data.size > 0) chunksRef.current.push(e.data); };
+      recorder.onstop = async () => {
+        stream.getTracks().forEach((t) => t.stop());
+        const blob = new Blob(chunksRef.current, { type: "audio/webm" });
+        await uploadAndTranscribe(blob);
+      };
+      recorder.start(1000);
+      setMediaRecorder(recorder);
+      setRecording(true);
+      setTranscript(null);
+      setElapsed(0);
+      timerRef.current = setInterval(() => setElapsed((e) => e + 1), 1000);
+    } catch {
+      alert("Microphone access denied. Please allow microphone access in your browser settings.");
+    }
+  };
+
+  const stopRecording = () => {
+    if (mediaRecorder && mediaRecorder.state !== "inactive") {
+      mediaRecorder.stop();
+    }
+    setRecording(false);
+    if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
+  };
+
+  const uploadAndTranscribe = async (blob: Blob) => {
+    setTranscribing(true);
+    try {
+      const formData = new FormData();
+      formData.append("file", blob, `call_${investorId}_${Date.now()}.webm`);
+      const r = await apiClient.post(`/api/investor/investors/${investorId}/transcribe-call`, formData, {
+        headers: { "Content-Type": "multipart/form-data" },
+      });
+      setTranscript(r.data.transcript);
+      queryClient.invalidateQueries({ queryKey: ["crm-activities", investorId] });
+    } catch {
+      alert("Failed to transcribe recording");
+    } finally {
+      setTranscribing(false);
+    }
+  };
+
+  const formatTime = (s: number) => `${Math.floor(s / 60)}:${(s % 60).toString().padStart(2, "0")}`;
+
+  return (
+    <Card>
+      <CardHeader className="p-4 pb-2">
+        <CardTitle className="text-sm font-semibold flex items-center gap-2">
+          <Phone className="h-4 w-4" />
+          Record Call
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="p-4 pt-0 space-y-3">
+        {!recording && !transcribing && !transcript && (
+          <Button size="sm" className="w-full" variant="outline" onClick={startRecording}>
+            <span className="mr-2 inline-block h-2.5 w-2.5 rounded-full bg-red-500" />
+            Start Recording
+          </Button>
+        )}
+
+        {recording && (
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className="inline-block h-3 w-3 rounded-full bg-red-500 animate-pulse" />
+                <span className="text-sm font-medium text-red-600">Recording...</span>
+              </div>
+              <span className="text-sm font-mono tabular-nums">{formatTime(elapsed)}</span>
+            </div>
+            <div className="h-2 w-full rounded-full bg-red-100 overflow-hidden">
+              <div className="h-full bg-red-500 rounded-full animate-pulse" style={{ width: `${Math.min(100, (elapsed / 300) * 100)}%` }} />
+            </div>
+            <Button size="sm" className="w-full" variant="destructive" onClick={stopRecording}>
+              ⏹ Stop & Transcribe
+            </Button>
+          </div>
+        )}
+
+        {transcribing && (
+          <div className="flex items-center gap-2 py-3">
+            <Loader2 className="h-4 w-4 animate-spin text-blue-600" />
+            <span className="text-sm text-blue-700">Transcribing with AI...</span>
+          </div>
+        )}
+
+        {transcript && (
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-semibold text-green-700 flex items-center gap-1">
+                <CheckCircle2 className="h-3.5 w-3.5" /> Transcript Saved
+              </span>
+              <button
+                className="text-[10px] px-2 py-0.5 rounded bg-white border hover:bg-gray-50 flex items-center gap-1"
+                onClick={() => {
+                  if (typeof window !== "undefined" && "speechSynthesis" in window) {
+                    if (window.speechSynthesis.speaking) { window.speechSynthesis.cancel(); return; }
+                    const u = new SpeechSynthesisUtterance(transcript);
+                    u.rate = 0.95;
+                    window.speechSynthesis.speak(u);
+                  }
+                }}
+              >
+                🔊 Read
+              </button>
+            </div>
+            <div className="rounded border p-2.5 text-xs leading-relaxed max-h-[200px] overflow-y-auto whitespace-pre-wrap">
+              {transcript}
+            </div>
+            <Button size="sm" variant="ghost" className="w-full text-xs" onClick={() => setTranscript(null)}>
+              Record Another Call
+            </Button>
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 }
 
