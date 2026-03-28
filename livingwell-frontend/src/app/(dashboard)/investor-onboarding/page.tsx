@@ -39,6 +39,7 @@ import {
   Minimize2,
   MapPin,
   Linkedin,
+  Sparkles,
   TrendingUp as TrendIcon,
 } from "lucide-react";
 
@@ -2514,6 +2515,8 @@ function InvestorDetailDrawer({
                 })}
               </div>
             )}
+            {/* Tasks Section */}
+            <InvestorTasksSection investorId={investorId} />
           </>
         )}
 
@@ -2859,6 +2862,184 @@ function InlineCallRecorder({ investorId, onTranscript }: { investorId: number; 
 }
 
 // ── TTS Button (OpenAI natural voice with browser fallback) ──────────────
+
+// ── Investor Tasks Section ────────────────────────────────────────────────
+
+function InvestorTasksSection({ investorId }: { investorId: number }) {
+  const queryClient = useQueryClient();
+  const [newTask, setNewTask] = useState("");
+  const [newDueDate, setNewDueDate] = useState("");
+  const [suggesting, setSuggesting] = useState(false);
+
+  const { data: tasks = [], isLoading } = useQuery<Array<Record<string, any>>>({
+    queryKey: ["investor-tasks", investorId],
+    queryFn: () => apiClient.get(`/api/investor/investors/${investorId}/tasks`).then(r => r.data),
+  });
+
+  const addMutation = useMutation({
+    mutationFn: (data: { description: string; due_date?: string }) =>
+      apiClient.post(`/api/investor/investors/${investorId}/tasks`, data).then(r => r.data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["investor-tasks", investorId] });
+      setNewTask("");
+      setNewDueDate("");
+    },
+  });
+
+  const toggleMutation = useMutation({
+    mutationFn: ({ taskId, isCompleted }: { taskId: number; isCompleted: boolean }) =>
+      apiClient.patch(`/api/investor/investors/${investorId}/tasks/${taskId}`, { is_completed: isCompleted }).then(r => r.data),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["investor-tasks", investorId] }),
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (taskId: number) =>
+      apiClient.delete(`/api/investor/investors/${investorId}/tasks/${taskId}`).then(r => r.data),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["investor-tasks", investorId] }),
+  });
+
+  const handleSuggest = async () => {
+    setSuggesting(true);
+    try {
+      await apiClient.post(`/api/investor/investors/${investorId}/tasks/suggest`);
+      queryClient.invalidateQueries({ queryKey: ["investor-tasks", investorId] });
+    } catch { alert("Failed to generate suggestions"); }
+    finally { setSuggesting(false); }
+  };
+
+  const openTasks = tasks.filter(t => !t.is_completed);
+  const completedTasks = tasks.filter(t => t.is_completed);
+
+  return (
+    <Card>
+      <CardHeader className="p-4 pb-2">
+        <div className="flex items-center justify-between">
+          <CardTitle className="text-sm font-semibold flex items-center gap-2">
+            <CheckCircle2 className="h-4 w-4" /> Tasks
+          </CardTitle>
+          <Button
+            size="sm"
+            variant="ghost"
+            className="h-7 text-xs"
+            disabled={suggesting}
+            onClick={handleSuggest}
+          >
+            {suggesting ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <Sparkles className="h-3 w-3 mr-1" />}
+            {suggesting ? "Generating..." : "AI Suggest"}
+          </Button>
+        </div>
+      </CardHeader>
+      <CardContent className="p-4 pt-0 space-y-3">
+        {/* Add task form */}
+        <div className="flex gap-2">
+          <input
+            className="flex-1 rounded border bg-background px-2 py-1.5 text-sm"
+            placeholder="Add a task..."
+            value={newTask}
+            onChange={(e) => setNewTask(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && newTask.trim()) addMutation.mutate({ description: newTask.trim(), due_date: newDueDate || undefined });
+            }}
+          />
+          <input
+            type="date"
+            className="rounded border bg-background px-2 py-1.5 text-xs w-32"
+            value={newDueDate}
+            onChange={(e) => setNewDueDate(e.target.value)}
+          />
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={!newTask.trim() || addMutation.isPending}
+            onClick={() => addMutation.mutate({ description: newTask.trim(), due_date: newDueDate || undefined })}
+          >
+            Add
+          </Button>
+        </div>
+
+        {isLoading ? (
+          <div className="space-y-2"><Skeleton className="h-8 w-full" /><Skeleton className="h-8 w-full" /></div>
+        ) : tasks.length === 0 ? (
+          <p className="py-4 text-center text-xs text-muted-foreground">No tasks yet. Add one above or click AI Suggest.</p>
+        ) : (
+          <div className="space-y-1">
+            {/* Open tasks */}
+            {openTasks.map((t) => {
+              const isOverdue = t.due_date && new Date(t.due_date) < new Date() && !t.is_completed;
+              return (
+                <div key={t.task_id} className={`flex items-start gap-2.5 rounded-lg border p-2.5 ${isOverdue ? "border-red-200 bg-red-50/30" : ""}`}>
+                  <input
+                    type="checkbox"
+                    checked={false}
+                    onChange={() => toggleMutation.mutate({ taskId: t.task_id, isCompleted: true })}
+                    className="mt-0.5 h-4 w-4 rounded border-gray-300 shrink-0"
+                  />
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm">{t.description}</p>
+                    <div className="flex items-center gap-2 mt-0.5">
+                      {t.due_date && (
+                        <span className={`text-[10px] ${isOverdue ? "text-red-600 font-medium" : "text-muted-foreground"}`}>
+                          Due: {new Date(t.due_date).toLocaleDateString()}
+                        </span>
+                      )}
+                      {t.source === "ai_suggested" && (
+                        <Badge variant="outline" className="text-[9px] px-1 py-0 h-4">AI</Badge>
+                      )}
+                      {t.priority === "high" && (
+                        <Badge variant="destructive" className="text-[9px] px-1 py-0 h-4">High</Badge>
+                      )}
+                    </div>
+                  </div>
+                  <button
+                    className="text-[10px] text-red-400 hover:text-red-600 shrink-0"
+                    onClick={() => deleteMutation.mutate(t.task_id)}
+                  >
+                    ✕
+                  </button>
+                </div>
+              );
+            })}
+
+            {/* Completed tasks */}
+            {completedTasks.length > 0 && (
+              <details className="mt-2">
+                <summary className="text-[10px] text-muted-foreground cursor-pointer hover:text-foreground">
+                  {completedTasks.length} completed task{completedTasks.length !== 1 ? "s" : ""}
+                </summary>
+                <div className="mt-1 space-y-1">
+                  {completedTasks.map((t) => (
+                    <div key={t.task_id} className="flex items-start gap-2.5 rounded-lg border border-dashed p-2.5 opacity-60">
+                      <input
+                        type="checkbox"
+                        checked={true}
+                        onChange={() => toggleMutation.mutate({ taskId: t.task_id, isCompleted: false })}
+                        className="mt-0.5 h-4 w-4 rounded border-gray-300 shrink-0"
+                      />
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm line-through text-muted-foreground">{t.description}</p>
+                        {t.completed_date && (
+                          <span className="text-[10px] text-muted-foreground">Completed: {new Date(t.completed_date).toLocaleDateString()}</span>
+                        )}
+                      </div>
+                      <button
+                        className="text-[10px] text-red-400 hover:text-red-600 shrink-0"
+                        onClick={() => deleteMutation.mutate(t.task_id)}
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </details>
+            )}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+// ── Sparkles icon import check ───────────────────────────────────────────
 
 function TTSButton({ text }: { text: string }) {
   const [playing, setPlaying] = useState(false);

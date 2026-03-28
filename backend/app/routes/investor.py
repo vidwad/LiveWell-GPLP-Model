@@ -2172,3 +2172,207 @@ def text_to_speech(
         )
     except Exception as e:
         raise HTTPException(500, f"TTS failed: {str(e)}")
+
+
+# ===========================================================================
+# Investor Tasks
+# ===========================================================================
+
+from app.db.models import InvestorTask
+
+
+@router.get("/investors/{investor_id}/tasks")
+def list_investor_tasks(
+    investor_id: int,
+    db: Session = Depends(get_db),
+    _: User = Depends(get_current_user),
+):
+    tasks = db.query(InvestorTask).filter(
+        InvestorTask.investor_id == investor_id
+    ).order_by(InvestorTask.is_completed, InvestorTask.due_date.asc().nullslast(), InvestorTask.created_at.desc()).all()
+    return [{
+        "task_id": t.task_id,
+        "description": t.description,
+        "due_date": str(t.due_date) if t.due_date else None,
+        "is_completed": t.is_completed,
+        "completed_date": str(t.completed_date) if t.completed_date else None,
+        "source": t.source,
+        "priority": t.priority,
+        "created_at": str(t.created_at),
+    } for t in tasks]
+
+
+class CreateTaskBody(BaseModel):
+    description: str
+    due_date: Optional[str] = None
+    priority: str = "normal"
+
+
+@router.post("/investors/{investor_id}/tasks", status_code=201)
+def create_investor_task(
+    investor_id: int,
+    body: CreateTaskBody,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    from datetime import date as _date
+    task = InvestorTask(
+        investor_id=investor_id,
+        description=body.description,
+        due_date=_date.fromisoformat(body.due_date) if body.due_date else None,
+        priority=body.priority,
+        source="manual",
+        created_by=current_user.user_id,
+    )
+    db.add(task)
+    db.commit()
+    db.refresh(task)
+    return {"task_id": task.task_id, "description": task.description}
+
+
+@router.patch("/investors/{investor_id}/tasks/{task_id}")
+def update_investor_task(
+    investor_id: int,
+    task_id: int,
+    payload: dict,
+    db: Session = Depends(get_db),
+    _: User = Depends(get_current_user),
+):
+    from datetime import date as _date
+    task = db.query(InvestorTask).filter(
+        InvestorTask.task_id == task_id, InvestorTask.investor_id == investor_id
+    ).first()
+    if not task:
+        raise HTTPException(404, "Task not found")
+    if "is_completed" in payload:
+        task.is_completed = bool(payload["is_completed"])
+        task.completed_date = _date.today() if task.is_completed else None
+    if "description" in payload:
+        task.description = payload["description"]
+    if "due_date" in payload:
+        task.due_date = _date.fromisoformat(payload["due_date"]) if payload["due_date"] else None
+    if "priority" in payload:
+        task.priority = payload["priority"]
+    db.commit()
+    return {"task_id": task.task_id, "is_completed": task.is_completed, "completed_date": str(task.completed_date) if task.completed_date else None}
+
+
+@router.delete("/investors/{investor_id}/tasks/{task_id}")
+def delete_investor_task(
+    investor_id: int,
+    task_id: int,
+    db: Session = Depends(get_db),
+    _: User = Depends(get_current_user),
+):
+    task = db.query(InvestorTask).filter(
+        InvestorTask.task_id == task_id, InvestorTask.investor_id == investor_id
+    ).first()
+    if not task:
+        raise HTTPException(404, "Task not found")
+    db.delete(task)
+    db.commit()
+    return {"status": "deleted"}
+
+
+@router.post("/investors/{investor_id}/tasks/suggest")
+def suggest_tasks(
+    investor_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Use OpenAI to suggest tasks based on recent activity, notes, and investor status."""
+    from app.db.models import CRMActivity, PlatformSetting
+
+    inv = db.query(Investor).filter(Investor.investor_id == investor_id).first()
+    if not inv:
+        raise HTTPException(404, "Investor not found")
+
+    # Gather recent activities
+    activities = db.query(CRMActivity).filter(
+        CRMActivity.investor_id == investor_id
+    ).order_by(CRMActivity.created_at.desc()).limit(10).all()
+
+    activity_text = "\n".join([
+        f"- [{a.activity_type.value if hasattr(a.activity_type, 'value') else a.activity_type}] {a.subject}: {a.body or ''} (Outcome: {a.outcome or 'none'})"
+        for a in activities
+    ]) or "No recent activities."
+
+    # Get existing tasks
+    existing = db.query(InvestorTask).filter(
+        InvestorTask.investor_id == investor_id, InvestorTask.is_completed == False
+    ).all()
+    existing_text = "\n".join([f"- {t.description}" for t in existing]) or "None"
+
+    try:
+        from openai import OpenAI as _OpenAI
+    except ImportError:
+        raise HTTPException(400, "OpenAI package not installed")
+
+    setting = db.query(PlatformSetting).filter(PlatformSetting.key == "OPENAI_API_KEY").first()
+    api_key = setting.value if setting else None
+    if not api_key:
+        import os
+        api_key = os.environ.get("OPENAI_API_KEY")
+    if not api_key:
+        raise HTTPException(400, "OpenAI API key not configured")
+
+    client = _OpenAI(api_key=api_key)
+
+    prompt = (
+        f"Based on the following CRM data for investor {inv.first_name} {inv.last_name}, "
+        f"suggest 3-5 actionable follow-up tasks. Each task should be specific and time-bound.\n\n"
+        f"Investor Status: {inv.investor_status.value if inv.investor_status else 'new_lead'}\n"
+        f"Notes: {(inv.notes or '')[:500]}\n\n"
+        f"Recent Activities:\n{activity_text}\n\n"
+        f"Existing Open Tasks:\n{existing_text}\n\n"
+        f"Return ONLY a JSON array of objects, each with:\n"
+        f'- "description": short actionable task description\n'
+        f'- "due_date": suggested date in YYYY-MM-DD format (within next 30 days)\n'
+        f'- "priority": "low", "normal", or "high"\n\n'
+        f"Do NOT duplicate existing open tasks. Focus on next steps to advance the relationship."
+    )
+
+    try:
+        from app.services.ai import _call_claude_json
+        suggestions = _call_claude_json(prompt, max_tokens=1024)
+        if not isinstance(suggestions, list):
+            suggestions = suggestions.get("tasks", suggestions.get("suggestions", []))
+    except Exception:
+        try:
+            response = client.responses.create(model="gpt-4o", input=prompt)
+            import json
+            text = response.output_text.strip()
+            if text.startswith("["):
+                suggestions = json.loads(text)
+            else:
+                start = text.find("[")
+                end = text.rfind("]") + 1
+                suggestions = json.loads(text[start:end]) if start >= 0 else []
+        except Exception:
+            suggestions = []
+
+    # Save suggestions as tasks
+    from datetime import date as _date
+    created = []
+    for s in suggestions[:5]:
+        desc = s.get("description", "")
+        if not desc:
+            continue
+        due = None
+        try:
+            due = _date.fromisoformat(s.get("due_date", ""))
+        except (ValueError, TypeError):
+            pass
+        task = InvestorTask(
+            investor_id=investor_id,
+            description=desc,
+            due_date=due,
+            priority=s.get("priority", "normal"),
+            source="ai_suggested",
+            created_by=current_user.user_id,
+        )
+        db.add(task)
+        created.append(desc)
+
+    db.commit()
+    return {"suggested": len(created), "tasks": created}

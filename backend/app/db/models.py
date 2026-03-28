@@ -2298,6 +2298,25 @@ class CRMActivity(Base):
     creator = relationship("User")
 
 
+class InvestorTask(Base):
+    """Action items / tasks for an investor contact."""
+    __tablename__ = "investor_tasks"
+
+    task_id = Column(Integer, primary_key=True, index=True)
+    investor_id = Column(Integer, ForeignKey("investors.investor_id"), nullable=False, index=True)
+    description = Column(String(512), nullable=False)
+    due_date = Column(Date, nullable=True)
+    is_completed = Column(Boolean, default=False, nullable=False)
+    completed_date = Column(Date, nullable=True)
+    source = Column(String(32), nullable=False, default="manual")  # manual, ai_suggested
+    priority = Column(String(16), nullable=True, default="normal")  # low, normal, high
+    created_by = Column(Integer, ForeignKey("users.user_id"), nullable=True)
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+
+    investor = relationship("Investor")
+    creator = relationship("User")
+
+
 # ---------------------------------------------------------------------------
 # User Invitations
 # ---------------------------------------------------------------------------
