@@ -23,6 +23,7 @@ class InvestorCreate(BaseModel):
     phone: str | None = None
     mobile: str | None = None
     street_address: str | None = None
+    street_address_2: str | None = None
     city: str | None = None
     province: str | None = None
     postal_code: str | None = None
@@ -41,6 +42,7 @@ class InvestorUpdate(BaseModel):
     phone: str | None = None
     mobile: str | None = None
     street_address: str | None = None
+    street_address_2: str | None = None
     city: str | None = None
     province: str | None = None
     postal_code: str | None = None
@@ -60,6 +62,7 @@ class InvestorOut(BaseModel):
     phone: str | None = None
     mobile: str | None = None
     street_address: str | None = None
+    street_address_2: str | None = None
     city: str | None = None
     province: str | None = None
     postal_code: str | None = None

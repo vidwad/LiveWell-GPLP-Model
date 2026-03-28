@@ -585,7 +585,8 @@ class Investor(Base):
     email = Column(String(256), nullable=True, unique=True, index=True)
     phone = Column(String(64), nullable=True)            # work / office phone
     mobile = Column(String(64), nullable=True)           # personal cell
-    street_address = Column(Text, nullable=True)
+    street_address = Column(Text, nullable=True)         # line 1
+    street_address_2 = Column(String(256), nullable=True)  # line 2 (suite, unit, etc.)
     city = Column(String(128), nullable=True)
     province = Column(String(64), nullable=True)         # province / state
     postal_code = Column(String(20), nullable=True)

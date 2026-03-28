@@ -929,6 +929,7 @@ class QuickAddLeadBody(BaseModel):
     mobile: Optional[str] = None
     # Address: accepts split fields OR legacy address string
     street_address: Optional[str] = None
+    street_address_2: Optional[str] = None
     city: Optional[str] = None
     province: Optional[str] = None
     postal_code: Optional[str] = None
@@ -1006,6 +1007,7 @@ def quick_add_lead(
             phone=body.phone,
             mobile=body.mobile,
             street_address=body.street_address,
+            street_address_2=body.street_address_2,
             city=body.city,
             province=body.province,
             postal_code=body.postal_code,
@@ -1778,7 +1780,7 @@ def edit_investor_crm(
         raise HTTPException(404, "Investor not found")
 
     allowed = {"first_name", "last_name", "name", "email", "phone", "mobile",
-               "street_address", "city", "province", "postal_code", "country",
+               "street_address", "street_address_2", "city", "province", "postal_code", "country",
                "address", "entity_type", "jurisdiction",
                "accredited_status", "exemption_type", "tax_id", "banking_info", "notes",
                "investor_status", "linkedin_url", "risk_tolerance", "re_knowledge",

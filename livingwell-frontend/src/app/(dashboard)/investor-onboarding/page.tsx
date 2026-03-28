@@ -296,6 +296,7 @@ export default function InvestorOnboardingPage() {
     { key: "phone", label: "Phone" },
     { key: "mobile", label: "Mobile / Cell" },
     { key: "street_address", label: "Street Address" },
+    { key: "street_address_2", label: "Address Line 2" },
     { key: "city", label: "City" },
     { key: "province", label: "Province" },
     { key: "postal_code", label: "Postal Code" },
@@ -1246,6 +1247,7 @@ function InvestorDetailDrawer({
     mobile: "",
     entity_type: "",
     street_address: "",
+    street_address_2: "",
     city: "",
     province: "",
     postal_code: "",
@@ -1320,6 +1322,7 @@ function InvestorDetailDrawer({
       mobile: (inv.mobile as string) || "",
       entity_type: (inv.entity_type as string) || "",
       street_address: (inv.street_address as string) || "",
+      street_address_2: (inv.street_address_2 as string) || "",
       city: (inv.city as string) || "",
       province: (inv.province as string) || "",
       postal_code: (inv.postal_code as string) || "",
@@ -1559,6 +1562,15 @@ function InvestorDetailDrawer({
                         onChange={(e) => setEditForm((f: any) => ({ ...f, street_address: e.target.value }))}
                       />
                     </div>
+                    <div className="col-span-2">
+                      <label className="text-xs text-muted-foreground">Address Line 2</label>
+                      <input
+                        className="mt-0.5 w-full rounded border bg-background px-2 py-1.5 text-sm"
+                        placeholder="Suite, unit, floor..."
+                        value={editForm.street_address_2}
+                        onChange={(e) => setEditForm((f: any) => ({ ...f, street_address_2: e.target.value }))}
+                      />
+                    </div>
                     <div>
                       <label className="text-xs text-muted-foreground">City</label>
                       <input
@@ -1743,6 +1755,9 @@ function InvestorDetailDrawer({
                     <div className="col-span-2">
                       <span className="text-xs text-muted-foreground">Street Address</span>
                       <p>{(investor.street_address as string) || "—"}</p>
+                      {(investor.street_address_2 as string) && (
+                        <p className="text-muted-foreground">{investor.street_address_2 as string}</p>
+                      )}
                     </div>
                     <div>
                       <span className="text-xs text-muted-foreground">City</span>
