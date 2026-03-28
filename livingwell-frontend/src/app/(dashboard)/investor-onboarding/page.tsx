@@ -2276,21 +2276,38 @@ function InvestorDetailDrawer({
                       </>
                     )}
                   </div>
-                  <Button
-                    size="sm"
-                    className="w-full"
-                    disabled={
-                      (!activityForm.subject.trim() && !activityForm.body.trim()) || createActivityMutation.isPending
-                    }
-                    onClick={handleSubmitActivity}
-                  >
-                    {createActivityMutation.isPending ? (
-                      <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />
-                    ) : (
-                      <Save className="h-3.5 w-3.5 mr-1" />
+                  <div className="flex gap-2">
+                    {activityForm.activity_type === "email" && (investor.email as string) && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="flex-1"
+                        onClick={() => {
+                          const subject = encodeURIComponent(activityForm.subject || `Message from Living Well Communities`);
+                          const body = encodeURIComponent(activityForm.body || "");
+                          window.open(`mailto:${investor.email}?subject=${subject}&body=${body}`, "_blank");
+                        }}
+                      >
+                        <Mail className="h-3.5 w-3.5 mr-1" />
+                        Send Email
+                      </Button>
                     )}
-                    Save Activity
-                  </Button>
+                    <Button
+                      size="sm"
+                      className="flex-1"
+                      disabled={
+                        (!activityForm.subject.trim() && !activityForm.body.trim()) || createActivityMutation.isPending
+                      }
+                      onClick={handleSubmitActivity}
+                    >
+                      {createActivityMutation.isPending ? (
+                        <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />
+                      ) : (
+                        <Save className="h-3.5 w-3.5 mr-1" />
+                      )}
+                      Save Activity
+                    </Button>
+                  </div>
                 </CardContent>
               </Card>
             )}
