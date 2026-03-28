@@ -37,6 +37,7 @@ import {
   MessageSquare,
   Maximize2,
   Minimize2,
+  MapPin,
 } from "lucide-react";
 
 // ── Types ────────────────────────────────────────────────────────────
@@ -1790,6 +1791,38 @@ function InvestorDetailDrawer({
                       <span className="text-xs text-muted-foreground">Country</span>
                       <p>{(investor.country as string) || "Canada"}</p>
                     </div>
+
+                    {/* Google Map — expandable */}
+                    {((investor.street_address as string) || (investor.city as string)) && (
+                      <div className="col-span-2">
+                        <details className="rounded-lg border">
+                          <summary className="px-3 py-2 text-xs font-medium cursor-pointer hover:bg-muted/50 flex items-center gap-1.5">
+                            <MapPin className="h-3.5 w-3.5 text-muted-foreground" />
+                            View on Map
+                          </summary>
+                          <div className="p-0">
+                            <iframe
+                              width="100%"
+                              height="200"
+                              style={{ border: 0, borderRadius: "0 0 8px 8px" }}
+                              loading="lazy"
+                              referrerPolicy="no-referrer-when-downgrade"
+                              src={`https://www.google.com/maps?q=${encodeURIComponent(
+                                [
+                                  investor.street_address as string,
+                                  investor.street_address_2 as string,
+                                  investor.city as string,
+                                  investor.province as string,
+                                  investor.postal_code as string,
+                                  investor.country as string || "Canada",
+                                ].filter(Boolean).join(", ")
+                              )}&output=embed`}
+                            />
+                          </div>
+                        </details>
+                      </div>
+                    )}
+
                     <div>
                       <span className="text-xs text-muted-foreground">Jurisdiction</span>
                       <p>{(investor.jurisdiction as string) || "—"}</p>
