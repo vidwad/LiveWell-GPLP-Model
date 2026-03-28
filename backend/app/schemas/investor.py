@@ -40,6 +40,7 @@ class InvestorOut(BaseModel):
     name: str
     email: str | None = None
     phone: str | None = None
+    mobile: str | None = None
     address: str | None = None
     entity_type: str | None = None
     accredited_status: str | None = "pending"

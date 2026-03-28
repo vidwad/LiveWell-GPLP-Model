@@ -581,7 +581,8 @@ class Investor(Base):
     user_id = Column(Integer, ForeignKey("users.user_id"), nullable=True, unique=True)
     name = Column(String(256), nullable=False)         # legal name
     email = Column(String(256), nullable=True, unique=True, index=True)  # nullable for early-stage leads
-    phone = Column(String(64), nullable=True)
+    phone = Column(String(64), nullable=True)            # work / office phone
+    mobile = Column(String(64), nullable=True)           # personal cell
     address = Column(Text, nullable=True)               # supports multi-line addresses
     entity_type = Column(String(64), nullable=True)    # individual, trust, corporation, etc.
     jurisdiction = Column(String(128), nullable=True)   # province / state / country

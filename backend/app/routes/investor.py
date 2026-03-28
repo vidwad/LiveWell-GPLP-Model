@@ -1741,7 +1741,7 @@ def edit_investor_crm(
     if not investor:
         raise HTTPException(404, "Investor not found")
 
-    allowed = {"name", "email", "phone", "address", "entity_type", "jurisdiction",
+    allowed = {"name", "email", "phone", "mobile", "address", "entity_type", "jurisdiction",
                "accredited_status", "exemption_type", "tax_id", "banking_info", "notes",
                "investor_status", "linkedin_url", "risk_tolerance", "re_knowledge",
                "other_investments", "income_range", "net_worth_range", "investment_goals",

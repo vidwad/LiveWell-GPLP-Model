@@ -292,6 +292,7 @@ export default function InvestorOnboardingPage() {
     { key: "name", label: "Name *", required: true },
     { key: "email", label: "Email" },
     { key: "phone", label: "Phone" },
+    { key: "mobile", label: "Mobile / Cell" },
     { key: "address", label: "Address" },
     { key: "entity_type", label: "Entity Type" },
     { key: "jurisdiction", label: "Jurisdiction" },
@@ -310,7 +311,7 @@ export default function InvestorOnboardingPage() {
   const handleExport = useCallback(() => {
     const list = investors ?? [];
     if (list.length === 0) return;
-    const headers = ["investor_id", "name", "email", "phone", "address", "entity_type", "jurisdiction", "accredited_status", "exemption_type", "tax_id", "banking_info", "investor_status", "onboarding_status", "notes", "onboarding_started_at", "onboarding_completed_at", "invited_at", "approved_at", "created_at"];
+    const headers = ["investor_id", "name", "email", "phone", "mobile", "address", "entity_type", "jurisdiction", "accredited_status", "exemption_type", "tax_id", "banking_info", "investor_status", "onboarding_status", "notes", "onboarding_started_at", "onboarding_completed_at", "invited_at", "approved_at", "created_at"];
     const rows = list.map((inv: any) =>
       headers.map((h) => {
         const val = inv[h] ?? "";
@@ -421,7 +422,7 @@ export default function InvestorOnboardingPage() {
 
       // Auto-map columns by matching header names
       const autoMapping: Record<string, string> = {};
-      const fieldKeys = ["name", "email", "phone", "address", "entity_type", "jurisdiction", "accredited_status", "exemption_type", "tax_id", "banking_info", "investor_status", "onboarding_status", "source", "notes", "indicated_amount"];
+      const fieldKeys = ["name", "email", "phone", "mobile", "address", "entity_type", "jurisdiction", "accredited_status", "exemption_type", "tax_id", "banking_info", "investor_status", "onboarding_status", "source", "notes", "indicated_amount"];
       headers.forEach((h, idx) => {
         const normalized = h.toLowerCase().replace(/[^a-z0-9]/g, "_");
         for (const fk of fieldKeys) {
@@ -484,7 +485,7 @@ export default function InvestorOnboardingPage() {
 
       const body: Record<string, string | number> = { name };
       if (email) body.email = email;
-      const optionalFields = ["phone", "address", "entity_type", "jurisdiction", "accredited_status", "exemption_type", "tax_id", "banking_info", "investor_status", "onboarding_status", "source", "notes"];
+      const optionalFields = ["phone", "mobile", "address", "entity_type", "jurisdiction", "accredited_status", "exemption_type", "tax_id", "banking_info", "investor_status", "onboarding_status", "source", "notes"];
       for (const field of optionalFields) {
         if (fieldToCol[field] !== undefined && row[fieldToCol[field]]) {
           body[field] = row[fieldToCol[field]];
@@ -1219,6 +1220,7 @@ function InvestorDetailDrawer({
     name: "",
     email: "",
     phone: "",
+    mobile: "",
     entity_type: "",
     address: "",
     jurisdiction: "",
@@ -1287,6 +1289,7 @@ function InvestorDetailDrawer({
       name: inv.name || "",
       email: inv.email || "",
       phone: (inv.phone as string) || "",
+      mobile: (inv.mobile as string) || "",
       entity_type: (inv.entity_type as string) || "",
       address: (inv.address as string) || "",
       jurisdiction: (inv.jurisdiction as string) || "",
@@ -1485,6 +1488,14 @@ function InvestorDetailDrawer({
                       />
                     </div>
                     <div>
+                      <label className="text-xs text-muted-foreground">Mobile / Cell</label>
+                      <input
+                        className="mt-0.5 w-full rounded border bg-background px-2 py-1.5 text-sm"
+                        value={editForm.mobile}
+                        onChange={(e) => setEditForm((f: any) => ({ ...f, mobile: e.target.value }))}
+                      />
+                    </div>
+                    <div>
                       <label className="text-xs text-muted-foreground">Entity Type</label>
                       <select
                         className="mt-0.5 w-full rounded border bg-background px-2 py-1.5 text-sm"
@@ -1644,6 +1655,10 @@ function InvestorDetailDrawer({
                     <div>
                       <span className="text-xs text-muted-foreground">Phone</span>
                       <p>{(investor.phone as string) || "—"}</p>
+                    </div>
+                    <div>
+                      <span className="text-xs text-muted-foreground">Mobile / Cell</span>
+                      <p>{(investor.mobile as string) || "—"}</p>
                     </div>
                     <div>
                       <span className="text-xs text-muted-foreground">Entity Type</span>
