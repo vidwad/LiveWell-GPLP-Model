@@ -1982,74 +1982,6 @@ function InvestorDetailDrawer({
               </CardContent>
             </Card>
 
-            {/* Pipeline Status */}
-            <Card>
-              <CardHeader className="p-4 pb-2">
-                <CardTitle className="text-sm font-semibold">Pipeline Status</CardTitle>
-              </CardHeader>
-              <CardContent className="p-4 pt-0 space-y-3">
-                <div>
-                  <label className="text-xs text-muted-foreground">Current Status</label>
-                  <select
-                    value={currentStage}
-                    className="mt-1 w-full rounded border bg-background px-3 py-2 text-sm"
-                    disabled={isTransitioning}
-                    onChange={(e) => {
-                      const newStatus = e.target.value;
-                      const needsContact = !["new_lead", "warm_lead", "write_off", "archived"].includes(newStatus);
-                      if (needsContact && !investor.email && !investor.phone) {
-                        alert(`Cannot move to "${STAGES.find(s => s.key === newStatus)?.label}" without an email or phone number. Please update the contact details first.`);
-                        return;
-                      }
-                      onTransition(newStatus);
-                    }}
-                  >
-                    {STAGES.map((s) => (
-                      <option key={s.key} value={s.key}>{s.label}</option>
-                    ))}
-                  </select>
-                </div>
-                {action && (
-                  <Button
-                    className="w-full"
-                    disabled={isTransitioning}
-                    onClick={() => onTransition(action.nextStatus)}
-                  >
-                    {isTransitioning ? (
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    ) : (
-                      <action.icon className="mr-2 h-4 w-4" />
-                    )}
-                    {action.label}
-                  </Button>
-                )}
-                {currentStage === "write_off" && (
-                  <Button
-                    variant="outline"
-                    className="w-full text-gray-500"
-                    disabled={isTransitioning}
-                    onClick={() => {
-                      if (confirm("Archive this contact? It will be hidden from the active list but all data will be preserved.")) {
-                        onTransition("archived");
-                      }
-                    }}
-                  >
-                    Archive Contact
-                  </Button>
-                )}
-                {currentStage === "archived" && (
-                  <Button
-                    variant="outline"
-                    className="w-full"
-                    disabled={isTransitioning}
-                    onClick={() => onTransition("write_off")}
-                  >
-                    Restore from Archive
-                  </Button>
-                )}
-              </CardContent>
-            </Card>
-
             {/* Onboarding Progress */}
             <Card>
               <CardContent className="p-4 space-y-2">
@@ -2144,71 +2076,53 @@ function InvestorDetailDrawer({
         ================================================================ */}
         {activeTab === "activity" && (
           <>
-            {/* Schedule Follow-up Card */}
+            {/* Pipeline Status */}
             <Card>
               <CardHeader className="p-4 pb-2">
-                <CardTitle className="text-sm font-semibold flex items-center gap-2">
-                  <Calendar className="h-4 w-4" />
-                  Schedule Follow-up
-                </CardTitle>
+                <CardTitle className="text-sm font-semibold">Pipeline Status</CardTitle>
               </CardHeader>
-              <CardContent className="p-4 pt-0">
-                <div className="grid grid-cols-2 gap-2">
-                  <div>
-                    <label className="text-xs text-muted-foreground">Type</label>
-                    <select className="mt-0.5 w-full rounded border bg-background px-2 py-1.5 text-sm" id={`fu-type-${investor.investor_id}`} defaultValue="call">
-                      <option value="call">Phone Call</option>
-                      <option value="email">Email</option>
-                      <option value="meeting">Meeting</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="text-xs text-muted-foreground">Date</label>
-                    <input type="date" className="mt-0.5 w-full rounded border bg-background px-2 py-1.5 text-sm" id={`fu-date-${investor.investor_id}`} />
-                  </div>
-                  <div>
-                    <label className="text-xs text-muted-foreground">Time</label>
-                    <input type="time" className="mt-0.5 w-full rounded border bg-background px-2 py-1.5 text-sm" id={`fu-time-${investor.investor_id}`} />
-                  </div>
-                  <div>
-                    <label className="text-xs text-muted-foreground">Subject</label>
-                    <input type="text" className="mt-0.5 w-full rounded border bg-background px-2 py-1.5 text-sm" placeholder="Optional" id={`fu-subject-${investor.investor_id}`} />
-                  </div>
-                  <div className="col-span-2">
-                    <label className="text-xs text-muted-foreground">Notes</label>
-                    <input type="text" className="mt-0.5 w-full rounded border bg-background px-2 py-1.5 text-sm" placeholder="Optional notes" id={`fu-notes-${investor.investor_id}`} />
-                  </div>
-                  <div className="col-span-2">
-                    <Button size="sm" className="w-full" onClick={async () => {
-                      const fuType = (document.getElementById(`fu-type-${investor.investor_id}`) as HTMLSelectElement)?.value;
-                      const fuDate = (document.getElementById(`fu-date-${investor.investor_id}`) as HTMLInputElement)?.value;
-                      const fuTime = (document.getElementById(`fu-time-${investor.investor_id}`) as HTMLInputElement)?.value;
-                      const fuSubject = (document.getElementById(`fu-subject-${investor.investor_id}`) as HTMLInputElement)?.value;
-                      const fuNotes = (document.getElementById(`fu-notes-${investor.investor_id}`) as HTMLInputElement)?.value;
-                      if (!fuDate) { alert("Please select a date"); return; }
-                      try {
-                        const resp = await apiClient.post(`/api/investor/investors/${investor.investor_id}/schedule-followup`, {
-                          follow_up_type: fuType, follow_up_date: fuDate, follow_up_time: fuTime, subject: fuSubject, notes: fuNotes,
-                        });
-                        const gcalUrl = resp.data?.google_calendar_url;
-                        if (gcalUrl && confirm(`Follow-up ${fuType} scheduled for ${fuDate}.\n\nAdd to Google Calendar?`)) {
-                          window.open(gcalUrl, "_blank");
-                        }
-                        (document.getElementById(`fu-date-${investor.investor_id}`) as HTMLInputElement).value = "";
-                        (document.getElementById(`fu-time-${investor.investor_id}`) as HTMLInputElement).value = "";
-                        (document.getElementById(`fu-subject-${investor.investor_id}`) as HTMLInputElement).value = "";
-                        (document.getElementById(`fu-notes-${investor.investor_id}`) as HTMLInputElement).value = "";
-                        queryClient.invalidateQueries({ queryKey: ["crm-activities", investor.investor_id] });
-                        queryClient.invalidateQueries({ queryKey: ["crm-followups", investor.investor_id] });
-                      } catch { alert("Failed to schedule follow-up"); }
-                    }}>
-                      <Calendar className="h-3.5 w-3.5 mr-1.5" />
-                      Schedule
-                    </Button>
-                  </div>
+              <CardContent className="p-4 pt-0 space-y-3">
+                <div>
+                  <label className="text-xs text-muted-foreground">Current Status</label>
+                  <select
+                    value={currentStage}
+                    className="mt-1 w-full rounded border bg-background px-3 py-2 text-sm"
+                    disabled={isTransitioning}
+                    onChange={(e) => {
+                      const newStatus = e.target.value;
+                      const needsContact = !["new_lead", "warm_lead", "write_off", "archived"].includes(newStatus);
+                      if (needsContact && !investor.email && !investor.phone) {
+                        alert(`Cannot move to "${STAGES.find(s => s.key === newStatus)?.label}" without an email or phone number.`);
+                        return;
+                      }
+                      onTransition(newStatus);
+                    }}
+                  >
+                    {STAGES.map((s) => (
+                      <option key={s.key} value={s.key}>{s.label}</option>
+                    ))}
+                  </select>
                 </div>
+                {action && (
+                  <Button className="w-full" disabled={isTransitioning} onClick={() => onTransition(action.nextStatus)}>
+                    {isTransitioning ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <action.icon className="mr-2 h-4 w-4" />}
+                    {action.label}
+                  </Button>
+                )}
+                {currentStage === "write_off" && (
+                  <Button variant="outline" className="w-full text-gray-500" disabled={isTransitioning}
+                    onClick={() => { if (confirm("Archive this contact?")) onTransition("archived"); }}>
+                    Archive Contact
+                  </Button>
+                )}
+                {currentStage === "archived" && (
+                  <Button variant="outline" className="w-full" disabled={isTransitioning} onClick={() => onTransition("write_off")}>
+                    Restore from Archive
+                  </Button>
+                )}
               </CardContent>
             </Card>
+
             {/* Log activity toggle */}
             <div>
               <Button
@@ -2379,6 +2293,72 @@ function InvestorDetailDrawer({
                 </CardContent>
               </Card>
             )}
+
+            {/* Schedule Follow-up Card */}
+            <Card>
+              <CardHeader className="p-4 pb-2">
+                <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                  <Calendar className="h-4 w-4" />
+                  Schedule Follow-up
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="p-4 pt-0">
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="text-xs text-muted-foreground">Type</label>
+                    <select className="mt-0.5 w-full rounded border bg-background px-2 py-1.5 text-sm" id={`fu-type-${investor.investor_id}`} defaultValue="call">
+                      <option value="call">Phone Call</option>
+                      <option value="email">Email</option>
+                      <option value="meeting">Meeting</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-xs text-muted-foreground">Date</label>
+                    <input type="date" className="mt-0.5 w-full rounded border bg-background px-2 py-1.5 text-sm" id={`fu-date-${investor.investor_id}`} />
+                  </div>
+                  <div>
+                    <label className="text-xs text-muted-foreground">Time</label>
+                    <input type="time" className="mt-0.5 w-full rounded border bg-background px-2 py-1.5 text-sm" id={`fu-time-${investor.investor_id}`} />
+                  </div>
+                  <div>
+                    <label className="text-xs text-muted-foreground">Subject</label>
+                    <input type="text" className="mt-0.5 w-full rounded border bg-background px-2 py-1.5 text-sm" placeholder="Optional" id={`fu-subject-${investor.investor_id}`} />
+                  </div>
+                  <div className="col-span-2">
+                    <label className="text-xs text-muted-foreground">Notes</label>
+                    <input type="text" className="mt-0.5 w-full rounded border bg-background px-2 py-1.5 text-sm" placeholder="Optional notes" id={`fu-notes-${investor.investor_id}`} />
+                  </div>
+                  <div className="col-span-2">
+                    <Button size="sm" className="w-full" onClick={async () => {
+                      const fuType = (document.getElementById(`fu-type-${investor.investor_id}`) as HTMLSelectElement)?.value;
+                      const fuDate = (document.getElementById(`fu-date-${investor.investor_id}`) as HTMLInputElement)?.value;
+                      const fuTime = (document.getElementById(`fu-time-${investor.investor_id}`) as HTMLInputElement)?.value;
+                      const fuSubject = (document.getElementById(`fu-subject-${investor.investor_id}`) as HTMLInputElement)?.value;
+                      const fuNotes = (document.getElementById(`fu-notes-${investor.investor_id}`) as HTMLInputElement)?.value;
+                      if (!fuDate) { alert("Please select a date"); return; }
+                      try {
+                        const resp = await apiClient.post(`/api/investor/investors/${investor.investor_id}/schedule-followup`, {
+                          follow_up_type: fuType, follow_up_date: fuDate, follow_up_time: fuTime, subject: fuSubject, notes: fuNotes,
+                        });
+                        const gcalUrl = resp.data?.google_calendar_url;
+                        if (gcalUrl && confirm(`Follow-up ${fuType} scheduled for ${fuDate}.\n\nAdd to Google Calendar?`)) {
+                          window.open(gcalUrl, "_blank");
+                        }
+                        (document.getElementById(`fu-date-${investor.investor_id}`) as HTMLInputElement).value = "";
+                        (document.getElementById(`fu-time-${investor.investor_id}`) as HTMLInputElement).value = "";
+                        (document.getElementById(`fu-subject-${investor.investor_id}`) as HTMLInputElement).value = "";
+                        (document.getElementById(`fu-notes-${investor.investor_id}`) as HTMLInputElement).value = "";
+                        queryClient.invalidateQueries({ queryKey: ["crm-activities", investor.investor_id] });
+                        queryClient.invalidateQueries({ queryKey: ["crm-followups", investor.investor_id] });
+                      } catch { alert("Failed to schedule follow-up"); }
+                    }}>
+                      <Calendar className="h-3.5 w-3.5 mr-1.5" />
+                      Schedule
+                    </Button>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
 
             {/* Activity list — paginated (3 at a time) */}
             {activitiesLoading ? (
