@@ -104,7 +104,19 @@ def list_investors(
     # Attach assigned user names to each investor
     result = []
     for inv in investors:
-        d = {c.name: getattr(inv, c.name) for c in inv.__table__.columns}
+        # Return only fields needed for list/detail — exclude large text blobs
+        LIST_FIELDS = {
+            "investor_id", "user_id", "first_name", "last_name", "company_name", "name",
+            "email", "phone", "mobile", "street_address", "street_address_2",
+            "city", "province", "postal_code", "country", "address",
+            "entity_type", "jurisdiction", "accredited_status", "exemption_type",
+            "investor_status", "onboarding_status", "tax_id",
+            "linkedin_url", "risk_tolerance", "re_knowledge", "income_range",
+            "net_worth_range", "other_investments", "investment_goals", "referral_source",
+            "notes", "research_summary", "research_date",
+            "created_at", "updated_at",
+        }
+        d = {c.name: getattr(inv, c.name) for c in inv.__table__.columns if c.name in LIST_FIELDS}
         # Convert enums to string values
         if d.get("investor_status"):
             d["investor_status"] = d["investor_status"].value if hasattr(d["investor_status"], "value") else str(d["investor_status"])
