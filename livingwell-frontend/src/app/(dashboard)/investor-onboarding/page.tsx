@@ -2295,12 +2295,26 @@ function InvestorDetailDrawer({
               </Card>
             )}
 
-            {/* Schedule Follow-up Card */}
+            {/* Activity list — paginated (3 at a time) */}
+            {activitiesLoading ? (
+              <div className="space-y-3">
+                <Skeleton className="h-16 w-full" />
+                <Skeleton className="h-16 w-full" />
+                <Skeleton className="h-16 w-full" />
+              </div>
+            ) : (activities as Array<Record<string, unknown>>).length === 0 ? (
+              <p className="py-8 text-center text-sm text-muted-foreground">
+                No activities logged yet.
+              </p>
+            ) : (
+              <ActivityListPaginated activities={activities as Array<Record<string, unknown>>} />
+            )}
+
+            {/* Schedule Follow-up */}
             <Card>
               <CardHeader className="p-4 pb-2">
                 <CardTitle className="text-sm font-semibold flex items-center gap-2">
-                  <Calendar className="h-4 w-4" />
-                  Schedule Follow-up
+                  <Calendar className="h-4 w-4" /> Schedule Follow-up
                 </CardTitle>
               </CardHeader>
               <CardContent className="p-4 pt-0">
@@ -2353,28 +2367,12 @@ function InvestorDetailDrawer({
                         queryClient.invalidateQueries({ queryKey: ["crm-followups", investor.investor_id] });
                       } catch { alert("Failed to schedule follow-up"); }
                     }}>
-                      <Calendar className="h-3.5 w-3.5 mr-1.5" />
-                      Schedule
+                      <Calendar className="h-3.5 w-3.5 mr-1.5" /> Schedule
                     </Button>
                   </div>
                 </div>
               </CardContent>
             </Card>
-
-            {/* Activity list — paginated (3 at a time) */}
-            {activitiesLoading ? (
-              <div className="space-y-3">
-                <Skeleton className="h-16 w-full" />
-                <Skeleton className="h-16 w-full" />
-                <Skeleton className="h-16 w-full" />
-              </div>
-            ) : (activities as Array<Record<string, unknown>>).length === 0 ? (
-              <p className="py-8 text-center text-sm text-muted-foreground">
-                No activities logged yet.
-              </p>
-            ) : (
-              <ActivityListPaginated activities={activities as Array<Record<string, unknown>>} />
-            )}
 
             {/* Onboarding Checklist */}
             <Card>
