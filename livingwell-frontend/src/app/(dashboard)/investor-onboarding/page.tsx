@@ -163,6 +163,7 @@ export default function InvestorOnboardingPage() {
   const [sortField, setSortField] = useState<string>("first_name");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
   const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [searchQuery, setSearchQuery] = useState("");
   const [showArchived, setShowArchived] = useState(false);
 
   // Fetch all investors
@@ -256,6 +257,19 @@ export default function InvestorOnboardingPage() {
     if (statusFilter !== "all") {
       list = list.filter((inv: any) => (inv.investor_status ?? "new_lead") === statusFilter);
     }
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      list = list.filter((inv: any) =>
+        (inv.first_name || "").toLowerCase().includes(q) ||
+        (inv.last_name || "").toLowerCase().includes(q) ||
+        (inv.name || "").toLowerCase().includes(q) ||
+        (inv.email || "").toLowerCase().includes(q) ||
+        (inv.phone || "").toLowerCase().includes(q) ||
+        (inv.mobile || "").toLowerCase().includes(q) ||
+        (inv.company_name || "").toLowerCase().includes(q) ||
+        (inv.city || "").toLowerCase().includes(q)
+      );
+    }
     return [...list].sort((a, b) => {
       const aVal = String(a[sortField] ?? "").toLowerCase();
       const bVal = String(b[sortField] ?? "").toLowerCase();
@@ -263,7 +277,7 @@ export default function InvestorOnboardingPage() {
       if (aVal > bVal) return sortDir === "asc" ? 1 : -1;
       return 0;
     });
-  }, [investors, sortField, sortDir, statusFilter]);
+  }, [investors, sortField, sortDir, statusFilter, searchQuery]);
 
   const toggleSort = (field: string) => {
     if (sortField === field) {
@@ -762,6 +776,13 @@ export default function InvestorOnboardingPage() {
               <CardContent className="p-0">
                 {/* Filter bar */}
                 <div className="flex items-center gap-3 p-3 border-b">
+                  <input
+                    type="text"
+                    placeholder="Search name, email, phone, company..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="rounded-md border px-2.5 py-1 text-xs w-48 lg:w-64 focus:ring-2 focus:ring-primary/20 focus:border-primary"
+                  />
                   <span className="text-xs font-medium text-muted-foreground">Filter:</span>
                   <select
                     value={statusFilter}
