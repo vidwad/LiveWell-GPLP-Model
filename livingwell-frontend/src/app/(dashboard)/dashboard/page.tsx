@@ -1,5 +1,6 @@
 'use client';
 
+import { motion } from "framer-motion";
 import { Building2, Users, Wrench, TrendingUp, DollarSign, Activity, PieChart as PieChartIcon, FileText, Home } from "lucide-react";
 import {
   BarChart, Bar, PieChart, Pie, Cell,
@@ -113,19 +114,33 @@ export default function DashboardPage() {
   const portfolioEM = returnsData?.portfolio_equity_multiple;
 
   return (
-    <div>
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold">
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      transition={{ duration: 0.3 }}
+    >
+      <motion.div
+        initial={{ opacity: 0, y: 8 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.3 }}
+        className="mb-6"
+      >
+        <h1 className="text-2xl font-bold tracking-tight">
           {isGPAdmin ? "GP Dashboard" : `Welcome back${user?.full_name ? `, ${user.full_name}` : ""}`}
         </h1>
-        <p className="text-muted-foreground">
+        <p className="text-sm text-muted-foreground">
           {isGPAdmin ? "Platform-wide portfolio performance and metrics." : "Here's an overview of your portfolio."}
         </p>
-      </div>
+      </motion.div>
 
       {/* GP Admin Fund Performance KPIs */}
       {isGPAdmin && report && (
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4 mb-6">
+        <motion.div
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.4, delay: 0.1 }}
+          className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4 mb-6"
+        >
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Total Portfolio Value</CardTitle>
@@ -166,12 +181,17 @@ export default function DashboardPage() {
               <p className="text-xs text-muted-foreground">LP Entities under management</p>
             </CardContent>
           </Card>
-        </div>
+        </motion.div>
       )}
 
       {/* GP Admin Returns KPIs (XIRR + Equity Multiple) */}
       {isGPAdmin && returnsData && (
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4 mb-6">
+        <motion.div
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.4, delay: 0.2 }}
+          className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4 mb-6"
+        >
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Portfolio XIRR</CardTitle>
@@ -215,12 +235,17 @@ export default function DashboardPage() {
               </CardContent>
             </Card>
           ))}
-        </div>
+        </motion.div>
       )}
 
       {/* GP Admin Capital Stack Chart + Fund Performance */}
       {isGPAdmin && report && (
-        <div className="grid gap-4 lg:grid-cols-7 mb-6">
+        <motion.div
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.4, delay: 0.3 }}
+          className="grid gap-4 lg:grid-cols-7 mb-6"
+        >
           <Card className="lg:col-span-4">
             <CardHeader>
               <CardTitle>Capital Stack by Fund</CardTitle>
@@ -267,11 +292,16 @@ export default function DashboardPage() {
               </div>
             </CardContent>
           </Card>
-        </div>
+        </motion.div>
       )}
 
       {/* Operational KPI row (existing) */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <motion.div
+        initial={{ opacity: 0, y: 12 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.4, delay: 0.15 }}
+        className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4"
+      >
         {showPortfolioCharts && (
           <>
             <KpiCard
@@ -356,11 +386,16 @@ export default function DashboardPage() {
             description="Your open requests"
           />
         )}
-      </div>
+      </motion.div>
 
       {/* Operational Charts row */}
       {showPortfolioCharts && (
-        <div className="mt-6 grid grid-cols-1 gap-4 lg:grid-cols-3">
+        <motion.div
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.4, delay: 0.35 }}
+          className="mt-6 grid grid-cols-1 gap-4 lg:grid-cols-3"
+        >
           {/* Portfolio stage bar chart */}
           {stageData.length > 0 && (
             <Card>
@@ -446,7 +481,7 @@ export default function DashboardPage() {
               </CardContent>
             </Card>
           )}
-        </div>
+        </motion.div>
       )}
 
       {/* Recent maintenance */}
@@ -638,6 +673,6 @@ export default function DashboardPage() {
           )}
         </div>
       )}
-    </div>
+    </motion.div>
   );
 }

@@ -24,17 +24,17 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
       <Sidebar />
       <div className="flex-1 flex flex-col overflow-hidden">
         {/* Top header bar — desktop only */}
-        <header className="hidden md:flex items-center justify-end gap-3 px-6 py-4 md:py-5 border-b border-border bg-card shrink-0">
+        <header className="hidden md:flex items-center justify-end gap-3 px-6 py-3.5 border-b border-border bg-card/80 backdrop-blur-sm shrink-0">
           <NotificationBell />
           <Link href="/profile" className="flex items-center gap-2.5 hover:opacity-80 transition-opacity">
             {photoUrl ? (
               <img
                 src={photoUrl.startsWith("http") ? photoUrl : `${apiClient.defaults.baseURL}${photoUrl}`}
                 alt=""
-                className="h-8 w-8 rounded-full object-cover border border-border"
+                className="h-8 w-8 rounded-full object-cover ring-2 ring-primary/10"
               />
             ) : (
-              <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center text-primary text-xs font-bold">
+              <div className="h-8 w-8 rounded-full bg-gradient-to-br from-emerald-400 to-emerald-600 flex items-center justify-center text-white text-xs font-bold shadow-sm">
                 {(user?.full_name || user?.email || "?").charAt(0).toUpperCase()}
               </div>
             )}

@@ -4,7 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
-  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip,
+  AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, Legend,
 } from "recharts";
 
@@ -47,6 +47,26 @@ const fmt = (value: number, format: string) => {
   return value.toFixed(0);
 };
 
+/* eslint-disable @typescript-eslint/no-explicit-any */
+function CustomTooltip({ active, payload, label }: any) {
+  if (!active || !payload?.length) return null;
+  return (
+    <div className="rounded-lg border border-border/50 bg-card/95 backdrop-blur-sm px-3 py-2.5 shadow-lg">
+      <p className="text-xs font-medium text-muted-foreground mb-1.5">{label}</p>
+      {payload.map((entry: any, i: number) => {
+        const config = METRIC_CONFIG[entry.dataKey];
+        return (
+          <div key={i} className="flex items-center gap-2 text-sm">
+            <div className="h-2 w-2 rounded-full" style={{ backgroundColor: entry.color }} />
+            <span className="text-muted-foreground">{config?.label || entry.dataKey}:</span>
+            <span className="font-semibold">{config ? fmt(entry.value, config.format) : entry.value}</span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 export function TrendChart({
   entityType,
   entityId,
@@ -68,7 +88,6 @@ export function TrendChart({
   const chartData = data?.data || [];
   const activeMetrics = metrics || (entityType === "community" ? DEFAULT_COMMUNITY_METRICS : DEFAULT_LP_METRICS);
 
-  // Filter to only metrics present in the data
   const availableMetrics = activeMetrics.filter(m =>
     chartData.some((d: Record<string, unknown>) => d[m] !== undefined && d[m] !== null)
   );
@@ -78,8 +97,11 @@ export function TrendChart({
       <Card>
         <CardHeader><CardTitle>{title || "Trend"}</CardTitle></CardHeader>
         <CardContent>
-          <div className="flex items-center justify-center h-[200px] text-muted-foreground text-sm">
-            Loading trend data...
+          <div className="flex items-center justify-center h-[200px]">
+            <div className="flex flex-col items-center gap-2">
+              <div className="h-8 w-8 rounded-full border-2 border-primary border-t-transparent animate-spin" />
+              <span className="text-sm text-muted-foreground">Loading trend data...</span>
+            </div>
           </div>
         </CardContent>
       </Card>
@@ -106,41 +128,52 @@ export function TrendChart({
       </CardHeader>
       <CardContent>
         <ResponsiveContainer width="100%" height={height}>
-          <LineChart data={chartData} margin={{ top: 5, right: 10, left: -10, bottom: 5 }}>
-            <CartesianGrid strokeDasharray="3 3" vertical={false} />
-            <XAxis dataKey="period" tick={{ fontSize: 11 }} />
+          <AreaChart data={chartData} margin={{ top: 5, right: 10, left: -10, bottom: 5 }}>
+            <defs>
+              {availableMetrics.map(metric => (
+                <linearGradient key={metric} id={`grad-${metric}`} x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor={METRIC_CONFIG[metric]?.color || "#6b7280"} stopOpacity={0.15} />
+                  <stop offset="95%" stopColor={METRIC_CONFIG[metric]?.color || "#6b7280"} stopOpacity={0} />
+                </linearGradient>
+              ))}
+            </defs>
+            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border)" strokeOpacity={0.5} />
+            <XAxis
+              dataKey="period"
+              tick={{ fontSize: 11, fill: "var(--muted-foreground)" }}
+              axisLine={{ stroke: "var(--border)" }}
+              tickLine={false}
+            />
             <YAxis
-              tick={{ fontSize: 11 }}
+              tick={{ fontSize: 11, fill: "var(--muted-foreground)" }}
+              axisLine={false}
+              tickLine={false}
               tickFormatter={(v) => {
                 const firstMetric = availableMetrics[0];
                 const config = METRIC_CONFIG[firstMetric];
                 return config ? fmt(v, config.format) : String(v);
               }}
             />
-            <Tooltip
-              formatter={((value: any, name: any) => {
-                const config = METRIC_CONFIG[name as string];
-                return [config ? fmt(value as number, config.format) : value, config?.label || name];
-              }) as any}
-              labelFormatter={(label) => `Period: ${label}`}
-            />
+            <Tooltip content={<CustomTooltip />} />
             <Legend
               formatter={(value: string) => METRIC_CONFIG[value]?.label || value}
-              iconSize={10}
-              wrapperStyle={{ fontSize: 11 }}
+              iconSize={8}
+              iconType="circle"
+              wrapperStyle={{ fontSize: 12, paddingTop: 8 }}
             />
             {availableMetrics.map(metric => (
-              <Line
+              <Area
                 key={metric}
                 type="monotone"
                 dataKey={metric}
                 stroke={METRIC_CONFIG[metric]?.color || "#6b7280"}
                 strokeWidth={2}
-                dot={{ r: 3 }}
-                activeDot={{ r: 5 }}
+                fill={`url(#grad-${metric})`}
+                dot={false}
+                activeDot={{ r: 4, strokeWidth: 2, fill: "var(--card)" }}
               />
             ))}
-          </LineChart>
+          </AreaChart>
         </ResponsiveContainer>
       </CardContent>
     </Card>

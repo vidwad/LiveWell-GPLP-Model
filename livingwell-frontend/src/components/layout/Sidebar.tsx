@@ -42,13 +42,11 @@ import { NotificationBell } from "@/components/notifications/NotificationBell";
 type PlatformRole = "GP_ADMIN" | "OPERATIONS_MANAGER" | "PROPERTY_MANAGER" | "INVESTOR";
 
 const GP = "GP_ADMIN" as UserRole;
-const OP = "OPERATIONS_MANAGER" as UserRole;  // Operator role
+const OP = "OPERATIONS_MANAGER" as UserRole;
 const PM = "PROPERTY_MANAGER" as UserRole;
 const INV = "INVESTOR" as UserRole;
 
 const ALL_PLATFORM: UserRole[] = [GP, OP, PM, INV];
-
-// ── Grouped Navigation ──────────────────────────────────────────
 
 interface NavItem {
   href: string;
@@ -64,7 +62,6 @@ interface NavSection {
 }
 
 const NAV_SECTIONS: NavSection[] = [
-  // ── Everyone gets Dashboard ──
   {
     section: "",
     roles: ALL_PLATFORM,
@@ -72,8 +69,6 @@ const NAV_SECTIONS: NavSection[] = [
       { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard, roles: ALL_PLATFORM },
     ],
   },
-
-  // ── GP Admin: Investment Management ──
   {
     section: "Investment",
     roles: [GP, INV],
@@ -83,8 +78,6 @@ const NAV_SECTIONS: NavSection[] = [
       { href: "/investor-onboarding", label: "CRM & Onboarding", icon: UserPlus, roles: [GP] },
     ],
   },
-
-  // ── GP Admin + PM: Portfolio ──
   {
     section: "Portfolio",
     roles: [GP, PM],
@@ -97,8 +90,6 @@ const NAV_SECTIONS: NavSection[] = [
       { href: "/trends", label: "Trends", icon: TrendingUp, roles: [GP] },
     ],
   },
-
-  // ── GP + Operator + PM: Community Operations ──
   {
     section: "Operations",
     roles: [GP, OP, PM],
@@ -114,8 +105,6 @@ const NAV_SECTIONS: NavSection[] = [
       { href: "/funding", label: "Grants & Funding", icon: HandCoins, roles: [GP, OP] },
     ],
   },
-
-  // ── Reporting ──
   {
     section: "Reporting",
     roles: [GP, INV],
@@ -127,8 +116,6 @@ const NAV_SECTIONS: NavSection[] = [
       { href: "/tax-documents", label: "K-1 Tax Docs", icon: FileText, roles: [GP] },
     ],
   },
-
-  // ── GP Admin: Administration ──
   {
     section: "Administration",
     roles: [GP, PM],
@@ -150,7 +137,6 @@ export function Sidebar() {
   const { user, logout } = useAuth();
   const [mobileOpen, setMobileOpen] = useState(false);
 
-  // Role display labels
   const roleLabels: Record<string, string> = {
     GP_ADMIN: "GP Admin",
     OPERATIONS_MANAGER: "Operator",
@@ -162,17 +148,19 @@ export function Sidebar() {
   const sidebarContent = (
     <>
       {/* Logo */}
-      <div className="flex items-center justify-between px-4 md:px-6 py-4 md:py-5 border-b border-border">
-        <div className="flex items-center gap-2">
-          <Heart className="h-6 w-6 text-primary fill-primary" />
+      <div className="flex items-center justify-between px-5 py-5 border-b border-sidebar-border">
+        <div className="flex items-center gap-2.5">
+          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-gradient-to-br from-emerald-400 to-emerald-600 shadow-sm">
+            <Heart className="h-5 w-5 text-white fill-white" />
+          </div>
           <div>
-            <p className="text-sm font-bold leading-tight">Living Well</p>
-            <p className="text-xs text-muted-foreground leading-tight">Communities</p>
+            <p className="text-sm font-bold leading-tight text-white">Living Well</p>
+            <p className="text-[11px] text-sidebar-muted leading-tight">Communities</p>
           </div>
         </div>
         <button
           onClick={() => setMobileOpen(false)}
-          className="md:hidden p-1 rounded-md hover:bg-muted"
+          className="md:hidden p-1 rounded-md hover:bg-white/10 text-sidebar-foreground"
           aria-label="Close menu"
         >
           <X className="h-5 w-5" />
@@ -180,7 +168,7 @@ export function Sidebar() {
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 overflow-y-auto p-3 space-y-1">
+      <nav className="flex-1 overflow-y-auto px-3 py-3 space-y-0.5">
         {NAV_SECTIONS.map((section, si) => {
           const visibleItems = section.items.filter(
             (item) => user && item.roles.includes(user.role)
@@ -192,7 +180,7 @@ export function Sidebar() {
           return (
             <div key={si}>
               {showHeader && (
-                <p className="px-3 pt-4 pb-1 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/60">
+                <p className="px-3 pt-5 pb-1.5 text-[10px] font-semibold uppercase tracking-[0.15em] text-sidebar-muted">
                   {section.section}
                 </p>
               )}
@@ -206,13 +194,17 @@ export function Sidebar() {
                     href={item.href}
                     onClick={() => setMobileOpen(false)}
                     className={cn(
-                      "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors",
+                      "relative flex items-center gap-3 rounded-lg px-3 py-2 text-[13px] font-medium transition-all duration-200",
                       isActive
-                        ? "bg-primary text-primary-foreground"
-                        : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                        ? "bg-sidebar-accent/15 text-white"
+                        : "text-sidebar-foreground/70 hover:bg-white/5 hover:text-sidebar-foreground"
                     )}
                   >
-                    <Icon className="h-4 w-4 shrink-0" />
+                    {/* Active indicator bar */}
+                    {isActive && (
+                      <div className="absolute left-0 top-1/2 -translate-y-1/2 h-5 w-[3px] rounded-r-full bg-sidebar-accent" />
+                    )}
+                    <Icon className={cn("h-4 w-4 shrink-0", isActive && "text-sidebar-accent")} />
                     {item.label}
                   </Link>
                 );
@@ -224,19 +216,18 @@ export function Sidebar() {
 
       {/* User footer */}
       {user && (
-        <div className="border-t border-border p-4">
-          <div className="mb-2 flex items-center gap-2.5">
-            {/* Profile photo — visible on mobile, hidden on desktop (shown in header instead) */}
-            <Link href="/profile" className="shrink-0 md:hidden">
-              <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center text-primary text-xs font-bold overflow-hidden">
+        <div className="border-t border-sidebar-border p-4">
+          <div className="mb-2.5 flex items-center gap-2.5">
+            <Link href="/profile" className="shrink-0">
+              <div className="h-8 w-8 rounded-full bg-gradient-to-br from-emerald-400 to-emerald-600 flex items-center justify-center text-white text-xs font-bold shadow-sm">
                 {(user.full_name || user.email || "?").charAt(0).toUpperCase()}
               </div>
             </Link>
             <div className="min-w-0">
-              <Link href="/profile" className="text-sm font-medium truncate hover:underline block">
+              <Link href="/profile" className="text-sm font-medium text-white truncate hover:text-emerald-300 transition-colors block">
                 {user.full_name ?? user.email}
               </Link>
-              <p className="text-xs text-muted-foreground truncate">
+              <p className="text-[11px] text-sidebar-muted truncate">
                 {roleLabels[user.role] || user.role.replace(/_/g, " ")}
               </p>
             </div>
@@ -244,7 +235,7 @@ export function Sidebar() {
           <div className="flex items-center justify-between">
             <button
               onClick={logout}
-              className="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+              className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-sm text-sidebar-foreground/60 hover:bg-white/5 hover:text-sidebar-foreground transition-all duration-200"
             >
               <LogOut className="h-4 w-4" />
               Sign out
@@ -261,7 +252,7 @@ export function Sidebar() {
       {/* Mobile hamburger */}
       <button
         onClick={() => setMobileOpen(true)}
-        className="fixed top-3 left-3 z-50 md:hidden p-2 rounded-md bg-card border border-border shadow-sm"
+        className="fixed top-3 left-3 z-50 md:hidden p-2 rounded-lg bg-card border border-border shadow-md"
         aria-label="Open menu"
       >
         <Menu className="h-5 w-5" />
@@ -270,7 +261,7 @@ export function Sidebar() {
       {/* Mobile overlay */}
       {mobileOpen && (
         <div
-          className="fixed inset-0 z-40 bg-black/50 md:hidden"
+          className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm md:hidden"
           onClick={() => setMobileOpen(false)}
         />
       )}
@@ -278,7 +269,7 @@ export function Sidebar() {
       {/* Mobile slide-out */}
       <aside
         className={cn(
-          "fixed inset-y-0 left-0 z-50 flex w-64 flex-col bg-card border-r border-border transition-transform duration-200 ease-in-out md:hidden",
+          "fixed inset-y-0 left-0 z-50 flex w-64 flex-col bg-sidebar-bg transition-transform duration-300 ease-in-out md:hidden",
           mobileOpen ? "translate-x-0" : "-translate-x-full"
         )}
       >
@@ -286,7 +277,7 @@ export function Sidebar() {
       </aside>
 
       {/* Desktop sidebar */}
-      <aside className="hidden md:flex h-screen w-60 flex-col border-r border-border bg-card shrink-0">
+      <aside className="hidden md:flex h-screen w-60 flex-col bg-sidebar-bg shrink-0">
         {sidebarContent}
       </aside>
     </>
