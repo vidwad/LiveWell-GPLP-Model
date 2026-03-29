@@ -2887,41 +2887,41 @@ function CRMStatsBar() {
     <div className="fixed bottom-0 left-0 right-0 z-30 md:left-60">
       {/* Collapsed bar */}
       <div
-        className={`flex items-center justify-between px-4 py-2 bg-card border-t border-border cursor-pointer hover:bg-muted/30 transition-colors ${expanded ? "border-b" : ""}`}
+        className={`flex items-center justify-between px-5 py-3.5 bg-card border-t-2 border-border shadow-[0_-2px_8px_rgba(0,0,0,0.06)] cursor-pointer hover:bg-muted/40 transition-colors ${expanded ? "border-b" : ""}`}
         onClick={() => setExpanded(e => !e)}
       >
-        <div className="flex items-center gap-4 text-xs">
-          <span className="font-semibold text-muted-foreground uppercase tracking-wider text-[10px]">Activity</span>
-          <div className="flex items-center gap-3">
-            <span className="flex items-center gap-1">
-              <Phone className="h-3 w-3 text-blue-500" />
-              <span className="font-medium">{stats.today?.calls || 0}</span>
-              <span className="text-muted-foreground">calls</span>
+        <div className="flex items-center gap-5 text-sm">
+          <span className="font-bold text-foreground uppercase tracking-wider text-xs">Today</span>
+          <div className="flex items-center gap-4">
+            <span className="flex items-center gap-1.5">
+              <Phone className="h-4 w-4 text-blue-500" />
+              <span className="font-bold text-base">{stats.today?.calls || 0}</span>
+              <span className="text-muted-foreground text-xs">calls</span>
             </span>
-            <span className="flex items-center gap-1">
-              <Mail className="h-3 w-3 text-green-500" />
-              <span className="font-medium">{stats.today?.emails || 0}</span>
-              <span className="text-muted-foreground">emails</span>
+            <span className="flex items-center gap-1.5">
+              <Mail className="h-4 w-4 text-green-500" />
+              <span className="font-bold text-base">{stats.today?.emails || 0}</span>
+              <span className="text-muted-foreground text-xs">emails</span>
             </span>
-            <span className="flex items-center gap-1">
-              <Users className="h-3 w-3 text-purple-500" />
-              <span className="font-medium">{stats.today?.meetings || 0}</span>
-              <span className="text-muted-foreground">meetings</span>
+            <span className="flex items-center gap-1.5">
+              <Users className="h-4 w-4 text-purple-500" />
+              <span className="font-bold text-base">{stats.today?.meetings || 0}</span>
+              <span className="text-muted-foreground text-xs">meetings</span>
             </span>
-            <span className="text-muted-foreground">today</span>
           </div>
+          <span className="h-5 w-px bg-border" />
           {overdue > 0 && (
-            <span className="flex items-center gap-1 text-red-600 font-medium">
-              <Clock className="h-3 w-3" />
+            <span className="flex items-center gap-1.5 text-red-600 font-semibold">
+              <Clock className="h-4 w-4" />
               {overdue} overdue
             </span>
           )}
-          <span className="flex items-center gap-1 text-muted-foreground">
-            <CheckCircle2 className="h-3 w-3" />
-            {stats.open_tasks || 0} open tasks
+          <span className="flex items-center gap-1.5 text-muted-foreground">
+            <CheckCircle2 className="h-4 w-4" />
+            <span className="font-semibold text-foreground">{stats.open_tasks || 0}</span> open tasks
           </span>
         </div>
-        <span className="text-[10px] text-muted-foreground">{expanded ? "▼ Hide" : "▲ Details"}</span>
+        <span className="text-xs text-muted-foreground font-medium">{expanded ? "▼ Hide" : "▲ Details"}</span>
       </div>
 
       {/* Expanded panel */}
