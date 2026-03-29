@@ -197,7 +197,7 @@ export function Sidebar() {
                       "relative flex items-center gap-3 rounded-lg px-3 py-2 text-[13px] font-medium transition-all duration-200",
                       isActive
                         ? "bg-sidebar-accent/15 text-white"
-                        : "text-sidebar-foreground/70 hover:bg-white/5 hover:text-sidebar-foreground"
+                        : "text-sidebar-foreground hover:bg-white/10 hover:text-white"
                     )}
                   >
                     {/* Active indicator bar */}

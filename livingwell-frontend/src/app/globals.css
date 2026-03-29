@@ -58,9 +58,9 @@
 
     /* ── Sidebar ── */
     --sidebar-bg: oklch(0.17 0.02 260);
-    --sidebar-foreground: oklch(0.88 0.01 260);
-    --sidebar-muted: oklch(0.35 0.02 260);
-    --sidebar-accent: oklch(0.45 0.14 155);
+    --sidebar-foreground: oklch(0.92 0.01 260);
+    --sidebar-muted: oklch(0.55 0.02 260);
+    --sidebar-accent: oklch(0.50 0.14 155);
     --sidebar-border: oklch(0.25 0.02 260);
 
     /* ── Chart palette ── */
@@ -101,8 +101,8 @@
     --ring: oklch(0.55 0.12 155);
 
     --sidebar-bg: oklch(0.11 0.015 260);
-    --sidebar-foreground: oklch(0.88 0.01 260);
-    --sidebar-muted: oklch(0.35 0.02 260);
+    --sidebar-foreground: oklch(0.92 0.01 260);
+    --sidebar-muted: oklch(0.55 0.02 260);
     --sidebar-accent: oklch(0.55 0.14 155);
     --sidebar-border: oklch(0.20 0.015 260);
   }
