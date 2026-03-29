@@ -92,6 +92,7 @@ class InvestorOut(BaseModel):
     research_summary: str | None = None
     research_details: str | None = None
     research_date: Optional[datetime.datetime] = None
+    tts_audio_path: str | None = None
     onboarding_started_at: Optional[datetime.datetime] = None
     onboarding_completed_at: Optional[datetime.datetime] = None
     invited_at: Optional[datetime.datetime] = None

@@ -1263,6 +1263,28 @@ def linkedin_fetch_info(
         inv.research_summary = summary
         inv.research_details = info
         inv.research_date = datetime.datetime.utcnow()
+
+        # Pre-generate TTS audio for instant playback later
+        tts_audio_url = None
+        try:
+            tts_resp = client.audio.speech.create(
+                model="tts-1",
+                voice="nova",
+                input=summary[:4096],
+            )
+            import os
+            uploads_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "uploads", "tts")
+            os.makedirs(uploads_dir, exist_ok=True)
+            filename = f"investor_{investor_id}_research.mp3"
+            filepath = os.path.join(uploads_dir, filename)
+            with open(filepath, "wb") as f:
+                for chunk in tts_resp.iter_bytes():
+                    f.write(chunk)
+            inv.tts_audio_path = f"/uploads/tts/{filename}"
+            tts_audio_url = inv.tts_audio_path
+        except Exception:
+            pass  # TTS cache is best-effort, don't fail the research
+
         db.commit()
 
         return {
@@ -1270,6 +1292,7 @@ def linkedin_fetch_info(
             "summary": summary,
             "research_details": info,
             "notes_updated": True,
+            "tts_audio_url": tts_audio_url,
         }
     except Exception as e:
         raise HTTPException(500, f"OpenAI fetch failed: {str(e)}")

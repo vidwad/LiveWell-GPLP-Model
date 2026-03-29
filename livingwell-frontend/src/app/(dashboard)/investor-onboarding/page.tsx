@@ -1259,7 +1259,7 @@ function InvestorDetailDrawer({
   const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState<DrawerTab>("profile");
   const [researchLoading, setResearchLoading] = useState<number | null>(null);
-  const [researchResult, setResearchResult] = useState<{ summary: string; details: string } | null>(null);
+  const [researchResult, setResearchResult] = useState<{ summary: string; details: string; ttsAudioUrl?: string | null } | null>(null);
 
   // Load saved research from investor record
   useEffect(() => {
@@ -1269,6 +1269,7 @@ function InvestorDetailDrawer({
         setResearchResult({
           summary: (inv.research_summary as string) || "",
           details: (inv.research_details as string) || "",
+          ttsAudioUrl: (inv.tts_audio_path as string) || null,
         });
       } else {
         setResearchResult(null);
@@ -1904,7 +1905,7 @@ function InvestorDetailDrawer({
                               setResearchResult(null);
                               try {
                                 const r = await apiClient.post(`/api/investor/investors/${investor.investor_id}/linkedin-fetch`);
-                                setResearchResult({ summary: r.data.summary, details: r.data.research_details });
+                                setResearchResult({ summary: r.data.summary, details: r.data.research_details, ttsAudioUrl: r.data.tts_audio_url || null });
                                 queryClient.invalidateQueries({ queryKey: ["onboarding-investors"] });
                                 queryClient.invalidateQueries({ queryKey: ["onboarding-detail", investor.investor_id] });
                               } catch (e: any) { alert(e?.response?.data?.detail || "Research failed"); }
@@ -1952,7 +1953,7 @@ function InvestorDetailDrawer({
                               <CheckCircle2 className="h-3.5 w-3.5 text-green-600" />
                               <span className="text-xs font-semibold text-green-700">Research Summary</span>
                             </div>
-                            <TTSButton text={researchResult.summary} />
+                            <TTSButton text={researchResult.summary} cachedAudioUrl={researchResult.ttsAudioUrl} />
                           </div>
                           <p className="text-xs leading-relaxed">{researchResult.summary}</p>
                         </div>
@@ -3234,7 +3235,7 @@ function InvestorTasksSection({ investorId }: { investorId: number }) {
 
 // ── Sparkles icon import check ───────────────────────────────────────────
 
-function TTSButton({ text }: { text: string }) {
+function TTSButton({ text, cachedAudioUrl }: { text: string; cachedAudioUrl?: string | null }) {
   const [playing, setPlaying] = useState(false);
   const [loading, setLoading] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -3254,11 +3255,27 @@ function TTSButton({ text }: { text: string }) {
       return;
     }
 
+    const baseUrl = apiClient.defaults.baseURL || "";
+
+    // If we have a cached audio file, play it instantly (no API call needed)
+    if (cachedAudioUrl) {
+      try {
+        const audio = new Audio(`${baseUrl}${cachedAudioUrl}`);
+        audioRef.current = audio;
+        audio.onended = () => { setPlaying(false); audioRef.current = null; };
+        audio.onerror = () => { audioRef.current = null; setPlaying(false); };
+        await audio.play();
+        setPlaying(true);
+        return;
+      } catch {
+        // Fall through to live TTS if cached file fails
+      }
+    }
+
     setLoading(true);
     try {
       // Use fetch for true streaming — audio starts as soon as first bytes arrive
       const token = typeof window !== "undefined" ? localStorage.getItem("lwc_access_token") : null;
-      const baseUrl = apiClient.defaults.baseURL || "";
       const resp = await fetch(`${baseUrl}/api/investor/tts`, {
         method: "POST",
         headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },

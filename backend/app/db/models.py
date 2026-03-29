@@ -613,6 +613,7 @@ class Investor(Base):
     research_summary = Column(Text, nullable=True)
     research_details = Column(Text, nullable=True)
     research_date = Column(DateTime, nullable=True)
+    tts_audio_path = Column(String(512), nullable=True)  # Cached TTS audio file path
 
     # KYC / Relationship fields
     linkedin_url = Column(String(512), nullable=True)
