@@ -776,13 +776,23 @@ export default function InvestorOnboardingPage() {
               <CardContent className="p-0">
                 {/* Filter bar */}
                 <div className="flex items-center gap-3 p-3 border-b">
-                  <input
-                    type="text"
-                    placeholder="Search name, email, phone, company..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    className="rounded-md border px-2.5 py-1 text-xs w-48 lg:w-64 focus:ring-2 focus:ring-primary/20 focus:border-primary"
-                  />
+                  <div className="relative">
+                    <input
+                      type="text"
+                      placeholder="Search name, email, phone, company..."
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      className="rounded-md border px-2.5 py-1 pr-7 text-xs w-48 lg:w-64 focus:ring-2 focus:ring-primary/20 focus:border-primary"
+                    />
+                    {searchQuery && (
+                      <button
+                        onClick={() => setSearchQuery("")}
+                        className="absolute right-1.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                      >
+                        <XCircle className="h-3.5 w-3.5" />
+                      </button>
+                    )}
+                  </div>
                   <span className="text-xs font-medium text-muted-foreground">Filter:</span>
                   <select
                     value={statusFilter}
