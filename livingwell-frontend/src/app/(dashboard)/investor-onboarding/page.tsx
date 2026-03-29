@@ -970,6 +970,9 @@ export default function InvestorOnboardingPage() {
         )}
       </div>
 
+      {/* ── Sticky Activity Stats Bar ── */}
+      <CRMStatsBar />
+
       {/* ── CSV Column Mapping Modal ── */}
       {showMappingModal && (
         <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 p-4">
@@ -2864,6 +2867,126 @@ function InlineCallRecorder({ investorId, onTranscript }: { investorId: number; 
 // ── TTS Button (OpenAI natural voice with browser fallback) ──────────────
 
 // ── Investor Tasks Section ────────────────────────────────────────────────
+
+// ── CRM Stats Bar (sticky bottom) ────────────────────────────────────────
+
+function CRMStatsBar() {
+  const [expanded, setExpanded] = useState(false);
+
+  const { data: stats } = useQuery<Record<string, any>>({
+    queryKey: ["crm-stats"],
+    queryFn: () => apiClient.get("/api/investor/crm-stats").then(r => r.data),
+    refetchInterval: 60000, // refresh every minute
+  });
+
+  if (!stats) return null;
+
+  const overdue = (stats.overdue_followups || 0) + (stats.overdue_tasks || 0);
+
+  return (
+    <div className="fixed bottom-0 left-0 right-0 z-30 md:left-60">
+      {/* Collapsed bar */}
+      <div
+        className={`flex items-center justify-between px-4 py-2 bg-card border-t border-border cursor-pointer hover:bg-muted/30 transition-colors ${expanded ? "border-b" : ""}`}
+        onClick={() => setExpanded(e => !e)}
+      >
+        <div className="flex items-center gap-4 text-xs">
+          <span className="font-semibold text-muted-foreground uppercase tracking-wider text-[10px]">Activity</span>
+          <div className="flex items-center gap-3">
+            <span className="flex items-center gap-1">
+              <Phone className="h-3 w-3 text-blue-500" />
+              <span className="font-medium">{stats.today?.calls || 0}</span>
+              <span className="text-muted-foreground">calls</span>
+            </span>
+            <span className="flex items-center gap-1">
+              <Mail className="h-3 w-3 text-green-500" />
+              <span className="font-medium">{stats.today?.emails || 0}</span>
+              <span className="text-muted-foreground">emails</span>
+            </span>
+            <span className="flex items-center gap-1">
+              <Users className="h-3 w-3 text-purple-500" />
+              <span className="font-medium">{stats.today?.meetings || 0}</span>
+              <span className="text-muted-foreground">meetings</span>
+            </span>
+            <span className="text-muted-foreground">today</span>
+          </div>
+          {overdue > 0 && (
+            <span className="flex items-center gap-1 text-red-600 font-medium">
+              <Clock className="h-3 w-3" />
+              {overdue} overdue
+            </span>
+          )}
+          <span className="flex items-center gap-1 text-muted-foreground">
+            <CheckCircle2 className="h-3 w-3" />
+            {stats.open_tasks || 0} open tasks
+          </span>
+        </div>
+        <span className="text-[10px] text-muted-foreground">{expanded ? "▼ Hide" : "▲ Details"}</span>
+      </div>
+
+      {/* Expanded panel */}
+      {expanded && (
+        <div className="bg-card border-t px-4 py-3 animate-in slide-in-from-bottom-2 duration-200">
+          <div className="grid grid-cols-3 gap-4 max-w-3xl">
+            {/* Today */}
+            <div className="rounded-lg border bg-muted/20 p-3">
+              <h4 className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-2">Today</h4>
+              <div className="space-y-1.5">
+                <div className="flex justify-between text-xs"><span className="flex items-center gap-1.5"><Phone className="h-3 w-3 text-blue-500" /> Calls</span><span className="font-bold">{stats.today?.calls || 0}</span></div>
+                <div className="flex justify-between text-xs"><span className="flex items-center gap-1.5"><Mail className="h-3 w-3 text-green-500" /> Emails</span><span className="font-bold">{stats.today?.emails || 0}</span></div>
+                <div className="flex justify-between text-xs"><span className="flex items-center gap-1.5"><Users className="h-3 w-3 text-purple-500" /> Meetings</span><span className="font-bold">{stats.today?.meetings || 0}</span></div>
+                <div className="flex justify-between text-xs"><span className="flex items-center gap-1.5"><FileText className="h-3 w-3 text-gray-500" /> Notes</span><span className="font-bold">{stats.today?.notes || 0}</span></div>
+                <div className="flex justify-between text-xs border-t pt-1 mt-1"><span className="font-medium">Total</span><span className="font-bold">{stats.today?.total || 0}</span></div>
+              </div>
+            </div>
+
+            {/* This Week */}
+            <div className="rounded-lg border bg-muted/20 p-3">
+              <h4 className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-2">This Week</h4>
+              <div className="space-y-1.5">
+                <div className="flex justify-between text-xs"><span className="flex items-center gap-1.5"><Phone className="h-3 w-3 text-blue-500" /> Calls</span><span className="font-bold">{stats.week?.calls || 0}</span></div>
+                <div className="flex justify-between text-xs"><span className="flex items-center gap-1.5"><Mail className="h-3 w-3 text-green-500" /> Emails</span><span className="font-bold">{stats.week?.emails || 0}</span></div>
+                <div className="flex justify-between text-xs"><span className="flex items-center gap-1.5"><Users className="h-3 w-3 text-purple-500" /> Meetings</span><span className="font-bold">{stats.week?.meetings || 0}</span></div>
+                <div className="flex justify-between text-xs"><span className="flex items-center gap-1.5"><FileText className="h-3 w-3 text-gray-500" /> Notes</span><span className="font-bold">{stats.week?.notes || 0}</span></div>
+                <div className="flex justify-between text-xs border-t pt-1 mt-1"><span className="font-medium">Total</span><span className="font-bold">{stats.week?.total || 0}</span></div>
+                <div className="flex justify-between text-xs text-blue-600"><span>New Leads</span><span className="font-bold">{stats.new_leads_week || 0}</span></div>
+              </div>
+            </div>
+
+            {/* This Month */}
+            <div className="rounded-lg border bg-muted/20 p-3">
+              <h4 className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-2">This Month</h4>
+              <div className="space-y-1.5">
+                <div className="flex justify-between text-xs"><span className="flex items-center gap-1.5"><Phone className="h-3 w-3 text-blue-500" /> Calls</span><span className="font-bold">{stats.month?.calls || 0}</span></div>
+                <div className="flex justify-between text-xs"><span className="flex items-center gap-1.5"><Mail className="h-3 w-3 text-green-500" /> Emails</span><span className="font-bold">{stats.month?.emails || 0}</span></div>
+                <div className="flex justify-between text-xs"><span className="flex items-center gap-1.5"><Users className="h-3 w-3 text-purple-500" /> Meetings</span><span className="font-bold">{stats.month?.meetings || 0}</span></div>
+                <div className="flex justify-between text-xs"><span className="flex items-center gap-1.5"><FileText className="h-3 w-3 text-gray-500" /> Notes</span><span className="font-bold">{stats.month?.notes || 0}</span></div>
+                <div className="flex justify-between text-xs border-t pt-1 mt-1"><span className="font-medium">Total</span><span className="font-bold">{stats.month?.total || 0}</span></div>
+                <div className="flex justify-between text-xs text-blue-600"><span>New Leads</span><span className="font-bold">{stats.new_leads_month || 0}</span></div>
+              </div>
+            </div>
+          </div>
+
+          {/* Alerts row */}
+          {overdue > 0 && (
+            <div className="mt-3 flex items-center gap-4 text-xs">
+              {stats.overdue_followups > 0 && (
+                <span className="flex items-center gap-1.5 rounded-full bg-red-50 text-red-700 px-2.5 py-1 font-medium">
+                  <Clock className="h-3 w-3" /> {stats.overdue_followups} overdue follow-up{stats.overdue_followups !== 1 ? "s" : ""}
+                </span>
+              )}
+              {stats.overdue_tasks > 0 && (
+                <span className="flex items-center gap-1.5 rounded-full bg-orange-50 text-orange-700 px-2.5 py-1 font-medium">
+                  <CheckCircle2 className="h-3 w-3" /> {stats.overdue_tasks} overdue task{stats.overdue_tasks !== 1 ? "s" : ""}
+                </span>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
 
 function InvestorTasksSection({ investorId }: { investorId: number }) {
   const queryClient = useQueryClient();

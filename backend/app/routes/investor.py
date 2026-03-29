@@ -2175,6 +2175,96 @@ def text_to_speech(
 
 
 # ===========================================================================
+# CRM Activity Statistics
+# ===========================================================================
+
+@router.get("/crm-stats")
+def get_crm_stats(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Get CRM activity statistics for the current user — today, this week, this month."""
+    from app.db.models import CRMActivity, InvestorTask
+    from datetime import date, timedelta
+    from sqlalchemy import func as sa_func, and_
+
+    today = date.today()
+    week_start = today - timedelta(days=today.weekday())  # Monday
+    month_start = today.replace(day=1)
+
+    def count_activities(since: date, activity_type: str = None):
+        q = db.query(sa_func.count(CRMActivity.activity_id)).filter(
+            sa_func.date(CRMActivity.created_at) >= since,
+        )
+        if current_user.role != UserRole.GP_ADMIN:
+            q = q.filter(CRMActivity.created_by == current_user.user_id)
+        if activity_type:
+            q = q.filter(CRMActivity.activity_type == activity_type)
+        return q.scalar() or 0
+
+    # Overdue follow-ups
+    overdue_followups_q = db.query(sa_func.count(CRMActivity.activity_id)).filter(
+        CRMActivity.follow_up_date < today,
+        CRMActivity.is_follow_up_done == False,
+    )
+    if current_user.role != UserRole.GP_ADMIN:
+        overdue_followups_q = overdue_followups_q.filter(CRMActivity.created_by == current_user.user_id)
+    overdue_followups = overdue_followups_q.scalar() or 0
+
+    # Overdue tasks
+    overdue_tasks_q = db.query(sa_func.count(InvestorTask.task_id)).filter(
+        InvestorTask.due_date < today,
+        InvestorTask.is_completed == False,
+    )
+    if current_user.role != UserRole.GP_ADMIN:
+        overdue_tasks_q = overdue_tasks_q.filter(InvestorTask.created_by == current_user.user_id)
+    overdue_tasks = overdue_tasks_q.scalar() or 0
+
+    # Open tasks total
+    open_tasks_q = db.query(sa_func.count(InvestorTask.task_id)).filter(InvestorTask.is_completed == False)
+    if current_user.role != UserRole.GP_ADMIN:
+        open_tasks_q = open_tasks_q.filter(InvestorTask.created_by == current_user.user_id)
+    open_tasks = open_tasks_q.scalar() or 0
+
+    # New leads this week/month
+    new_leads_week = db.query(sa_func.count(Investor.investor_id)).filter(
+        sa_func.date(Investor.created_at) >= week_start,
+    ).scalar() or 0
+    new_leads_month = db.query(sa_func.count(Investor.investor_id)).filter(
+        sa_func.date(Investor.created_at) >= month_start,
+    ).scalar() or 0
+
+    return {
+        "today": {
+            "calls": count_activities(today, "call"),
+            "emails": count_activities(today, "email"),
+            "meetings": count_activities(today, "meeting"),
+            "notes": count_activities(today, "note"),
+            "total": count_activities(today),
+        },
+        "week": {
+            "calls": count_activities(week_start, "call"),
+            "emails": count_activities(week_start, "email"),
+            "meetings": count_activities(week_start, "meeting"),
+            "notes": count_activities(week_start, "note"),
+            "total": count_activities(week_start),
+        },
+        "month": {
+            "calls": count_activities(month_start, "call"),
+            "emails": count_activities(month_start, "email"),
+            "meetings": count_activities(month_start, "meeting"),
+            "notes": count_activities(month_start, "note"),
+            "total": count_activities(month_start),
+        },
+        "overdue_followups": overdue_followups,
+        "overdue_tasks": overdue_tasks,
+        "open_tasks": open_tasks,
+        "new_leads_week": new_leads_week,
+        "new_leads_month": new_leads_month,
+    }
+
+
+# ===========================================================================
 # Investor Tasks
 # ===========================================================================
 
