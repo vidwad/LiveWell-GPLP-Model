@@ -3256,16 +3256,22 @@ function TTSButton({ text }: { text: string }) {
 
     setLoading(true);
     try {
-      // Stream audio directly from API for faster playback
-      const r = await apiClient.post("/api/investor/tts", { text, voice: "nova" }, { responseType: "blob" });
-      const blob = new Blob([r.data], { type: "audio/mpeg" });
+      // Use fetch for true streaming — audio starts as soon as first bytes arrive
+      const token = typeof window !== "undefined" ? localStorage.getItem("lwc_access_token") : null;
+      const baseUrl = apiClient.defaults.baseURL || "";
+      const resp = await fetch(`${baseUrl}/api/investor/tts`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        body: JSON.stringify({ text, voice: "nova" }),
+      });
+      if (!resp.ok) throw new Error("TTS failed");
+      const blob = await resp.blob();
       const url = URL.createObjectURL(blob);
       const audio = new Audio(url);
       audioRef.current = audio;
       audio.onended = () => { setPlaying(false); audioRef.current = null; URL.revokeObjectURL(url); };
       audio.onerror = () => {
         URL.revokeObjectURL(url);
-        // Fallback to browser TTS
         if ("speechSynthesis" in window) {
           const u = new SpeechSynthesisUtterance(text);
           u.rate = 0.95;
@@ -3274,6 +3280,7 @@ function TTSButton({ text }: { text: string }) {
         }
         setPlaying(false);
       };
+      setLoading(false);
       await audio.play();
       setPlaying(true);
     } catch {
