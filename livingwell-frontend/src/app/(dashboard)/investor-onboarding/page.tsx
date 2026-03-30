@@ -3293,6 +3293,7 @@ function InvestorCommsTab({ investorId, investor }: { investorId: number; invest
   const [smsBody, setSmsBody] = useState("");
   const [sending, setSending] = useState(false);
   const [callToNumber, setCallToNumber] = useState("");
+  const [callsPage, setCallsPage] = useState(1);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   // Browser calling via Twilio Voice SDK
@@ -3601,6 +3602,113 @@ function InvestorCommsTab({ investorId, investor }: { investorId: number; invest
       )}
 
       {/* Call History View */}
+      {commsView === "calls" && (
+        <div className="space-y-2">
+          {/* Quick dial */}
+          {hasPhone && !isInCall && (
+            <div className="flex gap-2 items-center">
+              <input
+                value={callToNumber}
+                onChange={(e) => setCallToNumber(e.target.value)}
+                placeholder="Custom number (optional)"
+                className="flex-1 rounded border bg-background px-2 py-1.5 text-xs"
+              />
+              <Button size="sm" variant="outline" disabled={isInCall || !twilioDevice.ready} onClick={() => handleCall(callToNumber || undefined)}>
+                <Phone className="h-3 w-3 mr-1" />Dial
+              </Button>
+            </div>
+          )}
+
+          {callsLoading ? (
+            <div className="flex justify-center py-8"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></div>
+          ) : callLogs.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-8 text-center">
+              <Phone className="h-6 w-6 text-muted-foreground/30 mb-2" />
+              <p className="text-xs text-muted-foreground">No calls yet.</p>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {callLogs.slice(0, callsPage * 3).map((call: Record<string, any>) => {
+                const statusColors: Record<string, string> = {
+                  completed: "bg-green-100 text-green-700",
+                  "in-progress": "bg-blue-100 text-blue-700",
+                  ringing: "bg-yellow-100 text-yellow-700",
+                  initiated: "bg-gray-100 text-gray-700",
+                  busy: "bg-orange-100 text-orange-700",
+                  "no-answer": "bg-red-100 text-red-700",
+                  canceled: "bg-gray-100 text-gray-500",
+                  failed: "bg-red-100 text-red-700",
+                };
+                return (
+                  <div key={call.call_log_id} className="rounded-lg border p-3 space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Phone className={`h-3.5 w-3.5 ${call.direction === "inbound" ? "rotate-[135deg] text-green-600" : "text-blue-600"}`} />
+                        <span className="text-xs font-medium">
+                          {call.direction === "outbound" ? `→ ${call.to_number}` : `← ${call.from_number}`}
+                        </span>
+                      </div>
+                      <Badge className={`text-[9px] px-1.5 py-0 ${statusColors[call.status] || "bg-gray-100 text-gray-600"}`}>
+                        {call.status}
+                      </Badge>
+                    </div>
+                    <div className="flex items-center gap-3 text-[10px] text-muted-foreground">
+                      <span>{new Date(call.created_at).toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}</span>
+                      {call.duration_seconds != null && (
+                        <span>{Math.floor(call.duration_seconds / 60)}:{String(call.duration_seconds % 60).padStart(2, "0")}</span>
+                      )}
+                    </div>
+                    {/* Transcript */}
+                    {call.transcript ? (
+                      <details className="mt-1">
+                        <summary className="text-[10px] font-medium text-muted-foreground cursor-pointer hover:text-foreground">
+                          View Transcript
+                        </summary>
+                        <p className="mt-1 text-xs whitespace-pre-wrap text-muted-foreground bg-muted/30 rounded p-2 max-h-[150px] overflow-y-auto">
+                          {call.transcript}
+                        </p>
+                      </details>
+                    ) : call.recording_url && call.transcription_status !== "completed" ? (
+                      <button
+                        onClick={() => handleTranscribe(call.call_log_id)}
+                        className="text-[10px] text-blue-600 hover:underline"
+                      >
+                        {call.transcription_status === "pending" ? "Transcribing..." : "Transcribe Recording"}
+                      </button>
+                    ) : null}
+                    {/* Play recording */}
+                    {call.recording_url && (
+                      <audio
+                        src={call.recording_url.startsWith("http") ? call.recording_url : `https://api.twilio.com${call.recording_url}.mp3`}
+                        controls
+                        className="w-full h-7 mt-1"
+                      />
+                    )}
+                  </div>
+                );
+              })}
+              {/* Pagination */}
+              {callLogs.length > callsPage * 3 && (
+                <button
+                  onClick={() => setCallsPage((p) => p + 1)}
+                  className="w-full text-center text-xs text-blue-600 hover:underline py-1.5"
+                >
+                  Show More ({callLogs.length - callsPage * 3} more)
+                </button>
+              )}
+              {callsPage > 1 && (
+                <button
+                  onClick={() => setCallsPage(1)}
+                  className="w-full text-center text-xs text-muted-foreground hover:underline py-1"
+                >
+                  Show Less
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Schedule Follow-up */}
       <Card className="mt-3">
         <CardHeader className="p-4 pb-2">
@@ -3664,96 +3772,6 @@ function InvestorCommsTab({ investorId, investor }: { investorId: number; invest
           </div>
         </CardContent>
       </Card>
-
-      {commsView === "calls" && (
-        <div className="space-y-2">
-          {/* Quick dial */}
-          {hasPhone && !isInCall && (
-            <div className="flex gap-2 items-center">
-              <input
-                value={callToNumber}
-                onChange={(e) => setCallToNumber(e.target.value)}
-                placeholder="Custom number (optional)"
-                className="flex-1 rounded border bg-background px-2 py-1.5 text-xs"
-              />
-              <Button size="sm" variant="outline" disabled={isInCall || !twilioDevice.ready} onClick={() => handleCall(callToNumber || undefined)}>
-                <Phone className="h-3 w-3 mr-1" />Dial
-              </Button>
-            </div>
-          )}
-
-          {callsLoading ? (
-            <div className="flex justify-center py-8"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></div>
-          ) : callLogs.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-8 text-center">
-              <Phone className="h-6 w-6 text-muted-foreground/30 mb-2" />
-              <p className="text-xs text-muted-foreground">No calls yet.</p>
-            </div>
-          ) : (
-            <div className="space-y-2 max-h-[400px] overflow-y-auto">
-              {callLogs.map((call: Record<string, any>) => {
-                const statusColors: Record<string, string> = {
-                  completed: "bg-green-100 text-green-700",
-                  "in-progress": "bg-blue-100 text-blue-700",
-                  ringing: "bg-yellow-100 text-yellow-700",
-                  initiated: "bg-gray-100 text-gray-700",
-                  busy: "bg-orange-100 text-orange-700",
-                  "no-answer": "bg-red-100 text-red-700",
-                  canceled: "bg-gray-100 text-gray-500",
-                  failed: "bg-red-100 text-red-700",
-                };
-                return (
-                  <div key={call.call_log_id} className="rounded-lg border p-3 space-y-1.5">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <Phone className={`h-3.5 w-3.5 ${call.direction === "inbound" ? "rotate-[135deg] text-green-600" : "text-blue-600"}`} />
-                        <span className="text-xs font-medium">
-                          {call.direction === "outbound" ? `→ ${call.to_number}` : `← ${call.from_number}`}
-                        </span>
-                      </div>
-                      <Badge className={`text-[9px] px-1.5 py-0 ${statusColors[call.status] || "bg-gray-100 text-gray-600"}`}>
-                        {call.status}
-                      </Badge>
-                    </div>
-                    <div className="flex items-center gap-3 text-[10px] text-muted-foreground">
-                      <span>{new Date(call.created_at).toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}</span>
-                      {call.duration_seconds != null && (
-                        <span>{Math.floor(call.duration_seconds / 60)}:{String(call.duration_seconds % 60).padStart(2, "0")}</span>
-                      )}
-                    </div>
-                    {/* Transcript */}
-                    {call.transcript ? (
-                      <details className="mt-1">
-                        <summary className="text-[10px] font-medium text-muted-foreground cursor-pointer hover:text-foreground">
-                          View Transcript
-                        </summary>
-                        <p className="mt-1 text-xs whitespace-pre-wrap text-muted-foreground bg-muted/30 rounded p-2 max-h-[150px] overflow-y-auto">
-                          {call.transcript}
-                        </p>
-                      </details>
-                    ) : call.recording_url && call.transcription_status !== "completed" ? (
-                      <button
-                        onClick={() => handleTranscribe(call.call_log_id)}
-                        className="text-[10px] text-blue-600 hover:underline"
-                      >
-                        {call.transcription_status === "pending" ? "Transcribing..." : "Transcribe Recording"}
-                      </button>
-                    ) : null}
-                    {/* Play recording */}
-                    {call.recording_url && (
-                      <audio
-                        src={call.recording_url.startsWith("http") ? call.recording_url : `https://api.twilio.com${call.recording_url}.mp3`}
-                        controls
-                        className="w-full h-7 mt-1"
-                      />
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
-      )}
     </div>
   );
 }
