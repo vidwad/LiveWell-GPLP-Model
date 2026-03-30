@@ -3360,6 +3360,7 @@ function InvestorCommsTab({ investorId, investor }: { investorId: number; invest
   const queryClient = useQueryClient();
   const [commsView, setCommsView] = useState<"sms" | "calls">("sms");
   const [smsBody, setSmsBody] = useState("");
+  const [smsToNumber, setSmsToNumber] = useState("");
   const [sending, setSending] = useState(false);
   const [callToNumber, setCallToNumber] = useState("");
   const [callsPage, setCallsPage] = useState(1);
@@ -3399,7 +3400,7 @@ function InvestorCommsTab({ investorId, investor }: { investorId: number; invest
     if (!smsBody.trim()) return;
     setSending(true);
     try {
-      await twilioApi.sendSms(investorId, smsBody.trim());
+      await twilioApi.sendSms(investorId, smsBody.trim(), smsToNumber || undefined);
       setSmsBody("");
       queryClient.invalidateQueries({ queryKey: ["twilio-sms", investorId] });
       queryClient.invalidateQueries({ queryKey: ["onboarding-detail", investorId] });
@@ -3589,9 +3590,23 @@ function InvestorCommsTab({ investorId, investor }: { investorId: number; invest
       {/* SMS View */}
       {commsView === "sms" && (
         <div className="flex flex-col" style={{ minHeight: 300 }}>
-          {!hasPhone ? (
+          {/* Custom number input */}
+          <div className="flex gap-2 items-center mb-2">
+            <input
+              value={smsToNumber}
+              onChange={(e) => setSmsToNumber(e.target.value)}
+              placeholder="Custom number (optional)"
+              className="flex-1 rounded border bg-background px-2 py-1.5 text-xs"
+            />
+            {smsToNumber && (
+              <button onClick={() => setSmsToNumber("")} className="text-[10px] text-muted-foreground hover:text-foreground">
+                Clear
+              </button>
+            )}
+          </div>
+          {!hasPhone && !smsToNumber ? (
             <div className="flex flex-col items-center justify-center py-8 text-center">
-              <p className="text-xs text-muted-foreground">No phone number on file. Add a phone or mobile to send SMS.</p>
+              <p className="text-xs text-muted-foreground">No phone number on file. Add a phone/mobile or enter a custom number above.</p>
             </div>
           ) : (
             <>
