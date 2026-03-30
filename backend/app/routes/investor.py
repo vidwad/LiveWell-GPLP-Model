@@ -2477,10 +2477,12 @@ def suggest_tasks(
         f"{sms_text}\n\n"
         f"{transcript_text}\n\n"
         f"Existing Open Tasks (do NOT duplicate):\n{existing_text}\n\n"
+        f"TODAY'S DATE IS: {datetime.date.today().isoformat()}\n\n"
         f"Return ONLY a JSON array of objects, each with:\n"
         f'- "description": short actionable task description\n'
-        f'- "due_date": suggested date in YYYY-MM-DD format (within next 30 days)\n'
+        f'- "due_date": suggested date in YYYY-MM-DD format (MUST be today or in the future, within next 30 days)\n'
         f'- "priority": "low", "normal", or "high"\n\n'
+        f"IMPORTANT: All due_date values MUST be in {datetime.date.today().year}. Never use past dates.\n\n"
         f"Focus on: action items from conversations, promised follow-ups, "
         f"document requests, meeting scheduling, and next steps to advance the relationship."
     )
@@ -2536,6 +2538,7 @@ def suggest_tasks(
     # Save suggestions as tasks
     from datetime import date as _date
     created = []
+    today = _date.today()
     for s in suggestions[:5]:
         desc = s.get("description", "")
         if not desc:
@@ -2543,6 +2546,9 @@ def suggest_tasks(
         due = None
         try:
             due = _date.fromisoformat(s.get("due_date", ""))
+            # Fix past dates — push to today + 3 days
+            if due < today:
+                due = today + datetime.timedelta(days=3)
         except (ValueError, TypeError):
             pass
         task = InvestorTask(
@@ -2611,7 +2617,8 @@ def generate_task_actions(
     investor_phone = inv.mobile or inv.phone or ""
 
     prompt = (
-        f"You are a CRM assistant. For the following task, suggest 2-4 concrete execution actions "
+        f"You are a CRM assistant. Today's date is {datetime.date.today().isoformat()}.\n"
+        f"For the following task, suggest 2-4 concrete execution actions "
         f"that a user can take to complete it. Each action should be immediately actionable.\n\n"
         f"Task: {task.description}\n"
         f"Due: {task.due_date or 'Not set'}\n"
