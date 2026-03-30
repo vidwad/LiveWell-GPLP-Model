@@ -2558,3 +2558,305 @@ def suggest_tasks(
 
     db.commit()
     return {"suggested": len(created), "tasks": created}
+
+
+# ===========================================================================
+# Task Actions — AI-suggested execution steps for tasks
+# ===========================================================================
+
+from app.db.models import TaskAction, TaskActionType
+
+
+@router.post("/tasks/{task_id}/generate-actions")
+def generate_task_actions(
+    task_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Generate AI-suggested execution actions for a task."""
+    from app.db.models import PlatformSetting
+
+    task = db.query(InvestorTask).filter(InvestorTask.task_id == task_id).first()
+    if not task:
+        raise HTTPException(404, "Task not found")
+
+    inv = db.query(Investor).filter(Investor.investor_id == task.investor_id).first()
+    if not inv:
+        raise HTTPException(404, "Investor not found")
+
+    # Don't regenerate if actions already exist
+    existing_actions = db.query(TaskAction).filter(
+        TaskAction.task_id == task_id, TaskAction.is_dismissed == False
+    ).all()
+    if existing_actions:
+        return _format_actions_response(existing_actions)
+
+    try:
+        from openai import OpenAI as _OpenAI
+    except ImportError:
+        raise HTTPException(400, "OpenAI package not installed")
+
+    setting = db.query(PlatformSetting).filter(PlatformSetting.key == "OPENAI_API_KEY").first()
+    api_key = setting.value if setting else None
+    if not api_key:
+        import os
+        api_key = os.environ.get("OPENAI_API_KEY")
+    if not api_key:
+        raise HTTPException(400, "OpenAI API key not configured")
+
+    client = _OpenAI(api_key=api_key)
+
+    investor_name = f"{inv.first_name or ''} {inv.last_name or ''}".strip()
+    investor_email = inv.email or ""
+    investor_phone = inv.mobile or inv.phone or ""
+
+    prompt = (
+        f"You are a CRM assistant. For the following task, suggest 2-4 concrete execution actions "
+        f"that a user can take to complete it. Each action should be immediately actionable.\n\n"
+        f"Task: {task.description}\n"
+        f"Due: {task.due_date or 'Not set'}\n"
+        f"Priority: {task.priority or 'normal'}\n\n"
+        f"Investor: {investor_name}\n"
+        f"Email: {investor_email or 'Not on file'}\n"
+        f"Phone: {investor_phone or 'Not on file'}\n"
+        f"Status: {inv.investor_status.value if inv.investor_status else 'new_lead'}\n"
+        f"Company: {inv.company_name or 'N/A'}\n\n"
+        f"Return ONLY a JSON array of objects, each with:\n"
+        f'- "action_type": one of "send_email", "send_sms", "schedule_calendar", "make_call", "prepare_document", "research", "other"\n'
+        f'- "title": short action title (e.g. "Send introduction email")\n'
+        f'- "description": brief explanation of what this action does\n'
+        f'- "draft_content": the actual draft content (email body, SMS text, meeting agenda, etc.) — make it professional and ready to send\n'
+        f'- "metadata": object with relevant details:\n'
+        f'  - For emails: {{"to": "email", "subject": "subject line"}}\n'
+        f'  - For SMS: {{"to": "phone number"}}\n'
+        f'  - For calendar: {{"title": "event title", "date": "YYYY-MM-DD", "time": "HH:MM", "duration_minutes": 30}}\n'
+        f'  - For calls: {{"to": "phone number"}}\n'
+        f'  - For others: {{}}\n\n'
+        f"Make the draft content specific to {investor_name} and professional. "
+        f"Use the company name 'Living Well Communities' for the sender."
+    )
+
+    import json as _json
+    import re as _re
+
+    def _parse_json_array(text: str) -> list:
+        text = text.strip()
+        text = _re.sub(r"^```(?:json)?\s*", "", text)
+        text = _re.sub(r"\s*```$", "", text)
+        text = text.strip()
+        if text.startswith("["):
+            return _json.loads(text)
+        start = text.find("[")
+        end = text.rfind("]") + 1
+        if start >= 0 and end > start:
+            return _json.loads(text[start:end])
+        return []
+
+    try:
+        response = client.responses.create(model="gpt-4o", input=prompt)
+        actions_data = _parse_json_array(response.output_text)
+    except Exception:
+        actions_data = []
+
+    if not actions_data:
+        raise HTTPException(500, "Failed to generate actions")
+
+    created = []
+    for a in actions_data[:4]:
+        action_type_str = a.get("action_type", "other")
+        try:
+            action_type = TaskActionType(action_type_str)
+        except ValueError:
+            action_type = TaskActionType.other
+
+        metadata = a.get("metadata", {})
+        action = TaskAction(
+            task_id=task_id,
+            action_type=action_type,
+            title=a.get("title", "Action"),
+            description=a.get("description", ""),
+            draft_content=a.get("draft_content", ""),
+            metadata_json=_json.dumps(metadata) if metadata else None,
+        )
+        db.add(action)
+        created.append(action)
+
+    db.commit()
+    for a in created:
+        db.refresh(a)
+
+    return _format_actions_response(created)
+
+
+@router.get("/tasks/{task_id}/actions")
+def get_task_actions(
+    task_id: int,
+    db: Session = Depends(get_db),
+    _: User = Depends(get_current_user),
+):
+    """Get execution actions for a task."""
+    actions = db.query(TaskAction).filter(
+        TaskAction.task_id == task_id, TaskAction.is_dismissed == False
+    ).all()
+    return _format_actions_response(actions)
+
+
+@router.post("/tasks/actions/{action_id}/execute")
+def execute_task_action(
+    action_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_gp_or_ops),
+):
+    """Execute a task action — sends email, SMS, creates calendar event, etc."""
+    import json as _json
+
+    action = db.query(TaskAction).filter(TaskAction.action_id == action_id).first()
+    if not action:
+        raise HTTPException(404, "Action not found")
+    if action.is_executed:
+        raise HTTPException(400, "Action already executed")
+
+    task = db.query(InvestorTask).filter(InvestorTask.task_id == action.task_id).first()
+    if not task:
+        raise HTTPException(404, "Task not found")
+
+    inv = db.query(Investor).filter(Investor.investor_id == task.investor_id).first()
+    metadata = _json.loads(action.metadata_json) if action.metadata_json else {}
+    result = {"action_id": action_id, "status": "executed", "details": {}}
+
+    if action.action_type == TaskActionType.send_sms:
+        # Send SMS via Twilio
+        to_number = metadata.get("to") or inv.mobile or inv.phone
+        if not to_number:
+            raise HTTPException(400, "No phone number available")
+        try:
+            from app.services.twilio_service import send_sms
+            sms_log = send_sms(
+                db=db,
+                investor_id=task.investor_id,
+                body=action.draft_content or "",
+                sent_by_user_id=current_user.user_id,
+                to_number=to_number,
+            )
+            result["details"] = {"sms_log_id": sms_log.sms_log_id, "to": to_number}
+        except Exception as e:
+            raise HTTPException(500, f"SMS send failed: {str(e)}")
+
+    elif action.action_type == TaskActionType.send_email:
+        # Generate a mailto: link (or send via Resend if configured)
+        to_email = metadata.get("to") or inv.email
+        subject = metadata.get("subject", "")
+        body = action.draft_content or ""
+        if not to_email:
+            raise HTTPException(400, "No email address available")
+        # Try sending via Resend
+        try:
+            from app.db.models import PlatformSetting
+            resend_key = db.query(PlatformSetting).filter(PlatformSetting.key == "RESEND_API_KEY").first()
+            from_email_setting = db.query(PlatformSetting).filter(PlatformSetting.key == "RESEND_FROM_EMAIL").first()
+            if resend_key and resend_key.value:
+                import resend
+                resend.api_key = resend_key.value
+                from_email = from_email_setting.value if from_email_setting and from_email_setting.value else "onboarding@resend.dev"
+                resend.Emails.send({
+                    "from": from_email,
+                    "to": to_email,
+                    "subject": subject,
+                    "text": body,
+                })
+                result["details"] = {"sent_via": "resend", "to": to_email}
+            else:
+                # Return mailto link as fallback
+                import urllib.parse
+                mailto = f"mailto:{to_email}?subject={urllib.parse.quote(subject)}&body={urllib.parse.quote(body)}"
+                result["details"] = {"mailto_url": mailto, "to": to_email}
+                result["status"] = "draft_ready"
+        except Exception as e:
+            import urllib.parse
+            mailto = f"mailto:{to_email}?subject={urllib.parse.quote(subject)}&body={urllib.parse.quote(body)}"
+            result["details"] = {"mailto_url": mailto, "to": to_email, "fallback_reason": str(e)}
+            result["status"] = "draft_ready"
+
+    elif action.action_type == TaskActionType.schedule_calendar:
+        # Generate Google Calendar URL
+        title = metadata.get("title", action.title)
+        date = metadata.get("date", "")
+        time = metadata.get("time", "09:00")
+        duration = int(metadata.get("duration_minutes", 30))
+        description = action.draft_content or ""
+
+        if date:
+            start_str = f"{date}T{time}:00"
+            from datetime import datetime as _dt, timedelta
+            try:
+                start = _dt.fromisoformat(start_str)
+                end = start + timedelta(minutes=duration)
+                gcal_url = (
+                    f"https://calendar.google.com/calendar/render?action=TEMPLATE"
+                    f"&text={_url_encode(title)}"
+                    f"&dates={start.strftime('%Y%m%dT%H%M%S')}/{end.strftime('%Y%m%dT%H%M%S')}"
+                    f"&details={_url_encode(description)}"
+                )
+                result["details"] = {"google_calendar_url": gcal_url, "date": date, "time": time}
+            except Exception:
+                result["details"] = {"date": date, "time": time, "title": title}
+                result["status"] = "draft_ready"
+        else:
+            result["status"] = "draft_ready"
+            result["details"] = {"title": title}
+
+    elif action.action_type == TaskActionType.make_call:
+        to_number = metadata.get("to") or inv.mobile or inv.phone
+        result["details"] = {"to": to_number, "note": "Use the Comms tab to initiate the call"}
+        result["status"] = "draft_ready"
+
+    else:
+        result["status"] = "noted"
+        result["details"] = {"note": "Action logged as completed"}
+
+    # Mark action as executed
+    action.is_executed = True
+    action.executed_at = datetime.datetime.utcnow()
+    db.commit()
+
+    return result
+
+
+@router.delete("/tasks/actions/{action_id}")
+def dismiss_task_action(
+    action_id: int,
+    db: Session = Depends(get_db),
+    _: User = Depends(get_current_user),
+):
+    """Dismiss/delete a suggested action."""
+    action = db.query(TaskAction).filter(TaskAction.action_id == action_id).first()
+    if not action:
+        raise HTTPException(404, "Action not found")
+    action.is_dismissed = True
+    db.commit()
+    return {"status": "dismissed"}
+
+
+def _format_actions_response(actions):
+    """Format actions for API response."""
+    import json as _json
+    return [
+        {
+            "action_id": a.action_id,
+            "task_id": a.task_id,
+            "action_type": a.action_type.value if hasattr(a.action_type, "value") else a.action_type,
+            "title": a.title,
+            "description": a.description,
+            "draft_content": a.draft_content,
+            "metadata": _json.loads(a.metadata_json) if a.metadata_json else {},
+            "is_executed": a.is_executed,
+            "executed_at": a.executed_at.isoformat() if a.executed_at else None,
+            "created_at": a.created_at.isoformat() if a.created_at else None,
+        }
+        for a in actions
+    ]
+
+
+def _url_encode(s: str) -> str:
+    import urllib.parse
+    return urllib.parse.quote(s, safe="")

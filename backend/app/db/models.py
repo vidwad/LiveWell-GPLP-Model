@@ -2320,6 +2320,36 @@ class InvestorTask(Base):
 
     investor = relationship("Investor")
     creator = relationship("User")
+    actions = relationship("TaskAction", back_populates="task", cascade="all, delete-orphan")
+
+
+class TaskActionType(str, enum.Enum):
+    send_email = "send_email"
+    send_sms = "send_sms"
+    schedule_calendar = "schedule_calendar"
+    make_call = "make_call"
+    prepare_document = "prepare_document"
+    research = "research"
+    other = "other"
+
+
+class TaskAction(Base):
+    """AI-suggested execution steps for a task — each has a type, draft content, and can be executed."""
+    __tablename__ = "task_actions"
+
+    action_id = Column(Integer, primary_key=True, index=True)
+    task_id = Column(Integer, ForeignKey("investor_tasks.task_id", ondelete="CASCADE"), nullable=False, index=True)
+    action_type = Column(_enum(TaskActionType), nullable=False)
+    title = Column(String(256), nullable=False)
+    description = Column(Text, nullable=True)  # Detailed explanation
+    draft_content = Column(Text, nullable=True)  # Draft email body, SMS text, meeting agenda, etc.
+    metadata_json = Column(Text, nullable=True)  # JSON: {to, subject, date, time, duration, etc.}
+    is_executed = Column(Boolean, default=False, nullable=False)
+    is_dismissed = Column(Boolean, default=False, nullable=False)
+    executed_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+
+    task = relationship("InvestorTask", back_populates="actions")
 
 
 # ---------------------------------------------------------------------------

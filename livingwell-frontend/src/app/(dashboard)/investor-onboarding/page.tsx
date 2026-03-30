@@ -3167,58 +3167,15 @@ function InvestorTasksSection({ investorId }: { investorId: number }) {
         ) : (
           <div className="space-y-1.5">
             {/* Open tasks */}
-            {openTasks.map((t) => {
-              const isOverdue = t.due_date && new Date(t.due_date) < new Date();
-              return (
-                <div
-                  key={t.task_id}
-                  className={`group flex items-start gap-3 rounded-lg border p-3 transition-all hover:shadow-sm ${
-                    isOverdue ? "border-red-200 bg-red-50/40" : "hover:border-primary/30 hover:bg-primary/[0.02]"
-                  }`}
-                >
-                  <button
-                    onClick={() => toggleMutation.mutate({ taskId: t.task_id, isCompleted: true })}
-                    className={`mt-0.5 h-[18px] w-[18px] rounded-full border-2 shrink-0 flex items-center justify-center transition-colors ${
-                      isOverdue ? "border-red-300 hover:bg-red-100" : "border-gray-300 hover:border-primary hover:bg-primary/10"
-                    }`}
-                  />
-                  <div className="min-w-0 flex-1">
-                    <p className="text-sm leading-snug">{t.description}</p>
-                    <div className="flex flex-wrap items-center gap-1.5 mt-1">
-                      {t.due_date && (
-                        <span className={`inline-flex items-center gap-0.5 text-[10px] rounded-full px-1.5 py-0 ${
-                          isOverdue ? "bg-red-100 text-red-700 font-medium" : "bg-muted text-muted-foreground"
-                        }`}>
-                          <Clock className="h-2.5 w-2.5" />
-                          {isOverdue ? "Overdue: " : ""}{new Date(t.due_date).toLocaleDateString()}
-                        </span>
-                      )}
-                      {t.source === "ai_suggested" && (
-                        <span className="inline-flex items-center gap-0.5 text-[9px] rounded-full bg-purple-50 text-purple-600 px-1.5 py-0">
-                          <Sparkles className="h-2 w-2" /> AI
-                        </span>
-                      )}
-                      {t.priority === "high" && (
-                        <span className="inline-flex items-center text-[9px] rounded-full bg-orange-50 text-orange-600 px-1.5 py-0 font-medium">
-                          ↑ High
-                        </span>
-                      )}
-                      {t.priority === "low" && (
-                        <span className="inline-flex items-center text-[9px] rounded-full bg-blue-50 text-blue-500 px-1.5 py-0">
-                          ↓ Low
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                  <button
-                    className="opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-red-500 shrink-0 mt-0.5"
-                    onClick={() => { if (confirm("Delete this task?")) deleteMutation.mutate(t.task_id); }}
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </button>
-                </div>
-              );
-            })}
+            {openTasks.map((t) => (
+              <TaskItemWithActions
+                key={t.task_id}
+                task={t}
+                investorId={investorId}
+                onToggle={() => toggleMutation.mutate({ taskId: t.task_id, isCompleted: true })}
+                onDelete={() => { if (confirm("Delete this task?")) deleteMutation.mutate(t.task_id); }}
+              />
+            ))}
 
             {/* Completed tasks */}
             {completedTasks.length > 0 && (
@@ -3351,6 +3308,257 @@ function TTSButton({ text, cachedAudioUrl }: { text: string; cachedAudioUrl?: st
     >
       {loading ? "Loading..." : playing ? "⏹ Stop" : "🔊 Read Aloud"}
     </button>
+  );
+}
+
+// ── Task Item with AI Actions ──────────────────────────────────────────
+
+const ACTION_ICONS: Record<string, { icon: string; color: string }> = {
+  send_email: { icon: "✉️", color: "bg-blue-50 text-blue-700 border-blue-200" },
+  send_sms: { icon: "💬", color: "bg-green-50 text-green-700 border-green-200" },
+  schedule_calendar: { icon: "📅", color: "bg-purple-50 text-purple-700 border-purple-200" },
+  make_call: { icon: "📞", color: "bg-yellow-50 text-yellow-700 border-yellow-200" },
+  prepare_document: { icon: "📄", color: "bg-orange-50 text-orange-700 border-orange-200" },
+  research: { icon: "🔍", color: "bg-indigo-50 text-indigo-700 border-indigo-200" },
+  other: { icon: "📋", color: "bg-gray-50 text-gray-700 border-gray-200" },
+};
+
+function TaskItemWithActions({
+  task,
+  investorId,
+  onToggle,
+  onDelete,
+}: {
+  task: Record<string, any>;
+  investorId: number;
+  onToggle: () => void;
+  onDelete: () => void;
+}) {
+  const queryClient = useQueryClient();
+  const [expanded, setExpanded] = useState(false);
+  const [loadingActions, setLoadingActions] = useState(false);
+  const [actions, setActions] = useState<Array<Record<string, any>>>([]);
+  const [executingId, setExecutingId] = useState<number | null>(null);
+
+  const isOverdue = task.due_date && new Date(task.due_date) < new Date();
+
+  const handleExpand = async () => {
+    if (expanded) {
+      setExpanded(false);
+      return;
+    }
+    setExpanded(true);
+
+    // Load existing actions or generate new ones
+    setLoadingActions(true);
+    try {
+      const resp = await apiClient.get(`/api/investor/tasks/${task.task_id}/actions`);
+      if (resp.data && resp.data.length > 0) {
+        setActions(resp.data);
+      } else {
+        // Generate actions via AI
+        const genResp = await apiClient.post(`/api/investor/tasks/${task.task_id}/generate-actions`);
+        setActions(genResp.data || []);
+      }
+    } catch {
+      setActions([]);
+    } finally {
+      setLoadingActions(false);
+    }
+  };
+
+  const handleExecute = async (actionId: number, actionType: string) => {
+    setExecutingId(actionId);
+    try {
+      const resp = await apiClient.post(`/api/investor/tasks/actions/${actionId}/execute`);
+      const result = resp.data;
+
+      // Handle different result types
+      if (result.details?.google_calendar_url) {
+        window.open(result.details.google_calendar_url, "_blank");
+      } else if (result.details?.mailto_url && result.status === "draft_ready") {
+        window.open(result.details.mailto_url, "_blank");
+      }
+
+      // Mark action as executed in local state
+      setActions((prev) =>
+        prev.map((a) => (a.action_id === actionId ? { ...a, is_executed: true } : a))
+      );
+
+      // Refresh related queries
+      queryClient.invalidateQueries({ queryKey: ["investor-tasks", investorId] });
+      queryClient.invalidateQueries({ queryKey: ["twilio-sms", investorId] });
+      queryClient.invalidateQueries({ queryKey: ["crm-activities", investorId] });
+
+      if (result.status === "executed" && actionType === "send_sms") {
+        alert("SMS sent successfully!");
+      } else if (result.status === "executed" && actionType === "send_email") {
+        alert("Email sent!");
+      }
+    } catch (e: any) {
+      alert(e?.response?.data?.detail || "Failed to execute action");
+    } finally {
+      setExecutingId(null);
+    }
+  };
+
+  const handleDismiss = async (actionId: number) => {
+    try {
+      await apiClient.delete(`/api/investor/tasks/actions/${actionId}`);
+      setActions((prev) => prev.filter((a) => a.action_id !== actionId));
+    } catch {
+      alert("Failed to dismiss action");
+    }
+  };
+
+  return (
+    <div
+      className={`rounded-lg border transition-all ${
+        expanded ? "shadow-sm ring-1 ring-primary/20" : "hover:shadow-sm"
+      } ${isOverdue ? "border-red-200 bg-red-50/40" : "hover:border-primary/30"}`}
+    >
+      {/* Task Header */}
+      <div
+        className="flex items-start gap-3 p-3 cursor-pointer group"
+        onClick={handleExpand}
+      >
+        <button
+          onClick={(e) => { e.stopPropagation(); onToggle(); }}
+          className={`mt-0.5 h-[18px] w-[18px] rounded-full border-2 shrink-0 flex items-center justify-center transition-colors ${
+            isOverdue ? "border-red-300 hover:bg-red-100" : "border-gray-300 hover:border-primary hover:bg-primary/10"
+          }`}
+        />
+        <div className="min-w-0 flex-1">
+          <p className="text-sm leading-snug">{task.description}</p>
+          <div className="flex flex-wrap items-center gap-1.5 mt-1">
+            {task.due_date && (
+              <span className={`inline-flex items-center gap-0.5 text-[10px] rounded-full px-1.5 py-0 ${
+                isOverdue ? "bg-red-100 text-red-700 font-medium" : "bg-muted text-muted-foreground"
+              }`}>
+                <Clock className="h-2.5 w-2.5" />
+                {isOverdue ? "Overdue: " : ""}{new Date(task.due_date).toLocaleDateString()}
+              </span>
+            )}
+            {task.source === "ai_suggested" && (
+              <span className="inline-flex items-center gap-0.5 text-[9px] rounded-full bg-purple-50 text-purple-600 px-1.5 py-0">
+                <Sparkles className="h-2 w-2" /> AI
+              </span>
+            )}
+            {task.priority === "high" && (
+              <span className="inline-flex items-center text-[9px] rounded-full bg-orange-50 text-orange-600 px-1.5 py-0 font-medium">↑ High</span>
+            )}
+            {task.priority === "low" && (
+              <span className="inline-flex items-center text-[9px] rounded-full bg-blue-50 text-blue-500 px-1.5 py-0">↓ Low</span>
+            )}
+            <ChevronRight className={`h-3 w-3 text-muted-foreground transition-transform ${expanded ? "rotate-90" : ""}`} />
+          </div>
+        </div>
+        <button
+          className="opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-red-500 shrink-0 mt-0.5"
+          onClick={(e) => { e.stopPropagation(); onDelete(); }}
+        >
+          <Trash2 className="h-3.5 w-3.5" />
+        </button>
+      </div>
+
+      {/* Expanded Actions Panel */}
+      {expanded && (
+        <div className="border-t px-3 pb-3 pt-2 space-y-2 bg-muted/10">
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] font-semibold uppercase text-muted-foreground">Suggested Actions</span>
+            {!loadingActions && actions.length === 0 && (
+              <button
+                onClick={async () => {
+                  setLoadingActions(true);
+                  try {
+                    const resp = await apiClient.post(`/api/investor/tasks/${task.task_id}/generate-actions`);
+                    setActions(resp.data || []);
+                  } catch { alert("Failed to generate actions"); }
+                  finally { setLoadingActions(false); }
+                }}
+                className="text-[10px] text-purple-600 hover:underline flex items-center gap-0.5"
+              >
+                <Sparkles className="h-2.5 w-2.5" /> Generate
+              </button>
+            )}
+          </div>
+
+          {loadingActions ? (
+            <div className="flex items-center gap-2 py-3 justify-center">
+              <Loader2 className="h-4 w-4 animate-spin text-purple-500" />
+              <span className="text-xs text-muted-foreground">AI is thinking...</span>
+            </div>
+          ) : actions.length === 0 ? (
+            <p className="text-[10px] text-muted-foreground text-center py-2">No actions generated yet.</p>
+          ) : (
+            <div className="space-y-2">
+              {actions.map((action) => {
+                const cfg = ACTION_ICONS[action.action_type] || ACTION_ICONS.other;
+                return (
+                  <div key={action.action_id} className={`rounded-lg border p-2.5 space-y-1.5 ${action.is_executed ? "opacity-50" : ""} ${cfg.color}`}>
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-sm">{cfg.icon}</span>
+                        <span className="text-xs font-medium">{action.title}</span>
+                      </div>
+                      {!action.is_executed && (
+                        <button
+                          onClick={() => handleDismiss(action.action_id)}
+                          className="text-muted-foreground/50 hover:text-red-500 shrink-0"
+                          title="Dismiss"
+                        >
+                          <XCircle className="h-3.5 w-3.5" />
+                        </button>
+                      )}
+                    </div>
+                    {action.description && (
+                      <p className="text-[10px] text-muted-foreground">{action.description}</p>
+                    )}
+                    {action.draft_content && (
+                      <details>
+                        <summary className="text-[10px] cursor-pointer text-muted-foreground hover:text-foreground">
+                          View Draft
+                        </summary>
+                        <div className="mt-1.5 rounded border bg-white p-2 text-xs whitespace-pre-wrap max-h-[150px] overflow-y-auto">
+                          {action.metadata?.subject && (
+                            <p className="font-medium mb-1">Subject: {action.metadata.subject}</p>
+                          )}
+                          {action.metadata?.to && (
+                            <p className="text-muted-foreground mb-1">To: {action.metadata.to}</p>
+                          )}
+                          {action.draft_content}
+                        </div>
+                      </details>
+                    )}
+                    {!action.is_executed ? (
+                      <Button
+                        size="sm"
+                        className="h-6 text-[10px] w-full"
+                        disabled={executingId === action.action_id}
+                        onClick={() => handleExecute(action.action_id, action.action_type)}
+                      >
+                        {executingId === action.action_id ? (
+                          <Loader2 className="h-3 w-3 animate-spin mr-1" />
+                        ) : null}
+                        {action.action_type === "send_email" ? "Send Email" :
+                         action.action_type === "send_sms" ? "Send SMS" :
+                         action.action_type === "schedule_calendar" ? "Add to Calendar" :
+                         action.action_type === "make_call" ? "Go to Comms" :
+                         "Execute"}
+                      </Button>
+                    ) : (
+                      <p className="text-[10px] text-green-600 font-medium flex items-center gap-1">
+                        <CheckCircle2 className="h-3 w-3" /> Done
+                      </p>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
   );
 }
 
