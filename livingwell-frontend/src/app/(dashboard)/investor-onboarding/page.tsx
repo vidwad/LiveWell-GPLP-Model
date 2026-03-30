@@ -3775,8 +3775,11 @@ function InvestorCommsTab({ investorId, investor }: { investorId: number; invest
               )}
             </div>
           )}
-          {/* Schedule Follow-up */}
-          <Card className="mt-3">
+        </div>
+      )}
+
+      {/* Schedule Follow-up — always visible below SMS or Call History */}
+      <Card className="mt-3">
         <CardHeader className="p-4 pb-2">
           <CardTitle className="text-sm font-semibold flex items-center gap-2">
             <Calendar className="h-4 w-4" /> Schedule Follow-up
@@ -3838,8 +3841,6 @@ function InvestorCommsTab({ investorId, investor }: { investorId: number; invest
           </div>
         </CardContent>
       </Card>
-        </div>
-      )}
     </div>
   );
 }
