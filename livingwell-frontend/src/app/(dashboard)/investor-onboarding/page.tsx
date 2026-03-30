@@ -1440,10 +1440,10 @@ function InvestorDetailDrawer({
 
   const TABS: { key: DrawerTab; label: string }[] = [
     { key: "profile", label: "Profile" },
+    { key: "comms", label: "Comms" },
     { key: "activity", label: "Activity Log" },
     { key: "followups", label: "Follow-ups" },
     { key: "documents", label: "Documents" },
-    { key: "comms", label: "Comms" },
   ];
 
   return (
@@ -2380,70 +2380,6 @@ function InvestorDetailDrawer({
             ) : (
               <ActivityListPaginated activities={activities as Array<Record<string, unknown>>} />
             )}
-
-            {/* Schedule Follow-up */}
-            <Card>
-              <CardHeader className="p-4 pb-2">
-                <CardTitle className="text-sm font-semibold flex items-center gap-2">
-                  <Calendar className="h-4 w-4" /> Schedule Follow-up
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="p-4 pt-0">
-                <div className="grid grid-cols-2 gap-2">
-                  <div>
-                    <label className="text-xs text-muted-foreground">Type</label>
-                    <select className="mt-0.5 w-full rounded border bg-background px-2 py-1.5 text-sm" id={`fu-type-${investor.investor_id}`} defaultValue="call">
-                      <option value="call">Phone Call</option>
-                      <option value="email">Email</option>
-                      <option value="meeting">Meeting</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="text-xs text-muted-foreground">Date</label>
-                    <input type="date" className="mt-0.5 w-full rounded border bg-background px-2 py-1.5 text-sm" id={`fu-date-${investor.investor_id}`} />
-                  </div>
-                  <div>
-                    <label className="text-xs text-muted-foreground">Time</label>
-                    <input type="time" className="mt-0.5 w-full rounded border bg-background px-2 py-1.5 text-sm" id={`fu-time-${investor.investor_id}`} />
-                  </div>
-                  <div>
-                    <label className="text-xs text-muted-foreground">Subject</label>
-                    <input type="text" className="mt-0.5 w-full rounded border bg-background px-2 py-1.5 text-sm" placeholder="Optional" id={`fu-subject-${investor.investor_id}`} />
-                  </div>
-                  <div className="col-span-2">
-                    <label className="text-xs text-muted-foreground">Notes</label>
-                    <input type="text" className="mt-0.5 w-full rounded border bg-background px-2 py-1.5 text-sm" placeholder="Optional notes" id={`fu-notes-${investor.investor_id}`} />
-                  </div>
-                  <div className="col-span-2">
-                    <Button size="sm" className="w-full" onClick={async () => {
-                      const fuType = (document.getElementById(`fu-type-${investor.investor_id}`) as HTMLSelectElement)?.value;
-                      const fuDate = (document.getElementById(`fu-date-${investor.investor_id}`) as HTMLInputElement)?.value;
-                      const fuTime = (document.getElementById(`fu-time-${investor.investor_id}`) as HTMLInputElement)?.value;
-                      const fuSubject = (document.getElementById(`fu-subject-${investor.investor_id}`) as HTMLInputElement)?.value;
-                      const fuNotes = (document.getElementById(`fu-notes-${investor.investor_id}`) as HTMLInputElement)?.value;
-                      if (!fuDate) { alert("Please select a date"); return; }
-                      try {
-                        const resp = await apiClient.post(`/api/investor/investors/${investor.investor_id}/schedule-followup`, {
-                          follow_up_type: fuType, follow_up_date: fuDate, follow_up_time: fuTime, subject: fuSubject, notes: fuNotes,
-                        });
-                        const gcalUrl = resp.data?.google_calendar_url;
-                        if (gcalUrl && confirm(`Follow-up ${fuType} scheduled for ${fuDate}.\n\nAdd to Google Calendar?`)) {
-                          window.open(gcalUrl, "_blank");
-                        }
-                        (document.getElementById(`fu-date-${investor.investor_id}`) as HTMLInputElement).value = "";
-                        (document.getElementById(`fu-time-${investor.investor_id}`) as HTMLInputElement).value = "";
-                        (document.getElementById(`fu-subject-${investor.investor_id}`) as HTMLInputElement).value = "";
-                        (document.getElementById(`fu-notes-${investor.investor_id}`) as HTMLInputElement).value = "";
-                        queryClient.invalidateQueries({ queryKey: ["crm-activities", investor.investor_id] });
-                        queryClient.invalidateQueries({ queryKey: ["crm-followups", investor.investor_id] });
-                      } catch { alert("Failed to schedule follow-up"); }
-                    }}>
-                      <Calendar className="h-3.5 w-3.5 mr-1.5" /> Schedule
-                    </Button>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
 
             {/* Onboarding Checklist */}
             <Card>
@@ -3426,6 +3362,8 @@ function InvestorCommsTab({ investorId, investor }: { investorId: number; invest
       return;
     }
     await twilioDevice.makeCall(num, investorId);
+    // Auto-switch to Call History view
+    setCommsView("calls");
     // Refresh call logs after a short delay
     setTimeout(() => {
       queryClient.invalidateQueries({ queryKey: ["twilio-calls", investorId] });
@@ -3663,6 +3601,70 @@ function InvestorCommsTab({ investorId, investor }: { investorId: number; invest
       )}
 
       {/* Call History View */}
+      {/* Schedule Follow-up */}
+      <Card className="mt-3">
+        <CardHeader className="p-4 pb-2">
+          <CardTitle className="text-sm font-semibold flex items-center gap-2">
+            <Calendar className="h-4 w-4" /> Schedule Follow-up
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="p-4 pt-0">
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <label className="text-xs text-muted-foreground">Type</label>
+              <select className="mt-0.5 w-full rounded border bg-background px-2 py-1.5 text-sm" id={`fu-type-${investorId}`} defaultValue="call">
+                <option value="call">Phone Call</option>
+                <option value="email">Email</option>
+                <option value="meeting">Meeting</option>
+              </select>
+            </div>
+            <div>
+              <label className="text-xs text-muted-foreground">Date</label>
+              <input type="date" className="mt-0.5 w-full rounded border bg-background px-2 py-1.5 text-sm" id={`fu-date-${investorId}`} />
+            </div>
+            <div>
+              <label className="text-xs text-muted-foreground">Time</label>
+              <input type="time" className="mt-0.5 w-full rounded border bg-background px-2 py-1.5 text-sm" id={`fu-time-${investorId}`} />
+            </div>
+            <div>
+              <label className="text-xs text-muted-foreground">Subject</label>
+              <input type="text" className="mt-0.5 w-full rounded border bg-background px-2 py-1.5 text-sm" placeholder="Optional" id={`fu-subject-${investorId}`} />
+            </div>
+            <div className="col-span-2">
+              <label className="text-xs text-muted-foreground">Notes</label>
+              <input type="text" className="mt-0.5 w-full rounded border bg-background px-2 py-1.5 text-sm" placeholder="Optional notes" id={`fu-notes-${investorId}`} />
+            </div>
+            <div className="col-span-2">
+              <Button size="sm" className="w-full" onClick={async () => {
+                const fuType = (document.getElementById(`fu-type-${investorId}`) as HTMLSelectElement)?.value;
+                const fuDate = (document.getElementById(`fu-date-${investorId}`) as HTMLInputElement)?.value;
+                const fuTime = (document.getElementById(`fu-time-${investorId}`) as HTMLInputElement)?.value;
+                const fuSubject = (document.getElementById(`fu-subject-${investorId}`) as HTMLInputElement)?.value;
+                const fuNotes = (document.getElementById(`fu-notes-${investorId}`) as HTMLInputElement)?.value;
+                if (!fuDate) { alert("Please select a date"); return; }
+                try {
+                  const resp = await apiClient.post(`/api/investor/investors/${investorId}/schedule-followup`, {
+                    follow_up_type: fuType, follow_up_date: fuDate, follow_up_time: fuTime, subject: fuSubject, notes: fuNotes,
+                  });
+                  const gcalUrl = resp.data?.google_calendar_url;
+                  if (gcalUrl && confirm(`Follow-up ${fuType} scheduled for ${fuDate}.\n\nAdd to Google Calendar?`)) {
+                    window.open(gcalUrl, "_blank");
+                  }
+                  (document.getElementById(`fu-date-${investorId}`) as HTMLInputElement).value = "";
+                  (document.getElementById(`fu-time-${investorId}`) as HTMLInputElement).value = "";
+                  (document.getElementById(`fu-subject-${investorId}`) as HTMLInputElement).value = "";
+                  (document.getElementById(`fu-notes-${investorId}`) as HTMLInputElement).value = "";
+                  queryClient.invalidateQueries({ queryKey: ["crm-activities", investorId] });
+                  queryClient.invalidateQueries({ queryKey: ["crm-followups", investorId] });
+                } catch { alert("Failed to schedule follow-up"); }
+              }}>
+                <Calendar className="h-3.5 w-3.5 mr-1.5" /> Schedule
+              </Button>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
       {commsView === "calls" && (
         <div className="space-y-2">
           {/* Quick dial */}
