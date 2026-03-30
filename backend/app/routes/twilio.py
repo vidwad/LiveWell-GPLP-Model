@@ -596,6 +596,85 @@ async def webhook_sms_inbound(request: Request, db: Session = Depends(get_db)):
     return Response(content=str(resp), media_type="application/xml")
 
 
+@router.post("/webhooks/voice-inbound")
+async def webhook_voice_inbound(request: Request, db: Session = Depends(get_db)):
+    """Handle incoming phone calls — match caller to investor, record, and greet."""
+    from twilio.twiml.voice_response import VoiceResponse
+
+    form = await request.form()
+    from_number = form.get("From", "")
+    to_number = form.get("To", "")
+    call_sid = form.get("CallSid", "")
+
+    webhook_base = _get_webhook_base_safe(db)
+
+    # Try to match the caller to an investor
+    investor = None
+    if from_number:
+        normalized = normalize_e164(from_number)
+        investor = (
+            db.query(Investor)
+            .filter(
+                (Investor.phone == from_number) |
+                (Investor.phone == normalized) |
+                (Investor.mobile == from_number) |
+                (Investor.mobile == normalized)
+            )
+            .first()
+        )
+
+    # Log the inbound call
+    if call_sid:
+        activity = CRMActivity(
+            investor_id=investor.investor_id if investor else None,
+            activity_type=CRMActivityType.call,
+            subject=f"Inbound call from {from_number}" + (f" ({investor.name})" if investor else ""),
+            body="Incoming call received",
+            twilio_call_sid=call_sid,
+        )
+        if investor:
+            db.add(activity)
+            db.flush()
+
+            call_log = TwilioCallLog(
+                investor_id=investor.investor_id,
+                activity_id=activity.activity_id,
+                twilio_call_sid=call_sid,
+                direction="inbound",
+                from_number=from_number,
+                to_number=to_number,
+                status=TwilioCallStatus.in_progress,
+            )
+            db.add(call_log)
+            db.commit()
+
+    # Build TwiML response
+    response = VoiceResponse()
+    caller_name = investor.name if investor else "caller"
+    response.say(
+        f"Thank you for calling Living Well Communities. "
+        f"Please leave a message after the tone and we will get back to you shortly.",
+        voice="Polly.Joanna",
+    )
+
+    # Record the caller's message
+    record_kwargs = {
+        "max_length": 120,
+        "transcribe": False,  # We use Whisper instead
+        "play_beep": True,
+        "action": f"{webhook_base}/api/twilio/webhooks/call-status" if webhook_base else "",
+    }
+    if webhook_base:
+        record_kwargs["recording_status_callback"] = f"{webhook_base}/api/twilio/webhooks/recording"
+        record_kwargs["recording_status_callback_event"] = "completed"
+    response.record(**record_kwargs)
+
+    response.say("We did not receive a recording. Goodbye.")
+    response.hangup()
+
+    return Response(content=str(response), media_type="application/xml")
+
+
 # ---------------------------------------------------------------------------
 # Helper
 # ---------------------------------------------------------------------------
