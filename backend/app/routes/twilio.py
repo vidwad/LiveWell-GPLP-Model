@@ -309,18 +309,22 @@ async def webhook_voice(request: Request, db: Session = Depends(get_db)):
         dial_kwargs = {
             "caller_id": twilio_phone or caller_identity,
             "record": "record-from-answer-dual",
+            "timeout": 30,  # Ring for 30 seconds before giving up
         }
         if webhook_base:
             dial_kwargs["recording_status_callback"] = f"{webhook_base}/api/twilio/webhooks/recording"
             dial_kwargs["recording_status_callback_event"] = "completed"
-        # NOTE: No 'action' attribute — Twilio hangs up cleanly after dial ends.
-        # Status updates come via the Number's statusCallback instead.
+            # Action URL handles post-dial (VM, busy, no-answer) with proper TwiML
+            dial_kwargs["action"] = f"{webhook_base}/api/twilio/webhooks/dial-complete"
         dial = response.dial(**dial_kwargs)
 
-        num_kwargs = {}
+        num_kwargs = {
+            "machine_detection": "DetectMessageEnd",  # Detect VM and wait for beep
+        }
         if webhook_base:
             num_kwargs["status_callback"] = f"{webhook_base}/api/twilio/webhooks/call-status"
             num_kwargs["status_callback_event"] = "initiated ringing answered completed"
+            num_kwargs["machine_detection_timeout"] = 5
         dial.number(to_number, **num_kwargs)
 
         # Create call log for this browser-initiated call
@@ -358,6 +362,57 @@ async def webhook_voice(request: Request, db: Session = Depends(get_db)):
         response.say("No destination number provided. Please try again from the CRM.")
 
     return Response(content=str(response), media_type="application/xml")
+
+
+@router.post("/webhooks/dial-complete")
+async def webhook_dial_complete(request: Request, db: Session = Depends(get_db)):
+    """Called after <Dial> completes. Returns TwiML to end the call cleanly.
+
+    Also updates the call log with the dial outcome (answered, busy, no-answer, failed).
+    """
+    from twilio.twiml.voice_response import VoiceResponse
+
+    form = await request.form()
+    call_sid = form.get("CallSid", "")
+    dial_call_status = form.get("DialCallStatus", "")  # completed, busy, no-answer, failed, canceled
+    dial_call_duration = form.get("DialCallDuration", "")
+    dial_call_sid = form.get("DialCallSid", "")
+    recording_url = form.get("RecordingUrl", "")
+
+    # Update call log
+    if call_sid:
+        log = db.query(TwilioCallLog).filter(TwilioCallLog.twilio_call_sid == call_sid).first()
+        if log:
+            status_map = {
+                "completed": TwilioCallStatus.completed,
+                "busy": TwilioCallStatus.busy,
+                "no-answer": TwilioCallStatus.no_answer,
+                "canceled": TwilioCallStatus.canceled,
+                "failed": TwilioCallStatus.failed,
+            }
+            if dial_call_status in status_map:
+                log.status = status_map[dial_call_status]
+            if dial_call_duration:
+                try:
+                    log.duration_seconds = int(dial_call_duration)
+                except (ValueError, TypeError):
+                    pass
+            if recording_url and not log.recording_url:
+                log.recording_url = recording_url
+
+            # Update CRM activity
+            if log.activity_id:
+                activity = db.query(CRMActivity).filter(
+                    CRMActivity.activity_id == log.activity_id
+                ).first()
+                if activity:
+                    dur_str = f" ({dial_call_duration}s)" if dial_call_duration else ""
+                    activity.outcome = f"Call {dial_call_status}{dur_str}"
+            db.commit()
+
+    # Return empty TwiML to hang up cleanly
+    resp = VoiceResponse()
+    return Response(content=str(resp), media_type="application/xml")
 
 
 @router.post("/webhooks/call-status")
@@ -426,15 +481,34 @@ async def webhook_recording(request: Request, db: Session = Depends(get_db)):
     parent_call_sid = form.get("ParentCallSid", "")
     recording_url = form.get("RecordingUrl", "")
     recording_sid = form.get("RecordingSid", "")
+    # Log all params for debugging
+    import logging
+    logging.info(f"Recording webhook: CallSid={call_sid} ParentCallSid={parent_call_sid} "
+                 f"RecordingUrl={recording_url} RecordingSid={recording_sid}")
 
-    if call_sid or parent_call_sid:
+    if recording_url and (call_sid or parent_call_sid):
         log = None
-        if call_sid:
-            log = db.query(TwilioCallLog).filter(TwilioCallLog.twilio_call_sid == call_sid).first()
-        if not log and parent_call_sid:
-            log = db.query(TwilioCallLog).filter(TwilioCallLog.twilio_call_sid == parent_call_sid).first()
+        # Try matching by CallSid, then ParentCallSid
+        for sid in [call_sid, parent_call_sid]:
+            if sid:
+                log = db.query(TwilioCallLog).filter(TwilioCallLog.twilio_call_sid == sid).first()
+                if log:
+                    break
+        # Fallback: find most recent call log without a recording (within last 5 min)
+        if not log:
+            from datetime import datetime, timedelta
+            cutoff = datetime.utcnow() - timedelta(minutes=5)
+            log = (
+                db.query(TwilioCallLog)
+                .filter(
+                    TwilioCallLog.recording_url.is_(None),
+                    TwilioCallLog.created_at >= cutoff,
+                )
+                .order_by(TwilioCallLog.created_at.desc())
+                .first()
+            )
 
-        if log and recording_url:
+        if log:
             log.recording_url = recording_url
             log.recording_sid = recording_sid
             db.commit()
