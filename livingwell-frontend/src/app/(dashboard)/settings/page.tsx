@@ -24,6 +24,7 @@ import {
   ExternalLink,
   CircleDot,
   Mail,
+  Phone,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -111,6 +112,11 @@ const CATEGORY_CONFIG: Record<
     title: "General",
     description: "Platform environment and URL configuration",
     icon: Server,
+  },
+  telephony: {
+    title: "Telephony (Twilio)",
+    description: "Phone number and webhook settings for calls and SMS",
+    icon: Phone,
   },
 };
 
@@ -476,7 +482,7 @@ export default function SettingsPage() {
       )}
 
       {/* Settings by Category */}
-      {["api_keys", "ai", "email", "general"].map((category) => {
+      {["api_keys", "ai", "email", "telephony", "general"].map((category) => {
         const categorySettings = grouped[category];
         if (!categorySettings || categorySettings.length === 0) return null;
 
