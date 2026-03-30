@@ -2510,9 +2510,13 @@ def suggest_tasks(
     # Try Claude first
     try:
         from app.services.ai import _call_claude_json
-        suggestions = _call_claude_json(prompt, max_tokens=1024)
-        if not isinstance(suggestions, list):
-            suggestions = suggestions.get("tasks", suggestions.get("suggestions", []))
+        result = _call_claude_json(prompt, max_tokens=1024)
+        if isinstance(result, list) and len(result) > 0:
+            suggestions = result
+        elif isinstance(result, dict) and result:
+            suggestions = result.get("tasks", result.get("suggestions", []))
+        if not suggestions:
+            raise ValueError("Claude returned empty result")
         _logging.info(f"AI Suggest: Claude returned {len(suggestions)} suggestions")
     except Exception as e:
         _logging.info(f"AI Suggest: Claude failed ({e}), trying OpenAI...")
