@@ -2709,6 +2709,7 @@ const ACTIVITIES_PAGE_SIZE = 3;
 
 function ActivityListPaginated({ activities }: { activities: Array<Record<string, unknown>> }) {
   const [visibleCount, setVisibleCount] = useState(ACTIVITIES_PAGE_SIZE);
+  const [expandedId, setExpandedId] = useState<number | null>(null);
   const visible = activities.slice(0, visibleCount);
   const hasMore = visibleCount < activities.length;
   const hasPrev = visibleCount > ACTIVITIES_PAGE_SIZE;
@@ -2718,31 +2719,99 @@ function ActivityListPaginated({ activities }: { activities: Array<Record<string
       {visible.map((act) => {
         const Icon = ACTIVITY_ICONS[(act.activity_type as string) || "note"] || FileText;
         const ts = act.created_at ? new Date(act.created_at as string).toLocaleString() : "";
+        const actId = (act.activity_id ?? act.id) as number;
+        const isExpanded = expandedId === actId;
+        const bodyText = act.body ? String(act.body) : "";
+        const hasLongBody = bodyText.length > 120;
+
         return (
-          <div key={act.id as number} className="flex gap-3 rounded-lg border p-3">
-            <div className="mt-0.5 shrink-0">
-              <Icon className="h-4 w-4 text-muted-foreground" />
-            </div>
-            <div className="min-w-0 flex-1">
-              <div className="flex items-center gap-2">
-                <span className="text-sm font-medium truncate">{act.subject as string}</span>
-                <Badge variant="outline" className="text-[10px] shrink-0">
-                  {(act.activity_type as string) || "note"}
-                </Badge>
+          <div
+            key={actId}
+            className={`rounded-lg border p-3 transition-colors cursor-pointer hover:bg-muted/30 ${isExpanded ? "bg-muted/20 ring-1 ring-primary/20" : ""}`}
+            onClick={() => setExpandedId(isExpanded ? null : actId)}
+          >
+            <div className="flex gap-3">
+              <div className="mt-0.5 shrink-0">
+                <Icon className="h-4 w-4 text-muted-foreground" />
               </div>
-              {!!act.body && (
-                <p className="mt-0.5 text-xs text-muted-foreground line-clamp-2">{String(act.body)}</p>
-              )}
-              {!!act.outcome && (
-                <p className="mt-0.5 text-xs">
-                  <span className="text-muted-foreground">Outcome:</span> {String(act.outcome)}
-                </p>
-              )}
-              <div className="mt-1 flex items-center gap-3 text-[11px] text-muted-foreground">
-                <span>{ts}</span>
-                {!!act.created_by_name && <span>by {String(act.created_by_name)}</span>}
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-medium truncate">{act.subject as string}</span>
+                  <Badge variant="outline" className="text-[10px] shrink-0">
+                    {(act.activity_type as string) || "note"}
+                  </Badge>
+                  {hasLongBody && !isExpanded && (
+                    <ChevronRight className="h-3 w-3 text-muted-foreground shrink-0" />
+                  )}
+                </div>
+                {bodyText && !isExpanded && (
+                  <p className="mt-0.5 text-xs text-muted-foreground line-clamp-2">{bodyText}</p>
+                )}
+                {!!act.outcome && (
+                  <p className="mt-0.5 text-xs">
+                    <span className="text-muted-foreground">Outcome:</span> {String(act.outcome)}
+                  </p>
+                )}
+                <div className="mt-1 flex items-center gap-3 text-[11px] text-muted-foreground">
+                  <span>{ts}</span>
+                  {!!act.created_by_name && <span>by {String(act.created_by_name)}</span>}
+                </div>
               </div>
             </div>
+
+            {/* Expanded Details */}
+            {isExpanded && (
+              <div className="mt-3 pt-3 border-t space-y-2" onClick={(e) => e.stopPropagation()}>
+                {bodyText && (
+                  <div>
+                    <span className="text-[10px] font-semibold uppercase text-muted-foreground">Full Details</span>
+                    <p className="mt-1 text-xs whitespace-pre-wrap leading-relaxed bg-muted/30 rounded-md p-2.5 max-h-[300px] overflow-y-auto">
+                      {bodyText}
+                    </p>
+                  </div>
+                )}
+                {!!act.outcome && (
+                  <div>
+                    <span className="text-[10px] font-semibold uppercase text-muted-foreground">Outcome</span>
+                    <p className="mt-0.5 text-xs">{String(act.outcome)}</p>
+                  </div>
+                )}
+                {!!act.follow_up_date && (
+                  <div>
+                    <span className="text-[10px] font-semibold uppercase text-muted-foreground">Follow-up</span>
+                    <p className="mt-0.5 text-xs">
+                      {new Date(act.follow_up_date as string).toLocaleDateString()}
+                      {act.follow_up_notes ? ` — ${String(act.follow_up_notes)}` : ""}
+                      {act.is_follow_up_done ? " ✓ Done" : ""}
+                    </p>
+                  </div>
+                )}
+                {!!act.meeting_date && (
+                  <div>
+                    <span className="text-[10px] font-semibold uppercase text-muted-foreground">Meeting</span>
+                    <p className="mt-0.5 text-xs">
+                      {new Date(act.meeting_date as string).toLocaleString()}
+                      {act.meeting_location ? ` at ${String(act.meeting_location)}` : ""}
+                      {act.attendees ? ` — ${String(act.attendees)}` : ""}
+                    </p>
+                  </div>
+                )}
+                {(act.twilio_call_sid || act.twilio_sms_sid) && (
+                  <div>
+                    <span className="text-[10px] font-semibold uppercase text-muted-foreground">Twilio Reference</span>
+                    <p className="mt-0.5 text-[10px] font-mono text-muted-foreground">
+                      {(act.twilio_call_sid as string) || (act.twilio_sms_sid as string)}
+                    </p>
+                  </div>
+                )}
+                <button
+                  onClick={() => setExpandedId(null)}
+                  className="text-[10px] text-blue-600 hover:underline"
+                >
+                  Collapse
+                </button>
+              </div>
+            )}
           </div>
         );
       })}
@@ -3706,11 +3775,8 @@ function InvestorCommsTab({ investorId, investor }: { investorId: number; invest
               )}
             </div>
           )}
-        </div>
-      )}
-
-      {/* Schedule Follow-up */}
-      <Card className="mt-3">
+          {/* Schedule Follow-up */}
+          <Card className="mt-3">
         <CardHeader className="p-4 pb-2">
           <CardTitle className="text-sm font-semibold flex items-center gap-2">
             <Calendar className="h-4 w-4" /> Schedule Follow-up
@@ -3772,6 +3838,8 @@ function InvestorCommsTab({ investorId, investor }: { investorId: number; invest
           </div>
         </CardContent>
       </Card>
+        </div>
+      )}
     </div>
   );
 }
