@@ -113,6 +113,20 @@ DEFAULT_SETTINGS = [
         "is_secret": True,
     },
     {
+        "key": "TWILIO_API_KEY_SID",
+        "category": "api_keys",
+        "label": "Twilio API Key SID",
+        "description": "API Key SID for generating Access Tokens (starts with SK...). Create in Twilio Console → Account → API Keys.",
+        "is_secret": True,
+    },
+    {
+        "key": "TWILIO_API_KEY_SECRET",
+        "category": "api_keys",
+        "label": "Twilio API Key Secret",
+        "description": "API Key Secret paired with the API Key SID above. Shown only once when creating the key.",
+        "is_secret": True,
+    },
+    {
         "key": "TWILIO_WEBHOOK_BASE_URL",
         "category": "telephony",
         "label": "Twilio Webhook Base URL",

@@ -251,7 +251,12 @@ def get_voice_token(
     try:
         identity = f"user_{current_user.user_id}"
         token = generate_voice_token(db, identity)
-        return {"token": token, "identity": identity}
+        phone = ""
+        try:
+            phone = get_twilio_phone(db)
+        except Exception:
+            pass
+        return {"token": token, "identity": identity, "phone_number": phone}
     except ValueError as e:
         raise HTTPException(400, str(e))
 
@@ -278,23 +283,75 @@ def _validate_twilio_signature(request: Request, db: Session) -> bool:
 
 @router.post("/webhooks/voice")
 async def webhook_voice(request: Request, db: Session = Depends(get_db)):
-    """TwiML response when an outbound call connects — connects the call."""
+    """TwiML response for browser-to-phone calls via Twilio Voice SDK.
+
+    The browser SDK sends custom parameters (To, investorId) which arrive
+    as form fields. We respond with TwiML that dials the target number,
+    routing audio from the browser (WebRTC) to the phone (PSTN).
+    """
     from twilio.twiml.voice_response import VoiceResponse
 
     response = VoiceResponse()
-    # Get the 'To' number from the request
     form = await request.form()
     to_number = form.get("To", "")
+    investor_id = form.get("investorId", "")
+    call_sid = form.get("CallSid", "")
+    caller_identity = form.get("From", "")
+
+    webhook_base = _get_webhook_base_safe(db)
+    twilio_phone = ""
+    try:
+        twilio_phone = get_twilio_phone(db)
+    except Exception:
+        pass
 
     if to_number:
         dial = response.dial(
-            caller_id=form.get("From", ""),
+            caller_id=twilio_phone or caller_identity,
             record="record-from-answer-dual",
-            recording_status_callback=f"{_get_webhook_base_safe(db)}/api/twilio/webhooks/recording",
+            recording_status_callback=f"{webhook_base}/api/twilio/webhooks/recording" if webhook_base else "",
+            recording_status_callback_event="completed",
+            action=f"{webhook_base}/api/twilio/webhooks/call-status" if webhook_base else "",
         )
-        dial.number(to_number)
+        dial.number(
+            to_number,
+            status_callback=f"{webhook_base}/api/twilio/webhooks/call-status" if webhook_base else "",
+            status_callback_event="initiated ringing answered completed",
+        )
+
+        # Create call log for this browser-initiated call
+        if investor_id and call_sid:
+            try:
+                inv_id = int(investor_id)
+                # Check if log already exists for this SID
+                existing = db.query(TwilioCallLog).filter(
+                    TwilioCallLog.twilio_call_sid == call_sid
+                ).first()
+                if not existing:
+                    activity = CRMActivity(
+                        investor_id=inv_id,
+                        activity_type=CRMActivityType.call,
+                        subject=f"Browser call to {to_number}",
+                        body="Call initiated from CRM browser",
+                        twilio_call_sid=call_sid,
+                    )
+                    db.add(activity)
+                    db.flush()
+                    call_log = TwilioCallLog(
+                        investor_id=inv_id,
+                        activity_id=activity.activity_id,
+                        twilio_call_sid=call_sid,
+                        direction="outbound",
+                        from_number=twilio_phone or "browser",
+                        to_number=to_number,
+                        status=TwilioCallStatus.initiated,
+                    )
+                    db.add(call_log)
+                    db.commit()
+            except Exception:
+                pass  # Don't fail the TwiML response
     else:
-        response.say("No destination number provided.")
+        response.say("No destination number provided. Please try again from the CRM.")
 
     return Response(content=str(response), media_type="application/xml")
 

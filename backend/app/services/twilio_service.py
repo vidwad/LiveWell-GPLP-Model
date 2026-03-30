@@ -273,20 +273,37 @@ def transcribe_recording(db: Session, call_log_id: int) -> str:
 # ---------------------------------------------------------------------------
 
 def generate_voice_token(db: Session, identity: str) -> str:
-    """Generate a Twilio Access Token with Voice grant for browser calling."""
+    """Generate a Twilio Access Token with Voice grant for browser calling.
+
+    Requires an API Key SID + Secret (not the main Auth Token).
+    Create one at Twilio Console → Account → API Keys.
+    """
     from twilio.jwt.access_token import AccessToken
     from twilio.jwt.access_token.grants import VoiceGrant
 
-    sid = _get_setting(db, "TWILIO_ACCOUNT_SID")
-    token = _get_setting(db, "TWILIO_AUTH_TOKEN")
+    account_sid = _get_setting(db, "TWILIO_ACCOUNT_SID")
+    api_key_sid = _get_setting(db, "TWILIO_API_KEY_SID")
+    api_key_secret = _get_setting(db, "TWILIO_API_KEY_SECRET")
     twiml_app_sid = _get_setting(db, "TWILIO_TWIML_APP_SID")
 
-    if not sid or not token:
-        raise ValueError("Twilio credentials not configured")
+    if not account_sid:
+        raise ValueError("Twilio Account SID not configured")
+    if not api_key_sid or not api_key_secret:
+        raise ValueError(
+            "Twilio API Key SID and Secret are required for browser calling. "
+            "Create an API Key at Twilio Console → Account → API Keys, "
+            "then add both values in Settings."
+        )
     if not twiml_app_sid:
         raise ValueError("Twilio TwiML App SID not configured")
 
-    access_token = AccessToken(sid, token, identity=identity)
+    access_token = AccessToken(
+        account_sid,
+        api_key_sid,
+        api_key_secret,
+        identity=identity,
+        ttl=3600,  # 1 hour
+    )
     voice_grant = VoiceGrant(
         outgoing_application_sid=twiml_app_sid,
         incoming_allow=True,

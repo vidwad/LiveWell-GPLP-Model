@@ -4,6 +4,7 @@ import { useState, useMemo, useCallback, useRef, useEffect } from "react";
 // createPortal removed — using direct fixed overlay instead
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiClient, investors as investorsApi, twilio as twilioApi } from "@/lib/api";
+import { useTwilioDevice } from "@/hooks/useTwilioDevice";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -41,6 +42,9 @@ import {
   Linkedin,
   Sparkles,
   TrendingUp as TrendIcon,
+  Mic,
+  MicOff,
+  PhoneOff,
 } from "lucide-react";
 
 // ── Types ────────────────────────────────────────────────────────────
@@ -3352,9 +3356,11 @@ function InvestorCommsTab({ investorId, investor }: { investorId: number; invest
   const [commsView, setCommsView] = useState<"sms" | "calls">("sms");
   const [smsBody, setSmsBody] = useState("");
   const [sending, setSending] = useState(false);
-  const [calling, setCalling] = useState(false);
   const [callToNumber, setCallToNumber] = useState("");
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  // Browser calling via Twilio Voice SDK
+  const twilioDevice = useTwilioDevice();
 
   // SMS thread
   const { data: smsThread = [], isLoading: smsLoading } = useQuery<Array<Record<string, any>>>({
@@ -3398,17 +3404,39 @@ function InvestorCommsTab({ investorId, investor }: { investorId: number; invest
     }
   };
 
-  const handleCall = async (toNumber?: string) => {
-    setCalling(true);
-    try {
-      await twilioApi.initiateCall(investorId, toNumber);
-      queryClient.invalidateQueries({ queryKey: ["twilio-calls", investorId] });
-      queryClient.invalidateQueries({ queryKey: ["onboarding-detail", investorId] });
-    } catch (e: any) {
-      alert(e?.response?.data?.detail || "Failed to initiate call");
-    } finally {
-      setCalling(false);
+  // Initialize Twilio device when component mounts (for browser calling)
+  useEffect(() => {
+    if (twilioStatus?.voice_ready) {
+      twilioDevice.init();
     }
+    return () => {
+      twilioDevice.destroy();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [twilioStatus?.voice_ready]);
+
+  const handleCall = async (toNumber?: string) => {
+    const num = toNumber || phone || mobile;
+    if (!num) {
+      alert("No phone number available");
+      return;
+    }
+    if (!twilioDevice.ready) {
+      alert("Voice device is still initializing. Please try again in a moment.");
+      return;
+    }
+    await twilioDevice.makeCall(num, investorId);
+    // Refresh call logs after a short delay
+    setTimeout(() => {
+      queryClient.invalidateQueries({ queryKey: ["twilio-calls", investorId] });
+    }, 3000);
+  };
+
+  // Format duration as mm:ss
+  const formatDuration = (secs: number) => {
+    const m = Math.floor(secs / 60);
+    const s = secs % 60;
+    return `${m}:${String(s).padStart(2, "0")}`;
   };
 
   const handleTranscribe = async (callLogId: number) => {
@@ -3440,10 +3468,70 @@ function InvestorCommsTab({ investorId, investor }: { investorId: number; invest
     );
   }
 
+  const isInCall = ["connecting", "ringing", "open"].includes(twilioDevice.callState);
+
   return (
     <div className="space-y-3">
-      {/* Quick Actions */}
-      {hasPhone && (
+      {/* Active Call Banner */}
+      {isInCall && (
+        <div className="rounded-lg border-2 border-green-500 bg-green-50 p-3 space-y-2">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <div className={`h-2.5 w-2.5 rounded-full ${
+                twilioDevice.callState === "open" ? "bg-green-500 animate-pulse" :
+                twilioDevice.callState === "ringing" ? "bg-yellow-500 animate-pulse" :
+                "bg-blue-500 animate-pulse"
+              }`} />
+              <span className="text-sm font-semibold text-green-800">
+                {twilioDevice.callState === "connecting" ? "Connecting..." :
+                 twilioDevice.callState === "ringing" ? "Ringing..." :
+                 "Call Active"}
+              </span>
+            </div>
+            <span className="text-sm font-mono text-green-700">
+              {twilioDevice.callState === "open" ? formatDuration(twilioDevice.duration) : ""}
+            </span>
+          </div>
+          <p className="text-xs text-green-700">
+            {twilioDevice.activeNumber}
+          </p>
+          <div className="flex gap-2">
+            <Button
+              size="sm"
+              variant={twilioDevice.isMuted ? "destructive" : "outline"}
+              className="text-xs gap-1"
+              onClick={() => twilioDevice.toggleMute()}
+            >
+              {twilioDevice.isMuted ? <MicOff className="h-3 w-3" /> : <Mic className="h-3 w-3" />}
+              {twilioDevice.isMuted ? "Unmute" : "Mute"}
+            </Button>
+            <Button
+              size="sm"
+              variant="destructive"
+              className="text-xs gap-1"
+              onClick={() => {
+                twilioDevice.hangUp();
+                setTimeout(() => {
+                  queryClient.invalidateQueries({ queryKey: ["twilio-calls", investorId] });
+                }, 2000);
+              }}
+            >
+              <PhoneOff className="h-3 w-3" />
+              Hang Up
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {/* Error message */}
+      {twilioDevice.error && !isInCall && (
+        <div className="rounded-lg border border-red-200 bg-red-50 p-2 text-xs text-red-700">
+          {twilioDevice.error}
+        </div>
+      )}
+
+      {/* Quick Actions — Call buttons */}
+      {hasPhone && !isInCall && (
         <div className="flex gap-2">
           {[phone, mobile].filter(Boolean).map((num, i) => (
             <Button
@@ -3451,13 +3539,16 @@ function InvestorCommsTab({ investorId, investor }: { investorId: number; invest
               size="sm"
               variant="outline"
               className="text-xs gap-1.5"
-              disabled={calling}
+              disabled={isInCall || !twilioDevice.ready}
               onClick={() => handleCall(num)}
             >
               <Phone className="h-3 w-3" />
-              Call {i === 0 ? "Phone" : "Mobile"}
+              Call {i === 0 && phone ? "Phone" : "Mobile"}
             </Button>
           ))}
+          {!twilioDevice.ready && twilioStatus?.voice_ready && (
+            <span className="text-[10px] text-muted-foreground self-center">Initializing mic...</span>
+          )}
         </div>
       )}
 
@@ -3575,7 +3666,7 @@ function InvestorCommsTab({ investorId, investor }: { investorId: number; invest
       {commsView === "calls" && (
         <div className="space-y-2">
           {/* Quick dial */}
-          {hasPhone && (
+          {hasPhone && !isInCall && (
             <div className="flex gap-2 items-center">
               <input
                 value={callToNumber}
@@ -3583,8 +3674,8 @@ function InvestorCommsTab({ investorId, investor }: { investorId: number; invest
                 placeholder="Custom number (optional)"
                 className="flex-1 rounded border bg-background px-2 py-1.5 text-xs"
               />
-              <Button size="sm" variant="outline" disabled={calling} onClick={() => handleCall(callToNumber || undefined)}>
-                {calling ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <><Phone className="h-3 w-3 mr-1" />Dial</>}
+              <Button size="sm" variant="outline" disabled={isInCall || !twilioDevice.ready} onClick={() => handleCall(callToNumber || undefined)}>
+                <Phone className="h-3 w-3 mr-1" />Dial
               </Button>
             </div>
           )}
