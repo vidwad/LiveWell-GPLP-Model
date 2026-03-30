@@ -2504,17 +2504,30 @@ def suggest_tasks(
             return _json.loads(text[start:end])
         return []
 
+    import logging as _logging
+
+    suggestions = []
+    # Try Claude first
     try:
         from app.services.ai import _call_claude_json
         suggestions = _call_claude_json(prompt, max_tokens=1024)
         if not isinstance(suggestions, list):
             suggestions = suggestions.get("tasks", suggestions.get("suggestions", []))
-    except Exception:
+        _logging.info(f"AI Suggest: Claude returned {len(suggestions)} suggestions")
+    except Exception as e:
+        _logging.info(f"AI Suggest: Claude failed ({e}), trying OpenAI...")
+        # Fall back to OpenAI
         try:
             response = client.responses.create(model="gpt-4o", input=prompt)
-            suggestions = _parse_json_array(response.output_text)
-        except Exception:
+            raw = response.output_text
+            _logging.info(f"AI Suggest: OpenAI raw response: {raw[:200]}")
+            suggestions = _parse_json_array(raw)
+            _logging.info(f"AI Suggest: OpenAI parsed {len(suggestions)} suggestions")
+        except Exception as e2:
+            _logging.error(f"AI Suggest: OpenAI also failed: {e2}")
             suggestions = []
+
+    _logging.info(f"AI Suggest: Final suggestions count = {len(suggestions)}")
 
     # Save suggestions as tasks
     from datetime import date as _date
