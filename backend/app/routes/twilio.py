@@ -544,6 +544,7 @@ async def webhook_sms_status(request: Request, db: Session = Depends(get_db)):
 async def webhook_sms_inbound(request: Request, db: Session = Depends(get_db)):
     """Handle incoming SMS — match to investor and log as CRM activity."""
     from twilio.twiml.messaging_response import MessagingResponse
+    import logging
 
     form = await request.form()
     from_number = form.get("From", "")
@@ -551,20 +552,11 @@ async def webhook_sms_inbound(request: Request, db: Session = Depends(get_db)):
     body = form.get("Body", "")
     message_sid = form.get("MessageSid", "")
 
+    logging.info(f"Inbound SMS: From={from_number} Body={body[:50]} MessageSid={message_sid}")
+
     # Try to match the sender to an investor by phone/mobile
-    investor = None
-    if from_number:
-        normalized = normalize_e164(from_number)
-        investor = (
-            db.query(Investor)
-            .filter(
-                (Investor.phone == from_number) |
-                (Investor.phone == normalized) |
-                (Investor.mobile == from_number) |
-                (Investor.mobile == normalized)
-            )
-            .first()
-        )
+    # Use digit-only comparison to handle format differences
+    investor = _match_investor_by_phone(db, from_number)
 
     if investor and message_sid:
         # Log as CRM activity
@@ -609,19 +601,7 @@ async def webhook_voice_inbound(request: Request, db: Session = Depends(get_db))
     webhook_base = _get_webhook_base_safe(db)
 
     # Try to match the caller to an investor
-    investor = None
-    if from_number:
-        normalized = normalize_e164(from_number)
-        investor = (
-            db.query(Investor)
-            .filter(
-                (Investor.phone == from_number) |
-                (Investor.phone == normalized) |
-                (Investor.mobile == from_number) |
-                (Investor.mobile == normalized)
-            )
-            .first()
-        )
+    investor = _match_investor_by_phone(db, from_number)
 
     # Log the inbound call
     if call_sid:
@@ -678,6 +658,43 @@ async def webhook_voice_inbound(request: Request, db: Session = Depends(get_db))
 # ---------------------------------------------------------------------------
 # Helper
 # ---------------------------------------------------------------------------
+
+def _extract_digits(phone: str) -> str:
+    """Extract just the digits from a phone number, return last 10."""
+    import re
+    digits = re.sub(r"[^\d]", "", phone)
+    # Return last 10 digits (strips country code)
+    return digits[-10:] if len(digits) >= 10 else digits
+
+
+def _match_investor_by_phone(db: Session, phone: str):
+    """Match a phone number to an investor, handling format differences.
+
+    Compares last 10 digits to handle +1, parentheses, dashes, spaces, etc.
+    """
+    if not phone:
+        return None
+
+    incoming_digits = _extract_digits(phone)
+    if len(incoming_digits) < 7:
+        return None
+
+    # Query all investors with a phone or mobile set
+    candidates = (
+        db.query(Investor)
+        .filter(
+            (Investor.phone.isnot(None)) | (Investor.mobile.isnot(None))
+        )
+        .all()
+    )
+
+    for inv in candidates:
+        for field in [inv.phone, inv.mobile]:
+            if field and _extract_digits(field) == incoming_digits:
+                return inv
+
+    return None
+
 
 def _get_webhook_base_safe(db: Session) -> str:
     """Return webhook base URL or empty string."""
