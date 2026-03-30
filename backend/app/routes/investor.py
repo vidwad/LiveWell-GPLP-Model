@@ -2393,22 +2393,54 @@ def suggest_tasks(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Use OpenAI to suggest tasks based on recent activity, notes, and investor status."""
-    from app.db.models import CRMActivity, PlatformSetting
+    """Use OpenAI to suggest tasks based on recent activity, SMS messages,
+    call transcripts, research, notes, and investor status."""
+    from app.db.models import CRMActivity, PlatformSetting, TwilioSMSLog, TwilioCallLog
 
     inv = db.query(Investor).filter(Investor.investor_id == investor_id).first()
     if not inv:
         raise HTTPException(404, "Investor not found")
 
-    # Gather recent activities
+    # Gather recent CRM activities (calls, emails, meetings, notes, etc.)
     activities = db.query(CRMActivity).filter(
         CRMActivity.investor_id == investor_id
-    ).order_by(CRMActivity.created_at.desc()).limit(10).all()
+    ).order_by(CRMActivity.created_at.desc()).limit(15).all()
 
     activity_text = "\n".join([
-        f"- [{a.activity_type.value if hasattr(a.activity_type, 'value') else a.activity_type}] {a.subject}: {a.body or ''} (Outcome: {a.outcome or 'none'})"
+        f"- [{a.activity_type.value if hasattr(a.activity_type, 'value') else a.activity_type}] "
+        f"{a.subject}: {(a.body or '')[:300]} (Outcome: {a.outcome or 'none'})"
         for a in activities
     ]) or "No recent activities."
+
+    # Gather SMS conversation history
+    sms_messages = db.query(TwilioSMSLog).filter(
+        TwilioSMSLog.investor_id == investor_id
+    ).order_by(TwilioSMSLog.created_at.desc()).limit(20).all()
+
+    sms_text = ""
+    if sms_messages:
+        sms_text = "SMS Conversation (most recent first):\n" + "\n".join([
+            f"- [{m.direction.upper()}] {m.body[:200]}"
+            for m in sms_messages
+        ])
+
+    # Gather call transcripts
+    call_logs = db.query(TwilioCallLog).filter(
+        TwilioCallLog.investor_id == investor_id,
+        TwilioCallLog.transcript.isnot(None),
+    ).order_by(TwilioCallLog.created_at.desc()).limit(5).all()
+
+    transcript_text = ""
+    if call_logs:
+        transcript_text = "Call Transcripts:\n" + "\n---\n".join([
+            f"Call on {c.created_at.strftime('%Y-%m-%d')} ({c.duration_seconds or 0}s): {c.transcript[:500]}"
+            for c in call_logs
+        ])
+
+    # Research summary
+    research_text = ""
+    if inv.research_summary:
+        research_text = f"Research Summary:\n{inv.research_summary[:500]}"
 
     # Get existing tasks
     existing = db.query(InvestorTask).filter(
@@ -2432,17 +2464,25 @@ def suggest_tasks(
     client = _OpenAI(api_key=api_key)
 
     prompt = (
-        f"Based on the following CRM data for investor {inv.first_name} {inv.last_name}, "
-        f"suggest 3-5 actionable follow-up tasks. Each task should be specific and time-bound.\n\n"
+        f"You are a CRM assistant for a real estate investment syndication company. "
+        f"Based on ALL the following data for investor {inv.first_name} {inv.last_name}, "
+        f"suggest 3-5 actionable follow-up tasks.\n\n"
+        f"Extract action items from conversations, text messages, call transcripts, "
+        f"and any commitments or requests made by either party.\n\n"
         f"Investor Status: {inv.investor_status.value if inv.investor_status else 'new_lead'}\n"
+        f"Company: {inv.company_name or 'N/A'}\n"
         f"Notes: {(inv.notes or '')[:500]}\n\n"
-        f"Recent Activities:\n{activity_text}\n\n"
-        f"Existing Open Tasks:\n{existing_text}\n\n"
+        f"{research_text}\n\n"
+        f"Recent CRM Activities:\n{activity_text}\n\n"
+        f"{sms_text}\n\n"
+        f"{transcript_text}\n\n"
+        f"Existing Open Tasks (do NOT duplicate):\n{existing_text}\n\n"
         f"Return ONLY a JSON array of objects, each with:\n"
         f'- "description": short actionable task description\n'
         f'- "due_date": suggested date in YYYY-MM-DD format (within next 30 days)\n'
         f'- "priority": "low", "normal", or "high"\n\n'
-        f"Do NOT duplicate existing open tasks. Focus on next steps to advance the relationship."
+        f"Focus on: action items from conversations, promised follow-ups, "
+        f"document requests, meeting scheduling, and next steps to advance the relationship."
     )
 
     import json as _json
