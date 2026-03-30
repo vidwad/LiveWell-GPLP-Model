@@ -2445,6 +2445,25 @@ def suggest_tasks(
         f"Do NOT duplicate existing open tasks. Focus on next steps to advance the relationship."
     )
 
+    import json as _json
+    import re as _re
+
+    def _parse_json_array(text: str) -> list:
+        """Parse a JSON array from text, handling markdown code fences."""
+        text = text.strip()
+        # Strip markdown code fences (```json ... ``` or ``` ... ```)
+        text = _re.sub(r"^```(?:json)?\s*", "", text)
+        text = _re.sub(r"\s*```$", "", text)
+        text = text.strip()
+        if text.startswith("["):
+            return _json.loads(text)
+        # Try to find array in the text
+        start = text.find("[")
+        end = text.rfind("]") + 1
+        if start >= 0 and end > start:
+            return _json.loads(text[start:end])
+        return []
+
     try:
         from app.services.ai import _call_claude_json
         suggestions = _call_claude_json(prompt, max_tokens=1024)
@@ -2453,14 +2472,7 @@ def suggest_tasks(
     except Exception:
         try:
             response = client.responses.create(model="gpt-4o", input=prompt)
-            import json
-            text = response.output_text.strip()
-            if text.startswith("["):
-                suggestions = json.loads(text)
-            else:
-                start = text.find("[")
-                end = text.rfind("]") + 1
-                suggestions = json.loads(text[start:end]) if start >= 0 else []
+            suggestions = _parse_json_array(response.output_text)
         except Exception:
             suggestions = []
 
