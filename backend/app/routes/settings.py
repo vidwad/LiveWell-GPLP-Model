@@ -83,6 +83,42 @@ DEFAULT_SETTINGS = [
         "description": "Current deployment environment (development or production).",
         "is_secret": False,
     },
+    # Twilio telephony settings
+    {
+        "key": "TWILIO_ACCOUNT_SID",
+        "category": "api_keys",
+        "label": "Twilio Account SID",
+        "description": "Found on your Twilio Console dashboard. Required for calls and SMS.",
+        "is_secret": True,
+    },
+    {
+        "key": "TWILIO_AUTH_TOKEN",
+        "category": "api_keys",
+        "label": "Twilio Auth Token",
+        "description": "Found on your Twilio Console dashboard. Required for calls and SMS.",
+        "is_secret": True,
+    },
+    {
+        "key": "TWILIO_PHONE_NUMBER",
+        "category": "telephony",
+        "label": "Twilio Phone Number",
+        "description": "Your Twilio phone number in E.164 format (e.g. +14155551234). Used as caller ID for outbound calls and SMS.",
+        "is_secret": False,
+    },
+    {
+        "key": "TWILIO_TWIML_APP_SID",
+        "category": "api_keys",
+        "label": "Twilio TwiML App SID",
+        "description": "TwiML Application SID for browser-to-phone calling. Create one in the Twilio Console under Voice > TwiML Apps.",
+        "is_secret": True,
+    },
+    {
+        "key": "TWILIO_WEBHOOK_BASE_URL",
+        "category": "telephony",
+        "label": "Twilio Webhook Base URL",
+        "description": "Public URL where Twilio sends webhooks (e.g. https://yourdomain.com or ngrok URL for dev). Must be reachable from the internet.",
+        "is_secret": False,
+    },
 ]
 
 

@@ -9,6 +9,7 @@ from fastapi.staticfiles import StaticFiles
 from app.core.config import settings
 from app.routes import portfolio, community, investor, investment, ai, auth, reports, lifecycle, operator, property_manager
 from app.routes import settings as settings_routes
+from app.routes import twilio as twilio_routes
 from app.routes.calculations import router as calculations_router
 from app.routes.documents import router as documents_router
 from app.routes.notifications import router as notifications_router
@@ -59,6 +60,7 @@ app.include_router(documents_router, prefix="/api/documents", tags=["documents"]
 app.include_router(notifications_router, prefix="/api/notifications", tags=["notifications"])
 app.include_router(property_manager.router)  # prefix already set in router
 app.include_router(settings_routes.router, prefix="/api/settings", tags=["settings"])
+app.include_router(twilio_routes.router, prefix="/api/twilio", tags=["twilio"])
 
 # Serve uploaded files statically
 _uploads_dir = Path(__file__).resolve().parent.parent / "uploads"

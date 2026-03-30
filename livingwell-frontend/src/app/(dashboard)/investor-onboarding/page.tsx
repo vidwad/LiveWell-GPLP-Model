@@ -3,7 +3,7 @@
 import { useState, useMemo, useCallback, useRef, useEffect } from "react";
 // createPortal removed — using direct fixed overlay instead
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { apiClient, investors as investorsApi } from "@/lib/api";
+import { apiClient, investors as investorsApi, twilio as twilioApi } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -1229,7 +1229,7 @@ const EMPTY_ACTIVITY_FORM = {
   meeting_attendees: "",
 };
 
-type DrawerTab = "profile" | "activity" | "followups" | "documents";
+type DrawerTab = "profile" | "activity" | "followups" | "documents" | "comms";
 
 function InvestorDetailDrawer({
   investorId,
@@ -1439,6 +1439,7 @@ function InvestorDetailDrawer({
     { key: "activity", label: "Activity Log" },
     { key: "followups", label: "Follow-ups" },
     { key: "documents", label: "Documents" },
+    { key: "comms", label: "Comms" },
   ];
 
   return (
@@ -1808,13 +1809,23 @@ function InvestorDetailDrawer({
                         <div>
                           <span className="text-[10px] text-muted-foreground">Phone</span>
                           {(investor.phone as string) ? (
-                            <p><a href={`tel:${investor.phone}`} className="text-blue-600 hover:underline">{investor.phone as string}</a></p>
+                            <div className="flex items-center gap-1">
+                              <a href={`tel:${investor.phone}`} className="text-blue-600 hover:underline truncate">{investor.phone as string}</a>
+                              <button onClick={() => { setActiveTab("comms"); }} title="Call / SMS" className="text-green-600 hover:text-green-700 shrink-0">
+                                <Phone className="h-3 w-3" />
+                              </button>
+                            </div>
                           ) : <p className="text-muted-foreground">—</p>}
                         </div>
                         <div>
                           <span className="text-[10px] text-muted-foreground">Mobile</span>
                           {(investor.mobile as string) ? (
-                            <p><a href={`tel:${investor.mobile}`} className="text-blue-600 hover:underline">{investor.mobile as string}</a></p>
+                            <div className="flex items-center gap-1">
+                              <a href={`tel:${investor.mobile}`} className="text-blue-600 hover:underline truncate">{investor.mobile as string}</a>
+                              <button onClick={() => { setActiveTab("comms"); }} title="Call / SMS" className="text-green-600 hover:text-green-700 shrink-0">
+                                <Phone className="h-3 w-3" />
+                              </button>
+                            </div>
                           ) : <p className="text-muted-foreground">—</p>}
                         </div>
                         <div>
@@ -2560,6 +2571,13 @@ function InvestorDetailDrawer({
         ================================================================ */}
         {activeTab === "documents" && (
           <InvestorDocumentsTab investorId={investorId} />
+        )}
+
+        {/* ================================================================
+            TAB 5: COMMUNICATIONS (Twilio SMS & Call History)
+        ================================================================ */}
+        {activeTab === "comms" && (
+          <InvestorCommsTab investorId={investorId} investor={investor} />
         )}
       </div>
     </div>
@@ -3324,6 +3342,326 @@ function TTSButton({ text, cachedAudioUrl }: { text: string; cachedAudioUrl?: st
     >
       {loading ? "Loading..." : playing ? "⏹ Stop" : "🔊 Read Aloud"}
     </button>
+  );
+}
+
+// ── Investor Communications Tab (Twilio SMS & Call History) ────────────
+
+function InvestorCommsTab({ investorId, investor }: { investorId: number; investor: Record<string, unknown> }) {
+  const queryClient = useQueryClient();
+  const [commsView, setCommsView] = useState<"sms" | "calls">("sms");
+  const [smsBody, setSmsBody] = useState("");
+  const [sending, setSending] = useState(false);
+  const [calling, setCalling] = useState(false);
+  const [callToNumber, setCallToNumber] = useState("");
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  // SMS thread
+  const { data: smsThread = [], isLoading: smsLoading } = useQuery<Array<Record<string, any>>>({
+    queryKey: ["twilio-sms", investorId],
+    queryFn: () => twilioApi.getSmsThread(investorId),
+    refetchInterval: 10000, // Auto-refresh every 10s
+  });
+
+  // Call logs
+  const { data: callLogs = [], isLoading: callsLoading } = useQuery<Array<Record<string, any>>>({
+    queryKey: ["twilio-calls", investorId],
+    queryFn: () => twilioApi.getCallLogs(investorId),
+  });
+
+  // Twilio config status
+  const { data: twilioStatus } = useQuery<Record<string, any>>({
+    queryKey: ["twilio-status"],
+    queryFn: () => twilioApi.getStatus(),
+    staleTime: 60000,
+  });
+
+  // Auto-scroll SMS to bottom
+  useEffect(() => {
+    if (scrollRef.current) {
+      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    }
+  }, [smsThread]);
+
+  const handleSendSms = async () => {
+    if (!smsBody.trim()) return;
+    setSending(true);
+    try {
+      await twilioApi.sendSms(investorId, smsBody.trim());
+      setSmsBody("");
+      queryClient.invalidateQueries({ queryKey: ["twilio-sms", investorId] });
+      queryClient.invalidateQueries({ queryKey: ["onboarding-detail", investorId] });
+    } catch (e: any) {
+      alert(e?.response?.data?.detail || "Failed to send SMS");
+    } finally {
+      setSending(false);
+    }
+  };
+
+  const handleCall = async (toNumber?: string) => {
+    setCalling(true);
+    try {
+      await twilioApi.initiateCall(investorId, toNumber);
+      queryClient.invalidateQueries({ queryKey: ["twilio-calls", investorId] });
+      queryClient.invalidateQueries({ queryKey: ["onboarding-detail", investorId] });
+    } catch (e: any) {
+      alert(e?.response?.data?.detail || "Failed to initiate call");
+    } finally {
+      setCalling(false);
+    }
+  };
+
+  const handleTranscribe = async (callLogId: number) => {
+    try {
+      await twilioApi.transcribeCall(callLogId);
+      queryClient.invalidateQueries({ queryKey: ["twilio-calls", investorId] });
+    } catch (e: any) {
+      alert(e?.response?.data?.detail || "Transcription failed");
+    }
+  };
+
+  const isConfigured = twilioStatus?.configured === true;
+  const phone = (investor.phone as string) || "";
+  const mobile = (investor.mobile as string) || "";
+  const hasPhone = !!(phone || mobile);
+
+  if (!isConfigured) {
+    return (
+      <div className="flex flex-col items-center justify-center py-12 text-center space-y-3">
+        <Phone className="h-8 w-8 text-muted-foreground/40" />
+        <div>
+          <p className="text-sm font-medium">Twilio Not Configured</p>
+          <p className="text-xs text-muted-foreground mt-1">
+            Add your Twilio Account SID, Auth Token, and Phone Number in
+            <span className="font-medium"> Settings → API Keys</span> to enable calls and SMS.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-3">
+      {/* Quick Actions */}
+      {hasPhone && (
+        <div className="flex gap-2">
+          {[phone, mobile].filter(Boolean).map((num, i) => (
+            <Button
+              key={i}
+              size="sm"
+              variant="outline"
+              className="text-xs gap-1.5"
+              disabled={calling}
+              onClick={() => handleCall(num)}
+            >
+              <Phone className="h-3 w-3" />
+              Call {i === 0 ? "Phone" : "Mobile"}
+            </Button>
+          ))}
+        </div>
+      )}
+
+      {/* Tab Switcher */}
+      <div className="flex gap-1 border-b">
+        {[
+          { key: "sms" as const, label: "SMS", icon: MessageSquare, count: smsThread.length },
+          { key: "calls" as const, label: "Call History", icon: Phone, count: callLogs.length },
+        ].map((t) => (
+          <button
+            key={t.key}
+            onClick={() => setCommsView(t.key)}
+            className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium border-b-2 transition-colors ${
+              commsView === t.key
+                ? "border-primary text-primary"
+                : "border-transparent text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            <t.icon className="h-3 w-3" />
+            {t.label}
+            {t.count > 0 && (
+              <Badge variant="secondary" className="text-[9px] px-1 py-0 h-4 min-w-[16px] justify-center">
+                {t.count}
+              </Badge>
+            )}
+          </button>
+        ))}
+      </div>
+
+      {/* SMS View */}
+      {commsView === "sms" && (
+        <div className="flex flex-col" style={{ minHeight: 300 }}>
+          {!hasPhone ? (
+            <div className="flex flex-col items-center justify-center py-8 text-center">
+              <p className="text-xs text-muted-foreground">No phone number on file. Add a phone or mobile to send SMS.</p>
+            </div>
+          ) : (
+            <>
+              {/* Messages Thread */}
+              <div
+                ref={scrollRef}
+                className="flex-1 overflow-y-auto space-y-2 px-1 py-2 max-h-[350px] min-h-[200px]"
+              >
+                {smsLoading ? (
+                  <div className="flex justify-center py-8"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></div>
+                ) : smsThread.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center py-8 text-center">
+                    <MessageSquare className="h-6 w-6 text-muted-foreground/30 mb-2" />
+                    <p className="text-xs text-muted-foreground">No messages yet. Send the first SMS below.</p>
+                  </div>
+                ) : (
+                  smsThread.map((msg: Record<string, any>) => (
+                    <div
+                      key={msg.sms_log_id}
+                      className={`flex ${msg.direction === "outbound" ? "justify-end" : "justify-start"}`}
+                    >
+                      <div
+                        className={`max-w-[80%] rounded-lg px-3 py-2 text-xs ${
+                          msg.direction === "outbound"
+                            ? "bg-blue-600 text-white rounded-br-sm"
+                            : "bg-muted rounded-bl-sm"
+                        }`}
+                      >
+                        <p className="whitespace-pre-wrap">{msg.body}</p>
+                        <div className={`flex items-center gap-1.5 mt-1 text-[9px] ${
+                          msg.direction === "outbound" ? "text-blue-200" : "text-muted-foreground"
+                        }`}>
+                          <span>{new Date(msg.created_at).toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}</span>
+                          {msg.direction === "outbound" && (
+                            <span className="capitalize">· {msg.status}</span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+
+              {/* Compose */}
+              <div className="border-t pt-2 mt-auto">
+                <div className="flex gap-2">
+                  <textarea
+                    value={smsBody}
+                    onChange={(e) => setSmsBody(e.target.value)}
+                    placeholder="Type a message..."
+                    rows={2}
+                    maxLength={1600}
+                    className="flex-1 rounded-md border bg-background px-3 py-2 text-xs resize-none focus:outline-none focus:ring-1 focus:ring-primary"
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && !e.shiftKey) {
+                        e.preventDefault();
+                        handleSendSms();
+                      }
+                    }}
+                  />
+                  <Button
+                    size="sm"
+                    disabled={sending || !smsBody.trim()}
+                    onClick={handleSendSms}
+                    className="self-end"
+                  >
+                    {sending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Send"}
+                  </Button>
+                </div>
+                <p className="text-[9px] text-muted-foreground mt-1 text-right">
+                  {smsBody.length}/160 {smsBody.length > 160 ? `(${Math.ceil(smsBody.length / 160)} segments)` : ""}
+                </p>
+              </div>
+            </>
+          )}
+        </div>
+      )}
+
+      {/* Call History View */}
+      {commsView === "calls" && (
+        <div className="space-y-2">
+          {/* Quick dial */}
+          {hasPhone && (
+            <div className="flex gap-2 items-center">
+              <input
+                value={callToNumber}
+                onChange={(e) => setCallToNumber(e.target.value)}
+                placeholder="Custom number (optional)"
+                className="flex-1 rounded border bg-background px-2 py-1.5 text-xs"
+              />
+              <Button size="sm" variant="outline" disabled={calling} onClick={() => handleCall(callToNumber || undefined)}>
+                {calling ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <><Phone className="h-3 w-3 mr-1" />Dial</>}
+              </Button>
+            </div>
+          )}
+
+          {callsLoading ? (
+            <div className="flex justify-center py-8"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></div>
+          ) : callLogs.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-8 text-center">
+              <Phone className="h-6 w-6 text-muted-foreground/30 mb-2" />
+              <p className="text-xs text-muted-foreground">No calls yet.</p>
+            </div>
+          ) : (
+            <div className="space-y-2 max-h-[400px] overflow-y-auto">
+              {callLogs.map((call: Record<string, any>) => {
+                const statusColors: Record<string, string> = {
+                  completed: "bg-green-100 text-green-700",
+                  "in-progress": "bg-blue-100 text-blue-700",
+                  ringing: "bg-yellow-100 text-yellow-700",
+                  initiated: "bg-gray-100 text-gray-700",
+                  busy: "bg-orange-100 text-orange-700",
+                  "no-answer": "bg-red-100 text-red-700",
+                  canceled: "bg-gray-100 text-gray-500",
+                  failed: "bg-red-100 text-red-700",
+                };
+                return (
+                  <div key={call.call_log_id} className="rounded-lg border p-3 space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Phone className={`h-3.5 w-3.5 ${call.direction === "inbound" ? "rotate-[135deg] text-green-600" : "text-blue-600"}`} />
+                        <span className="text-xs font-medium">
+                          {call.direction === "outbound" ? `→ ${call.to_number}` : `← ${call.from_number}`}
+                        </span>
+                      </div>
+                      <Badge className={`text-[9px] px-1.5 py-0 ${statusColors[call.status] || "bg-gray-100 text-gray-600"}`}>
+                        {call.status}
+                      </Badge>
+                    </div>
+                    <div className="flex items-center gap-3 text-[10px] text-muted-foreground">
+                      <span>{new Date(call.created_at).toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}</span>
+                      {call.duration_seconds != null && (
+                        <span>{Math.floor(call.duration_seconds / 60)}:{String(call.duration_seconds % 60).padStart(2, "0")}</span>
+                      )}
+                    </div>
+                    {/* Transcript */}
+                    {call.transcript ? (
+                      <details className="mt-1">
+                        <summary className="text-[10px] font-medium text-muted-foreground cursor-pointer hover:text-foreground">
+                          View Transcript
+                        </summary>
+                        <p className="mt-1 text-xs whitespace-pre-wrap text-muted-foreground bg-muted/30 rounded p-2 max-h-[150px] overflow-y-auto">
+                          {call.transcript}
+                        </p>
+                      </details>
+                    ) : call.recording_url && call.transcription_status !== "completed" ? (
+                      <button
+                        onClick={() => handleTranscribe(call.call_log_id)}
+                        className="text-[10px] text-blue-600 hover:underline"
+                      >
+                        {call.transcription_status === "pending" ? "Transcribing..." : "Transcribe Recording"}
+                      </button>
+                    ) : null}
+                    {/* Play recording */}
+                    {call.recording_url && (
+                      <audio
+                        src={call.recording_url.startsWith("http") ? call.recording_url : `https://api.twilio.com${call.recording_url}.mp3`}
+                        controls
+                        className="w-full h-7 mt-1"
+                      />
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
   );
 }
 

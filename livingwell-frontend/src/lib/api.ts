@@ -344,6 +344,28 @@ export const ai = {
     apiClient.post(`/api/ai/area-research/${propertyId}/save`, data).then(r => r.data),
 };
 
+// ── Twilio (Calls & SMS) ────────────────────────────────────────────────
+export const twilio = {
+  getStatus: () =>
+    apiClient.get("/api/twilio/status").then(r => r.data),
+  getToken: () =>
+    apiClient.get("/api/twilio/token").then(r => r.data),
+  // SMS
+  sendSms: (investorId: number, body: string, toNumber?: string) =>
+    apiClient.post("/api/twilio/sms/send", { investor_id: investorId, body, to_number: toNumber }).then(r => r.data),
+  getSmsThread: (investorId: number) =>
+    apiClient.get(`/api/twilio/sms/${investorId}`).then(r => r.data),
+  // Voice Calls
+  initiateCall: (investorId: number, toNumber?: string) =>
+    apiClient.post("/api/twilio/calls/initiate", { investor_id: investorId, to_number: toNumber }).then(r => r.data),
+  getCallLogs: (investorId: number) =>
+    apiClient.get(`/api/twilio/calls/${investorId}`).then(r => r.data),
+  getCallDetail: (callLogId: number) =>
+    apiClient.get(`/api/twilio/calls/detail/${callLogId}`).then(r => r.data),
+  transcribeCall: (callLogId: number) =>
+    apiClient.post(`/api/twilio/calls/${callLogId}/transcribe`).then(r => r.data),
+};
+
 // ── Convenience namespace ──────────────────────────────────────────────
 export const api = {
   portfolio,
@@ -357,4 +379,5 @@ export const api = {
   lifecycle,
   ai,
   settings: settingsApi,
+  twilio,
 };

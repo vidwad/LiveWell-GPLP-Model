@@ -2271,6 +2271,7 @@ class CRMActivityType(str, enum.Enum):
     status_change = "status_change"
     task = "task"
     follow_up = "follow_up"
+    sms = "sms"
 
 
 class CRMActivity(Base):
@@ -2290,6 +2291,9 @@ class CRMActivity(Base):
     meeting_date = Column(DateTime, nullable=True)
     meeting_location = Column(String(256), nullable=True)
     attendees = Column(String(512), nullable=True)  # comma-separated names
+    # Twilio cross-references
+    twilio_call_sid = Column(String(64), nullable=True)
+    twilio_sms_sid = Column(String(64), nullable=True)
     # Metadata
     created_by = Column(Integer, ForeignKey("users.user_id"), nullable=True)
     created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
@@ -2348,3 +2352,68 @@ class UserInvitation(Base):
 
     inviter = relationship("User", foreign_keys=[invited_by])
     accepted_user = relationship("User", foreign_keys=[accepted_by_user_id])
+
+
+# ---------------------------------------------------------------------------
+# Twilio Call & SMS Logs
+# ---------------------------------------------------------------------------
+
+class TwilioCallStatus(str, enum.Enum):
+    initiated = "initiated"
+    ringing = "ringing"
+    in_progress = "in-progress"
+    completed = "completed"
+    busy = "busy"
+    no_answer = "no-answer"
+    canceled = "canceled"
+    failed = "failed"
+
+
+class TwilioCallLog(Base):
+    """Tracks outbound/inbound Twilio voice calls linked to investors."""
+    __tablename__ = "twilio_call_logs"
+
+    call_log_id = Column(Integer, primary_key=True, autoincrement=True)
+    investor_id = Column(Integer, ForeignKey("investors.investor_id"), nullable=False, index=True)
+    activity_id = Column(Integer, ForeignKey("crm_activities.activity_id"), nullable=True)
+    twilio_call_sid = Column(String(64), unique=True, nullable=False, index=True)
+    direction = Column(String(16), nullable=False, default="outbound")
+    from_number = Column(String(32), nullable=False)
+    to_number = Column(String(32), nullable=False)
+    status = Column(_enum(TwilioCallStatus), nullable=False, default=TwilioCallStatus.initiated)
+    duration_seconds = Column(Integer, nullable=True)
+    recording_url = Column(String(512), nullable=True)
+    recording_sid = Column(String(64), nullable=True)
+    transcript = Column(Text, nullable=True)
+    transcription_status = Column(String(32), nullable=True)  # pending, completed, failed
+    price = Column(String(16), nullable=True)
+    initiated_by = Column(Integer, ForeignKey("users.user_id"), nullable=True)
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    updated_at = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    investor = relationship("Investor")
+    activity = relationship("CRMActivity")
+    initiator = relationship("User")
+
+
+class TwilioSMSLog(Base):
+    """Tracks outbound/inbound Twilio SMS messages linked to investors."""
+    __tablename__ = "twilio_sms_logs"
+
+    sms_log_id = Column(Integer, primary_key=True, autoincrement=True)
+    investor_id = Column(Integer, ForeignKey("investors.investor_id"), nullable=False, index=True)
+    activity_id = Column(Integer, ForeignKey("crm_activities.activity_id"), nullable=True)
+    twilio_message_sid = Column(String(64), unique=True, nullable=False, index=True)
+    direction = Column(String(16), nullable=False, default="outbound")
+    from_number = Column(String(32), nullable=False)
+    to_number = Column(String(32), nullable=False)
+    body = Column(Text, nullable=False)
+    status = Column(String(32), nullable=False, default="queued")
+    price = Column(String(16), nullable=True)
+    sent_by = Column(Integer, ForeignKey("users.user_id"), nullable=True)
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    updated_at = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    investor = relationship("Investor")
+    activity = relationship("CRMActivity")
+    sender = relationship("User")
