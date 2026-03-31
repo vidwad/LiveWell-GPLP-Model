@@ -358,7 +358,7 @@ export default function PipelinePage() {
                       <tr
                         key={c.investor_id}
                         className={`border-b hover:bg-muted/30 transition-colors cursor-pointer ${stale ? "bg-red-50/30" : ""}`}
-                        onClick={() => window.location.href = `/investor-onboarding`}
+                        onClick={() => window.location.href = `/investor-onboarding?investor=${c.investor_id}`}
                       >
                         <td className="px-3 py-2.5">
                           <div>

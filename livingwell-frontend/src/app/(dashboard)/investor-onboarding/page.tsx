@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useMemo, useCallback, useRef, useEffect } from "react";
+import { useSearchParams } from "next/navigation";
 // createPortal removed — using direct fixed overlay instead
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiClient, investors as investorsApi, twilio as twilioApi } from "@/lib/api";
@@ -160,7 +161,17 @@ function updateChecklistItem(investorId: number, itemId: number, isCompleted: bo
 
 export default function InvestorOnboardingPage() {
   const queryClient = useQueryClient();
+  const searchParams = useSearchParams();
   const [selectedInvestorId, setSelectedInvestorId] = useState<number | null>(null);
+
+  // Auto-open investor drawer from query param (e.g. from Pipeline page)
+  useEffect(() => {
+    const investorParam = searchParams.get("investor");
+    if (investorParam) {
+      const id = parseInt(investorParam, 10);
+      if (!isNaN(id)) setSelectedInvestorId(id);
+    }
+  }, [searchParams]);
   const [showAddLead, setShowAddLead] = useState(false);
   const [leadForm, setLeadForm] = useState({ first_name: "", last_name: "", email: "", phone: "", lp_id: "", indicated_amount: "", source: "", notes: "" });
   const [viewMode, setViewMode] = useState<"kanban" | "table">("table");
