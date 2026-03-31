@@ -238,6 +238,8 @@ export const investors = {
     apiClient.patch(`/api/investor/investors/${investorId}/edit`, data).then(r => r.data),
   getFollowUps: (investorId?: number) =>
     apiClient.get(`/api/investor/investors/${investorId || 0}/follow-ups`).then(r => r.data),
+  queryInvestor: (investorId: number, question: string, conversationHistory: Array<{role: string; content: string}> = []) =>
+    apiClient.post(`/api/investor/investors/${investorId}/query`, { question, conversation_history: conversationHistory }).then(r => r.data),
 };
 
 // ── Communities ──────────────────────────────────────────────────────

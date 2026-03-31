@@ -169,6 +169,7 @@ export default function InvestorOnboardingPage() {
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [showArchived, setShowArchived] = useState(false);
+  const [queryInvestor, setQueryInvestor] = useState<Record<string, any> | null>(null);
 
   // Fetch all investors
   const { data: investors, isLoading: investorsLoading } = useQuery({
@@ -839,6 +840,7 @@ export default function InvestorOnboardingPage() {
                             </span>
                           </th>
                         ))}
+                        <th className="px-3 py-2.5 text-left text-xs font-semibold text-muted-foreground">Query</th>
                         <th className="px-3 py-2.5 text-left text-xs font-semibold text-muted-foreground">Actions</th>
                       </tr>
                     </thead>
@@ -891,6 +893,17 @@ export default function InvestorOnboardingPage() {
                                 ) : (
                                   <span className="text-xs text-muted-foreground">—</span>
                                 )}
+                              </td>
+                              <td className="px-3 py-2.5">
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="h-6 text-[10px] px-2 gap-1 bg-green-50 border-green-300 text-green-700 hover:bg-green-100"
+                                  onClick={(e) => { e.stopPropagation(); setQueryInvestor(inv); }}
+                                >
+                                  <Sparkles className="h-2.5 w-2.5" />
+                                  Query
+                                </Button>
                               </td>
                               <td className="px-3 py-2.5">
                                 {(() => {
@@ -1007,6 +1020,14 @@ export default function InvestorOnboardingPage() {
 
       {/* ── Sticky Activity Stats Bar ── */}
       <CRMStatsBar />
+
+      {/* ── Investor Query Chat Modal ── */}
+      {queryInvestor && (
+        <InvestorQueryModal
+          investor={queryInvestor}
+          onClose={() => setQueryInvestor(null)}
+        />
+      )}
 
       {/* ── CSV Column Mapping Modal ── */}
       {showMappingModal && (
@@ -3308,6 +3329,184 @@ function TTSButton({ text, cachedAudioUrl }: { text: string; cachedAudioUrl?: st
     >
       {loading ? "Loading..." : playing ? "⏹ Stop" : "🔊 Read Aloud"}
     </button>
+  );
+}
+
+// ── Investor Query Chat Modal ──────────────────────────────────────────
+
+function InvestorQueryModal({ investor, onClose }: { investor: Record<string, any>; onClose: () => void }) {
+  const [messages, setMessages] = useState<Array<{ role: string; content: string }>>([]);
+  const [input, setInput] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [dataSources, setDataSources] = useState<Record<string, any> | null>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const investorName = `${investor.first_name || ""} ${investor.last_name || ""}`.trim();
+
+  useEffect(() => {
+    inputRef.current?.focus();
+  }, []);
+
+  useEffect(() => {
+    if (scrollRef.current) {
+      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    }
+  }, [messages]);
+
+  const handleSend = async () => {
+    if (!input.trim() || loading) return;
+    const question = input.trim();
+    setInput("");
+    const userMsg = { role: "user", content: question };
+    setMessages((prev) => [...prev, userMsg]);
+    setLoading(true);
+
+    try {
+      const resp = await investorsApi.queryInvestor(
+        investor.investor_id,
+        question,
+        messages,
+      );
+      setMessages((prev) => [...prev, { role: "assistant", content: resp.answer }]);
+      setDataSources(resp.data_sources_used);
+
+      // Auto-trigger research if needed
+      if (resp.needs_research && resp.research_triggered) {
+        try {
+          await apiClient.post(`/api/investor/investors/${investor.investor_id}/linkedin-fetch`);
+        } catch {
+          // Research trigger is best-effort
+        }
+      }
+    } catch (e: any) {
+      setMessages((prev) => [
+        ...prev,
+        { role: "assistant", content: `Error: ${e?.response?.data?.detail || "Failed to query. Please try again."}` },
+      ]);
+    } finally {
+      setLoading(false);
+      inputRef.current?.focus();
+    }
+  };
+
+  const suggestedQuestions = [
+    "Give me a summary of this contact",
+    "What is the best way to reach this person?",
+    "What are the next steps for this investor?",
+    "Is this person likely an accredited investor?",
+    "Summarize all recent communications",
+  ];
+
+  return (
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 p-4">
+      <div className="bg-background rounded-xl shadow-2xl w-full max-w-2xl max-h-[85vh] flex flex-col">
+        {/* Header */}
+        <div className="flex items-center justify-between px-5 py-3 border-b bg-green-50 rounded-t-xl">
+          <div className="flex items-center gap-2.5">
+            <div className="h-8 w-8 rounded-full bg-green-600 flex items-center justify-center">
+              <Sparkles className="h-4 w-4 text-white" />
+            </div>
+            <div>
+              <h2 className="text-sm font-bold">Query: {investorName}</h2>
+              <p className="text-[10px] text-muted-foreground">AI-powered search across all investor data</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            {dataSources && (
+              <div className="flex gap-1">
+                {dataSources.research && <span className="text-[8px] bg-green-100 text-green-700 px-1 rounded">Research</span>}
+                {dataSources.activities > 0 && <span className="text-[8px] bg-blue-100 text-blue-700 px-1 rounded">{dataSources.activities} Activities</span>}
+                {dataSources.sms_messages > 0 && <span className="text-[8px] bg-purple-100 text-purple-700 px-1 rounded">{dataSources.sms_messages} SMS</span>}
+                {dataSources.call_logs > 0 && <span className="text-[8px] bg-yellow-100 text-yellow-700 px-1 rounded">{dataSources.call_logs} Calls</span>}
+                {dataSources.documents > 0 && <span className="text-[8px] bg-orange-100 text-orange-700 px-1 rounded">{dataSources.documents} Docs</span>}
+              </div>
+            )}
+            <button onClick={onClose} className="text-muted-foreground hover:text-foreground">
+              <XCircle className="h-5 w-5" />
+            </button>
+          </div>
+        </div>
+
+        {/* Chat Messages */}
+        <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 space-y-3 min-h-[300px]">
+          {messages.length === 0 ? (
+            <div className="space-y-4">
+              <div className="text-center py-4">
+                <Sparkles className="h-8 w-8 text-green-500/30 mx-auto mb-2" />
+                <p className="text-sm text-muted-foreground">Ask anything about <span className="font-semibold">{investorName}</span></p>
+                <p className="text-[10px] text-muted-foreground mt-1">
+                  Searches profile, research, activity log, SMS, calls, documents, tasks & investments
+                </p>
+              </div>
+              <div className="space-y-1.5">
+                <p className="text-[10px] font-semibold text-muted-foreground uppercase">Suggested Questions</p>
+                {suggestedQuestions.map((q, i) => (
+                  <button
+                    key={i}
+                    onClick={() => { setInput(q); setTimeout(() => inputRef.current?.focus(), 50); }}
+                    className="block w-full text-left text-xs px-3 py-2 rounded-lg border hover:bg-muted/50 hover:border-green-300 transition-colors"
+                  >
+                    {q}
+                  </button>
+                ))}
+              </div>
+            </div>
+          ) : (
+            messages.map((msg, i) => (
+              <div key={i} className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
+                <div className={`max-w-[85%] rounded-lg px-3.5 py-2.5 text-sm ${
+                  msg.role === "user"
+                    ? "bg-green-600 text-white rounded-br-sm"
+                    : "bg-muted rounded-bl-sm"
+                }`}>
+                  {msg.role === "assistant" ? (
+                    <div className="whitespace-pre-wrap text-xs leading-relaxed prose prose-sm max-w-none"
+                      dangerouslySetInnerHTML={{
+                        __html: msg.content
+                          .replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>")
+                          .replace(/\n/g, "<br/>")
+                      }}
+                    />
+                  ) : (
+                    <p className="text-xs">{msg.content}</p>
+                  )}
+                </div>
+              </div>
+            ))
+          )}
+          {loading && (
+            <div className="flex justify-start">
+              <div className="bg-muted rounded-lg px-4 py-3 flex items-center gap-2">
+                <Loader2 className="h-4 w-4 animate-spin text-green-600" />
+                <span className="text-xs text-muted-foreground">Searching all data sources...</span>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Input */}
+        <div className="border-t p-3">
+          <div className="flex gap-2">
+            <input
+              ref={inputRef}
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter") handleSend(); }}
+              placeholder={`Ask about ${investorName}...`}
+              className="flex-1 rounded-lg border bg-background px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-500/30 focus:border-green-500"
+              disabled={loading}
+            />
+            <Button
+              onClick={handleSend}
+              disabled={loading || !input.trim()}
+              className="bg-green-600 hover:bg-green-700 text-white"
+            >
+              {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Ask"}
+            </Button>
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }
 

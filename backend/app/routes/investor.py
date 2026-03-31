@@ -2867,3 +2867,247 @@ def _format_actions_response(actions):
 def _url_encode(s: str) -> str:
     import urllib.parse
     return urllib.parse.quote(s, safe="")
+
+
+# ===========================================================================
+# Investor Query — AI chat about a specific investor using all data sources
+# ===========================================================================
+
+class InvestorQueryRequest(BaseModel):
+    question: str
+    conversation_history: list[dict] = []  # [{role, content}, ...]
+
+
+@router.post("/investors/{investor_id}/query")
+def investor_query(
+    investor_id: int,
+    body: InvestorQueryRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Answer questions about an investor using ALL available data.
+
+    Gathers: profile, activities, SMS messages, call transcripts, tasks,
+    documents, research, subscriptions, follow-ups, and assignments.
+    Auto-triggers research if none exists.
+    """
+    import json as _json
+    import re as _re
+    from app.db.models import (
+        CRMActivity, PlatformSetting, TwilioSMSLog, TwilioCallLog,
+        InvestorDocument, Subscription, ContactAssignment,
+    )
+
+    inv = db.query(Investor).filter(Investor.investor_id == investor_id).first()
+    if not inv:
+        raise HTTPException(404, "Investor not found")
+
+    # ── Gather ALL data sources ──────────────────────────────────────
+
+    # 1. Profile
+    investor_name = f"{inv.first_name or ''} {inv.last_name or ''}".strip()
+    profile_data = (
+        f"Name: {investor_name}\n"
+        f"Email: {inv.email or 'N/A'}\n"
+        f"Phone: {inv.phone or 'N/A'}\n"
+        f"Mobile: {inv.mobile or 'N/A'}\n"
+        f"Company/Trust: {inv.company_name or 'N/A'}\n"
+        f"Entity Type: {inv.entity_type or 'N/A'}\n"
+        f"Status: {inv.investor_status.value if inv.investor_status else 'new_lead'}\n"
+        f"Accredited: {inv.accredited_status or 'N/A'}\n"
+        f"Exemption: {inv.exemption_type or 'N/A'}\n"
+        f"Jurisdiction: {inv.jurisdiction or 'N/A'}\n"
+        f"Address: {', '.join(filter(None, [inv.street_address, inv.street_address_2, inv.city, inv.province, inv.postal_code, inv.country]))}\n"
+        f"Risk Tolerance: {inv.risk_tolerance or 'N/A'}\n"
+        f"RE Knowledge: {inv.re_knowledge or 'N/A'}\n"
+        f"Income Range: {inv.income_range or 'N/A'}\n"
+        f"Net Worth Range: {inv.net_worth_range or 'N/A'}\n"
+        f"Investment Goals: {inv.investment_goals or 'N/A'}\n"
+        f"Referral Source: {inv.referral_source or 'N/A'}\n"
+        f"Notes: {inv.notes or 'None'}\n"
+    )
+
+    # 2. Research
+    research_data = ""
+    if inv.research_summary:
+        research_data = f"Research Summary:\n{inv.research_summary}\n"
+    if inv.research_details:
+        research_data += f"\nFull Research Details:\n{inv.research_details[:3000]}\n"
+    if not research_data:
+        research_data = "No research has been conducted yet.\n"
+
+    # 3. CRM Activities (last 25)
+    activities = db.query(CRMActivity).filter(
+        CRMActivity.investor_id == investor_id
+    ).order_by(CRMActivity.created_at.desc()).limit(25).all()
+    activity_data = "CRM Activity Log:\n"
+    if activities:
+        for a in activities:
+            atype = a.activity_type.value if hasattr(a.activity_type, "value") else str(a.activity_type)
+            ts = a.created_at.strftime("%Y-%m-%d %H:%M") if a.created_at else ""
+            activity_data += f"- [{ts}] [{atype}] {a.subject}: {(a.body or '')[:300]}"
+            if a.outcome:
+                activity_data += f" | Outcome: {a.outcome}"
+            activity_data += "\n"
+    else:
+        activity_data += "No activities logged.\n"
+
+    # 4. SMS Messages (last 30)
+    sms_messages = db.query(TwilioSMSLog).filter(
+        TwilioSMSLog.investor_id == investor_id
+    ).order_by(TwilioSMSLog.created_at.asc()).limit(30).all()
+    sms_data = ""
+    if sms_messages:
+        sms_data = "SMS Conversation:\n"
+        for m in sms_messages:
+            ts = m.created_at.strftime("%Y-%m-%d %H:%M") if m.created_at else ""
+            direction = "SENT" if m.direction == "outbound" else "RECEIVED"
+            sms_data += f"- [{ts}] [{direction}] {m.body[:300]}\n"
+
+    # 5. Call Transcripts
+    call_logs = db.query(TwilioCallLog).filter(
+        TwilioCallLog.investor_id == investor_id
+    ).order_by(TwilioCallLog.created_at.desc()).limit(10).all()
+    call_data = ""
+    if call_logs:
+        call_data = "Call History:\n"
+        for c in call_logs:
+            ts = c.created_at.strftime("%Y-%m-%d %H:%M") if c.created_at else ""
+            dur = f"{c.duration_seconds}s" if c.duration_seconds else "N/A"
+            call_data += f"- [{ts}] {c.direction} to {c.to_number} | Status: {c.status.value if hasattr(c.status, 'value') else c.status} | Duration: {dur}\n"
+            if c.transcript:
+                call_data += f"  Transcript: {c.transcript[:500]}\n"
+
+    # 6. Tasks
+    tasks = db.query(InvestorTask).filter(
+        InvestorTask.investor_id == investor_id
+    ).order_by(InvestorTask.created_at.desc()).limit(20).all()
+    task_data = ""
+    if tasks:
+        task_data = "Tasks:\n"
+        for t in tasks:
+            status = "DONE" if t.is_completed else "OPEN"
+            task_data += f"- [{status}] {t.description} (Due: {t.due_date or 'N/A'}, Priority: {t.priority or 'normal'})\n"
+
+    # 7. Documents
+    documents = db.query(InvestorDocument).filter(
+        InvestorDocument.investor_id == investor_id
+    ).all()
+    doc_data = ""
+    if documents:
+        doc_data = "Uploaded Documents:\n"
+        for d in documents:
+            dtype = d.document_type.value if hasattr(d.document_type, "value") else str(d.document_type)
+            viewed = "viewed" if d.is_viewed else "not viewed"
+            doc_data += f"- {d.title} (Type: {dtype}, {viewed}, Uploaded: {d.upload_date.strftime('%Y-%m-%d') if d.upload_date else 'N/A'})\n"
+
+    # 8. Subscriptions / Investments
+    subscriptions = db.query(Subscription).filter(
+        Subscription.investor_id == investor_id
+    ).all()
+    sub_data = ""
+    if subscriptions:
+        sub_data = "Investment Subscriptions:\n"
+        for s in subscriptions:
+            sub_data += (
+                f"- LP #{s.lp_id}: Amount ${s.amount:,.2f}, "
+                f"Status: {s.status.value if hasattr(s.status, 'value') else s.status}, "
+                f"Date: {s.subscription_date.strftime('%Y-%m-%d') if s.subscription_date else 'N/A'}\n"
+            )
+
+    # 9. Assigned Users
+    assignments = db.query(ContactAssignment).filter(
+        ContactAssignment.investor_id == investor_id
+    ).all()
+    assign_data = ""
+    if assignments:
+        from app.db.models import User as _User
+        assign_data = "Assigned To:\n"
+        for a in assignments:
+            user = db.query(_User).filter(_User.user_id == a.user_id).first()
+            assign_data += f"- {user.full_name or user.email} (Scope: {a.scope or 'N/A'})\n"
+
+    # ── Build the full context ───────────────────────────────────────
+
+    full_context = (
+        f"=== INVESTOR PROFILE ===\n{profile_data}\n"
+        f"=== RESEARCH ===\n{research_data}\n"
+        f"=== ACTIVITY LOG ===\n{activity_data}\n"
+    )
+    if sms_data:
+        full_context += f"=== SMS MESSAGES ===\n{sms_data}\n"
+    if call_data:
+        full_context += f"=== CALL HISTORY & TRANSCRIPTS ===\n{call_data}\n"
+    if task_data:
+        full_context += f"=== TASKS ===\n{task_data}\n"
+    if doc_data:
+        full_context += f"=== DOCUMENTS ===\n{doc_data}\n"
+    if sub_data:
+        full_context += f"=== INVESTMENTS ===\n{sub_data}\n"
+    if assign_data:
+        full_context += f"=== TEAM ASSIGNMENTS ===\n{assign_data}\n"
+
+    # ── Call AI ──────────────────────────────────────────────────────
+
+    setting = db.query(PlatformSetting).filter(PlatformSetting.key == "OPENAI_API_KEY").first()
+    api_key = setting.value if setting else None
+    if not api_key:
+        import os
+        api_key = os.environ.get("OPENAI_API_KEY")
+    if not api_key:
+        raise HTTPException(400, "OpenAI API key not configured")
+
+    try:
+        from openai import OpenAI as _OpenAI
+    except ImportError:
+        raise HTTPException(400, "OpenAI package not installed")
+
+    client = _OpenAI(api_key=api_key)
+
+    system_prompt = (
+        f"You are an AI CRM assistant for Living Well Communities, a real estate investment syndication company. "
+        f"You have access to ALL data about the investor below. Answer questions thoroughly and accurately "
+        f"based ONLY on the available data. If information is not available, say so clearly.\n\n"
+        f"Today's date: {datetime.date.today().isoformat()}\n\n"
+        f"{full_context}"
+    )
+
+    # Build messages for conversation
+    messages = [{"role": "system", "content": system_prompt}]
+    for msg in body.conversation_history[-10:]:  # Keep last 10 turns
+        messages.append({"role": msg.get("role", "user"), "content": msg.get("content", "")})
+    messages.append({"role": "user", "content": body.question})
+
+    try:
+        response = client.chat.completions.create(
+            model="gpt-4o",
+            messages=messages,
+            max_tokens=2048,
+        )
+        answer = response.choices[0].message.content.strip()
+    except Exception as e:
+        raise HTTPException(500, f"AI query failed: {str(e)}")
+
+    # Check if research should be triggered
+    needs_research = not inv.research_summary and not inv.research_details
+    research_triggered = False
+    if needs_research and ("research" in body.question.lower() or "background" in body.question.lower() or "linkedin" in body.question.lower()):
+        research_triggered = True
+
+    return {
+        "answer": answer,
+        "investor_id": investor_id,
+        "investor_name": investor_name,
+        "data_sources_used": {
+            "profile": True,
+            "research": bool(inv.research_summary or inv.research_details),
+            "activities": len(activities),
+            "sms_messages": len(sms_messages),
+            "call_logs": len(call_logs),
+            "tasks": len(tasks),
+            "documents": len(documents),
+            "subscriptions": len(subscriptions),
+        },
+        "needs_research": needs_research,
+        "research_triggered": research_triggered,
+    }
