@@ -32,6 +32,7 @@ import {
   MapPin,
   Banknote,
   FolderOpen,
+  Target,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/providers/AuthProvider";
@@ -76,6 +77,7 @@ const NAV_SECTIONS: NavSection[] = [
       { href: "/investment", label: "LP Funds", icon: Landmark, roles: [GP] },
       { href: "/investors", label: "Investors", icon: TrendingUp, roles: [GP, INV] },
       { href: "/investor-onboarding", label: "CRM & Onboarding", icon: UserPlus, roles: [GP] },
+      { href: "/pipeline", label: "My Pipeline", icon: Target, roles: [GP] },
     ],
   },
   {

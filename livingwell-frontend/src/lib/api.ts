@@ -346,6 +346,16 @@ export const ai = {
     apiClient.post(`/api/ai/area-research/${propertyId}/save`, data).then(r => r.data),
 };
 
+// ── Pipeline ────────────────────────────────────────────────────────────
+export const pipeline = {
+  getMyPipeline: () =>
+    apiClient.get("/api/investor/my-pipeline").then(r => r.data),
+  getTrends: (period: "weekly" | "monthly" = "weekly") =>
+    apiClient.get("/api/investor/my-pipeline/trends", { params: { period } }).then(r => r.data),
+  getActivityImpact: () =>
+    apiClient.get("/api/investor/my-pipeline/activity-impact").then(r => r.data),
+};
+
 // ── Twilio (Calls & SMS) ────────────────────────────────────────────────
 export const twilio = {
   getStatus: () =>
@@ -382,4 +392,5 @@ export const api = {
   ai,
   settings: settingsApi,
   twilio,
+  pipeline,
 };

@@ -2870,6 +2870,330 @@ def _url_encode(s: str) -> str:
 
 
 # ===========================================================================
+# My Pipeline — Personal investor funnel with conversion metrics
+# ===========================================================================
+
+PIPELINE_STAGES = ["new_lead", "warm_lead", "prospect", "hot_prospect", "investor"]
+STAGE_PROBABILITIES = {
+    "new_lead": 0.05,
+    "warm_lead": 0.15,
+    "prospect": 0.30,
+    "hot_prospect": 0.60,
+    "investor": 1.0,
+    "write_off": 0.0,
+    "archived": 0.0,
+}
+DEFAULT_ESTIMATE = 50000  # Default $ estimate when no IOI exists
+
+
+@router.get("/my-pipeline")
+def get_my_pipeline(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_gp_or_ops),
+):
+    """Return aggregated pipeline data for the current user's assigned contacts."""
+    from app.db.models import (
+        ContactAssignment, CRMActivity, CRMActivityType,
+        IndicationOfInterest, Subscription, TwilioSMSLog, TwilioCallLog,
+    )
+    from sqlalchemy import func as _func
+    from decimal import Decimal
+
+    # Get assigned investor IDs
+    assignments = db.query(ContactAssignment.investor_id).filter(
+        ContactAssignment.user_id == current_user.user_id
+    ).all()
+    assigned_ids = [a[0] for a in assignments]
+
+    if not assigned_ids:
+        return {
+            "stages": [],
+            "contacts": [],
+            "activity_metrics": [],
+            "total_pipeline_value": 0,
+            "total_committed_value": 0,
+            "total_funded_value": 0,
+            "total_contacts": 0,
+        }
+
+    # Get all assigned investors
+    investors = db.query(Investor).filter(Investor.investor_id.in_(assigned_ids)).all()
+
+    # Get IOIs for these investors
+    iois = db.query(IndicationOfInterest).filter(
+        IndicationOfInterest.investor_id.in_(assigned_ids)
+    ).all()
+    ioi_by_investor = {}
+    for ioi in iois:
+        if ioi.investor_id not in ioi_by_investor:
+            ioi_by_investor[ioi.investor_id] = []
+        ioi_by_investor[ioi.investor_id].append(ioi)
+
+    # Get subscriptions
+    subs = db.query(Subscription).filter(
+        Subscription.investor_id.in_(assigned_ids)
+    ).all()
+    sub_by_investor = {}
+    for s in subs:
+        if s.investor_id not in sub_by_investor:
+            sub_by_investor[s.investor_id] = []
+        sub_by_investor[s.investor_id].append(s)
+
+    # Get activity counts per investor (by this user)
+    activity_counts = (
+        db.query(
+            CRMActivity.investor_id,
+            _func.count(CRMActivity.activity_id).label("count"),
+            _func.max(CRMActivity.created_at).label("last_activity"),
+        )
+        .filter(
+            CRMActivity.investor_id.in_(assigned_ids),
+            CRMActivity.created_by == current_user.user_id,
+        )
+        .group_by(CRMActivity.investor_id)
+        .all()
+    )
+    activity_map = {a.investor_id: {"count": a.count, "last": a.last_activity} for a in activity_counts}
+
+    # Build stages
+    stage_data = {s: {"count": 0, "ioi_total": Decimal(0), "committed": Decimal(0), "funded": Decimal(0), "estimated": Decimal(0)} for s in PIPELINE_STAGES}
+
+    contacts = []
+    for inv in investors:
+        status = inv.investor_status.value if inv.investor_status else "new_lead"
+        if status in ("write_off", "archived"):
+            continue
+
+        # IOI amount
+        inv_iois = ioi_by_investor.get(inv.investor_id, [])
+        ioi_amount = sum(float(i.indicated_amount or 0) for i in inv_iois)
+
+        # Subscription amounts
+        inv_subs = sub_by_investor.get(inv.investor_id, [])
+        committed = sum(float(s.commitment_amount or 0) for s in inv_subs)
+        funded = sum(float(s.funded_amount or 0) for s in inv_subs)
+
+        # Estimate value
+        base_amount = ioi_amount or committed or DEFAULT_ESTIMATE
+        probability = STAGE_PROBABILITIES.get(status, 0.05)
+        estimated = base_amount * probability
+
+        # Activity info
+        act_info = activity_map.get(inv.investor_id, {"count": 0, "last": None})
+
+        # Days in current stage (approximate from updated_at)
+        days_in_stage = (datetime.date.today() - (inv.updated_at or inv.created_at or datetime.datetime.utcnow()).date()).days if (inv.updated_at or inv.created_at) else 0
+
+        # Aggregate into stage
+        if status in stage_data:
+            stage_data[status]["count"] += 1
+            stage_data[status]["ioi_total"] += Decimal(str(ioi_amount))
+            stage_data[status]["committed"] += Decimal(str(committed))
+            stage_data[status]["funded"] += Decimal(str(funded))
+            stage_data[status]["estimated"] += Decimal(str(estimated))
+
+        contacts.append({
+            "investor_id": inv.investor_id,
+            "name": f"{inv.first_name or ''} {inv.last_name or ''}".strip(),
+            "company": inv.company_name or "",
+            "investor_status": status,
+            "ioi_amount": ioi_amount,
+            "committed_amount": committed,
+            "funded_amount": funded,
+            "estimated_value": round(estimated, 2),
+            "probability": probability,
+            "last_activity_date": act_info["last"].isoformat() if act_info["last"] else None,
+            "activity_count": act_info["count"],
+            "days_in_stage": max(days_in_stage, 0),
+            "email": inv.email or "",
+            "phone": inv.phone or inv.mobile or "",
+        })
+
+    # Build stages response
+    stages = []
+    for s in PIPELINE_STAGES:
+        d = stage_data[s]
+        stages.append({
+            "stage": s,
+            "label": s.replace("_", " ").title(),
+            "count": d["count"],
+            "ioi_total": float(d["ioi_total"]),
+            "committed": float(d["committed"]),
+            "funded": float(d["funded"]),
+            "estimated_value": float(d["estimated"]),
+            "probability": STAGE_PROBABILITIES[s],
+        })
+
+    # Activity metrics by type
+    activity_by_type = (
+        db.query(
+            CRMActivity.activity_type,
+            _func.count(CRMActivity.activity_id).label("total"),
+            _func.count(_func.distinct(CRMActivity.investor_id)).label("contacts_touched"),
+        )
+        .filter(
+            CRMActivity.investor_id.in_(assigned_ids),
+            CRMActivity.created_by == current_user.user_id,
+        )
+        .group_by(CRMActivity.activity_type)
+        .all()
+    )
+
+    # Conversion data: which activity types appear for converted investors
+    converted_ids = {inv.investor_id for inv in investors if inv.investor_status and inv.investor_status.value == "investor"}
+    activity_metrics = []
+    for at in activity_by_type:
+        atype = at.activity_type.value if hasattr(at.activity_type, "value") else str(at.activity_type)
+        # Count how many converted investors have this activity type
+        converted_with = 0
+        if converted_ids:
+            converted_with = db.query(_func.count(_func.distinct(CRMActivity.investor_id))).filter(
+                CRMActivity.investor_id.in_(converted_ids),
+                CRMActivity.activity_type == at.activity_type,
+                CRMActivity.created_by == current_user.user_id,
+            ).scalar() or 0
+
+        activity_metrics.append({
+            "activity_type": atype,
+            "total_count": at.total,
+            "contacts_touched": at.contacts_touched,
+            "avg_per_contact": round(at.total / max(at.contacts_touched, 1), 1),
+            "converted_contacts": converted_with,
+        })
+
+    total_pipeline = sum(s["estimated_value"] for s in stages)
+    total_committed = sum(s["committed"] for s in stages)
+    total_funded = sum(s["funded"] for s in stages)
+
+    return {
+        "stages": stages,
+        "contacts": sorted(contacts, key=lambda c: PIPELINE_STAGES.index(c["investor_status"]) if c["investor_status"] in PIPELINE_STAGES else 99),
+        "activity_metrics": activity_metrics,
+        "total_pipeline_value": round(total_pipeline, 2),
+        "total_committed_value": round(total_committed, 2),
+        "total_funded_value": round(total_funded, 2),
+        "total_contacts": len(contacts),
+    }
+
+
+@router.get("/my-pipeline/trends")
+def get_pipeline_trends(
+    period: str = "weekly",
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_gp_or_ops),
+):
+    """Historical pipeline stage counts over time based on status change activities."""
+    from app.db.models import ContactAssignment, CRMActivity, CRMActivityType
+    from sqlalchemy import func as _func
+
+    assigned_ids = [a[0] for a in db.query(ContactAssignment.investor_id).filter(
+        ContactAssignment.user_id == current_user.user_id
+    ).all()]
+
+    if not assigned_ids:
+        return []
+
+    # Get status change activities for assigned contacts
+    status_changes = (
+        db.query(CRMActivity)
+        .filter(
+            CRMActivity.investor_id.in_(assigned_ids),
+            CRMActivity.activity_type == CRMActivityType.status_change,
+        )
+        .order_by(CRMActivity.created_at.asc())
+        .all()
+    )
+
+    # Also get all assigned investors for current snapshot
+    investors = db.query(Investor).filter(Investor.investor_id.in_(assigned_ids)).all()
+
+    # Build weekly/monthly snapshots from status changes
+    from collections import defaultdict
+    snapshots = defaultdict(lambda: {s: 0 for s in PIPELINE_STAGES})
+
+    # Current state as the latest snapshot
+    now_key = datetime.date.today().strftime("%Y-W%V" if period == "weekly" else "%Y-%m")
+    for inv in investors:
+        status = inv.investor_status.value if inv.investor_status else "new_lead"
+        if status in PIPELINE_STAGES:
+            snapshots[now_key][status] += 1
+
+    # Parse historical transitions to build earlier snapshots
+    for sc in status_changes:
+        if sc.created_at:
+            key = sc.created_at.strftime("%Y-W%V" if period == "weekly" else "%Y-%m")
+            # Try to extract new status from subject
+            subject = (sc.subject or "").lower()
+            for stage in PIPELINE_STAGES:
+                if stage.replace("_", " ") in subject or stage in subject:
+                    snapshots[key][stage] = snapshots[key].get(stage, 0) + 1
+
+    # Sort by period
+    result = []
+    for key in sorted(snapshots.keys()):
+        entry = {"period": key}
+        entry.update(snapshots[key])
+        result.append(entry)
+
+    return result[-12:]  # Last 12 periods
+
+
+@router.get("/my-pipeline/activity-impact")
+def get_activity_impact(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_gp_or_ops),
+):
+    """Show which activity types correlate with conversion to investor status."""
+    from app.db.models import ContactAssignment, CRMActivity
+    from sqlalchemy import func as _func
+
+    assigned_ids = [a[0] for a in db.query(ContactAssignment.investor_id).filter(
+        ContactAssignment.user_id == current_user.user_id
+    ).all()]
+
+    if not assigned_ids:
+        return []
+
+    investors = db.query(Investor).filter(Investor.investor_id.in_(assigned_ids)).all()
+    converted_ids = {inv.investor_id for inv in investors if inv.investor_status and inv.investor_status.value == "investor"}
+    non_converted_ids = {inv.investor_id for inv in investors if inv.investor_id not in converted_ids and inv.investor_status and inv.investor_status.value not in ("write_off", "archived")}
+
+    # Get activity types and their counts for converted vs non-converted
+    all_types = db.query(CRMActivity.activity_type).filter(
+        CRMActivity.investor_id.in_(assigned_ids)
+    ).distinct().all()
+
+    results = []
+    for (atype,) in all_types:
+        atype_val = atype.value if hasattr(atype, "value") else str(atype)
+
+        # Contacts with this activity type who converted
+        converted_with = db.query(_func.count(_func.distinct(CRMActivity.investor_id))).filter(
+            CRMActivity.investor_id.in_(converted_ids),
+            CRMActivity.activity_type == atype,
+        ).scalar() or 0 if converted_ids else 0
+
+        # Contacts with this activity type who haven't converted
+        non_converted_with = db.query(_func.count(_func.distinct(CRMActivity.investor_id))).filter(
+            CRMActivity.investor_id.in_(non_converted_ids),
+            CRMActivity.activity_type == atype,
+        ).scalar() or 0 if non_converted_ids else 0
+
+        total_with = converted_with + non_converted_with
+        conversion_rate = round(converted_with / total_with * 100, 1) if total_with > 0 else 0
+
+        results.append({
+            "activity_type": atype_val,
+            "converted_contacts": converted_with,
+            "non_converted_contacts": non_converted_with,
+            "total_contacts": total_with,
+            "conversion_rate": conversion_rate,
+        })
+
+    return sorted(results, key=lambda r: r["conversion_rate"], reverse=True)
+
+
+# ===========================================================================
 # Investor Query — AI chat about a specific investor using all data sources
 # ===========================================================================
 
