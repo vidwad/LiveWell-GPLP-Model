@@ -822,6 +822,7 @@ export default function InvestorOnboardingPage() {
                         {[
                           { key: "first_name", label: "First Name" },
                           { key: "last_name", label: "Last Name *", required: true },
+                          { key: "_query", label: "" },
                           { key: "email", label: "Email" },
                           { key: "phone", label: "Phone" },
                           { key: "mobile", label: "Cell" },
@@ -840,7 +841,6 @@ export default function InvestorOnboardingPage() {
                             </span>
                           </th>
                         ))}
-                        <th className="px-3 py-2.5 text-left text-xs font-semibold text-muted-foreground">Query</th>
                         <th className="px-3 py-2.5 text-left text-xs font-semibold text-muted-foreground">Actions</th>
                       </tr>
                     </thead>
@@ -866,6 +866,17 @@ export default function InvestorOnboardingPage() {
                             >
                               <td className="px-3 py-2.5 font-medium">{(inv.first_name as string) || (inv.name as string) || "—"}</td>
                               <td className="px-3 py-2.5">{(inv.last_name as string) || "—"}</td>
+                              <td className="px-1 py-2.5">
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="h-6 text-[10px] px-2 gap-1 bg-green-50 border-green-300 text-green-700 hover:bg-green-100"
+                                  onClick={(e) => { e.stopPropagation(); setQueryInvestor(inv); }}
+                                >
+                                  <Sparkles className="h-2.5 w-2.5" />
+                                  Query
+                                </Button>
+                              </td>
                               <td className="px-3 py-2.5 text-muted-foreground">{inv.email}</td>
                               <td className="px-3 py-2.5 text-muted-foreground">{inv.phone || "—"}</td>
                               <td className="px-3 py-2.5 text-muted-foreground">{(inv.mobile as string) || "—"}</td>
@@ -893,17 +904,6 @@ export default function InvestorOnboardingPage() {
                                 ) : (
                                   <span className="text-xs text-muted-foreground">—</span>
                                 )}
-                              </td>
-                              <td className="px-3 py-2.5">
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  className="h-6 text-[10px] px-2 gap-1 bg-green-50 border-green-300 text-green-700 hover:bg-green-100"
-                                  onClick={(e) => { e.stopPropagation(); setQueryInvestor(inv); }}
-                                >
-                                  <Sparkles className="h-2.5 w-2.5" />
-                                  Query
-                                </Button>
                               </td>
                               <td className="px-3 py-2.5">
                                 {(() => {
