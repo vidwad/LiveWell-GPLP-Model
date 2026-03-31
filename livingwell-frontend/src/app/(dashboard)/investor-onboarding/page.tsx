@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useCallback, useRef, useEffect } from "react";
+import { useState, useMemo, useCallback, useRef, useEffect, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 // createPortal removed — using direct fixed overlay instead
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -159,7 +159,15 @@ function updateChecklistItem(investorId: number, itemId: number, isCompleted: bo
 
 // ── Main Page ────────────────────────────────────────────────────────
 
-export default function InvestorOnboardingPage() {
+export default function InvestorOnboardingPageWrapper() {
+  return (
+    <Suspense fallback={null}>
+      <InvestorOnboardingPage />
+    </Suspense>
+  );
+}
+
+function InvestorOnboardingPage() {
   const queryClient = useQueryClient();
   const searchParams = useSearchParams();
   const [selectedInvestorId, setSelectedInvestorId] = useState<number | null>(null);
