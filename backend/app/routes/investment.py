@@ -361,7 +361,7 @@ def list_tranches(
     current_user: User = Depends(require_investor_or_above),
 ):
     # Scope check: verify user has access to this LP
-    if current_user.role not in (UserRole.GP_ADMIN, UserRole.OPERATIONS_MANAGER):
+    if current_user.role not in (UserRole.DEVELOPER, UserRole.GP_ADMIN, UserRole.OPERATIONS_MANAGER):
         if not check_entity_access(current_user, db, ScopeEntityType.lp, lp_id):
             raise HTTPException(status_code=403, detail="Access denied")
     tranches = db.query(LPTranche).filter(LPTranche.lp_id == lp_id).order_by(LPTranche.tranche_number).all()
@@ -567,7 +567,7 @@ def list_subscriptions(
     current_user: User = Depends(require_investor_or_above),
 ):
     # Scope check: verify user has access to this LP
-    if current_user.role not in (UserRole.GP_ADMIN, UserRole.OPERATIONS_MANAGER):
+    if current_user.role not in (UserRole.DEVELOPER, UserRole.GP_ADMIN, UserRole.OPERATIONS_MANAGER):
         if not check_entity_access(current_user, db, ScopeEntityType.lp, lp_id):
             raise HTTPException(status_code=403, detail="Access denied")
     query = db.query(Subscription).filter(Subscription.lp_id == lp_id)
@@ -723,7 +723,7 @@ def list_holdings(
     current_user: User = Depends(require_investor_or_above),
 ):
     # Scope check: verify user has access to this LP
-    if current_user.role not in (UserRole.GP_ADMIN, UserRole.OPERATIONS_MANAGER):
+    if current_user.role not in (UserRole.DEVELOPER, UserRole.GP_ADMIN, UserRole.OPERATIONS_MANAGER):
         if not check_entity_access(current_user, db, ScopeEntityType.lp, lp_id):
             raise HTTPException(status_code=403, detail="Access denied")
     # Use service layer for computed ownership_percent and cost_basis
@@ -842,7 +842,7 @@ def list_target_properties(
     current_user: User = Depends(require_investor_or_above),
 ):
     # Scope check: verify user has access to this LP
-    if current_user.role not in (UserRole.GP_ADMIN, UserRole.OPERATIONS_MANAGER):
+    if current_user.role not in (UserRole.DEVELOPER, UserRole.GP_ADMIN, UserRole.OPERATIONS_MANAGER):
         if not check_entity_access(current_user, db, ScopeEntityType.lp, lp_id):
             raise HTTPException(status_code=403, detail="Access denied")
     query = db.query(TargetProperty).filter(TargetProperty.lp_id == lp_id)
@@ -1007,7 +1007,7 @@ def get_lp_portfolio_rollup(
     current_user: User = Depends(require_investor_or_above),
 ):
     # Scope check: verify user has access to this LP
-    if current_user.role not in (UserRole.GP_ADMIN, UserRole.OPERATIONS_MANAGER):
+    if current_user.role not in (UserRole.DEVELOPER, UserRole.GP_ADMIN, UserRole.OPERATIONS_MANAGER):
         if not check_entity_access(current_user, db, ScopeEntityType.lp, lp_id):
             raise HTTPException(status_code=403, detail="Access denied")
     lp = db.query(LPEntity).filter(LPEntity.lp_id == lp_id).first()
@@ -1032,7 +1032,7 @@ def get_lp_pnl(
     current_user: User = Depends(require_investor_or_above),
 ):
     """LP-level P&L: aggregated revenue, expenses, debt service, management fees across all LP properties."""
-    if current_user.role not in (UserRole.GP_ADMIN, UserRole.OPERATIONS_MANAGER):
+    if current_user.role not in (UserRole.DEVELOPER, UserRole.GP_ADMIN, UserRole.OPERATIONS_MANAGER):
         if not check_entity_access(current_user, db, ScopeEntityType.lp, lp_id):
             raise HTTPException(status_code=403, detail="Access denied")
     lp = db.query(LPEntity).filter(LPEntity.lp_id == lp_id).first()
@@ -1055,7 +1055,7 @@ def get_lp_nav(
     current_user: User = Depends(require_investor_or_above),
 ):
     """Compute Net Asset Value for an LP fund."""
-    if current_user.role not in (UserRole.GP_ADMIN, UserRole.OPERATIONS_MANAGER):
+    if current_user.role not in (UserRole.DEVELOPER, UserRole.GP_ADMIN, UserRole.OPERATIONS_MANAGER):
         if not check_entity_access(current_user, db, ScopeEntityType.lp, lp_id):
             raise HTTPException(status_code=403, detail="Access denied")
     lp = db.query(LPEntity).filter(LPEntity.lp_id == lp_id).first()
@@ -1079,7 +1079,7 @@ def get_lp_trend(
     current_user: User = Depends(require_investor_or_above),
 ):
     """Get time-series trend data for an LP (NAV, funded capital, distributions over time)."""
-    if current_user.role not in (UserRole.GP_ADMIN, UserRole.OPERATIONS_MANAGER):
+    if current_user.role not in (UserRole.DEVELOPER, UserRole.GP_ADMIN, UserRole.OPERATIONS_MANAGER):
         if not check_entity_access(current_user, db, ScopeEntityType.lp, lp_id):
             raise HTTPException(status_code=403, detail="Access denied")
     lp = db.query(LPEntity).filter(LPEntity.lp_id == lp_id).first()
@@ -1141,7 +1141,7 @@ def list_distribution_events(
     current_user: User = Depends(require_investor_or_above),
 ):
     # Scope check: verify user has access to this LP
-    if current_user.role not in (UserRole.GP_ADMIN, UserRole.OPERATIONS_MANAGER):
+    if current_user.role not in (UserRole.DEVELOPER, UserRole.GP_ADMIN, UserRole.OPERATIONS_MANAGER):
         if not check_entity_access(current_user, db, ScopeEntityType.lp, lp_id):
             raise HTTPException(status_code=403, detail="Access denied")
     query = db.query(DistributionEvent).filter(DistributionEvent.lp_id == lp_id)

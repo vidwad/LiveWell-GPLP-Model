@@ -178,7 +178,7 @@ def get_user_entity_ids(
 
     GP_ADMIN users bypass scope checks and get access to everything.
     """
-    if user.role == UserRole.GP_ADMIN:
+    if user.role in (UserRole.DEVELOPER, UserRole.GP_ADMIN):
         return []  # empty list signals "unrestricted" — caller must handle
 
     level_hierarchy = {

@@ -21,7 +21,7 @@ export default function CommunitiesPage() {
   const { data: communities, isLoading } = useCommunities();
   const { user } = useAuth();
   const canCreate =
-    user?.role === "GP_ADMIN" || user?.role === "OPERATIONS_MANAGER";
+    user?.role === "DEVELOPER" || user?.role === "GP_ADMIN" || user?.role === "OPERATIONS_MANAGER";
 
   return (
     <div>

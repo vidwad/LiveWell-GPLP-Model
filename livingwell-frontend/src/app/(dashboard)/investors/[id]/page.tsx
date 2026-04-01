@@ -623,7 +623,7 @@ export default function InvestorDetailPage({
   const { data: subscriptions, isLoading: subsLoading } = useInvestorSubscriptions(investorId);
   const { data: distHistory } = useInvestorDistributions(investorId);
 
-  const canManage = user?.role === "GP_ADMIN" || user?.role === "OPERATIONS_MANAGER";
+  const canManage = user?.role === "DEVELOPER" || user?.role === "GP_ADMIN" || user?.role === "OPERATIONS_MANAGER";
 
   if (isLoading) return <Skeleton className="h-64 w-full" />;
   if (!dashboard) return <p>Investor not found.</p>;

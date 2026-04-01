@@ -109,7 +109,7 @@ export default function PropertyDetailPage({ params }: { params: { id: string } 
   const { mutateAsync: deleteProperty, isPending: deletePending } = useDeleteProperty();
   const { data: debtFacilities } = useDebtFacilities(propertyId);
 
-  const canEdit = user?.role === "GP_ADMIN" || user?.role === "OPERATIONS_MANAGER";
+  const canEdit = user?.role === "DEVELOPER" || user?.role === "GP_ADMIN" || user?.role === "OPERATIONS_MANAGER";
 
   /* ── Computed values ── */
   const totalDebtCommitment = (debtFacilities ?? []).reduce(

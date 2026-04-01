@@ -146,7 +146,7 @@ def get_property(
     if not prop:
         raise HTTPException(status_code=404, detail="Property not found")
     # Scope check: verify user has access to this property's LP
-    if prop.lp_id and current_user.role not in (UserRole.GP_ADMIN, UserRole.OPERATIONS_MANAGER):
+    if prop.lp_id and current_user.role not in (UserRole.DEVELOPER, UserRole.GP_ADMIN, UserRole.OPERATIONS_MANAGER):
         from app.core.deps import check_entity_access
         if not check_entity_access(current_user, db, ScopeEntityType.lp, prop.lp_id):
             raise HTTPException(status_code=403, detail="Access denied")

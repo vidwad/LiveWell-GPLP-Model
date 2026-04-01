@@ -63,7 +63,7 @@ export default function PortfolioPage() {
   const { data: properties, isLoading } = useProperties();
   const { user } = useAuth();
   const canCreate =
-    user?.role === "GP_ADMIN" || user?.role === "OPERATIONS_MANAGER";
+    user?.role === "DEVELOPER" || user?.role === "GP_ADMIN" || user?.role === "OPERATIONS_MANAGER";
 
   /* filter state */
   const [search, setSearch] = useState("");

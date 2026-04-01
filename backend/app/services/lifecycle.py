@@ -334,7 +334,7 @@ def transition_property_stage(
         from app.db.models import UserRole
         from app.db.session import Session as _S
         gp_users = db.query(User).filter(
-            User.role.in_([UserRole.GP_ADMIN, UserRole.OPERATIONS_MANAGER]),
+            User.role.in_([UserRole.DEVELOPER, UserRole.GP_ADMIN, UserRole.OPERATIONS_MANAGER]),
             User.is_active == True,  # noqa: E712
         ).all()
         for gp_user in gp_users:

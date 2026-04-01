@@ -65,6 +65,7 @@ export default function CommunityDetailPage({
   );
 
   const canEdit =
+    user?.role === "DEVELOPER" ||
     user?.role === "GP_ADMIN" ||
     user?.role === "OPERATIONS_MANAGER" ||
     user?.role === "PROPERTY_MANAGER";

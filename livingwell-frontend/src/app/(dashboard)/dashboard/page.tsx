@@ -48,7 +48,7 @@ export default function DashboardPage() {
   const isInvestor = user?.role === "INVESTOR";
   const isPropertyManager = user?.role === "PROPERTY_MANAGER";
   const isResident = user?.role === "RESIDENT";
-  const isGPLike = user?.role === "GP_ADMIN" || user?.role === "OPERATIONS_MANAGER";
+  const isGPLike = user?.role === "DEVELOPER" || user?.role === "GP_ADMIN" || user?.role === "OPERATIONS_MANAGER";
   const { data: dashboard } = useInvestorDashboard(isInvestor ? undefined : undefined);
   const { data: returnsData } = usePortfolioReturns();
 
@@ -108,7 +108,7 @@ export default function DashboardPage() {
   }
 
   const showPortfolioCharts = user?.role !== "RESIDENT" && user?.role !== "INVESTOR";
-  const isGPAdmin = user?.role === "GP_ADMIN" || user?.role === "OPERATIONS_MANAGER";
+  const isGPAdmin = user?.role === "DEVELOPER" || user?.role === "GP_ADMIN" || user?.role === "OPERATIONS_MANAGER";
 
   const portfolioXIRR = returnsData?.portfolio_xirr_percent;
   const portfolioEM = returnsData?.portfolio_equity_multiple;

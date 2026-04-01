@@ -50,6 +50,7 @@ export default function MaintenancePage() {
   const [selected, setSelected] = useState<MaintenanceRequest | null>(null);
 
   const canUpdate =
+    user?.role === "DEVELOPER" ||
     user?.role === "GP_ADMIN" ||
     user?.role === "OPERATIONS_MANAGER" ||
     user?.role === "PROPERTY_MANAGER";
