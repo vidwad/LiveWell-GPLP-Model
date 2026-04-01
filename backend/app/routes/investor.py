@@ -137,12 +137,21 @@ def list_investors_summary(
     db: Session = Depends(get_db),
     _: User = Depends(require_gp_or_ops),
 ):
-    """Return investors with investor_status='investor' and subscription summary data."""
+    """Return investors who have (or have had) holdings in any LP.
+
+    Active = has at least one holding with status 'active' in a current LP.
+    Non-active = had holdings in the past but none are currently active.
+    Only investors with at least one subscription or holding are included.
+    """
     from decimal import Decimal as D
+    from app.db.models import Holding
+
+    # Get all investors with status='investor' who have subscriptions or holdings
     investors = db.query(Investor).filter(
         Investor.investor_status == InvestorStatus.investor
     ).all()
-    terminal = {"issued", "closed", "rejected", "withdrawn", "cancelled"}
+
+    terminal_sub = {"closed", "rejected", "withdrawn", "cancelled"}
     result = []
     for inv in investors:
         subs = (
@@ -152,11 +161,24 @@ def list_investors_summary(
             .order_by(Subscription.created_at.desc())
             .all()
         )
+        holdings = db.query(Holding).filter(
+            Holding.investor_id == inv.investor_id
+        ).all()
+
+        # Skip investors with no subscriptions AND no holdings
+        if not subs and not holdings:
+            continue
+
         total_committed = sum((s.commitment_amount or D(0) for s in subs), D(0))
         total_funded = sum((s.funded_amount or D(0) for s in subs), D(0))
-        active = [s for s in subs if (s.status.value if s.status else "draft") not in terminal]
+        active_subs = [s for s in subs if (s.status.value if s.status else "draft") not in terminal_sub]
         lp_names = list({s.lp.name for s in subs if s.lp})
         latest_status = subs[0].status.value if subs and subs[0].status else None
+
+        # Active = has at least one holding with status 'active'
+        active_holdings = [h for h in holdings if (h.status or "active") == "active"]
+        is_active = len(active_holdings) > 0
+
         result.append(InvestorSummary(
             investor_id=inv.investor_id,
             name=inv.name,
@@ -167,10 +189,12 @@ def list_investors_summary(
             total_committed=total_committed,
             total_funded=total_funded,
             subscription_count=len(subs),
-            active_subscriptions=len(active),
+            active_subscriptions=len(active_subs),
             lp_names=lp_names,
             latest_status=latest_status,
             created_at=inv.created_at,
+            is_active=is_active,
+            holding_count=len(active_holdings),
         ))
     return result
 

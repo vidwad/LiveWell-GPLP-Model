@@ -118,6 +118,8 @@ class InvestorSummary(BaseModel):
     lp_names: list[str] = []  # LP funds this investor is in
     latest_status: str | None = None  # most recent subscription status
     created_at: Optional[datetime.datetime] = None
+    is_active: bool = True  # Has active holdings in current LPs
+    holding_count: int = 0  # Number of active holdings
 
 
 class InvestorDashboard(BaseModel):

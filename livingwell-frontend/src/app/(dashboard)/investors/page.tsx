@@ -98,7 +98,7 @@ export default function InvestorsPage() {
 
   const { data: investors, isLoading } = useInvestorSummaries();
   const { data: lps } = useLPs();
-  const canCreate = user?.role === "GP_ADMIN" || user?.role === "OPERATIONS_MANAGER";
+  const canCreate = user?.role === "DEVELOPER" || user?.role === "GP_ADMIN" || user?.role === "OPERATIONS_MANAGER";
 
   // ── Filter state ──────────────────────────────────────────────────
   const [search, setSearch] = useState("");
@@ -178,6 +178,12 @@ export default function InvestorsPage() {
 
     return list;
   }, [investors, search, lpFilter, statusFilter, accreditedFilter, entityFilter, actionFilter, sortField, sortDir]);
+
+  // Split into active and non-active
+  const activeInvestors = useMemo(() => filtered.filter((inv) => inv.is_active), [filtered]);
+  const nonActiveInvestors = useMemo(() => filtered.filter((inv) => !inv.is_active), [filtered]);
+  const [showSection, setShowSection] = useState<"active" | "non-active">("active");
+  const displayInvestors = showSection === "active" ? activeInvestors : nonActiveInvestors;
 
   // Unique LP names for filter dropdown
   const allLpNames = useMemo(() => {
@@ -407,7 +413,7 @@ export default function InvestorsPage() {
           {/* Results count and clear */}
           <div className="ml-auto flex items-center gap-2 text-sm text-muted-foreground">
             <span>
-              Showing {filtered.length} of {investors?.length ?? 0} investors
+              Showing {displayInvestors.length} of {filtered.length} investors
             </span>
             {activeFilterCount > 0 && (
               <Button variant="ghost" size="sm" onClick={clearFilters} className="h-7 text-xs">
@@ -419,6 +425,34 @@ export default function InvestorsPage() {
         </div>
       </div>
 
+      {/* Active / Non-Active Toggle */}
+      <div className="flex items-center gap-1 mb-4 border-b">
+        <button
+          onClick={() => setShowSection("active")}
+          className={`flex items-center gap-2 px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+            showSection === "active"
+              ? "border-emerald-500 text-emerald-700"
+              : "border-transparent text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          <span className="h-2 w-2 rounded-full bg-emerald-500" />
+          Active Investors
+          <Badge variant="secondary" className="text-[10px] px-1.5">{activeInvestors.length}</Badge>
+        </button>
+        <button
+          onClick={() => setShowSection("non-active")}
+          className={`flex items-center gap-2 px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+            showSection === "non-active"
+              ? "border-slate-500 text-slate-700"
+              : "border-transparent text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          <span className="h-2 w-2 rounded-full bg-slate-400" />
+          Non-Active Investors
+          <Badge variant="secondary" className="text-[10px] px-1.5">{nonActiveInvestors.length}</Badge>
+        </button>
+      </div>
+
       {/* Content */}
       {isLoading ? (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -426,7 +460,7 @@ export default function InvestorsPage() {
             <Skeleton key={i} className="h-40" />
           ))}
         </div>
-      ) : filtered.length === 0 ? (
+      ) : displayInvestors.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-20 text-center">
           {activeFilterCount > 0 ? (
             <>
@@ -510,7 +544,7 @@ export default function InvestorsPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filtered.map((inv) => (
+                  {displayInvestors.map((inv) => (
                     <TableRow
                       key={inv.investor_id}
                       className="cursor-pointer hover:bg-muted/50"
@@ -588,7 +622,7 @@ export default function InvestorsPage() {
       ) : (
         /* ── Grid View ───────────────────────────────────────────── */
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {filtered.map((inv) => (
+          {displayInvestors.map((inv) => (
             <Link key={inv.investor_id} href={`/investors/${inv.investor_id}`}>
               <Card className="h-full cursor-pointer transition-shadow hover:shadow-md">
                 <CardHeader className="pb-2">

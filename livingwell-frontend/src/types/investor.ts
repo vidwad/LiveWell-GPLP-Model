@@ -36,6 +36,8 @@ export interface InvestorSummary {
   lp_names: string[];
   latest_status: string | null;
   created_at: string | null;
+  is_active: boolean;
+  holding_count: number;
 }
 
 export type DocumentType =
