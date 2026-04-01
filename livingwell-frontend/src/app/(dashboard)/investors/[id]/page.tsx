@@ -169,6 +169,176 @@ function statusLabel(s: string) {
   return s.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
+// ── Payment & Compliance Section (editable by Admin) ───────────────
+function PaymentComplianceSection({ sub }: { sub: Subscription }) {
+  const queryClient = useQueryClient();
+  const updateSub = useUpdateSubscription();
+
+  const [paymentMethod, setPaymentMethod] = useState(sub.payment_method || "");
+  const [paymentRef, setPaymentRef] = useState(sub.payment_reference || "");
+  const [paymentDate, setPaymentDate] = useState(sub.payment_received_date || "");
+  const [paymentCleared, setPaymentCleared] = useState(sub.payment_cleared || false);
+  const [complianceNotes, setComplianceNotes] = useState(sub.compliance_notes || "");
+  const [saving, setSaving] = useState(false);
+
+  const hasPaymentChanges = paymentMethod !== (sub.payment_method || "") ||
+    paymentRef !== (sub.payment_reference || "") ||
+    paymentDate !== (sub.payment_received_date || "") ||
+    paymentCleared !== (sub.payment_cleared || false);
+
+  const savePayment = () => {
+    setSaving(true);
+    updateSub.mutate(
+      {
+        subId: sub.subscription_id,
+        lpId: sub.lp_id,
+        data: {
+          payment_method: paymentMethod || null,
+          payment_reference: paymentRef || null,
+          payment_received_date: paymentDate || null,
+          payment_cleared: paymentCleared,
+        },
+      },
+      {
+        onSettled: () => setSaving(false),
+        onError: () => alert("Failed to save payment details"),
+      }
+    );
+  };
+
+  const approveCompliance = () => {
+    setSaving(true);
+    updateSub.mutate(
+      {
+        subId: sub.subscription_id,
+        lpId: sub.lp_id,
+        data: {
+          compliance_approved: true,
+          compliance_approved_at: new Date().toISOString(),
+          compliance_notes: complianceNotes || null,
+        },
+      },
+      {
+        onSettled: () => setSaving(false),
+        onError: () => alert("Failed to approve compliance"),
+      }
+    );
+  };
+
+  return (
+    <div className="mb-4 space-y-3">
+      {/* Payment Recording */}
+      <div className="rounded-md border p-3">
+        <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2 flex items-center gap-1.5">
+          <DollarSign className="h-3.5 w-3.5" /> Payment Details
+        </p>
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+          <div className="space-y-1">
+            <label className="text-[10px] text-muted-foreground">Method</label>
+            <select
+              value={paymentMethod}
+              onChange={(e) => setPaymentMethod(e.target.value)}
+              className="w-full rounded border bg-background px-2 py-1.5 text-xs"
+            >
+              <option value="">Select...</option>
+              <option value="wire">Wire Transfer</option>
+              <option value="etransfer">E-Transfer</option>
+              <option value="cheque">Cheque</option>
+              <option value="ach">ACH</option>
+              <option value="bank_draft">Bank Draft</option>
+            </select>
+          </div>
+          <div className="space-y-1">
+            <label className="text-[10px] text-muted-foreground">Reference #</label>
+            <input
+              type="text"
+              value={paymentRef}
+              onChange={(e) => setPaymentRef(e.target.value)}
+              placeholder="Confirmation #"
+              className="w-full rounded border bg-background px-2 py-1.5 text-xs"
+            />
+          </div>
+          <div className="space-y-1">
+            <label className="text-[10px] text-muted-foreground">Date Received</label>
+            <input
+              type="date"
+              value={paymentDate}
+              onChange={(e) => setPaymentDate(e.target.value)}
+              className="w-full rounded border bg-background px-2 py-1.5 text-xs"
+            />
+          </div>
+          <div className="space-y-1">
+            <label className="text-[10px] text-muted-foreground">Cleared</label>
+            <div className="flex items-center gap-2 pt-1">
+              <button
+                onClick={() => setPaymentCleared(!paymentCleared)}
+                className={`h-5 w-5 rounded border-2 flex items-center justify-center transition-colors ${
+                  paymentCleared ? "border-green-500 bg-green-50" : "border-gray-300"
+                }`}
+              >
+                {paymentCleared && <Check className="h-3 w-3 text-green-600" />}
+              </button>
+              <span className={`text-xs ${paymentCleared ? "text-green-600 font-medium" : "text-muted-foreground"}`}>
+                {paymentCleared ? "Cleared" : "Pending"}
+              </span>
+            </div>
+          </div>
+        </div>
+        {hasPaymentChanges && (
+          <div className="mt-2 flex justify-end">
+            <Button size="sm" className="h-7 text-xs" disabled={saving} onClick={savePayment}>
+              {saving ? "Saving..." : "Save Payment Details"}
+            </Button>
+          </div>
+        )}
+      </div>
+
+      {/* Compliance Approval */}
+      <div className={`rounded-md border p-3 ${sub.compliance_approved ? "border-green-200 bg-green-50/50" : "border-amber-200 bg-amber-50/50"}`}>
+        <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2 flex items-center gap-1.5">
+          <Shield className="h-3.5 w-3.5" /> Compliance Approval
+        </p>
+        {sub.compliance_approved ? (
+          <div className="flex items-center gap-2 text-xs text-green-700">
+            <CheckCircle2 className="h-4 w-4" />
+            <span className="font-medium">Approved</span>
+            {sub.compliance_approved_at && <span>on {formatDate(sub.compliance_approved_at)}</span>}
+            {sub.compliance_notes && <span className="text-muted-foreground">— {sub.compliance_notes}</span>}
+          </div>
+        ) : (
+          <div className="space-y-2">
+            <div className="flex items-center gap-2 text-xs text-amber-700">
+              <AlertTriangle className="h-4 w-4" />
+              <span>Compliance has not been approved for this subscription</span>
+            </div>
+            <div className="flex gap-2 items-end">
+              <div className="flex-1 space-y-1">
+                <label className="text-[10px] text-muted-foreground">Notes (optional)</label>
+                <input
+                  type="text"
+                  value={complianceNotes}
+                  onChange={(e) => setComplianceNotes(e.target.value)}
+                  placeholder="KYC verified, accreditation confirmed..."
+                  className="w-full rounded border bg-background px-2 py-1.5 text-xs"
+                />
+              </div>
+              <Button
+                size="sm"
+                className="h-7 text-xs bg-green-600 hover:bg-green-700 text-white gap-1"
+                disabled={saving}
+                onClick={approveCompliance}
+              >
+                <CheckCircle2 className="h-3 w-3" />
+                {saving ? "Approving..." : "Approve Compliance"}
+              </Button>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ── Subscription Workflow Card ──────────────────────────────────────
 function SubscriptionWorkflowCard({
   sub,
@@ -342,45 +512,9 @@ function SubscriptionWorkflowCard({
             </div>
           </div>
 
-          {/* Payment Details (Admin only) */}
-          {canManage && (sub.payment_method || sub.payment_reference || sub.payment_received_date) && (
-            <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
-              <div className="rounded-md border p-2 text-center">
-                <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Payment Method</p>
-                <p className="text-sm font-medium">{sub.payment_method ? sub.payment_method.replace(/_/g, " ").replace(/\b\w/g, (c: string) => c.toUpperCase()) : "—"}</p>
-              </div>
-              <div className="rounded-md border p-2 text-center">
-                <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Reference</p>
-                <p className="text-sm font-medium truncate">{sub.payment_reference || "—"}</p>
-              </div>
-              <div className="rounded-md border p-2 text-center">
-                <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Received</p>
-                <p className="text-sm font-medium">{sub.payment_received_date ? formatDate(sub.payment_received_date) : "—"}</p>
-              </div>
-              <div className="rounded-md border p-2 text-center">
-                <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Cleared</p>
-                <p className={`text-sm font-medium ${sub.payment_cleared ? "text-green-600" : "text-amber-600"}`}>
-                  {sub.payment_cleared ? "Yes" : "Pending"}
-                </p>
-              </div>
-            </div>
-          )}
-
-          {/* Compliance Approval (Admin only) */}
+          {/* Payment & Compliance (Admin only — editable) */}
           {canManage && (
-            <div className="mb-4 flex items-center gap-3 text-xs">
-              <span className="text-muted-foreground">Compliance:</span>
-              {sub.compliance_approved ? (
-                <span className="flex items-center gap-1 text-green-600">
-                  <CheckCircle2 className="h-3.5 w-3.5" /> Approved
-                  {sub.compliance_approved_at && ` on ${formatDate(sub.compliance_approved_at)}`}
-                </span>
-              ) : (
-                <span className="flex items-center gap-1 text-amber-600">
-                  <Clock className="h-3.5 w-3.5" /> Pending approval
-                </span>
-              )}
-            </div>
+            <PaymentComplianceSection sub={sub} />
           )}
 
           {/* Notes */}
