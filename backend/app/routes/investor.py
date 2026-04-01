@@ -1097,7 +1097,7 @@ def quick_add_lead(
             db.flush()
 
     # Auto-assign to current user if they're not GP_ADMIN
-    if is_new and current_user.role != UserRole.GP_ADMIN:
+    if is_new and current_user.role not in (UserRole.DEVELOPER, UserRole.GP_ADMIN):
         existing_assignment = db.query(ContactAssignment).filter(
             ContactAssignment.investor_id == inv.investor_id,
             ContactAssignment.user_id == current_user.user_id,
@@ -2243,7 +2243,7 @@ def get_crm_stats(
         q = db.query(sa_func.count(CRMActivity.activity_id)).filter(
             sa_func.date(CRMActivity.created_at) >= since,
         )
-        if current_user.role != UserRole.GP_ADMIN:
+        if current_user.role not in (UserRole.DEVELOPER, UserRole.GP_ADMIN):
             q = q.filter(CRMActivity.created_by == current_user.user_id)
         if activity_type:
             q = q.filter(CRMActivity.activity_type == activity_type)
@@ -2254,7 +2254,7 @@ def get_crm_stats(
         CRMActivity.follow_up_date < today,
         CRMActivity.is_follow_up_done == False,
     )
-    if current_user.role != UserRole.GP_ADMIN:
+    if current_user.role not in (UserRole.DEVELOPER, UserRole.GP_ADMIN):
         overdue_followups_q = overdue_followups_q.filter(CRMActivity.created_by == current_user.user_id)
     overdue_followups = overdue_followups_q.scalar() or 0
 
@@ -2263,13 +2263,13 @@ def get_crm_stats(
         InvestorTask.due_date < today,
         InvestorTask.is_completed == False,
     )
-    if current_user.role != UserRole.GP_ADMIN:
+    if current_user.role not in (UserRole.DEVELOPER, UserRole.GP_ADMIN):
         overdue_tasks_q = overdue_tasks_q.filter(InvestorTask.created_by == current_user.user_id)
     overdue_tasks = overdue_tasks_q.scalar() or 0
 
     # Open tasks total
     open_tasks_q = db.query(sa_func.count(InvestorTask.task_id)).filter(InvestorTask.is_completed == False)
-    if current_user.role != UserRole.GP_ADMIN:
+    if current_user.role not in (UserRole.DEVELOPER, UserRole.GP_ADMIN):
         open_tasks_q = open_tasks_q.filter(InvestorTask.created_by == current_user.user_id)
     open_tasks = open_tasks_q.scalar() or 0
 

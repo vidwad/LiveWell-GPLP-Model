@@ -130,7 +130,7 @@ def perform_stage_transition(
         raise HTTPException(404, "Property not found")
 
     # Only GP_ADMIN can force transitions
-    if payload.force and current_user.role != UserRole.GP_ADMIN:
+    if payload.force and current_user.role not in (UserRole.DEVELOPER, UserRole.GP_ADMIN):
         raise HTTPException(403, "Only GP Admin can force stage transitions")
 
     try:

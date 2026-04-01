@@ -247,7 +247,7 @@ def get_lp_detail(
     if not lp:
         raise HTTPException(status_code=404, detail="LP entity not found")
 
-    if current_user.role != UserRole.GP_ADMIN:
+    if current_user.role not in (UserRole.DEVELOPER, UserRole.GP_ADMIN):
         has_scope = db.query(ScopeAssignment).filter(
             ScopeAssignment.user_id == current_user.user_id,
             ScopeAssignment.entity_type == ScopeEntityType.lp,
