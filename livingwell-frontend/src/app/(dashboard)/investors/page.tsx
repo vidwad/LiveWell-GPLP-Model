@@ -268,12 +268,10 @@ export default function InvestorsPage() {
           <h1 className="text-2xl font-bold">Investors</h1>
           <p className="text-muted-foreground">Manage LP investors, subscriptions, and capital</p>
         </div>
-        {canCreate && (
-          <LinkButton href="/investors/new">
-            <Plus className="mr-2 h-4 w-4" />
-            Add Investor
-          </LinkButton>
-        )}
+        <LinkButton href="/investor-onboarding" variant="outline" size="sm">
+          <Plus className="mr-2 h-4 w-4" />
+          Add via CRM
+        </LinkButton>
       </div>
 
       {/* KPI Cards */}
