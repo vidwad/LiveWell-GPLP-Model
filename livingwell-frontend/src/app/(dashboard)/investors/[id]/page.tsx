@@ -23,6 +23,9 @@ import {
   Upload,
   User,
   Wallet,
+  AlertTriangle,
+  Shield,
+  ExternalLink,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -69,7 +72,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { formatCurrency, formatDate } from "@/lib/utils";
-import { investors as investorsApi } from "@/lib/api";
+import { investors as investorsApi, apiClient } from "@/lib/api";
 import { Phone, Calendar, MessageSquare, Pencil } from "lucide-react";
 import { DocumentList } from "@/components/documents/DocumentList";
 import { UploadDocumentModal } from "@/components/documents/UploadDocumentModal";
@@ -338,6 +341,47 @@ function SubscriptionWorkflowCard({
               <p className="text-sm font-bold">{sub.unit_quantity ? Number(sub.unit_quantity).toLocaleString() : "—"}</p>
             </div>
           </div>
+
+          {/* Payment Details (Admin only) */}
+          {canManage && (sub.payment_method || sub.payment_reference || sub.payment_received_date) && (
+            <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
+              <div className="rounded-md border p-2 text-center">
+                <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Payment Method</p>
+                <p className="text-sm font-medium">{sub.payment_method ? sub.payment_method.replace(/_/g, " ").replace(/\b\w/g, (c: string) => c.toUpperCase()) : "—"}</p>
+              </div>
+              <div className="rounded-md border p-2 text-center">
+                <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Reference</p>
+                <p className="text-sm font-medium truncate">{sub.payment_reference || "—"}</p>
+              </div>
+              <div className="rounded-md border p-2 text-center">
+                <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Received</p>
+                <p className="text-sm font-medium">{sub.payment_received_date ? formatDate(sub.payment_received_date) : "—"}</p>
+              </div>
+              <div className="rounded-md border p-2 text-center">
+                <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Cleared</p>
+                <p className={`text-sm font-medium ${sub.payment_cleared ? "text-green-600" : "text-amber-600"}`}>
+                  {sub.payment_cleared ? "Yes" : "Pending"}
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* Compliance Approval (Admin only) */}
+          {canManage && (
+            <div className="mb-4 flex items-center gap-3 text-xs">
+              <span className="text-muted-foreground">Compliance:</span>
+              {sub.compliance_approved ? (
+                <span className="flex items-center gap-1 text-green-600">
+                  <CheckCircle2 className="h-3.5 w-3.5" /> Approved
+                  {sub.compliance_approved_at && ` on ${formatDate(sub.compliance_approved_at)}`}
+                </span>
+              ) : (
+                <span className="flex items-center gap-1 text-amber-600">
+                  <Clock className="h-3.5 w-3.5" /> Pending approval
+                </span>
+              )}
+            </div>
+          )}
 
           {/* Notes */}
           {sub.notes && (
@@ -624,6 +668,14 @@ export default function InvestorDetailPage({
   const { data: distHistory } = useInvestorDistributions(investorId);
 
   const canManage = user?.role === "DEVELOPER" || user?.role === "GP_ADMIN" || user?.role === "OPERATIONS_MANAGER";
+  const isAdmin = canManage;
+
+  // Compliance check (admin only)
+  const { data: compliance } = useQuery({
+    queryKey: ["investor-compliance", investorId],
+    queryFn: () => apiClient.get(`/api/investor/investors/${investorId}/compliance`).then(r => r.data),
+    enabled: isAdmin,
+  });
 
   if (isLoading) return <Skeleton className="h-64 w-full" />;
   if (!dashboard) return <p>Investor not found.</p>;
@@ -738,6 +790,68 @@ export default function InvestorDetailPage({
           open={uploadOpen}
           onClose={() => setUploadOpen(false)}
         />
+      )}
+
+      {/* Compliance Summary (Admin Only) */}
+      {isAdmin && compliance && (
+        <Card className={`mb-4 border-l-4 ${compliance.subscription_ready?.ready ? "border-l-green-500" : "border-l-amber-500"}`}>
+          <CardContent className="p-4">
+            <div className="flex items-start justify-between">
+              <div className="flex items-center gap-2 mb-2">
+                <Shield className="h-4 w-4 text-muted-foreground" />
+                <span className="text-sm font-semibold">Compliance & Readiness</span>
+              </div>
+              <Link href={`/investor-onboarding?investor=${investorId}`}>
+                <Button variant="outline" size="sm" className="text-xs gap-1">
+                  <ExternalLink className="h-3 w-3" /> CRM Profile
+                </Button>
+              </Link>
+            </div>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-3">
+              <div className="text-center rounded-md border p-2">
+                <p className="text-[10px] uppercase text-muted-foreground">Onboarding</p>
+                <Badge variant={compliance.onboarding_status === "active" ? "default" : "secondary"} className="text-[10px] mt-0.5">
+                  {compliance.onboarding_status?.replace(/_/g, " ")}
+                </Badge>
+              </div>
+              <div className="text-center rounded-md border p-2">
+                <p className="text-[10px] uppercase text-muted-foreground">Accreditation</p>
+                <Badge variant={compliance.accredited_status === "accredited" ? "default" : compliance.accredited_status === "pending" ? "secondary" : "destructive"} className="text-[10px] mt-0.5">
+                  {compliance.accredited_status}
+                </Badge>
+              </div>
+              <div className="text-center rounded-md border p-2">
+                <p className="text-[10px] uppercase text-muted-foreground">Checklist</p>
+                <p className="text-sm font-bold mt-0.5">{compliance.checklist_progress}</p>
+              </div>
+              <div className="text-center rounded-md border p-2">
+                <p className="text-[10px] uppercase text-muted-foreground">Documents</p>
+                <p className="text-sm font-bold mt-0.5">{compliance.documents_on_file?.length || 0}</p>
+              </div>
+            </div>
+            {/* Warnings */}
+            {(compliance.subscription_ready?.warnings?.length > 0 || compliance.funding_ready?.warnings?.length > 0 || compliance.issuance_ready?.warnings?.length > 0) && (
+              <div className="space-y-1">
+                {[
+                  ...(compliance.subscription_ready?.warnings || []),
+                  ...(compliance.funding_ready?.warnings || []).filter((w: string) => !(compliance.subscription_ready?.warnings || []).includes(w)),
+                  ...(compliance.issuance_ready?.warnings || []).filter((w: string) => !(compliance.funding_ready?.warnings || []).includes(w)),
+                ].map((warning: string, i: number) => (
+                  <div key={i} className="flex items-start gap-2 text-xs text-amber-700 bg-amber-50 rounded px-2 py-1.5">
+                    <AlertTriangle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+                    <span>{warning}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+            {compliance.subscription_ready?.ready && compliance.funding_ready?.ready && compliance.issuance_ready?.ready && (
+              <div className="flex items-center gap-2 text-xs text-green-700 bg-green-50 rounded px-2 py-1.5">
+                <CheckCircle2 className="h-3.5 w-3.5" />
+                <span>All compliance checks passed — ready for subscription, funding, and issuance</span>
+              </div>
+            )}
+          </CardContent>
+        </Card>
       )}
 
       {/* Tabs */}

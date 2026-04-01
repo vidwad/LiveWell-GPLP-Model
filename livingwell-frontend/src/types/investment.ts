@@ -206,6 +206,15 @@ export interface Subscription {
   funded_date: string | null;
   issued_date: string | null;
   notes: string | null;
+  payment_method: string | null;
+  payment_reference: string | null;
+  payment_received_date: string | null;
+  payment_cleared: boolean | null;
+  payment_notes: string | null;
+  compliance_approved: boolean | null;
+  compliance_approved_by: number | null;
+  compliance_approved_at: string | null;
+  compliance_notes: string | null;
 }
 
 export interface SubscriptionCreate {
