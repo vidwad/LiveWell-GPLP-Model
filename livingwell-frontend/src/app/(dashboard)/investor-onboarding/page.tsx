@@ -179,15 +179,20 @@ function InvestorOnboardingPage() {
       const id = parseInt(investorParam, 10);
       if (!isNaN(id)) {
         setSelectedInvestorId(id);
-        // Scroll to the investor row after a brief delay for rendering
-        setTimeout(() => {
+        // Retry scrolling until the row exists (data may still be loading)
+        let attempts = 0;
+        const tryScroll = () => {
           const row = document.getElementById(`investor-row-${id}`);
           if (row) {
             row.scrollIntoView({ behavior: "smooth", block: "center" });
-            row.classList.add("ring-2", "ring-primary", "ring-offset-1");
-            setTimeout(() => row.classList.remove("ring-2", "ring-primary", "ring-offset-1"), 3000);
+            row.classList.add("ring-2", "ring-primary", "ring-offset-1", "bg-primary/10");
+            setTimeout(() => row.classList.remove("ring-2", "ring-primary", "ring-offset-1"), 4000);
+          } else if (attempts < 20) {
+            attempts++;
+            setTimeout(tryScroll, 300);
           }
-        }, 500);
+        };
+        setTimeout(tryScroll, 300);
       }
     }
   }, [searchParams]);
