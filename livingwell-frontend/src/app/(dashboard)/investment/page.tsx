@@ -99,14 +99,20 @@ export default function InvestmentPage() {
         </CardContent>
       </Card>
 
-      {/* LP Entities */}
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle className="text-base">Limited Partnerships</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {!lps || lps.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No LP entities.</p>
+      {/* LP Entities — grouped by Active / Closed, sorted oldest to newest */}
+      {(() => {
+        const closedStatuses = new Set(["closed", "winding_down", "dissolved"]);
+        const sortByDate = (a: any, b: any) => {
+          const dateA = a.offering_date ? new Date(a.offering_date).getTime() : 0;
+          const dateB = b.offering_date ? new Date(b.offering_date).getTime() : 0;
+          return dateA - dateB;
+        };
+        const activeLPs = (lps || []).filter((lp: any) => !closedStatuses.has(lp.status)).sort(sortByDate);
+        const closedLPs = (lps || []).filter((lp: any) => closedStatuses.has(lp.status)).sort(sortByDate);
+
+        const renderLPTable = (items: any[], emptyMsg: string) => (
+          items.length === 0 ? (
+            <p className="text-sm text-muted-foreground py-4 text-center">{emptyMsg}</p>
           ) : (
             <div className="overflow-x-auto">
               <Table>
@@ -122,19 +128,14 @@ export default function InvestmentPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {lps.map((lp) => (
+                  {items.map((lp: any) => (
                     <TableRow key={lp.lp_id} className="group cursor-pointer hover:bg-muted/50" onClick={() => window.location.href = `/investment/${lp.lp_id}`}>
                       <TableCell className="font-medium">
-                        <Link
-                          href={`/investment/${lp.lp_id}`}
-                          className="hover:underline"
-                        >
+                        <Link href={`/investment/${lp.lp_id}`} className="hover:underline">
                           {lp.name}
                         </Link>
                         {lp.lp_number && (
-                          <span className="ml-2 text-xs text-muted-foreground">
-                            {lp.lp_number}
-                          </span>
+                          <span className="ml-2 text-xs text-muted-foreground">{lp.lp_number}</span>
                         )}
                       </TableCell>
                       <TableCell className="text-sm text-muted-foreground">
@@ -146,27 +147,17 @@ export default function InvestmentPage() {
                         </Badge>
                       </TableCell>
                       <TableCell className="text-right tabular-nums">
-                        {lp.target_raise
-                          ? formatCurrency(lp.target_raise)
-                          : "—"}
+                        {lp.target_raise ? formatCurrency(lp.target_raise) : "—"}
                       </TableCell>
                       <TableCell>
-                        {lp.offering_date
-                          ? new Date(lp.offering_date).getFullYear()
-                          : "—"}
+                        {lp.offering_date ? new Date(lp.offering_date).getFullYear() : "—"}
                       </TableCell>
                       <TableCell>
-                        {lp.preferred_return_rate
-                          ? `${Number(lp.preferred_return_rate).toFixed(1)}%`
-                          : "—"}
+                        {lp.preferred_return_rate ? `${Number(lp.preferred_return_rate).toFixed(1)}%` : "—"}
                       </TableCell>
                       <TableCell>
                         <Link href={`/investment/${lp.lp_id}`}>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="opacity-0 group-hover:opacity-100 transition-opacity"
-                          >
+                          <Button variant="ghost" size="sm" className="opacity-0 group-hover:opacity-100 transition-opacity">
                             <ArrowRight className="h-4 w-4" />
                           </Button>
                         </Link>
@@ -176,9 +167,41 @@ export default function InvestmentPage() {
                 </TableBody>
               </Table>
             </div>
-          )}
-        </CardContent>
-      </Card>
+          )
+        );
+
+        return (
+          <>
+            <Card className="mb-6">
+              <CardHeader className="flex flex-row items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span className="h-2.5 w-2.5 rounded-full bg-emerald-500" />
+                  <CardTitle className="text-base">Active Limited Partnerships</CardTitle>
+                  <Badge variant="secondary" className="text-[10px]">{activeLPs.length}</Badge>
+                </div>
+              </CardHeader>
+              <CardContent>
+                {renderLPTable(activeLPs, "No active LPs.")}
+              </CardContent>
+            </Card>
+
+            {closedLPs.length > 0 && (
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="h-2.5 w-2.5 rounded-full bg-slate-400" />
+                    <CardTitle className="text-base">Closed Limited Partnerships</CardTitle>
+                    <Badge variant="secondary" className="text-[10px]">{closedLPs.length}</Badge>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  {renderLPTable(closedLPs, "No closed LPs.")}
+                </CardContent>
+              </Card>
+            )}
+          </>
+        );
+      })()}
     </div>
   );
 }
