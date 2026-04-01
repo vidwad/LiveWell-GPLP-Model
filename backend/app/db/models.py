@@ -779,6 +779,28 @@ class Subscription(Base):
     lp = relationship("LPEntity", back_populates="subscriptions")
     tranche = relationship("LPTranche", back_populates="subscriptions")
     holding = relationship("Holding", back_populates="subscription", uselist=False)
+    payments = relationship("SubscriptionPayment", back_populates="subscription", cascade="all, delete-orphan", order_by="SubscriptionPayment.received_date")
+
+
+class SubscriptionPayment(Base):
+    """Individual payment toward a subscription — supports multiple payments/sources."""
+    __tablename__ = "subscription_payments"
+
+    payment_id = Column(Integer, primary_key=True, index=True)
+    subscription_id = Column(Integer, ForeignKey("subscriptions.subscription_id", ondelete="CASCADE"), nullable=False, index=True)
+    amount = Column(Numeric(14, 2), nullable=False)
+    payment_method = Column(String(32), nullable=False)  # wire, etransfer, cheque, ach, bank_draft
+    reference_number = Column(String(256), nullable=True)
+    received_date = Column(Date, nullable=False)
+    cleared = Column(Boolean, nullable=False, default=False)
+    cleared_date = Column(Date, nullable=True)
+    source_description = Column(String(256), nullable=True)  # e.g. "RBC account", "TD Wire"
+    notes = Column(Text, nullable=True)
+    recorded_by = Column(Integer, ForeignKey("users.user_id"), nullable=True)
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+
+    subscription = relationship("Subscription", back_populates="payments")
+    recorder = relationship("User")
 
 
 class Holding(Base):

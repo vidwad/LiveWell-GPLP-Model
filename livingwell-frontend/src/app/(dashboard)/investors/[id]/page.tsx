@@ -174,122 +174,148 @@ function PaymentComplianceSection({ sub }: { sub: Subscription }) {
   const queryClient = useQueryClient();
   const updateSub = useUpdateSubscription();
 
-  const [paymentMethod, setPaymentMethod] = useState(sub.payment_method || "");
-  const [paymentRef, setPaymentRef] = useState(sub.payment_reference || "");
-  const [paymentDate, setPaymentDate] = useState(sub.payment_received_date || "");
-  const [paymentCleared, setPaymentCleared] = useState(sub.payment_cleared || false);
   const [complianceNotes, setComplianceNotes] = useState(sub.compliance_notes || "");
   const [saving, setSaving] = useState(false);
 
-  const hasPaymentChanges = paymentMethod !== (sub.payment_method || "") ||
-    paymentRef !== (sub.payment_reference || "") ||
-    paymentDate !== (sub.payment_received_date || "") ||
-    paymentCleared !== (sub.payment_cleared || false);
+  // Payment ledger
+  const [showAddPayment, setShowAddPayment] = useState(false);
+  const [newPayment, setNewPayment] = useState({ amount: "", payment_method: "wire", reference_number: "", received_date: "", cleared: false, source_description: "", notes: "" });
 
-  const savePayment = () => {
+  const { data: payments = [], isLoading: paymentsLoading } = useQuery({
+    queryKey: ["sub-payments", sub.subscription_id],
+    queryFn: () => apiClient.get(`/api/investment/subscriptions/${sub.subscription_id}/payments`).then(r => r.data),
+  });
+
+  const totalReceived = payments.reduce((s: number, p: any) => s + (p.amount || 0), 0);
+  const totalCleared = payments.filter((p: any) => p.cleared).reduce((s: number, p: any) => s + (p.amount || 0), 0);
+  const remaining = Number(sub.commitment_amount) - totalCleared;
+
+  const addPayment = async () => {
+    if (!newPayment.amount || !newPayment.received_date) { alert("Amount and date required"); return; }
     setSaving(true);
-    updateSub.mutate(
-      {
-        subId: sub.subscription_id,
-        lpId: sub.lp_id,
-        data: {
-          payment_method: paymentMethod || null,
-          payment_reference: paymentRef || null,
-          payment_received_date: paymentDate || null,
-          payment_cleared: paymentCleared,
-        },
-      },
-      {
-        onSettled: () => setSaving(false),
-        onError: () => alert("Failed to save payment details"),
-      }
-    );
+    try {
+      await apiClient.post(`/api/investment/subscriptions/${sub.subscription_id}/payments`, newPayment);
+      queryClient.invalidateQueries({ queryKey: ["sub-payments", sub.subscription_id] });
+      queryClient.invalidateQueries({ queryKey: ["investor-subscriptions"] });
+      setNewPayment({ amount: "", payment_method: "wire", reference_number: "", received_date: "", cleared: false, source_description: "", notes: "" });
+      setShowAddPayment(false);
+    } catch (e: any) { alert(e?.response?.data?.detail || "Failed to add payment"); }
+    finally { setSaving(false); }
+  };
+
+  const deletePayment = async (paymentId: number) => {
+    if (!confirm("Delete this payment?")) return;
+    await apiClient.delete(`/api/investment/subscriptions/payments/${paymentId}`);
+    queryClient.invalidateQueries({ queryKey: ["sub-payments", sub.subscription_id] });
+    queryClient.invalidateQueries({ queryKey: ["investor-subscriptions"] });
+  };
+
+  const toggleCleared = async (p: any) => {
+    await apiClient.patch(`/api/investment/subscriptions/payments/${p.payment_id}`, { ...p, cleared: !p.cleared, cleared_date: !p.cleared ? new Date().toISOString().slice(0, 10) : null });
+    queryClient.invalidateQueries({ queryKey: ["sub-payments", sub.subscription_id] });
+    queryClient.invalidateQueries({ queryKey: ["investor-subscriptions"] });
   };
 
   const approveCompliance = () => {
     setSaving(true);
     updateSub.mutate(
-      {
-        subId: sub.subscription_id,
-        lpId: sub.lp_id,
-        data: {
-          compliance_approved: true,
-          compliance_approved_at: new Date().toISOString(),
-          compliance_notes: complianceNotes || null,
-        },
-      },
-      {
-        onSettled: () => setSaving(false),
-        onError: () => alert("Failed to approve compliance"),
-      }
+      { subId: sub.subscription_id, lpId: sub.lp_id, data: { compliance_approved: true, compliance_approved_at: new Date().toISOString(), compliance_notes: complianceNotes || null } },
+      { onSettled: () => setSaving(false), onError: () => alert("Failed to approve compliance") }
     );
   };
 
+  const METHOD_LABELS: Record<string, string> = { wire: "Wire", etransfer: "E-Transfer", cheque: "Cheque", ach: "ACH", bank_draft: "Bank Draft" };
+
   return (
     <div className="mb-4 space-y-3">
-      {/* Payment Recording */}
+      {/* Payment Ledger */}
       <div className="rounded-md border p-3">
-        <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2 flex items-center gap-1.5">
-          <DollarSign className="h-3.5 w-3.5" /> Payment Details
-        </p>
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-          <div className="space-y-1">
-            <label className="text-[10px] text-muted-foreground">Method</label>
-            <select
-              value={paymentMethod}
-              onChange={(e) => setPaymentMethod(e.target.value)}
-              className="w-full rounded border bg-background px-2 py-1.5 text-xs"
-            >
-              <option value="">Select...</option>
-              <option value="wire">Wire Transfer</option>
-              <option value="etransfer">E-Transfer</option>
-              <option value="cheque">Cheque</option>
-              <option value="ach">ACH</option>
-              <option value="bank_draft">Bank Draft</option>
-            </select>
-          </div>
-          <div className="space-y-1">
-            <label className="text-[10px] text-muted-foreground">Reference #</label>
-            <input
-              type="text"
-              value={paymentRef}
-              onChange={(e) => setPaymentRef(e.target.value)}
-              placeholder="Confirmation #"
-              className="w-full rounded border bg-background px-2 py-1.5 text-xs"
-            />
-          </div>
-          <div className="space-y-1">
-            <label className="text-[10px] text-muted-foreground">Date Received</label>
-            <input
-              type="date"
-              value={paymentDate}
-              onChange={(e) => setPaymentDate(e.target.value)}
-              className="w-full rounded border bg-background px-2 py-1.5 text-xs"
-            />
-          </div>
-          <div className="space-y-1">
-            <label className="text-[10px] text-muted-foreground">Cleared</label>
-            <div className="flex items-center gap-2 pt-1">
-              <button
-                onClick={() => setPaymentCleared(!paymentCleared)}
-                className={`h-5 w-5 rounded border-2 flex items-center justify-center transition-colors ${
-                  paymentCleared ? "border-green-500 bg-green-50" : "border-gray-300"
-                }`}
-              >
-                {paymentCleared && <Check className="h-3 w-3 text-green-600" />}
-              </button>
-              <span className={`text-xs ${paymentCleared ? "text-green-600 font-medium" : "text-muted-foreground"}`}>
-                {paymentCleared ? "Cleared" : "Pending"}
-              </span>
-            </div>
+        <div className="flex items-center justify-between mb-2">
+          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+            <DollarSign className="h-3.5 w-3.5" /> Payments
+          </p>
+          <div className="flex items-center gap-3 text-xs">
+            <span className="text-muted-foreground">Received: <span className="font-medium text-foreground">{formatCurrency(totalReceived)}</span></span>
+            <span className="text-muted-foreground">Cleared: <span className="font-medium text-green-600">{formatCurrency(totalCleared)}</span></span>
+            <span className="text-muted-foreground">Remaining: <span className={`font-medium ${remaining > 0 ? "text-amber-600" : "text-green-600"}`}>{formatCurrency(Math.max(remaining, 0))}</span></span>
           </div>
         </div>
-        {hasPaymentChanges && (
-          <div className="mt-2 flex justify-end">
-            <Button size="sm" className="h-7 text-xs" disabled={saving} onClick={savePayment}>
-              {saving ? "Saving..." : "Save Payment Details"}
-            </Button>
+
+        {/* Payment List */}
+        {payments.length > 0 && (
+          <div className="space-y-1 mb-2">
+            {payments.map((p: any) => (
+              <div key={p.payment_id} className={`flex items-center justify-between rounded border px-2.5 py-1.5 text-xs ${p.cleared ? "bg-green-50/50 border-green-200" : "bg-amber-50/50 border-amber-200"}`}>
+                <div className="flex items-center gap-3">
+                  <button onClick={() => toggleCleared(p)} className={`h-4 w-4 rounded border-2 flex items-center justify-center ${p.cleared ? "border-green-500 bg-green-50" : "border-gray-300"}`}>
+                    {p.cleared && <Check className="h-2.5 w-2.5 text-green-600" />}
+                  </button>
+                  <span className="font-medium">{formatCurrency(p.amount)}</span>
+                  <span className="text-muted-foreground">{METHOD_LABELS[p.payment_method] || p.payment_method}</span>
+                  {p.reference_number && <span className="text-muted-foreground font-mono">#{p.reference_number}</span>}
+                  {p.source_description && <span className="text-muted-foreground">({p.source_description})</span>}
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-muted-foreground">{p.received_date}</span>
+                  <button onClick={() => deletePayment(p.payment_id)} className="text-muted-foreground/50 hover:text-red-500"><Ban className="h-3 w-3" /></button>
+                </div>
+              </div>
+            ))}
           </div>
+        )}
+
+        {/* Add Payment Form */}
+        {showAddPayment ? (
+          <div className="rounded border border-blue-200 bg-blue-50/30 p-2.5 space-y-2">
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+              <div className="space-y-0.5">
+                <label className="text-[10px] text-muted-foreground">Amount *</label>
+                <input type="number" step="0.01" value={newPayment.amount} onChange={(e) => setNewPayment(p => ({...p, amount: e.target.value}))} placeholder="0.00" className="w-full rounded border bg-background px-2 py-1.5 text-xs" />
+              </div>
+              <div className="space-y-0.5">
+                <label className="text-[10px] text-muted-foreground">Method</label>
+                <select value={newPayment.payment_method} onChange={(e) => setNewPayment(p => ({...p, payment_method: e.target.value}))} className="w-full rounded border bg-background px-2 py-1.5 text-xs">
+                  <option value="wire">Wire Transfer</option>
+                  <option value="etransfer">E-Transfer</option>
+                  <option value="cheque">Cheque</option>
+                  <option value="ach">ACH</option>
+                  <option value="bank_draft">Bank Draft</option>
+                </select>
+              </div>
+              <div className="space-y-0.5">
+                <label className="text-[10px] text-muted-foreground">Date Received *</label>
+                <input type="date" value={newPayment.received_date} onChange={(e) => setNewPayment(p => ({...p, received_date: e.target.value}))} className="w-full rounded border bg-background px-2 py-1.5 text-xs" />
+              </div>
+              <div className="space-y-0.5">
+                <label className="text-[10px] text-muted-foreground">Reference #</label>
+                <input type="text" value={newPayment.reference_number} onChange={(e) => setNewPayment(p => ({...p, reference_number: e.target.value}))} placeholder="Optional" className="w-full rounded border bg-background px-2 py-1.5 text-xs" />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <div className="space-y-0.5">
+                <label className="text-[10px] text-muted-foreground">Source</label>
+                <input type="text" value={newPayment.source_description} onChange={(e) => setNewPayment(p => ({...p, source_description: e.target.value}))} placeholder="e.g. RBC account, TD Wire" className="w-full rounded border bg-background px-2 py-1.5 text-xs" />
+              </div>
+              <div className="space-y-0.5">
+                <label className="text-[10px] text-muted-foreground">Notes</label>
+                <input type="text" value={newPayment.notes} onChange={(e) => setNewPayment(p => ({...p, notes: e.target.value}))} placeholder="Optional" className="w-full rounded border bg-background px-2 py-1.5 text-xs" />
+              </div>
+            </div>
+            <div className="flex items-center justify-between">
+              <label className="flex items-center gap-2 text-xs">
+                <input type="checkbox" checked={newPayment.cleared} onChange={(e) => setNewPayment(p => ({...p, cleared: e.target.checked}))} className="rounded" />
+                Funds cleared
+              </label>
+              <div className="flex gap-2">
+                <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => setShowAddPayment(false)}>Cancel</Button>
+                <Button size="sm" className="h-7 text-xs" disabled={saving} onClick={addPayment}>{saving ? "Adding..." : "Add Payment"}</Button>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <Button variant="outline" size="sm" className="h-7 text-xs w-full gap-1" onClick={() => setShowAddPayment(true)}>
+            <Plus className="h-3 w-3" /> Record Payment
+          </Button>
         )}
       </div>
 
@@ -314,20 +340,9 @@ function PaymentComplianceSection({ sub }: { sub: Subscription }) {
             <div className="flex gap-2 items-end">
               <div className="flex-1 space-y-1">
                 <label className="text-[10px] text-muted-foreground">Notes (optional)</label>
-                <input
-                  type="text"
-                  value={complianceNotes}
-                  onChange={(e) => setComplianceNotes(e.target.value)}
-                  placeholder="KYC verified, accreditation confirmed..."
-                  className="w-full rounded border bg-background px-2 py-1.5 text-xs"
-                />
+                <input type="text" value={complianceNotes} onChange={(e) => setComplianceNotes(e.target.value)} placeholder="KYC verified, accreditation confirmed..." className="w-full rounded border bg-background px-2 py-1.5 text-xs" />
               </div>
-              <Button
-                size="sm"
-                className="h-7 text-xs bg-green-600 hover:bg-green-700 text-white gap-1"
-                disabled={saving}
-                onClick={approveCompliance}
-              >
+              <Button size="sm" className="h-7 text-xs bg-green-600 hover:bg-green-700 text-white gap-1" disabled={saving} onClick={approveCompliance}>
                 <CheckCircle2 className="h-3 w-3" />
                 {saving ? "Approving..." : "Approve Compliance"}
               </Button>
@@ -633,8 +648,9 @@ function SubscriptionWorkflowCard({
             </div>
           )}
 
-          {isComplete && (
-            <div className="border-t pt-4">
+          {/* Status Summary */}
+          <div className="border-t pt-4">
+            {isComplete ? (
               <div className="rounded-md border border-green-300 bg-green-50 p-3">
                 <div className="flex items-center gap-2">
                   <CheckCircle2 className="h-4 w-4 text-green-600" />
@@ -643,8 +659,28 @@ function SubscriptionWorkflowCard({
                   </p>
                 </div>
               </div>
-            </div>
-          )}
+            ) : isTerminal ? (
+              <div className="rounded-md border border-red-200 bg-red-50 p-3">
+                <div className="flex items-center gap-2">
+                  <Ban className="h-4 w-4 text-red-500" />
+                  <p className="text-sm font-medium text-red-700">
+                    Subscription {sub.status}. No units were issued.
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <div className="rounded-md border border-amber-200 bg-amber-50 p-3">
+                <div className="flex items-center gap-2">
+                  <Clock className="h-4 w-4 text-amber-600" />
+                  <p className="text-sm font-medium text-amber-800">
+                    Subscription pending — currently at &ldquo;{statusLabel(sub.status)}&rdquo; stage.
+                    {!sub.compliance_approved && " Compliance approval required."}
+                    {Number(sub.funded_amount) < Number(sub.commitment_amount) && ` Funded ${formatCurrency(sub.funded_amount)} of ${formatCurrency(sub.commitment_amount)}.`}
+                  </p>
+                </div>
+              </div>
+            )}
+          </div>
         </CardContent>
       )}
     </Card>

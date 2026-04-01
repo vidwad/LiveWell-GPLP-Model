@@ -737,6 +737,180 @@ def update_subscription(
 
 
 # ===========================================================================
+# Subscription Payments
+# ===========================================================================
+
+from app.db.models import SubscriptionPayment
+
+
+from pydantic import BaseModel as _PaymentBase
+
+
+class PaymentCreate(_PaymentBase):
+    amount: float
+    payment_method: str  # wire, etransfer, cheque, ach, bank_draft
+    reference_number: str | None = None
+    received_date: str  # YYYY-MM-DD
+    cleared: bool = False
+    cleared_date: str | None = None
+    source_description: str | None = None
+    notes: str | None = None
+
+
+@router.get("/subscriptions/{subscription_id}/payments")
+def list_subscription_payments(
+    subscription_id: int,
+    db: Session = Depends(get_db),
+    _: User = Depends(require_gp_or_ops),
+):
+    """List all payments for a subscription."""
+    payments = db.query(SubscriptionPayment).filter(
+        SubscriptionPayment.subscription_id == subscription_id
+    ).order_by(SubscriptionPayment.received_date).all()
+
+    return [
+        {
+            "payment_id": p.payment_id,
+            "subscription_id": p.subscription_id,
+            "amount": float(p.amount),
+            "payment_method": p.payment_method,
+            "reference_number": p.reference_number,
+            "received_date": p.received_date.isoformat() if p.received_date else None,
+            "cleared": p.cleared,
+            "cleared_date": p.cleared_date.isoformat() if p.cleared_date else None,
+            "source_description": p.source_description,
+            "notes": p.notes,
+            "created_at": p.created_at.isoformat() if p.created_at else None,
+        }
+        for p in payments
+    ]
+
+
+@router.post("/subscriptions/{subscription_id}/payments")
+def add_subscription_payment(
+    subscription_id: int,
+    body: PaymentCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_gp_or_ops),
+):
+    """Record a payment toward a subscription. Updates funded_amount automatically."""
+    from datetime import date as _date
+    from decimal import Decimal
+
+    sub = db.query(Subscription).filter(Subscription.subscription_id == subscription_id).first()
+    if not sub:
+        raise HTTPException(404, "Subscription not found")
+
+    payment = SubscriptionPayment(
+        subscription_id=subscription_id,
+        amount=Decimal(str(body.amount)),
+        payment_method=body.payment_method,
+        reference_number=body.reference_number,
+        received_date=_date.fromisoformat(body.received_date),
+        cleared=body.cleared,
+        cleared_date=_date.fromisoformat(body.cleared_date) if body.cleared_date else None,
+        source_description=body.source_description,
+        notes=body.notes,
+        recorded_by=current_user.user_id,
+    )
+    db.add(payment)
+
+    # Recalculate total funded from all cleared payments
+    db.flush()
+    all_payments = db.query(SubscriptionPayment).filter(
+        SubscriptionPayment.subscription_id == subscription_id
+    ).all()
+    total_cleared = sum(float(p.amount) for p in all_payments if p.cleared)
+    sub.funded_amount = Decimal(str(total_cleared))
+
+    # Auto-set funded_date to earliest cleared payment date
+    cleared_dates = [p.received_date for p in all_payments if p.cleared and p.received_date]
+    if cleared_dates:
+        sub.funded_date = min(cleared_dates)
+
+    # Also update the legacy single payment fields
+    if len(all_payments) == 1:
+        sub.payment_method = body.payment_method
+        sub.payment_reference = body.reference_number
+        sub.payment_received_date = payment.received_date
+        sub.payment_cleared = body.cleared
+
+    db.commit()
+    db.refresh(payment)
+
+    return {
+        "payment_id": payment.payment_id,
+        "funded_amount": float(sub.funded_amount),
+        "commitment_amount": float(sub.commitment_amount),
+        "fully_funded": float(sub.funded_amount) >= float(sub.commitment_amount),
+    }
+
+
+@router.patch("/subscriptions/payments/{payment_id}")
+def update_payment(
+    payment_id: int,
+    body: PaymentCreate,
+    db: Session = Depends(get_db),
+    _: User = Depends(require_gp_or_ops),
+):
+    """Update a payment record. Recalculates funded_amount."""
+    from datetime import date as _date
+    from decimal import Decimal
+
+    payment = db.query(SubscriptionPayment).filter(SubscriptionPayment.payment_id == payment_id).first()
+    if not payment:
+        raise HTTPException(404, "Payment not found")
+
+    payment.amount = Decimal(str(body.amount))
+    payment.payment_method = body.payment_method
+    payment.reference_number = body.reference_number
+    payment.received_date = _date.fromisoformat(body.received_date)
+    payment.cleared = body.cleared
+    payment.cleared_date = _date.fromisoformat(body.cleared_date) if body.cleared_date else None
+    payment.source_description = body.source_description
+    payment.notes = body.notes
+
+    # Recalculate funded amount
+    sub = db.query(Subscription).filter(Subscription.subscription_id == payment.subscription_id).first()
+    all_payments = db.query(SubscriptionPayment).filter(
+        SubscriptionPayment.subscription_id == payment.subscription_id
+    ).all()
+    total_cleared = sum(float(p.amount) for p in all_payments if p.cleared)
+    sub.funded_amount = Decimal(str(total_cleared))
+
+    db.commit()
+    return {"payment_id": payment_id, "funded_amount": float(sub.funded_amount)}
+
+
+@router.delete("/subscriptions/payments/{payment_id}")
+def delete_payment(
+    payment_id: int,
+    db: Session = Depends(get_db),
+    _: User = Depends(require_gp_or_ops),
+):
+    """Delete a payment and recalculate funded amount."""
+    from decimal import Decimal
+
+    payment = db.query(SubscriptionPayment).filter(SubscriptionPayment.payment_id == payment_id).first()
+    if not payment:
+        raise HTTPException(404, "Payment not found")
+
+    sub_id = payment.subscription_id
+    db.delete(payment)
+
+    sub = db.query(Subscription).filter(Subscription.subscription_id == sub_id).first()
+    remaining = db.query(SubscriptionPayment).filter(
+        SubscriptionPayment.subscription_id == sub_id,
+        SubscriptionPayment.payment_id != payment_id,
+    ).all()
+    total_cleared = sum(float(p.amount) for p in remaining if p.cleared)
+    sub.funded_amount = Decimal(str(total_cleared))
+
+    db.commit()
+    return {"status": "deleted", "funded_amount": float(sub.funded_amount)}
+
+
+# ===========================================================================
 # Holdings
 # ===========================================================================
 
