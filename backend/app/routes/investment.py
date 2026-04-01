@@ -188,7 +188,7 @@ def list_lp_entities(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_investor_or_above),
 ):
-    if current_user.role == UserRole.GP_ADMIN:
+    if current_user.role in (UserRole.DEVELOPER, UserRole.GP_ADMIN):
         return pg.paginate(db.query(LPEntity))
 
     scope_ids = [

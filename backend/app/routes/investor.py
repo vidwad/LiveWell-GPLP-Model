@@ -79,7 +79,7 @@ def list_investors(
     current_user: User = Depends(get_current_user),
 ):
     """List investors with assigned users. Archived contacts hidden by default (?include_archived=true to show)."""
-    if current_user.role == UserRole.GP_ADMIN:
+    if current_user.role in (UserRole.DEVELOPER, UserRole.GP_ADMIN):
         query = db.query(Investor)
         if not include_archived:
             query = query.filter(Investor.investor_status != InvestorStatus.archived)
