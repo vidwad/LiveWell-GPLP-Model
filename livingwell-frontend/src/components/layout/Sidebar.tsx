@@ -33,6 +33,7 @@ import {
   Banknote,
   FolderOpen,
   Target,
+  Shield,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/providers/AuthProvider";
@@ -40,14 +41,15 @@ import { UserRole } from "@/types/auth";
 import { NotificationBell } from "@/components/notifications/NotificationBell";
 
 // Roles that access this platform (RESIDENT will have separate app)
-type PlatformRole = "GP_ADMIN" | "OPERATIONS_MANAGER" | "PROPERTY_MANAGER" | "INVESTOR";
+type PlatformRole = "DEVELOPER" | "GP_ADMIN" | "OPERATIONS_MANAGER" | "PROPERTY_MANAGER" | "INVESTOR";
 
+const DEV = "DEVELOPER" as UserRole;
 const GP = "GP_ADMIN" as UserRole;
 const OP = "OPERATIONS_MANAGER" as UserRole;
 const PM = "PROPERTY_MANAGER" as UserRole;
 const INV = "INVESTOR" as UserRole;
 
-const ALL_PLATFORM: UserRole[] = [GP, OP, PM, INV];
+const ALL_PLATFORM: UserRole[] = [DEV, GP, OP, PM, INV];
 
 interface NavItem {
   href: string;
@@ -72,64 +74,71 @@ const NAV_SECTIONS: NavSection[] = [
   },
   {
     section: "Investment",
-    roles: [GP, INV],
+    roles: [DEV, GP, INV],
     items: [
-      { href: "/investment", label: "LP Funds", icon: Landmark, roles: [GP] },
-      { href: "/investors", label: "Investors", icon: TrendingUp, roles: [GP, INV] },
-      { href: "/investor-onboarding", label: "CRM & Onboarding", icon: UserPlus, roles: [GP] },
-      { href: "/pipeline", label: "My Pipeline", icon: Target, roles: [GP] },
+      { href: "/investment", label: "LP Funds", icon: Landmark, roles: [DEV, GP] },
+      { href: "/investors", label: "Investors", icon: TrendingUp, roles: [DEV, GP, INV] },
+      { href: "/investor-onboarding", label: "CRM & Onboarding", icon: UserPlus, roles: [DEV, GP] },
+      { href: "/pipeline", label: "My Pipeline", icon: Target, roles: [DEV, GP] },
     ],
   },
   {
     section: "Portfolio",
-    roles: [GP, PM],
+    roles: [DEV, GP, PM],
     items: [
-      { href: "/portfolio", label: "Properties", icon: Building2, roles: [GP, PM] },
-      { href: "/area-research", label: "Area Research", icon: MapPin, roles: [GP] },
-      { href: "/lifecycle", label: "Lifecycle", icon: GitBranch, roles: [GP, PM] },
-      { href: "/analytics", label: "Portfolio Analytics", icon: PieChart, roles: [GP] },
-      { href: "/lp-comparison", label: "LP Comparison", icon: GitBranch, roles: [GP] },
-      { href: "/trends", label: "Trends", icon: TrendingUp, roles: [GP] },
+      { href: "/portfolio", label: "Properties", icon: Building2, roles: [DEV, GP, PM] },
+      { href: "/area-research", label: "Area Research", icon: MapPin, roles: [DEV, GP] },
+      { href: "/lifecycle", label: "Lifecycle", icon: GitBranch, roles: [DEV, GP, PM] },
+      { href: "/analytics", label: "Portfolio Analytics", icon: PieChart, roles: [DEV, GP] },
+      { href: "/lp-comparison", label: "LP Comparison", icon: GitBranch, roles: [DEV, GP] },
+      { href: "/trends", label: "Trends", icon: TrendingUp, roles: [DEV, GP] },
     ],
   },
   {
     section: "Operations",
-    roles: [GP, OP, PM],
+    roles: [DEV, GP, OP, PM],
     items: [
-      { href: "/communities", label: "Communities", icon: Home, roles: [GP, OP, PM] },
-      { href: "/maintenance", label: "Maintenance", icon: Wrench, roles: [GP, OP, PM] },
-      { href: "/arrears-aging", label: "Arrears Aging", icon: DollarSign, roles: [GP, OP] },
-      { href: "/vacancy-alerts", label: "Vacancy Alerts", icon: AlertTriangle, roles: [GP, OP, PM] },
-      { href: "/operator/turnovers", label: "Unit Turnovers", icon: RefreshCw, roles: [GP, OP, PM] },
-      { href: "/operations", label: "Operations P&L", icon: Activity, roles: [GP, OP, PM] },
-      { href: "/staffing", label: "Staffing", icon: Users, roles: [GP, OP, PM] },
-      { href: "/variance-alerts", label: "Variance Alerts", icon: AlertTriangle, roles: [GP, OP] },
-      { href: "/funding", label: "Grants & Funding", icon: HandCoins, roles: [GP, OP] },
+      { href: "/communities", label: "Communities", icon: Home, roles: [DEV, GP, OP, PM] },
+      { href: "/maintenance", label: "Maintenance", icon: Wrench, roles: [DEV, GP, OP, PM] },
+      { href: "/arrears-aging", label: "Arrears Aging", icon: DollarSign, roles: [DEV, GP, OP] },
+      { href: "/vacancy-alerts", label: "Vacancy Alerts", icon: AlertTriangle, roles: [DEV, GP, OP, PM] },
+      { href: "/operator/turnovers", label: "Unit Turnovers", icon: RefreshCw, roles: [DEV, GP, OP, PM] },
+      { href: "/operations", label: "Operations P&L", icon: Activity, roles: [DEV, GP, OP, PM] },
+      { href: "/staffing", label: "Staffing", icon: Users, roles: [DEV, GP, OP, PM] },
+      { href: "/variance-alerts", label: "Variance Alerts", icon: AlertTriangle, roles: [DEV, GP, OP] },
+      { href: "/funding", label: "Grants & Funding", icon: HandCoins, roles: [DEV, GP, OP] },
     ],
   },
   {
     section: "Reporting",
-    roles: [GP, INV],
+    roles: [DEV, GP, INV],
     items: [
-      { href: "/quarterly-reports", label: "Quarterly Reports", icon: FileText, roles: [GP, INV] },
-      { href: "/reports", label: "Reports", icon: BarChart2, roles: [GP] },
-      { href: "/cash-flow", label: "Cash Flow", icon: Banknote, roles: [GP] },
-      { href: "/debt-maturity", label: "Debt Maturity", icon: Landmark, roles: [GP] },
-      { href: "/tax-documents", label: "K-1 Tax Docs", icon: FileText, roles: [GP] },
+      { href: "/quarterly-reports", label: "Quarterly Reports", icon: FileText, roles: [DEV, GP, INV] },
+      { href: "/reports", label: "Reports", icon: BarChart2, roles: [DEV, GP] },
+      { href: "/cash-flow", label: "Cash Flow", icon: Banknote, roles: [DEV, GP] },
+      { href: "/debt-maturity", label: "Debt Maturity", icon: Landmark, roles: [DEV, GP] },
+      { href: "/tax-documents", label: "K-1 Tax Docs", icon: FileText, roles: [DEV, GP] },
     ],
   },
   {
     section: "Administration",
-    roles: [GP, PM],
+    roles: [DEV, GP, PM],
     items: [
       { href: "/ai", label: "AI Assistant", icon: Sparkles, roles: ALL_PLATFORM },
-      { href: "/property-managers", label: "Property Managers", icon: Settings, roles: [GP, PM] },
-      { href: "/operator", label: "Operators", icon: ClipboardList, roles: [GP] },
-      { href: "/documents", label: "Documents", icon: FolderOpen, roles: [GP] },
-      { href: "/distributions", label: "Distributions", icon: DollarSign, roles: [GP] },
-      { href: "/etransfers", label: "eTransfers", icon: Send, roles: [GP] },
-      { href: "/user-management", label: "User Management", icon: Users, roles: [GP] },
-      { href: "/settings", label: "Settings", icon: Settings, roles: [GP] },
+      { href: "/property-managers", label: "Property Managers", icon: Settings, roles: [DEV, GP, PM] },
+      { href: "/operator", label: "Operators", icon: ClipboardList, roles: [DEV, GP] },
+      { href: "/documents", label: "Documents", icon: FolderOpen, roles: [DEV, GP] },
+      { href: "/distributions", label: "Distributions", icon: DollarSign, roles: [DEV, GP] },
+      { href: "/etransfers", label: "eTransfers", icon: Send, roles: [DEV, GP] },
+      { href: "/user-management", label: "User Management", icon: Users, roles: [DEV, GP] },
+      { href: "/settings", label: "Settings", icon: Settings, roles: [DEV, GP] },
+    ],
+  },
+  {
+    section: "Developer",
+    roles: [DEV],
+    items: [
+      { href: "/developer/screen-access", label: "Screen Access Control", icon: Shield, roles: [DEV] },
     ],
   },
 ];

@@ -71,14 +71,15 @@ def require_roles(*roles: UserRole):
     return checker
 
 
-# Convenience role guards
-require_gp_admin = require_roles(UserRole.GP_ADMIN)
-require_gp_or_ops = require_roles(UserRole.GP_ADMIN, UserRole.OPERATIONS_MANAGER)
+# Convenience role guards (DEVELOPER has access to everything GP_ADMIN can)
+require_developer = require_roles(UserRole.DEVELOPER)
+require_gp_admin = require_roles(UserRole.DEVELOPER, UserRole.GP_ADMIN)
+require_gp_or_ops = require_roles(UserRole.DEVELOPER, UserRole.GP_ADMIN, UserRole.OPERATIONS_MANAGER)
 require_gp_ops_pm = require_roles(
-    UserRole.GP_ADMIN, UserRole.OPERATIONS_MANAGER, UserRole.PROPERTY_MANAGER
+    UserRole.DEVELOPER, UserRole.GP_ADMIN, UserRole.OPERATIONS_MANAGER, UserRole.PROPERTY_MANAGER
 )
 require_investor_or_above = require_roles(
-    UserRole.GP_ADMIN, UserRole.OPERATIONS_MANAGER, UserRole.PROPERTY_MANAGER, UserRole.INVESTOR
+    UserRole.DEVELOPER, UserRole.GP_ADMIN, UserRole.OPERATIONS_MANAGER, UserRole.PROPERTY_MANAGER, UserRole.INVESTOR
 )
 
 
@@ -93,7 +94,7 @@ def get_user_capabilities(user: User, db: Session) -> set[str]:
     Logic: role defaults UNION explicit DB grants.
     GP_ADMIN always gets everything.
     """
-    if user.role == UserRole.GP_ADMIN:
+    if user.role in (UserRole.GP_ADMIN, UserRole.DEVELOPER):
         return set(ROLE_DEFAULT_CAPABILITIES.get(UserRole.GP_ADMIN, set()))
 
     # Start with role defaults
@@ -202,7 +203,7 @@ def check_entity_access(
     min_level: ScopePermissionLevel = ScopePermissionLevel.view,
 ) -> bool:
     """Check if a user has access to a specific entity at or above the given level."""
-    if user.role == UserRole.GP_ADMIN:
+    if user.role in (UserRole.GP_ADMIN, UserRole.DEVELOPER):
         return True
 
     allowed_ids = get_user_entity_ids(user, db, entity_type, min_level)
@@ -232,7 +233,7 @@ def filter_by_lp_scope(
     Returns:
         The filtered query
     """
-    if user.role in (UserRole.GP_ADMIN, UserRole.OPERATIONS_MANAGER):
+    if user.role in (UserRole.DEVELOPER, UserRole.GP_ADMIN, UserRole.OPERATIONS_MANAGER):
         return query  # unrestricted
 
     # For INVESTOR and PROPERTY_MANAGER, use scope assignments

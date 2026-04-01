@@ -1,4 +1,5 @@
 export type UserRole =
+  | "DEVELOPER"
   | "GP_ADMIN"
   | "OPERATIONS_MANAGER"
   | "PROPERTY_MANAGER"

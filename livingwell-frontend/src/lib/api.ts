@@ -378,6 +378,18 @@ export const twilio = {
     apiClient.post(`/api/twilio/calls/${callLogId}/transcribe`).then(r => r.data),
 };
 
+// ── Developer ───────────────────────────────────────────────────────────
+export const developer = {
+  getScreenPermissions: () =>
+    apiClient.get("/api/developer/screen-permissions").then(r => r.data),
+  togglePermission: (permissionId: number, isEnabled: boolean) =>
+    apiClient.patch(`/api/developer/screen-permissions/${permissionId}`, { permission_id: permissionId, is_enabled: isEnabled }).then(r => r.data),
+  bulkUpdatePermissions: (updates: Array<{ permission_id: number; is_enabled: boolean }>) =>
+    apiClient.put("/api/developer/screen-permissions/bulk", { updates }).then(r => r.data),
+  getMyScreenPermissions: () =>
+    apiClient.get("/api/developer/my-screen-permissions").then(r => r.data),
+};
+
 // ── Convenience namespace ──────────────────────────────────────────────
 export const api = {
   portfolio,
@@ -393,4 +405,5 @@ export const api = {
   settings: settingsApi,
   twilio,
   pipeline,
+  developer,
 };

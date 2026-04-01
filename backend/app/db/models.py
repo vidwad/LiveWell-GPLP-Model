@@ -10,7 +10,7 @@ from functools import partial
 
 from sqlalchemy import (
     Boolean, Column, Date, DateTime, Enum as SAEnum,
-    ForeignKey, Integer, Numeric, String, Text, func,
+    ForeignKey, Integer, Numeric, String, Text, UniqueConstraint, func,
 )
 from sqlalchemy.orm import relationship
 
@@ -26,6 +26,7 @@ def _enum(*args, **kwargs):
 # ---------------------------------------------------------------------------
 
 class UserRole(str, enum.Enum):
+    DEVELOPER = "DEVELOPER"
     GP_ADMIN = "GP_ADMIN"
     OPERATIONS_MANAGER = "OPERATIONS_MANAGER"
     PROPERTY_MANAGER = "PROPERTY_MANAGER"
@@ -2447,3 +2448,26 @@ class TwilioSMSLog(Base):
     investor = relationship("Investor")
     activity = relationship("CRMActivity")
     sender = relationship("User")
+
+
+# ---------------------------------------------------------------------------
+# Screen Permissions (Developer-managed access control)
+# ---------------------------------------------------------------------------
+
+class ScreenPermission(Base):
+    """Controls which user roles can access which screens/pages.
+    Managed by Developer users via the admin interface."""
+    __tablename__ = "screen_permissions"
+
+    permission_id = Column(Integer, primary_key=True, index=True)
+    screen_key = Column(String(128), nullable=False, index=True)  # e.g. "/dashboard", "/pipeline"
+    screen_label = Column(String(256), nullable=False)  # Display name
+    section = Column(String(128), nullable=False)  # Menu section grouping
+    role = Column(_enum(UserRole), nullable=False, index=True)
+    is_enabled = Column(Boolean, nullable=False, default=True)
+    updated_at = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+    updated_by = Column(Integer, ForeignKey("users.user_id"), nullable=True)
+
+    __table_args__ = (
+        UniqueConstraint("screen_key", "role", name="uq_screen_role"),
+    )
