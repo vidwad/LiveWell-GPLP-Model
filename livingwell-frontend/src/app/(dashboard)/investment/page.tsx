@@ -123,7 +123,7 @@ export default function InvestmentPage() {
                 </TableHeader>
                 <TableBody>
                   {lps.map((lp) => (
-                    <TableRow key={lp.lp_id} className="group">
+                    <TableRow key={lp.lp_id} className="group cursor-pointer hover:bg-muted/50" onClick={() => window.location.href = `/investment/${lp.lp_id}`}>
                       <TableCell className="font-medium">
                         <Link
                           href={`/investment/${lp.lp_id}`}
