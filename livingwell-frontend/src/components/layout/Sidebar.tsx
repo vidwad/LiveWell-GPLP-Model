@@ -39,6 +39,8 @@ import { cn } from "@/lib/utils";
 import { useAuth } from "@/providers/AuthProvider";
 import { UserRole } from "@/types/auth";
 import { NotificationBell } from "@/components/notifications/NotificationBell";
+import { useQuery } from "@tanstack/react-query";
+import { developer as devApi } from "@/lib/api";
 
 // Roles that access this platform (RESIDENT will have separate app)
 type PlatformRole = "DEVELOPER" | "GP_ADMIN" | "OPERATIONS_MANAGER" | "PROPERTY_MANAGER" | "INVESTOR";
@@ -148,7 +150,19 @@ export function Sidebar() {
   const { user, logout } = useAuth();
   const [mobileOpen, setMobileOpen] = useState(false);
 
+  // Fetch allowed screens from DB (managed by Developer in Screen Access Control)
+  const { data: screenPerms } = useQuery({
+    queryKey: ["my-screen-permissions", user?.role],
+    queryFn: () => devApi.getMyScreenPermissions(),
+    enabled: !!user,
+    staleTime: 60000, // Cache for 1 minute
+  });
+  const allowedScreens: Set<string> | null = screenPerms?.screens
+    ? new Set(screenPerms.screens as string[])
+    : null; // null = permissions not loaded yet, use hardcoded roles as fallback
+
   const roleLabels: Record<string, string> = {
+    DEVELOPER: "Developer",
     GP_ADMIN: "GP Admin",
     OPERATIONS_MANAGER: "Operator",
     PROPERTY_MANAGER: "Property Manager",
@@ -181,12 +195,17 @@ export function Sidebar() {
       {/* Navigation */}
       <nav className="flex-1 overflow-y-auto px-3 py-3 space-y-0.5">
         {NAV_SECTIONS.map((section, si) => {
-          const visibleItems = section.items.filter(
-            (item) => user && item.roles.includes(user.role)
-          );
+          const visibleItems = section.items.filter((item) => {
+            if (!user) return false;
+            // If DB permissions loaded, use them; otherwise fall back to hardcoded roles
+            if (allowedScreens) {
+              return allowedScreens.has(item.href);
+            }
+            return item.roles.includes(user.role);
+          });
           if (visibleItems.length === 0) return null;
 
-          const showHeader = section.section && user && section.roles.includes(user.role);
+          const showHeader = section.section && visibleItems.length > 0;
 
           return (
             <div key={si}>
