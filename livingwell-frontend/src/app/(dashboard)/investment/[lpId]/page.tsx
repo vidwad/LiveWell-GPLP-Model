@@ -172,7 +172,8 @@ export default function LPDetailPage() {
   const router = useRouter();
 
   /* ── queries ─────────────────────────────────────────────────── */
-  const { data: lp, isLoading: lpLoading } = useLP(lpId);
+  const { data: lp, isLoading: lpLoading, error: lpError } = useLP(lpId);
+  if (lpError) console.error("LP load error:", lpError);
   const { data: tranches } = useTranches(lpId);
   const { data: subscriptions } = useSubscriptions(lpId);
   const { data: holdings } = useHoldings(lpId);
@@ -409,6 +410,7 @@ export default function LPDetailPage() {
     return (
       <div className="p-4">
         <p className="text-muted-foreground">LP not found.</p>
+        {lpError && <p className="text-xs text-red-500 mt-1">{String((lpError as any)?.response?.data?.detail || lpError)}</p>}
         <Link href="/investment"><Button variant="ghost" className="mt-2"><ArrowLeft className="h-4 w-4 mr-2" /> Back</Button></Link>
       </div>
     );

@@ -61,23 +61,24 @@ export function usePermissions() {
   const { user } = useAuth();
   const role = user?.role;
 
+  const isDev = role === "DEVELOPER";
   const isAdmin = role === "GP_ADMIN";
   const isOps = role === "OPERATIONS_MANAGER";
   const isPM = role === "PROPERTY_MANAGER";
   const isInvestor = role === "INVESTOR";
   const isResident = role === "RESIDENT";
 
-  // GP_ADMIN can do everything
+  // DEVELOPER and GP_ADMIN can do everything
   // OPERATIONS_MANAGER can create/edit most things but not delete LPs
   // PROPERTY_MANAGER can edit property-level items
   // INVESTOR and RESIDENT are read-only
-  const canCreate = isAdmin || isOps;
-  const canEdit = isAdmin || isOps;
-  const canDelete = isAdmin;
-  const canManageInvestments = isAdmin;
-  const canManageOperations = isAdmin || isOps;
-  const canManageProperties = isAdmin || isOps || isPM;
-  const canViewFinancials = isAdmin || isOps || isInvestor;
+  const canCreate = isDev || isAdmin || isOps;
+  const canEdit = isDev || isAdmin || isOps;
+  const canDelete = isDev || isAdmin;
+  const canManageInvestments = isDev || isAdmin;
+  const canManageOperations = isDev || isAdmin || isOps;
+  const canManageProperties = isDev || isAdmin || isOps || isPM;
+  const canViewFinancials = isDev || isAdmin || isOps || isInvestor;
 
   /**
    * Check if the user has one of the specified roles.
