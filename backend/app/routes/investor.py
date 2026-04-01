@@ -137,16 +137,18 @@ def list_investors_summary(
     db: Session = Depends(get_db),
     _: User = Depends(require_gp_or_ops),
 ):
-    """Return investors who have (or have had) holdings in any LP.
+    """Return ALL investors with investor_status='investor'.
 
-    Active = has at least one holding with status 'active' in a current LP.
-    Non-active = had holdings in the past but none are currently active.
-    Only investors with at least one subscription or holding are included.
+    These are the same contacts from the CRM page that have been promoted
+    to investor status. Groups them as:
+    - Active: has at least one holding with status 'active' in a current LP
+    - Non-active (pending): investor status granted but no active holdings yet
+      (either awaiting subscription, or past holdings all redeemed)
     """
     from decimal import Decimal as D
     from app.db.models import Holding
 
-    # Get all investors with status='investor' who have subscriptions or holdings
+    # Get ALL investors with status='investor' — same table as CRM contacts
     investors = db.query(Investor).filter(
         Investor.investor_status == InvestorStatus.investor
     ).all()
@@ -164,10 +166,6 @@ def list_investors_summary(
         holdings = db.query(Holding).filter(
             Holding.investor_id == inv.investor_id
         ).all()
-
-        # Skip investors with no subscriptions AND no holdings
-        if not subs and not holdings:
-            continue
 
         total_committed = sum((s.commitment_amount or D(0) for s in subs), D(0))
         total_funded = sum((s.funded_amount or D(0) for s in subs), D(0))
@@ -3458,4 +3456,54 @@ def investor_query(
         },
         "needs_research": needs_research,
         "research_triggered": research_triggered,
+    }
+
+
+# ===========================================================================
+# Investor Compliance Check
+# ===========================================================================
+
+@router.get("/investors/{investor_id}/compliance")
+def get_investor_compliance(
+    investor_id: int,
+    db: Session = Depends(get_db),
+    _: User = Depends(get_current_user),
+):
+    """Check investor compliance readiness for subscription/funding/issuance."""
+    from app.services.validation_service import validate_investor_compliance
+    from app.db.models import InvestorDocument, OnboardingChecklistItem
+
+    inv = db.query(Investor).filter(Investor.investor_id == investor_id).first()
+    if not inv:
+        raise HTTPException(404, "Investor not found")
+
+    # Check at all three levels
+    sub_check = validate_investor_compliance(db, inv, "subscription", bypass=True)
+    fund_check = validate_investor_compliance(db, inv, "funding", bypass=True)
+    issue_check = validate_investor_compliance(db, inv, "issuance", bypass=True)
+
+    # Get document summary
+    docs = db.query(InvestorDocument).filter(
+        InvestorDocument.investor_id == investor_id
+    ).all()
+    doc_types = [d.document_type.value if hasattr(d.document_type, "value") else str(d.document_type) for d in docs]
+
+    # Get checklist progress
+    checklist = db.query(OnboardingChecklistItem).filter(
+        OnboardingChecklistItem.investor_id == investor_id
+    ).all()
+    total_required = len([c for c in checklist if c.is_required])
+    completed_required = len([c for c in checklist if c.is_required and c.is_completed])
+
+    return {
+        "investor_id": investor_id,
+        "investor_status": inv.investor_status.value if inv.investor_status else "new_lead",
+        "onboarding_status": inv.onboarding_status.value if inv.onboarding_status else "lead",
+        "accredited_status": inv.accredited_status or "pending",
+        "accreditation_expires_at": inv.accreditation_expires_at.isoformat() if inv.accreditation_expires_at else None,
+        "checklist_progress": f"{completed_required}/{total_required}",
+        "documents_on_file": doc_types,
+        "subscription_ready": sub_check,
+        "funding_ready": fund_check,
+        "issuance_ready": issue_check,
     }

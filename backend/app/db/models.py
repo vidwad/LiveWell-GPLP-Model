@@ -759,6 +759,20 @@ class Subscription(Base):
     funded_date = Column(Date, nullable=True)
     issued_date = Column(Date, nullable=True)
     notes = Column(Text, nullable=True)
+
+    # Payment tracking
+    payment_method = Column(String(32), nullable=True)  # wire, etransfer, cheque, ach
+    payment_reference = Column(String(256), nullable=True)  # reference/confirmation number
+    payment_received_date = Column(Date, nullable=True)
+    payment_cleared = Column(Boolean, nullable=True, default=False)  # funds cleared
+    payment_notes = Column(Text, nullable=True)
+
+    # Compliance
+    compliance_approved = Column(Boolean, nullable=True, default=False)
+    compliance_approved_by = Column(Integer, ForeignKey("users.user_id"), nullable=True)
+    compliance_approved_at = Column(DateTime, nullable=True)
+    compliance_notes = Column(Text, nullable=True)
+
     created_at = Column(DateTime, nullable=True, default=func.now())
 
     investor = relationship("Investor", back_populates="subscriptions")

@@ -608,6 +608,11 @@ def create_subscription(
     if not investor:
         raise HTTPException(status_code=404, detail="Investor not found")
 
+    # Compliance gate: check investor readiness before creating subscription
+    from app.services.validation_service import validate_investor_compliance
+    is_dev = current_user.role == UserRole.DEVELOPER
+    validate_investor_compliance(db, investor, check_level="subscription", bypass=is_dev)
+
     # Validate tranche if provided
     tranche = None
     if payload.tranche_id:
@@ -671,11 +676,16 @@ def update_subscription(
     data = payload.model_dump(exclude_unset=True)
 
     # Validate status transition if status is being changed
+    is_dev = current_user.role == UserRole.DEVELOPER
     if "status" in data and data["status"]:
         current = sub.status.value if sub.status else "draft"
         validate_subscription_status_transition(current, data["status"])
 
-        # If transitioning to 'funded', enforce full upfront funding
+        # Compliance gates at key transitions
+        from app.services.validation_service import validate_investor_compliance, auto_create_holding_from_subscription
+        investor = db.query(Investor).filter(Investor.investor_id == sub.investor_id).first()
+
+        # If transitioning to 'funded', enforce full upfront funding + compliance
         if data["status"] == "funded":
             funded_amt = data.get("funded_amount", sub.funded_amount)
             commit_amt = data.get("commitment_amount", sub.commitment_amount)
@@ -685,6 +695,13 @@ def update_subscription(
                     detail=f"Full upfront funding required. Funded amount must equal "
                            f"commitment amount (${commit_amt:,.2f})",
                 )
+            if investor:
+                validate_investor_compliance(db, investor, check_level="funding", bypass=is_dev)
+
+        # If transitioning to 'issued', check full compliance and auto-create holding
+        if data["status"] == "issued":
+            if investor:
+                validate_investor_compliance(db, investor, check_level="issuance", bypass=is_dev)
 
     # Validate commitment amount change if applicable
     if "commitment_amount" in data and data["commitment_amount"]:
@@ -702,6 +719,14 @@ def update_subscription(
     try:
         db.commit()
         db.refresh(sub)
+
+        # Auto-create holding when subscription reaches 'issued'
+        if sub.status == SubscriptionStatus.issued:
+            from app.services.validation_service import auto_create_holding_from_subscription
+            holding = auto_create_holding_from_subscription(db, sub)
+            if holding:
+                db.commit()
+
     except IntegrityError:
         db.rollback()
         raise HTTPException(status_code=400, detail="Database integrity error (e.g., duplicate entry or missing foreign key)")

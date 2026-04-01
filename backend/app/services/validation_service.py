@@ -368,3 +368,153 @@ def validate_shift_status_transition(current: str, target: str) -> None:
             detail=f"Cannot transition shift from '{current}' to '{target}'. "
                    f"Allowed: {', '.join(sorted(allowed)) if allowed else 'none (terminal)'}.",
         )
+
+
+# ── Investor Compliance Validation ────────────────────────────────────────
+
+# Required document types before subscription can be created
+REQUIRED_DOCS_FOR_SUBSCRIPTION = {
+    "investor_id_document",      # Photo ID (KYC)
+    "accreditation_certificate", # Accreditation proof
+}
+
+# Required document types before subscription can be funded
+REQUIRED_DOCS_FOR_FUNDING = {
+    "investor_id_document",
+    "accreditation_certificate",
+    "aml_kyc_report",
+    "subscription_agreement",
+}
+
+# Required before issued
+REQUIRED_DOCS_FOR_ISSUANCE = {
+    "investor_id_document",
+    "accreditation_certificate",
+    "aml_kyc_report",
+    "subscription_agreement",
+    "partnership_agreement",
+    "banking_form",
+}
+
+
+def validate_investor_compliance(
+    db: Session,
+    investor: m.Investor,
+    check_level: str = "subscription",
+    bypass: bool = False,
+) -> dict:
+    """Validate investor compliance readiness for subscription/funding/issuance.
+
+    Args:
+        db: Database session
+        investor: The investor to check
+        check_level: 'subscription', 'funding', or 'issuance'
+        bypass: If True, return warnings but don't raise (for DEVELOPER override)
+
+    Returns:
+        dict with {ready: bool, warnings: list, missing_docs: list}
+
+    Raises:
+        HTTPException if not ready and bypass=False
+    """
+    import datetime
+
+    warnings = []
+    missing_docs = []
+
+    # 1. Check onboarding status
+    onboarding = investor.onboarding_status.value if investor.onboarding_status else "lead"
+    if onboarding not in ("approved", "active"):
+        warnings.append(f"Onboarding status is '{onboarding}' — must be 'approved' or 'active'")
+
+    # 2. Check accreditation
+    accredited = investor.accredited_status or "pending"
+    if accredited == "pending":
+        warnings.append("Accreditation status is pending — must be verified before investment")
+    elif accredited == "expired":
+        warnings.append("Accreditation has expired — renewal required")
+
+    # Check expiration date
+    if investor.accreditation_expires_at:
+        if investor.accreditation_expires_at < datetime.date.today():
+            warnings.append(f"Accreditation expired on {investor.accreditation_expires_at}")
+
+    # 3. Check required documents
+    required_set = {
+        "subscription": REQUIRED_DOCS_FOR_SUBSCRIPTION,
+        "funding": REQUIRED_DOCS_FOR_FUNDING,
+        "issuance": REQUIRED_DOCS_FOR_ISSUANCE,
+    }.get(check_level, REQUIRED_DOCS_FOR_SUBSCRIPTION)
+
+    existing_docs = set()
+    investor_docs = db.query(m.InvestorDocument).filter(
+        m.InvestorDocument.investor_id == investor.investor_id
+    ).all()
+    for doc in investor_docs:
+        dtype = doc.document_type.value if hasattr(doc.document_type, "value") else str(doc.document_type)
+        existing_docs.add(dtype)
+
+    missing_docs = list(required_set - existing_docs)
+
+    if missing_docs:
+        doc_labels = {
+            "investor_id_document": "Photo ID (KYC)",
+            "accreditation_certificate": "Accreditation Certificate",
+            "aml_kyc_report": "AML/KYC Report",
+            "subscription_agreement": "Subscription Agreement",
+            "partnership_agreement": "Partnership Agreement",
+            "banking_form": "Banking Information",
+            "tax_form": "Tax Form",
+        }
+        readable = [doc_labels.get(d, d) for d in missing_docs]
+        warnings.append(f"Missing required documents: {', '.join(readable)}")
+
+    ready = len(warnings) == 0
+
+    if not ready and not bypass:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Investor compliance check failed for {check_level}: " + "; ".join(warnings),
+        )
+
+    return {"ready": ready, "warnings": warnings, "missing_docs": missing_docs}
+
+
+def auto_create_holding_from_subscription(db: Session, subscription: m.Subscription) -> Optional[m.Holding]:
+    """Auto-create a Holding record when a subscription reaches 'issued' status.
+
+    Returns the created Holding or None if one already exists.
+    """
+    # Check if holding already exists
+    existing = db.query(m.Holding).filter(
+        m.Holding.subscription_id == subscription.subscription_id
+    ).first()
+    if existing:
+        return None
+
+    holding = m.Holding(
+        investor_id=subscription.investor_id,
+        lp_id=subscription.lp_id,
+        subscription_id=subscription.subscription_id,
+        units_held=subscription.unit_quantity,
+        average_issue_price=subscription.issue_price,
+        total_capital_contributed=subscription.funded_amount,
+        initial_issue_date=subscription.issued_date or subscription.funded_date,
+        unreturned_capital=subscription.funded_amount,
+        unpaid_preferred=Decimal("0"),
+        is_gp=False,
+        status="active",
+    )
+    db.add(holding)
+
+    # Also advance onboarding status to 'active' if it's 'approved'
+    investor = db.query(m.Investor).filter(
+        m.Investor.investor_id == subscription.investor_id
+    ).first()
+    if investor:
+        if investor.onboarding_status == m.OnboardingStatus.approved:
+            investor.onboarding_status = m.OnboardingStatus.active
+        if investor.investor_status != m.InvestorStatus.investor:
+            investor.investor_status = m.InvestorStatus.investor
+
+    return holding
