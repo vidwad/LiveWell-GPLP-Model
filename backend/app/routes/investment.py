@@ -318,10 +318,13 @@ def update_lp_entity(
             data[k] = None
 
     # Validate LP status transition if status is being changed
+    # DEVELOPER role can bypass lifecycle restrictions
+    from app.db.models import UserRole
+    is_developer = current_user.role == UserRole.DEVELOPER
     if "status" in data and data["status"]:
         current = lp.status.value if lp.status else "draft"
         if data["status"] != current:
-            validate_lp_status_transition(current, data["status"])
+            validate_lp_status_transition(current, data["status"], bypass=is_developer)
 
     # Validate purpose_type change — can't orphan existing properties
     if "purpose_type" in data and data["purpose_type"]:
