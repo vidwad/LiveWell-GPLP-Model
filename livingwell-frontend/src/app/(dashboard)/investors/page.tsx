@@ -608,7 +608,16 @@ export default function InvestorsPage() {
                         )}
                       </TableCell>
                       <TableCell>
-                        <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                        <div className="flex items-center gap-1">
+                          <Link
+                            href={`/investor-onboarding?investor=${inv.investor_id}`}
+                            onClick={(e) => e.stopPropagation()}
+                            className="text-[10px] px-2 py-1 rounded bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200 whitespace-nowrap"
+                          >
+                            CRM
+                          </Link>
+                          <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                        </div>
                       </TableCell>
                     </TableRow>
                   ))}

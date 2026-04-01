@@ -172,12 +172,23 @@ function InvestorOnboardingPage() {
   const searchParams = useSearchParams();
   const [selectedInvestorId, setSelectedInvestorId] = useState<number | null>(null);
 
-  // Auto-open investor drawer from query param (e.g. from Pipeline page)
+  // Auto-open investor drawer from query param (e.g. from Pipeline or Investors page)
   useEffect(() => {
     const investorParam = searchParams.get("investor");
     if (investorParam) {
       const id = parseInt(investorParam, 10);
-      if (!isNaN(id)) setSelectedInvestorId(id);
+      if (!isNaN(id)) {
+        setSelectedInvestorId(id);
+        // Scroll to the investor row after a brief delay for rendering
+        setTimeout(() => {
+          const row = document.getElementById(`investor-row-${id}`);
+          if (row) {
+            row.scrollIntoView({ behavior: "smooth", block: "center" });
+            row.classList.add("ring-2", "ring-primary", "ring-offset-1");
+            setTimeout(() => row.classList.remove("ring-2", "ring-primary", "ring-offset-1"), 3000);
+          }
+        }, 500);
+      }
     }
   }, [searchParams]);
   const [showAddLead, setShowAddLead] = useState(false);
@@ -878,7 +889,8 @@ function InvestorOnboardingPage() {
                           return (
                             <tr
                               key={inv.investor_id}
-                              className={`cursor-pointer hover:bg-muted/50 transition-colors ${
+                              id={`investor-row-${inv.investor_id}`}
+                              className={`cursor-pointer hover:bg-muted/50 transition-all ${
                                 selectedInvestorId === inv.investor_id ? "bg-primary/10 border-l-2 border-l-primary" : ""
                               }`}
                               onClick={() => setSelectedInvestorId(inv.investor_id)}
