@@ -823,16 +823,25 @@ function NewSubscriptionDialog({
   const createSub = useCreateSubscription();
 
   function handleCreate() {
-    if (!lpId || !amount) return;
+    if (!lpId) { alert("Please select an LP Fund"); return; }
+    if (!trancheId) { alert("Please select a tranche"); return; }
+    if (!amount || Number(amount) <= 0) { alert("Please enter a commitment amount"); return; }
+
+    const commitment = Number(amount);
+    const price = issuePrice ? Number(issuePrice) : (lps?.find(l => l.lp_id === lpId)?.unit_price ? Number(lps.find(l => l.lp_id === lpId)!.unit_price) : 1000);
+    const units = Math.round((commitment / price) * 10000) / 10000;
+
     createSub.mutate(
       {
         lpId,
         data: {
           investor_id: investorId,
           lp_id: lpId,
-          tranche_id: trancheId || undefined,
-          commitment_amount: Number(amount),
-          issue_price: issuePrice ? Number(issuePrice) : undefined,
+          tranche_id: trancheId,
+          commitment_amount: commitment,
+          funded_amount: 0,
+          issue_price: price,
+          unit_quantity: units,
           status: "draft",
           notes: notes || undefined,
         },
@@ -845,6 +854,11 @@ function NewSubscriptionDialog({
           setAmount("");
           setIssuePrice("");
           setNotes("");
+        },
+        onError: (err: any) => {
+          const detail = err?.response?.data?.detail;
+          const msg = typeof detail === "string" ? detail : Array.isArray(detail) ? detail.map((d: any) => `${d.loc?.join(".")}: ${d.msg}`).join("; ") : "Failed to create subscription";
+          alert(msg);
         },
       }
     );
@@ -882,22 +896,25 @@ function NewSubscriptionDialog({
               </SelectContent>
             </Select>
           </div>
-          {lpId > 0 && tranches && tranches.length > 0 && (
+          {lpId > 0 && (
             <div className="space-y-1">
-              <Label>Tranche (optional)</Label>
-              <Select value={trancheId ? String(trancheId) : "none"} onValueChange={(v) => setTrancheId(v === "none" ? 0 : Number(v))}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select Tranche" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">No specific tranche</SelectItem>
-                  {tranches.map((t) => (
-                    <SelectItem key={t.tranche_id} value={String(t.tranche_id)}>
-                      {t.tranche_name} ({statusLabel(t.status)})
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Label>Tranche *</Label>
+              {tranches && tranches.filter(t => t.status === "open").length > 0 ? (
+                <Select value={trancheId ? String(trancheId) : ""} onValueChange={(v) => setTrancheId(Number(v))}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select Tranche" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {tranches.filter(t => t.status === "open").map((t) => (
+                      <SelectItem key={t.tranche_id} value={String(t.tranche_id)}>
+                        {t.tranche_name || `Tranche ${t.tranche_number}`} ({statusLabel(t.status)})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              ) : (
+                <p className="text-xs text-amber-600 bg-amber-50 rounded p-2">No open tranches available for this fund. Create or reopen a tranche first.</p>
+              )}
             </div>
           )}
           <div className="space-y-1">
