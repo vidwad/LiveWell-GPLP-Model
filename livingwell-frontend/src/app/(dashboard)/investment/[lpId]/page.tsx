@@ -809,11 +809,11 @@ export default function LPDetailPage() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {subscriptions.map((s) => {
+                      {(subscriptions || []).map((s: any) => {
                         // Compute effective status based on compliance + payment
-                        const complianceOk = s.compliance_approved === true;
-                        const fullyFunded = Number(s.funded_amount) >= Number(s.commitment_amount) && Number(s.funded_amount) > 0;
-                        const rawStatus = s.status;
+                        const complianceOk = s?.compliance_approved === true;
+                        const fullyFunded = Number(s?.funded_amount || 0) >= Number(s?.commitment_amount || 0) && Number(s?.funded_amount || 0) > 0;
+                        const rawStatus = s?.status || "draft";
                         let effectiveStatus = rawStatus;
                         if (["accepted", "funded", "issued"].includes(rawStatus)) {
                           if (!complianceOk) effectiveStatus = "pending_compliance";
