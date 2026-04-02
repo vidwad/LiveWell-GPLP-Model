@@ -270,6 +270,15 @@ class SubscriptionUpdate(BaseModel):
     issued_date: Optional[date] = None
     tranche_id: Optional[int] = None
     notes: Optional[str] = None
+    payment_method: Optional[str] = None
+    payment_reference: Optional[str] = None
+    payment_received_date: Optional[date] = None
+    payment_cleared: Optional[bool] = None
+    payment_notes: Optional[str] = None
+    compliance_approved: Optional[bool] = None
+    compliance_approved_by: Optional[int] = None
+    compliance_approved_at: Optional[datetime] = None
+    compliance_notes: Optional[str] = None
 
 
 class SubscriptionOut(SubscriptionBase):
