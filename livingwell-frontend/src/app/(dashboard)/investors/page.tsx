@@ -61,6 +61,19 @@ const STATUS_BADGE_VARIANT: Record<string, "default" | "secondary" | "outline" |
   rejected: "destructive",
   withdrawn: "destructive",
   cancelled: "destructive",
+  pending_compliance: "secondary",
+  pending_payment: "secondary",
+};
+
+const STATUS_COLORS: Record<string, string> = {
+  issued: "bg-green-100 text-green-700",
+  pending_compliance: "bg-amber-100 text-amber-700",
+  pending_payment: "bg-amber-100 text-amber-700",
+  draft: "bg-gray-100 text-gray-600",
+  submitted: "bg-blue-100 text-blue-700",
+  under_review: "bg-blue-100 text-blue-700",
+  accepted: "bg-indigo-100 text-indigo-700",
+  funded: "bg-emerald-100 text-emerald-700",
 };
 
 const ENTITY_LABELS: Record<string, string> = {
@@ -589,9 +602,11 @@ export default function InvestorsPage() {
                         {inv.latest_status ? (
                           <Badge
                             variant={STATUS_BADGE_VARIANT[inv.latest_status] ?? "outline"}
-                            className="text-[10px]"
+                            className={`text-[10px] ${STATUS_COLORS[inv.latest_status] || ""}`}
                           >
-                            {statusLabel(inv.latest_status)}
+                            {inv.latest_status === "pending_compliance" ? "Pending Compliance" :
+                             inv.latest_status === "pending_payment" ? "Pending Payment" :
+                             statusLabel(inv.latest_status)}
                           </Badge>
                         ) : (
                           <span className="text-xs text-muted-foreground">—</span>
@@ -685,9 +700,11 @@ export default function InvestorsPage() {
                       {inv.latest_status && (
                         <Badge
                           variant={STATUS_BADGE_VARIANT[inv.latest_status] ?? "outline"}
-                          className="text-[10px]"
+                          className={`text-[10px] ${STATUS_COLORS[inv.latest_status] || ""}`}
                         >
-                          {statusLabel(inv.latest_status)}
+                          {inv.latest_status === "pending_compliance" ? "Pending Compliance" :
+                           inv.latest_status === "pending_payment" ? "Pending Payment" :
+                           statusLabel(inv.latest_status)}
                         </Badge>
                       )}
                     </div>

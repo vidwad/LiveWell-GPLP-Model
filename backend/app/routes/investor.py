@@ -171,11 +171,43 @@ def list_investors_summary(
         total_funded = sum((s.funded_amount or D(0) for s in subs), D(0))
         active_subs = [s for s in subs if (s.status.value if s.status else "draft") not in terminal_sub]
         lp_names = list({s.lp.name for s in subs if s.lp})
-        latest_status = subs[0].status.value if subs and subs[0].status else None
+        raw_status = subs[0].status.value if subs and subs[0].status else None
 
-        # Active = has at least one holding with status 'active'
+        # Compute effective status based on actual compliance + payment state
+        # A subscription showing "issued" isn't truly issued unless compliance
+        # is approved and full payment has cleared
+        effective_status = raw_status
+        if subs:
+            latest_sub = subs[0]
+            compliance_ok = bool(latest_sub.compliance_approved)
+            fully_funded = (latest_sub.funded_amount or D(0)) >= (latest_sub.commitment_amount or D(0)) and (latest_sub.funded_amount or D(0)) > 0
+
+            if raw_status in ("accepted", "funded", "issued"):
+                if not compliance_ok:
+                    effective_status = "pending_compliance"
+                elif not fully_funded:
+                    effective_status = "pending_payment"
+                elif raw_status == "issued" and compliance_ok and fully_funded:
+                    effective_status = "issued"
+                else:
+                    effective_status = raw_status
+
+        # Active = compliance approved + fully funded + holding active
         active_holdings = [h for h in holdings if (h.status or "active") == "active"]
-        is_active = len(active_holdings) > 0
+        compliance_ok_any = any(bool(s.compliance_approved) for s in subs) if subs else False
+        fully_funded_any = total_funded >= total_committed and total_funded > 0 if total_committed > 0 else False
+        is_active = len(active_holdings) > 0 and compliance_ok_any and fully_funded_any
+
+        # Action items: count of subscriptions needing attention
+        action_count = 0
+        for s in subs:
+            s_status = s.status.value if s.status else "draft"
+            if s_status in terminal_sub:
+                continue
+            s_compliance = bool(s.compliance_approved)
+            s_funded = (s.funded_amount or D(0)) >= (s.commitment_amount or D(0)) and (s.funded_amount or D(0)) > 0
+            if not s_compliance or not s_funded or s_status != "issued":
+                action_count += 1
 
         result.append(InvestorSummary(
             investor_id=inv.investor_id,
@@ -187,9 +219,9 @@ def list_investors_summary(
             total_committed=total_committed,
             total_funded=total_funded,
             subscription_count=len(subs),
-            active_subscriptions=len(active_subs),
+            active_subscriptions=action_count,
             lp_names=lp_names,
-            latest_status=latest_status,
+            latest_status=effective_status,
             created_at=inv.created_at,
             is_active=is_active,
             holding_count=len(active_holdings),
