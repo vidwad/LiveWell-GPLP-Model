@@ -492,6 +492,29 @@ def update_tranche(
     )
 
 
+@router.delete("/tranches/{tranche_id}")
+def delete_tranche(
+    tranche_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_gp_admin),
+):
+    """Delete a tranche if no subscriptions are assigned to it."""
+    tranche = db.query(LPTranche).filter(LPTranche.tranche_id == tranche_id).first()
+    if not tranche:
+        raise HTTPException(status_code=404, detail="Tranche not found")
+
+    sub_count = db.query(Subscription).filter(Subscription.tranche_id == tranche_id).count()
+    if sub_count > 0:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Cannot delete — {sub_count} subscription(s) are assigned to this tranche. Remove or reassign them first."
+        )
+
+    db.delete(tranche)
+    db.commit()
+    return {"status": "deleted", "tranche_id": tranche_id}
+
+
 # ===========================================================================
 # Investors (CRUD)
 # ===========================================================================

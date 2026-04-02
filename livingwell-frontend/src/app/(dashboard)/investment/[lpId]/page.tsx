@@ -21,6 +21,7 @@ import {
   FileText,
   Plus,
   Pencil,
+  Trash2,
   ArrowRightLeft,
 } from "lucide-react";
 import {
@@ -47,7 +48,7 @@ import {
   useComputeWaterfall,
 } from "@/hooks/useInvestment";
 import { usePropertiesByLp } from "@/hooks/usePortfolio";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api";
 import type { WaterfallResult } from "@/types/investment";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -189,6 +190,7 @@ export default function LPDetailPage() {
     queryFn: () => apiClient.get(`/api/investor/ioi/lp-summary/${lpId}`).then(r => r.data),
     enabled: !!lpId,
   });
+  const queryClient = useQueryClient();
   const { canEdit } = usePermissions();
   const { user } = useAuth();
 
@@ -809,6 +811,20 @@ export default function LPDetailPage() {
                             target_amount: t.target_amount || "", target_units: t.target_units || "",
                             notes: t.notes || "",
                           })}><Pencil className="h-3.5 w-3.5" /></Button>}
+                          {canEdit && (t.subscriptions_count === 0 || t.subscriptions_count == null) && (
+                            <Button variant="ghost" size="sm" className="text-red-500 hover:text-red-700" onClick={async (e) => {
+                              e.stopPropagation();
+                              if (!confirm(`Delete tranche "${t.tranche_name || `#${t.tranche_number}`}"? This cannot be undone.`)) return;
+                              try {
+                                await apiClient.delete(`/api/investment/tranches/${t.tranche_id}`);
+                                queryClient.invalidateQueries({ queryKey: ["tranches", lpId] });
+                              } catch (err: any) {
+                                alert(err?.response?.data?.detail || "Failed to delete tranche");
+                              }
+                            }}>
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </Button>
+                          )}
                         </div>
                       </div>
                       <div className="space-y-1">
