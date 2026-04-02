@@ -26,6 +26,7 @@ import {
   AlertTriangle,
   Shield,
   ExternalLink,
+  Trash2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -389,6 +390,7 @@ function SubscriptionWorkflowCard({
   investorId: number;
   canManage: boolean;
 }) {
+  const queryClient = useQueryClient();
   const [expanded, setExpanded] = useState(false);
   const [actionNotes, setActionNotes] = useState("");
   const [fundedAmount, setFundedAmount] = useState("");
@@ -459,6 +461,25 @@ function SubscriptionWorkflowCard({
       lpId: sub.lp_id,
       data: { status: "cancelled" as SubscriptionStatus, notes: actionNotes || "Cancelled by GP" },
     });
+  }
+
+  const [deleting, setDeleting] = useState(false);
+  const canDelete = !sub.compliance_approved && (!sub.funded_amount || Number(sub.funded_amount) === 0) && !["funded", "issued", "closed"].includes(sub.status);
+
+  async function handleDelete() {
+    if (!confirm("Delete this subscription? This will remove all associated payments and cannot be undone.")) return;
+    setDeleting(true);
+    try {
+      await apiClient.delete(`/api/investment/subscriptions/${sub.subscription_id}`);
+      queryClient.invalidateQueries({ queryKey: ["investor-subscriptions"] });
+      queryClient.invalidateQueries({ queryKey: ["subscriptions"] });
+      queryClient.invalidateQueries({ queryKey: ["investor-dashboard"] });
+      queryClient.invalidateQueries({ queryKey: ["investor-compliance"] });
+    } catch (e: any) {
+      alert(e?.response?.data?.detail || "Failed to delete subscription");
+    } finally {
+      setDeleting(false);
+    }
   }
 
   return (
@@ -628,6 +649,12 @@ function SubscriptionWorkflowCard({
                   </p>
                 </div>
                 <div className="flex gap-2">
+                  {canDelete && (
+                    <Button variant="outline" size="sm" className="text-red-600 hover:text-red-700" disabled={deleting} onClick={handleDelete}>
+                      <Trash2 className="mr-1 h-3.5 w-3.5" />
+                      {deleting ? "Deleting..." : "Delete"}
+                    </Button>
+                  )}
                   {sub.status !== "draft" && (
                     <Dialog>
                       {/* @ts-expect-error radix-ui asChild type */}

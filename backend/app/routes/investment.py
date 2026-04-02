@@ -745,6 +745,54 @@ def update_subscription(
     return _sub_out(sub)
 
 
+@router.delete("/subscriptions/{subscription_id}")
+def delete_subscription(
+    subscription_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_gp_or_ops),
+):
+    """Delete a subscription if not yet funded or compliance approved.
+
+    Backs out all related data: payments, holdings, and distribution allocations.
+    Developer role can delete any subscription regardless of state.
+    """
+    sub = db.query(Subscription).filter(Subscription.subscription_id == subscription_id).first()
+    if not sub:
+        raise HTTPException(status_code=404, detail="Subscription not found")
+
+    is_dev = current_user.role == UserRole.DEVELOPER
+
+    # Block deletion if funded or compliance approved (unless Developer)
+    if not is_dev:
+        if sub.compliance_approved:
+            raise HTTPException(status_code=400, detail="Cannot delete — compliance has been approved. Cancel the subscription instead.")
+        if sub.funded_amount and float(sub.funded_amount) > 0:
+            raise HTTPException(status_code=400, detail="Cannot delete — payments have been recorded. Cancel the subscription instead.")
+        if sub.status.value in ("funded", "issued", "closed"):
+            raise HTTPException(status_code=400, detail=f"Cannot delete — subscription is in '{sub.status.value}' state. Cancel instead.")
+
+    # Back out all related data
+    # 1. Delete distribution allocations tied to the holding
+    holding = db.query(Holding).filter(Holding.subscription_id == subscription_id).first()
+    if holding:
+        from app.db.models import DistributionAllocation
+        db.query(DistributionAllocation).filter(
+            DistributionAllocation.holding_id == holding.holding_id
+        ).delete()
+        db.delete(holding)
+
+    # 2. Delete payments
+    db.query(SubscriptionPayment).filter(
+        SubscriptionPayment.subscription_id == subscription_id
+    ).delete()
+
+    # 3. Delete the subscription
+    db.delete(sub)
+    db.commit()
+
+    return {"status": "deleted", "subscription_id": subscription_id}
+
+
 # ===========================================================================
 # Subscription Payments
 # ===========================================================================
