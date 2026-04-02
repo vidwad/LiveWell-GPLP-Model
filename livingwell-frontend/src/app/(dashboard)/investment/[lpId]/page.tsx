@@ -47,6 +47,8 @@ import {
   useComputeWaterfall,
 } from "@/hooks/useInvestment";
 import { usePropertiesByLp } from "@/hooks/usePortfolio";
+import { useQuery } from "@tanstack/react-query";
+import { apiClient } from "@/lib/api";
 import type { WaterfallResult } from "@/types/investment";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -182,6 +184,11 @@ export default function LPDetailPage() {
   const { data: rollup } = usePortfolioRollup(lpId);
   const { data: distributions } = useDistributionEvents(lpId);
   const { data: investors } = useInvestors();
+  const { data: ioiSummary } = useQuery({
+    queryKey: ["ioi-summary", lpId],
+    queryFn: () => apiClient.get(`/api/investor/ioi/lp-summary/${lpId}`).then(r => r.data),
+    enabled: !!lpId,
+  });
   const { canEdit } = usePermissions();
   const { user } = useAuth();
 
@@ -471,8 +478,9 @@ export default function LPDetailPage() {
       </div>
 
       {/* ── KPI Strip ─────────────────────────────────────────────── */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3">
         <KPI label="Target Raise" value={lp.target_raise ? formatCurrencyCompact(lp.target_raise) : "—"} icon={Target} />
+        <KPI label="IOI Interest" value={ioiSummary?.total_ioi_expressed ? formatCurrencyCompact(String(ioiSummary.total_ioi_expressed)) : "$0"} sub={ioiSummary?.ioi_count ? `${ioiSummary.ioi_count} investors` : undefined} icon={FileText} />
         <KPI label="Committed" value={lp.total_committed ? formatCurrencyCompact(lp.total_committed) : "$0"} sub={`${committedPct.toFixed(0)}% of target`} icon={TrendingUp} />
         <KPI label="Funded" value={lp.total_funded ? formatCurrencyCompact(lp.total_funded) : "$0"} sub={`${fundedPct.toFixed(0)}% of target`} icon={DollarSign} />
         <KPI label="Investors" value={String(lp.investor_count ?? 0)} icon={Users} />
@@ -483,22 +491,41 @@ export default function LPDetailPage() {
       {/* ── Funding Progress ──────────────────────────────────────── */}
       <Card>
         <CardContent className="pt-4 pb-3 space-y-2">
+          {/* IOI → Committed → Funded progress */}
           <div className="flex justify-between text-sm">
-            <span className="text-muted-foreground">Funding Progress</span>
+            <span className="text-muted-foreground">Capital Pipeline</span>
             <span className="font-medium tabular-nums">
-              {lp.total_funded ? formatCurrency(lp.total_funded) : "$0"} / {lp.target_raise ? formatCurrency(lp.target_raise) : "—"}
+              {lp.total_funded ? formatCurrency(lp.total_funded) : "$0"} funded / {lp.target_raise ? formatCurrency(lp.target_raise) : "—"} target
             </span>
           </div>
-          <div className="relative">
-            <Progress value={fundedPct} className="h-3" />
-            {committedPct > fundedPct && (
-              <div className="absolute top-0 h-3 bg-primary/30 rounded-r-full" style={{ left: `${fundedPct}%`, width: `${Math.min(committedPct - fundedPct, 100 - fundedPct)}%` }} />
-            )}
-          </div>
-          <div className="flex gap-4 text-xs text-muted-foreground">
-            <span className="flex items-center gap-1"><span className="inline-block h-2 w-2 rounded-full bg-primary" /> Funded ({fundedPct.toFixed(0)}%)</span>
-            <span className="flex items-center gap-1"><span className="inline-block h-2 w-2 rounded-full bg-primary/30" /> Committed ({committedPct.toFixed(0)}%)</span>
-          </div>
+          {(() => {
+            const target = Number(lp.target_raise || 0);
+            const ioiPct = target > 0 && ioiSummary?.total_ioi_expressed ? Math.min(Number(ioiSummary.total_ioi_expressed) / target * 100, 100) : 0;
+            return (
+              <>
+                <div className="relative h-4 bg-muted rounded-full overflow-hidden">
+                  {/* IOI layer (lightest) */}
+                  {ioiPct > 0 && (
+                    <div className="absolute top-0 left-0 h-full bg-blue-200 rounded-full" style={{ width: `${ioiPct}%` }} />
+                  )}
+                  {/* Committed layer */}
+                  {committedPct > 0 && (
+                    <div className="absolute top-0 left-0 h-full bg-primary/40 rounded-full" style={{ width: `${Math.min(committedPct, 100)}%` }} />
+                  )}
+                  {/* Funded layer (darkest) */}
+                  {fundedPct > 0 && (
+                    <div className="absolute top-0 left-0 h-full bg-primary rounded-full" style={{ width: `${Math.min(fundedPct, 100)}%` }} />
+                  )}
+                </div>
+                <div className="flex flex-wrap gap-4 text-xs text-muted-foreground">
+                  {ioiPct > 0 && <span className="flex items-center gap-1"><span className="inline-block h-2 w-2 rounded-full bg-blue-200" /> IOI ({ioiPct.toFixed(0)}%)</span>}
+                  <span className="flex items-center gap-1"><span className="inline-block h-2 w-2 rounded-full bg-primary/40" /> Committed ({committedPct.toFixed(0)}%)</span>
+                  <span className="flex items-center gap-1"><span className="inline-block h-2 w-2 rounded-full bg-primary" /> Funded ({fundedPct.toFixed(0)}%)</span>
+                  <span className="ml-auto font-medium">Remaining: {lp.remaining_capacity ? formatCurrency(lp.remaining_capacity) : "$0"}</span>
+                </div>
+              </>
+            );
+          })()}
         </CardContent>
       </Card>
 
