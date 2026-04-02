@@ -338,15 +338,24 @@ export default function LPDetailPage() {
 
   function handleSubSave() {
     const f = subForm.form;
+    if (!f.investor_id) { alert("Please select an investor"); return; }
+    if (!f.tranche_id) { alert("Please select a tranche"); return; }
+    if (!f.commitment_amount || Number(f.commitment_amount) <= 0) { alert("Please enter a commitment amount"); return; }
+
+    const commitment = Number(f.commitment_amount);
+    const issuePrice = Number(f.issue_price) || Number(lp?.unit_price) || 1000;
+    // Auto-calculate units if not provided
+    const unitQty = f.unit_quantity ? Number(f.unit_quantity) : Math.round((commitment / issuePrice) * 10000) / 10000;
+
     const payload: any = {
       investor_id: Number(f.investor_id),
       lp_id: lpId,
-      tranche_id: numOrUndef(f.tranche_id),
-      commitment_amount: Number(f.commitment_amount),
-      funded_amount: numOrUndef(f.funded_amount),
-      issue_price: numOrUndef(f.issue_price),
-      unit_quantity: numOrUndef(f.unit_quantity),
-      status: f.status || "draft",
+      tranche_id: Number(f.tranche_id),
+      commitment_amount: commitment,
+      funded_amount: subForm.isEdit ? numOrUndef(f.funded_amount) : 0,
+      issue_price: issuePrice,
+      unit_quantity: unitQty,
+      status: subForm.isEdit ? (f.status || "draft") : "draft",
       submitted_date: strOrUndef(f.submitted_date),
       notes: strOrUndef(f.notes),
     };
@@ -1475,28 +1484,38 @@ export default function LPDetailPage() {
         <DialogContent className="sm:max-w-md max-h-[85vh] overflow-y-auto">
           <DialogHeader><DialogTitle>{subForm.isEdit ? "Edit Subscription" : "Add Subscription"}</DialogTitle></DialogHeader>
           <div className="grid grid-cols-2 gap-3">
-            <Field label="Investor" className="col-span-2">
+            <Field label="Investor *" className="col-span-2">
               <select required className="h-8 w-full rounded-lg border border-input bg-transparent px-2.5 text-sm" value={subForm.form.investor_id} onChange={(e) => subForm.set("investor_id", e.target.value)}>
                 <option value="">Select investor...</option>
                 {investors?.map(inv => <option key={inv.investor_id} value={inv.investor_id}>{inv.name}</option>)}
               </select>
             </Field>
-            <Field label="Tranche">
-              <select className="h-8 w-full rounded-lg border border-input bg-transparent px-2.5 text-sm" value={subForm.form.tranche_id} onChange={(e) => subForm.set("tranche_id", e.target.value)}>
-                <option value="">No tranche</option>
-                {tranches?.map(t => <option key={t.tranche_id} value={t.tranche_id}>Tranche {t.tranche_number}{t.tranche_name ? ` — ${t.tranche_name}` : ""}</option>)}
+            <Field label="Tranche *">
+              <select required className="h-8 w-full rounded-lg border border-input bg-transparent px-2.5 text-sm" value={subForm.form.tranche_id} onChange={(e) => subForm.set("tranche_id", e.target.value)}>
+                <option value="">Select tranche...</option>
+                {tranches?.filter(t => t.status === "open" || subForm.isEdit).map(t => (
+                  <option key={t.tranche_id} value={t.tranche_id}>
+                    Tranche {t.tranche_number}{t.tranche_name ? ` — ${t.tranche_name}` : ""} ({t.status})
+                  </option>
+                ))}
               </select>
             </Field>
-            <Field label="Status">
-              <select className="h-8 w-full rounded-lg border border-input bg-transparent px-2.5 text-sm" value={subForm.form.status} onChange={(e) => subForm.set("status", e.target.value)}>
-                {["draft","submitted","under_review","accepted","funded","issued","closed","rejected","withdrawn"].map(s => <option key={s} value={s}>{statusLabel(s)}</option>)}
-              </select>
+            {subForm.isEdit && (
+              <Field label="Status">
+                <select className="h-8 w-full rounded-lg border border-input bg-transparent px-2.5 text-sm" value={subForm.form.status} onChange={(e) => subForm.set("status", e.target.value)}>
+                  {["draft","submitted","under_review","accepted","funded","issued","closed","rejected","withdrawn"].map(s => <option key={s} value={s}>{statusLabel(s)}</option>)}
+                </select>
+              </Field>
+            )}
+            <Field label="Commitment Amount *"><Input required type="number" min={0} step="0.01" value={subForm.form.commitment_amount} onChange={(e) => subForm.set("commitment_amount", e.target.value)} placeholder={lp?.minimum_subscription ? `Min $${Number(lp.minimum_subscription).toLocaleString()}` : "0.00"} /></Field>
+            <Field label="Issue Price *"><Input required type="number" min={0} step="0.01" value={subForm.form.issue_price} onChange={(e) => subForm.set("issue_price", e.target.value)} placeholder={lp?.unit_price ? String(lp.unit_price) : "0.00"} /></Field>
+            <Field label="Unit Quantity">
+              <Input type="number" min={0} step="0.0001" value={subForm.form.unit_quantity} onChange={(e) => subForm.set("unit_quantity", e.target.value)} placeholder="Auto-calculated if blank" />
+              <p className="text-[9px] text-muted-foreground mt-0.5">Commitment ÷ Issue Price = Units</p>
             </Field>
-            <Field label="Commitment Amount"><Input required type="number" min={0} step="0.01" value={subForm.form.commitment_amount} onChange={(e) => subForm.set("commitment_amount", e.target.value)} /></Field>
-            <Field label="Funded Amount"><Input type="number" min={0} step="0.01" value={subForm.form.funded_amount} onChange={(e) => subForm.set("funded_amount", e.target.value)} /></Field>
-            <Field label="Issue Price"><Input type="number" min={0} step="0.01" value={subForm.form.issue_price} onChange={(e) => subForm.set("issue_price", e.target.value)} /></Field>
-            <Field label="Unit Quantity"><Input type="number" min={0} value={subForm.form.unit_quantity} onChange={(e) => subForm.set("unit_quantity", e.target.value)} /></Field>
-            <Field label="Submitted Date"><Input type="date" value={subForm.form.submitted_date} onChange={(e) => subForm.set("submitted_date", e.target.value)} /></Field>
+            {subForm.isEdit && (
+              <Field label="Funded Amount"><Input type="number" min={0} step="0.01" value={subForm.form.funded_amount} onChange={(e) => subForm.set("funded_amount", e.target.value)} /></Field>
+            )}
             <Field label="Notes" className="col-span-2"><textarea className="w-full rounded-lg border border-input bg-transparent px-2.5 py-1 text-sm min-h-[60px]" value={subForm.form.notes} onChange={(e) => subForm.set("notes", e.target.value)} /></Field>
           </div>
           <DialogFooter>
