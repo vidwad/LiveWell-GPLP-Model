@@ -809,14 +809,31 @@ export default function LPDetailPage() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {subscriptions.map((s) => (
+                      {subscriptions.map((s) => {
+                        // Compute effective status based on compliance + payment
+                        const complianceOk = s.compliance_approved === true;
+                        const fullyFunded = Number(s.funded_amount) >= Number(s.commitment_amount) && Number(s.funded_amount) > 0;
+                        const rawStatus = s.status;
+                        let effectiveStatus = rawStatus;
+                        if (["accepted", "funded", "issued"].includes(rawStatus)) {
+                          if (!complianceOk) effectiveStatus = "pending_compliance";
+                          else if (!fullyFunded) effectiveStatus = "pending_payment";
+                          else if (rawStatus === "issued" && complianceOk && fullyFunded) effectiveStatus = "issued";
+                        }
+                        const effectiveLabel = effectiveStatus === "pending_compliance" ? "Pending Compliance"
+                          : effectiveStatus === "pending_payment" ? "Pending Payment"
+                          : statusLabel(effectiveStatus);
+                        const effectiveVariant = effectiveStatus.startsWith("pending_") ? "secondary" as const : (SUB_STATUS_VARIANT[effectiveStatus] ?? "outline") as "default" | "secondary" | "outline" | "destructive";
+                        const effectiveColor = effectiveStatus.startsWith("pending_") ? "bg-amber-100 text-amber-700" : "";
+
+                        return (
                         <TableRow key={s.subscription_id}>
                           <TableCell className="font-medium text-sm">{s.investor_name ?? `#${s.investor_id}`}</TableCell>
                           <TableCell className="text-sm">{s.tranche_name ?? "—"}</TableCell>
                           <TableCell className="text-right tabular-nums text-sm">{formatCurrency(s.commitment_amount)}</TableCell>
                           <TableCell className="text-right tabular-nums text-sm">{formatCurrency(s.funded_amount)}</TableCell>
                           <TableCell className="text-right tabular-nums text-sm">{s.unit_quantity ? fmtNum(s.unit_quantity) : "—"}</TableCell>
-                          <TableCell><Badge variant={SUB_STATUS_VARIANT[s.status] ?? "outline"} className="text-xs">{statusLabel(s.status)}</Badge></TableCell>
+                          <TableCell><Badge variant={effectiveVariant} className={`text-xs ${effectiveColor}`}>{effectiveLabel}</Badge></TableCell>
                           <TableCell className="text-sm">{fmtDate(s.submitted_date)}</TableCell>
                           <TableCell>
                             {canEdit && <Button variant="ghost" size="sm" onClick={() => subForm.openEdit(s.subscription_id, {
@@ -827,7 +844,8 @@ export default function LPDetailPage() {
                             })}><Pencil className="h-3.5 w-3.5" /></Button>}
                           </TableCell>
                         </TableRow>
-                      ))}
+                        );
+                      })}
                     </TableBody>
                   </Table>
                 </div>
