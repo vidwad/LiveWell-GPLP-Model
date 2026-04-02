@@ -217,20 +217,25 @@ function PaymentComplianceSection({ sub }: { sub: Subscription }) {
   };
 
   const approveCompliance = async () => {
+    console.log("Approving compliance for sub", sub.subscription_id);
     setSaving(true);
     try {
-      await apiClient.patch(`/api/investment/subscriptions/${sub.subscription_id}`, {
+      const resp = await apiClient.patch(`/api/investment/subscriptions/${sub.subscription_id}`, {
         compliance_approved: true,
         compliance_approved_at: new Date().toISOString(),
-        compliance_notes: complianceNotes || null,
+        compliance_notes: complianceNotes || "Approved",
       });
+      console.log("Compliance approved:", resp.data?.compliance_approved);
       // Force refresh all relevant queries
-      queryClient.invalidateQueries({ queryKey: ["investor-subscriptions"] });
-      queryClient.invalidateQueries({ queryKey: ["investor-compliance"] });
-      queryClient.invalidateQueries({ queryKey: ["investor-dashboard"] });
-      queryClient.invalidateQueries({ queryKey: ["sub-payments"] });
-      queryClient.invalidateQueries({ queryKey: ["subscriptions"] });
+      await queryClient.invalidateQueries({ queryKey: ["investor-subscriptions"] });
+      await queryClient.invalidateQueries({ queryKey: ["investor-compliance"] });
+      await queryClient.invalidateQueries({ queryKey: ["investor-dashboard"] });
+      await queryClient.invalidateQueries({ queryKey: ["sub-payments"] });
+      await queryClient.invalidateQueries({ queryKey: ["subscriptions"] });
+      // Force window reload as fallback
+      window.location.reload();
     } catch (e: any) {
+      console.error("Compliance approval failed:", e);
       alert(e?.response?.data?.detail || "Failed to approve compliance");
     } finally {
       setSaving(false);
