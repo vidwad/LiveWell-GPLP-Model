@@ -216,12 +216,25 @@ function PaymentComplianceSection({ sub }: { sub: Subscription }) {
     queryClient.invalidateQueries({ queryKey: ["investor-subscriptions"] });
   };
 
-  const approveCompliance = () => {
+  const approveCompliance = async () => {
     setSaving(true);
-    updateSub.mutate(
-      { subId: sub.subscription_id, lpId: sub.lp_id, data: { compliance_approved: true, compliance_approved_at: new Date().toISOString(), compliance_notes: complianceNotes || null } },
-      { onSettled: () => setSaving(false), onError: () => alert("Failed to approve compliance") }
-    );
+    try {
+      await apiClient.patch(`/api/investment/subscriptions/${sub.subscription_id}`, {
+        compliance_approved: true,
+        compliance_approved_at: new Date().toISOString(),
+        compliance_notes: complianceNotes || null,
+      });
+      // Force refresh all relevant queries
+      queryClient.invalidateQueries({ queryKey: ["investor-subscriptions"] });
+      queryClient.invalidateQueries({ queryKey: ["investor-compliance"] });
+      queryClient.invalidateQueries({ queryKey: ["investor-dashboard"] });
+      queryClient.invalidateQueries({ queryKey: ["sub-payments"] });
+      queryClient.invalidateQueries({ queryKey: ["subscriptions"] });
+    } catch (e: any) {
+      alert(e?.response?.data?.detail || "Failed to approve compliance");
+    } finally {
+      setSaving(false);
+    }
   };
 
   const METHOD_LABELS: Record<string, string> = { wire: "Wire", etransfer: "E-Transfer", cheque: "Cheque", ach: "ACH", bank_draft: "Bank Draft" };

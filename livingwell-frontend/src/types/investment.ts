@@ -231,6 +231,15 @@ export interface SubscriptionCreate {
   funded_date?: string;
   issued_date?: string;
   notes?: string;
+  payment_method?: string;
+  payment_reference?: string;
+  payment_received_date?: string;
+  payment_cleared?: boolean;
+  payment_notes?: string;
+  compliance_approved?: boolean;
+  compliance_approved_by?: number;
+  compliance_approved_at?: string;
+  compliance_notes?: string;
 }
 
 // ── Holding ────────────────────────────────────────────────────────
