@@ -392,6 +392,7 @@ function SubscriptionWorkflowCard({
   const [expanded, setExpanded] = useState(false);
   const [actionNotes, setActionNotes] = useState("");
   const [fundedAmount, setFundedAmount] = useState("");
+  const [effectiveDate, setEffectiveDate] = useState(new Date().toISOString().slice(0, 10));
   const [confirmOpen, setConfirmOpen] = useState(false);
   const updateSub = useUpdateSubscription();
 
@@ -435,7 +436,7 @@ function SubscriptionWorkflowCard({
       notes: actionNotes || undefined,
     };
     if (nextAction.dateField) {
-      data[nextAction.dateField] = new Date().toISOString().slice(0, 10);
+      data[nextAction.dateField] = effectiveDate || new Date().toISOString().slice(0, 10);
     }
     if (nextAction.nextStatus === "funded") {
       data.funded_amount = fundedAmount ? Number(fundedAmount) : Number(sub.commitment_amount);
@@ -677,6 +678,17 @@ function SubscriptionWorkflowCard({
                         </DialogDescription>
                       </DialogHeader>
                       <div className="space-y-3">
+                        <div className="space-y-1">
+                          <Label>Effective Date</Label>
+                          <Input
+                            type="date"
+                            value={effectiveDate}
+                            onChange={(e) => setEffectiveDate(e.target.value)}
+                          />
+                          <p className="text-xs text-muted-foreground">
+                            The date this action takes effect. Defaults to today.
+                          </p>
+                        </div>
                         {nextAction.nextStatus === "funded" && (
                           <div className="space-y-1">
                             <Label>Funded Amount</Label>
