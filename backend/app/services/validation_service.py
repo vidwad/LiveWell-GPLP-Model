@@ -149,8 +149,11 @@ def validate_lp_status_transition(
 def validate_tranche_status_transition(
     current_status: str,
     new_status: str,
+    bypass: bool = False,
 ) -> None:
     """Validate that a tranche status transition is allowed."""
+    if bypass:
+        return
     allowed = _TRANCHE_TRANSITIONS.get(current_status, set())
     if new_status not in allowed:
         raise HTTPException(

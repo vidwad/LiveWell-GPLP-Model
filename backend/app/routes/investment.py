@@ -453,10 +453,12 @@ def update_tranche(
 
     data = payload.model_dump(exclude_unset=True)
 
-    # Validate tranche status transition
+    # Validate tranche status transition (Developer can bypass)
+    from app.db.models import UserRole
+    is_dev = current_user.role == UserRole.DEVELOPER
     if "status" in data and data["status"]:
         current = tranche.status.value if tranche.status else "draft"
-        validate_tranche_status_transition(current, data["status"])
+        validate_tranche_status_transition(current, data["status"], bypass=is_dev)
 
     for key, val in data.items():
         if key == "status" and val:
