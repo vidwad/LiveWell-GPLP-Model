@@ -58,6 +58,15 @@ def _sub_out(s: Subscription) -> SubscriptionOut:
         investor_name=s.investor.name if s.investor else None,
         lp_name=s.lp.name if s.lp else None,
         tranche_name=s.tranche.tranche_name if s.tranche else None,
+        payment_method=s.payment_method,
+        payment_reference=s.payment_reference,
+        payment_received_date=s.payment_received_date,
+        payment_cleared=s.payment_cleared,
+        payment_notes=s.payment_notes,
+        compliance_approved=s.compliance_approved,
+        compliance_approved_by=s.compliance_approved_by,
+        compliance_approved_at=s.compliance_approved_at,
+        compliance_notes=s.compliance_notes,
     )
 
 
