@@ -201,7 +201,7 @@ def list_investors_summary(
                 else:
                     effective_status = raw_status
 
-        # Active = compliance approved + fully funded + holding active
+        # Active = compliance approved on ALL subscriptions + fully funded + holding active
         active_holdings = [h for h in holdings if (h.status or "active") == "active"]
         compliance_ok_any = any(bool(s.compliance_approved) for s in subs) if subs else False
         fully_funded_any = total_funded >= total_committed and total_funded > 0 if total_committed > 0 else False
@@ -217,6 +217,24 @@ def list_investors_summary(
             s_funded = (s.funded_amount or D(0)) >= (s.commitment_amount or D(0)) and (s.funded_amount or D(0)) > 0
             if not s_compliance or not s_funded or s_status != "issued":
                 action_count += 1
+
+        # Missing documents count
+        from app.db.models import InvestorDocument
+        required_doc_types = {
+            "investor_id_document", "accreditation_certificate", "aml_kyc_report",
+            "subscription_agreement", "partnership_agreement", "banking_form",
+        }
+        existing_docs = set()
+        investor_docs = db.query(InvestorDocument).filter(
+            InvestorDocument.investor_id == inv.investor_id
+        ).all()
+        for doc in investor_docs:
+            dtype = doc.document_type.value if hasattr(doc.document_type, "value") else str(doc.document_type)
+            existing_docs.add(dtype)
+        missing_docs = len(required_doc_types - existing_docs)
+
+        # Compliance approved on latest subscription
+        latest_compliance = bool(subs[0].compliance_approved) if subs else False
 
         result.append(InvestorSummary(
             investor_id=inv.investor_id,
@@ -234,6 +252,8 @@ def list_investors_summary(
             created_at=inv.created_at,
             is_active=is_active,
             holding_count=len(active_holdings),
+            missing_docs_count=missing_docs,
+            compliance_approved=latest_compliance,
         ))
     return result
 

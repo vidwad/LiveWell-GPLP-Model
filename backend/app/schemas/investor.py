@@ -120,6 +120,8 @@ class InvestorSummary(BaseModel):
     created_at: Optional[datetime.datetime] = None
     is_active: bool = True  # Has active holdings in current LPs
     holding_count: int = 0  # Number of active holdings
+    missing_docs_count: int = 0  # Number of required docs missing
+    compliance_approved: bool = False  # Has compliance been approved on latest subscription
 
 
 class InvestorDashboard(BaseModel):

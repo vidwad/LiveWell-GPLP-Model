@@ -535,6 +535,7 @@ export default function InvestorsPage() {
                     <TableHead>LP Funds</TableHead>
                     <TableHead>Entity</TableHead>
                     <TableHead>Accreditation</TableHead>
+                    <TableHead>Missing Docs</TableHead>
                     <TableHead
                       className="cursor-pointer select-none text-right"
                       onClick={() => toggleSort("total_committed")}
@@ -605,12 +606,24 @@ export default function InvestorsPage() {
                         {ENTITY_LABELS[inv.entity_type ?? ""] ?? "—"}
                       </TableCell>
                       <TableCell>
-                        <Badge
-                          variant={inv.accredited_status === "accredited" ? "default" : inv.accredited_status === "pending" ? "secondary" : "outline"}
-                          className="text-[10px]"
-                        >
-                          {ACCREDITED_LABELS[inv.accredited_status] ?? inv.accredited_status}
-                        </Badge>
+                        {inv.compliance_approved ? (
+                          <Badge variant="default" className="text-[10px] bg-green-100 text-green-700">Approved</Badge>
+                        ) : inv.accredited_status === "accredited" ? (
+                          <Badge variant="default" className="text-[10px]">Accredited</Badge>
+                        ) : (
+                          <Badge variant={inv.accredited_status === "pending" ? "secondary" : "outline"} className="text-[10px]">
+                            {ACCREDITED_LABELS[inv.accredited_status] ?? inv.accredited_status}
+                          </Badge>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-center">
+                        {inv.missing_docs_count > 0 ? (
+                          <Badge variant="secondary" className="text-[10px] bg-red-100 text-red-700">
+                            {inv.missing_docs_count}
+                          </Badge>
+                        ) : (
+                          <span className="text-xs text-green-600">0</span>
+                        )}
                       </TableCell>
                       <TableCell className="text-right tabular-nums text-sm font-medium">
                         {formatCurrency(inv.total_committed)}

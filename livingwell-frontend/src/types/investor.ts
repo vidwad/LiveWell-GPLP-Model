@@ -38,6 +38,8 @@ export interface InvestorSummary {
   created_at: string | null;
   is_active: boolean;
   holding_count: number;
+  missing_docs_count: number;
+  compliance_approved: boolean;
 }
 
 export type DocumentType =
