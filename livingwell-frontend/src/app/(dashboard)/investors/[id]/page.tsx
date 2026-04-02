@@ -370,14 +370,37 @@ function SubscriptionWorkflowCard({
   const [confirmOpen, setConfirmOpen] = useState(false);
   const updateSub = useUpdateSubscription();
 
-  const currentStepIdx = WORKFLOW_STEPS.findIndex((s) => s.status === sub.status);
+  // Compute effective step based on ACTUAL state, not just the status field
+  const statusStepIdx = WORKFLOW_STEPS.findIndex((s) => s.status === sub.status);
   const isTerminal = ["closed", "rejected", "withdrawn", "cancelled"].includes(sub.status);
-  const isComplete = sub.status === "issued" || sub.status === "closed";
-  const nextAction = NEXT_ACTION[sub.status];
+  const fullyFunded = Number(sub.funded_amount) >= Number(sub.commitment_amount) && Number(sub.funded_amount) > 0;
+  const complianceOk = sub.compliance_approved === true;
+
+  // Effective step: the highest step that is actually validated
+  let effectiveStepIdx = statusStepIdx;
+  if (!isTerminal && statusStepIdx >= 0) {
+    // accepted (idx 3) requires compliance approval
+    const acceptedIdx = WORKFLOW_STEPS.findIndex(s => s.status === "accepted");
+    if (statusStepIdx >= acceptedIdx && !complianceOk) {
+      effectiveStepIdx = Math.min(statusStepIdx, acceptedIdx - 1); // cap at under_review
+    }
+    // funded (idx 4) requires full funding
+    const fundedIdx = WORKFLOW_STEPS.findIndex(s => s.status === "funded");
+    if (statusStepIdx >= fundedIdx && !fullyFunded) {
+      effectiveStepIdx = Math.min(effectiveStepIdx, fundedIdx - 1); // cap at accepted
+    }
+    // issued (idx 5) requires both compliance + funding
+    const issuedIdx = WORKFLOW_STEPS.findIndex(s => s.status === "issued");
+    if (statusStepIdx >= issuedIdx && (!complianceOk || !fullyFunded)) {
+      effectiveStepIdx = Math.min(effectiveStepIdx, issuedIdx - 1);
+    }
+  }
+
+  const currentStepIdx = effectiveStepIdx;
+  const isComplete = sub.status === "issued" && complianceOk && fullyFunded;
+  const nextAction = isComplete ? undefined : NEXT_ACTION[WORKFLOW_STEPS[currentStepIdx]?.status || sub.status];
   const progressPercent = isTerminal
-    ? sub.status === "issued" || sub.status === "closed"
-      ? 100
-      : 0
+    ? isComplete ? 100 : 0
     : Math.max(0, ((currentStepIdx + 1) / WORKFLOW_STEPS.length) * 100);
 
   function handleAdvance() {
@@ -440,9 +463,15 @@ function SubscriptionWorkflowCard({
           </div>
         </div>
         <div className="flex items-center gap-3">
-          <Badge variant={STATUS_BADGE_VARIANT[sub.status] ?? "outline"}>
-            {statusLabel(sub.status)}
-          </Badge>
+          {isComplete ? (
+            <Badge variant="default" className="bg-green-600">Issued</Badge>
+          ) : isTerminal ? (
+            <Badge variant="destructive">{statusLabel(sub.status)}</Badge>
+          ) : (
+            <Badge variant="secondary" className="bg-amber-100 text-amber-700 border-amber-300">
+              Pending
+            </Badge>
+          )}
           <span className="text-sm font-medium tabular-nums text-muted-foreground">
             {Math.round(progressPercent)}%
           </span>
