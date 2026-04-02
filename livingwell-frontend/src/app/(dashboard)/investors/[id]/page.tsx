@@ -175,6 +175,7 @@ function PaymentComplianceSection({ sub }: { sub: Subscription }) {
   const updateSub = useUpdateSubscription();
 
   const [complianceNotes, setComplianceNotes] = useState(sub.compliance_notes || "");
+  const [complianceDate, setComplianceDate] = useState(new Date().toISOString().slice(0, 10));
   const [saving, setSaving] = useState(false);
 
   // Payment ledger
@@ -222,7 +223,7 @@ function PaymentComplianceSection({ sub }: { sub: Subscription }) {
     try {
       const resp = await apiClient.patch(`/api/investment/subscriptions/${sub.subscription_id}`, {
         compliance_approved: true,
-        compliance_approved_at: new Date().toISOString(),
+        compliance_approved_at: `${complianceDate}T00:00:00`,
         compliance_notes: complianceNotes || "Approved",
       });
       console.log("Compliance approved:", resp.data?.compliance_approved);
@@ -355,11 +356,17 @@ function PaymentComplianceSection({ sub }: { sub: Subscription }) {
               <AlertTriangle className="h-4 w-4" />
               <span>Compliance has not been approved for this subscription</span>
             </div>
-            <div className="flex gap-2 items-end">
-              <div className="flex-1 space-y-1">
+            <div className="grid grid-cols-2 gap-2">
+              <div className="space-y-1">
+                <label className="text-[10px] text-muted-foreground">Effective Date *</label>
+                <input type="date" value={complianceDate} onChange={(e) => setComplianceDate(e.target.value)} className="w-full rounded border bg-background px-2 py-1.5 text-xs" />
+              </div>
+              <div className="space-y-1">
                 <label className="text-[10px] text-muted-foreground">Notes (optional)</label>
                 <input type="text" value={complianceNotes} onChange={(e) => setComplianceNotes(e.target.value)} placeholder="KYC verified, accreditation confirmed..." className="w-full rounded border bg-background px-2 py-1.5 text-xs" />
               </div>
+            </div>
+            <div className="flex justify-end mt-1">
               <Button size="sm" className="h-7 text-xs bg-green-600 hover:bg-green-700 text-white gap-1" disabled={saving} onClick={approveCompliance}>
                 <CheckCircle2 className="h-3 w-3" />
                 {saving ? "Approving..." : "Approve Compliance"}
