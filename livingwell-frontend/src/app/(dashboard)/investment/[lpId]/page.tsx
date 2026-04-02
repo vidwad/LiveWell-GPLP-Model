@@ -362,7 +362,17 @@ export default function LPDetailPage() {
     if (subForm.isEdit) {
       updateSubscription.mutate({ subId: subForm.editId!, lpId, data: payload }, { onSuccess: () => subForm.setOpen(false) });
     } else {
-      createSubscription.mutate({ lpId, data: payload }, { onSuccess: () => subForm.setOpen(false) });
+      createSubscription.mutate(
+        { lpId, data: payload },
+        {
+          onSuccess: () => subForm.setOpen(false),
+          onError: (err: any) => {
+            const detail = err?.response?.data?.detail;
+            const msg = typeof detail === "string" ? detail : Array.isArray(detail) ? detail.map((d: any) => `${d.loc?.join(".")}: ${d.msg}`).join("; ") : "Failed to create subscription";
+            alert(msg);
+          },
+        }
+      );
     }
   }
 
