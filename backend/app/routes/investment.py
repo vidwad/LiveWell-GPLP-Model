@@ -617,10 +617,10 @@ def create_subscription(
     if not investor:
         raise HTTPException(status_code=404, detail="Investor not found")
 
-    # Compliance gate: check investor readiness before creating subscription
-    from app.services.validation_service import validate_investor_compliance
-    is_dev = current_user.role == UserRole.DEVELOPER
-    validate_investor_compliance(db, investor, check_level="subscription", bypass=is_dev)
+    # NOTE: No compliance gate on subscription creation — a draft subscription
+    # is just an intent to invest. Compliance checks are enforced at:
+    # - "funded" transition (requires compliance approval + docs)
+    # - "issued" transition (requires full compliance + full funding)
 
     # Validate tranche if provided
     tranche = None
