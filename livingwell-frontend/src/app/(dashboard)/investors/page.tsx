@@ -193,9 +193,17 @@ export default function InvestorsPage() {
   }, [investors, search, lpFilter, statusFilter, accreditedFilter, entityFilter, actionFilter, sortField, sortDir]);
 
   // Split into active, pending, and non-active
+  // Active: compliance approved + fully funded + active holding
+  // Non-active: all subscriptions are in terminal states (closed/rejected/cancelled) — past investor
+  // Pending: everyone else — investor status granted, working through the process
+  const terminalStatuses = new Set(["closed", "rejected", "withdrawn", "cancelled"]);
   const activeInvestors = useMemo(() => filtered.filter((inv) => inv.is_active), [filtered]);
-  const pendingInvestors = useMemo(() => filtered.filter((inv) => !inv.is_active && inv.active_subscriptions > 0), [filtered]);
-  const nonActiveInvestors = useMemo(() => filtered.filter((inv) => !inv.is_active && inv.active_subscriptions === 0), [filtered]);
+  const nonActiveInvestors = useMemo(() => filtered.filter((inv) =>
+    !inv.is_active && inv.subscription_count > 0 && inv.latest_status != null && terminalStatuses.has(inv.latest_status)
+  ), [filtered]);
+  const pendingInvestors = useMemo(() => filtered.filter((inv) =>
+    !inv.is_active && !(inv.subscription_count > 0 && inv.latest_status != null && terminalStatuses.has(inv.latest_status))
+  ), [filtered]);
   const [showSection, setShowSection] = useState<"active" | "pending" | "non-active">("active");
   const displayInvestors = showSection === "active" ? activeInvestors : showSection === "pending" ? pendingInvestors : nonActiveInvestors;
 
