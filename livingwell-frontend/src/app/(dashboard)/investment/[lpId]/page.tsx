@@ -858,7 +858,8 @@ export default function LPDetailPage() {
         <TabsContent value="holdings" className="mt-4 space-y-4">
           <div className="flex justify-between items-center">
             <h3 className="text-sm font-semibold">Unit-Based Holdings</h3>
-            {canEdit && <Button size="sm" onClick={holdingForm.openCreate}><Plus className="h-3.5 w-3.5 mr-1" /> Add Holding</Button>}
+            {user?.role === "DEVELOPER" && <Button size="sm" variant="outline" onClick={holdingForm.openCreate}><Plus className="h-3.5 w-3.5 mr-1" /> Add Holding</Button>}
+            <p className="text-[10px] text-muted-foreground">Holdings are created automatically when subscriptions are issued</p>
           </div>
 
           {/* Unit Summary KPIs */}
