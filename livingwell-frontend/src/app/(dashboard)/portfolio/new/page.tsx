@@ -11,8 +11,8 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useState, useEffect } from "react";
-import { ArrowLeft, ChevronDown, ChevronRight } from "lucide-react";
-import { api } from "@/lib/api";
+import { ArrowLeft, ChevronDown, ChevronRight, Link as LinkIcon, Loader2, Sparkles } from "lucide-react";
+import { api, apiClient } from "@/lib/api";
 import { PropertyLookup } from "@/components/property/PropertyLookup";
 
 export default function NewPropertyPage() {
@@ -95,6 +95,39 @@ export default function NewPropertyPage() {
         </LinkButton>
         <h1 className="text-2xl font-bold">Add Property</h1>
       </div>
+
+      {/* URL Import Card */}
+      <ListingImportCard onImport={(data) => {
+        setForm((f) => ({
+          ...f,
+          address: data.address || f.address,
+          city: data.city || f.city,
+          province: data.province || f.province,
+          list_price: data.list_price || f.list_price,
+          purchase_price: data.list_price || f.purchase_price,
+          assessed_value: data.assessed_value || f.assessed_value,
+          bedrooms: data.bedrooms || f.bedrooms,
+          bathrooms: data.bathrooms || f.bathrooms,
+          building_sqft: data.building_sqft || f.building_sqft,
+          lot_size: data.lot_size || f.lot_size,
+          year_built: data.year_built || f.year_built,
+          property_type: data.property_type || f.property_type,
+          property_style: data.property_style || f.property_style,
+          garage: data.garage || f.garage,
+          neighbourhood: data.neighbourhood || f.neighbourhood,
+          zoning: data.zoning || f.zoning,
+          mls_number: data.mls_number || f.mls_number,
+          tax_amount: data.tax_amount || f.tax_amount,
+          tax_year: data.tax_year || f.tax_year,
+          latitude: data.latitude || f.latitude,
+          longitude: data.longitude || f.longitude,
+          last_sold_price: data.last_sold_price || f.last_sold_price,
+        }));
+        setShowBuildingDetails(true);
+        setShowLocationDetails(true);
+        setShowMarketDetails(true);
+        toast.success(`Imported ${Object.keys(data).filter(k => data[k] != null).length} fields from listing`);
+      }} />
 
       <Card>
         <CardHeader>
@@ -453,5 +486,109 @@ export default function NewPropertyPage() {
         </CardContent>
       </Card>
     </div>
+  );
+}
+
+// ── Listing Import Card ──────────────────────────────────────────────
+
+function ListingImportCard({ onImport }: { onImport: (data: Record<string, any>) => void }) {
+  const [url, setUrl] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [result, setResult] = useState<Record<string, any> | null>(null);
+  const [error, setError] = useState("");
+
+  const handleExtract = async () => {
+    if (!url.trim()) return;
+    setLoading(true);
+    setError("");
+    setResult(null);
+    try {
+      const resp = await apiClient.post("/api/portfolio/extract-listing", { url: url.trim() });
+      const data = resp.data?.extracted || {};
+      if (Object.keys(data).length === 0) {
+        setError("Could not extract property data from this URL. Try a different listing.");
+        return;
+      }
+      setResult(data);
+    } catch (e: any) {
+      setError(e?.response?.data?.detail || "Failed to extract listing data");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleApply = () => {
+    if (result) {
+      onImport(result);
+      setResult(null);
+      setUrl("");
+    }
+  };
+
+  const fieldCount = result ? Object.keys(result).filter(k => result[k] != null).length : 0;
+
+  return (
+    <Card className="mb-4 border-blue-200 bg-blue-50/30">
+      <CardHeader className="pb-2">
+        <CardTitle className="text-sm font-semibold flex items-center gap-2">
+          <Sparkles className="h-4 w-4 text-blue-600" />
+          Import from Listing URL
+        </CardTitle>
+        <p className="text-[10px] text-muted-foreground">
+          Paste a Realtor.ca, Zillow, or other listing URL to auto-fill property details using AI
+        </p>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <div className="flex gap-2">
+          <div className="flex-1 relative">
+            <LinkIcon className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+            <Input
+              value={url}
+              onChange={(e) => setUrl(e.target.value)}
+              placeholder="https://www.realtor.ca/real-estate/..."
+              className="pl-9"
+              onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); handleExtract(); } }}
+            />
+          </div>
+          <Button onClick={handleExtract} disabled={loading || !url.trim()}>
+            {loading ? <><Loader2 className="h-4 w-4 animate-spin mr-1" /> Extracting...</> : "Extract"}
+          </Button>
+        </div>
+
+        {error && (
+          <p className="text-xs text-red-600 bg-red-50 rounded p-2">{error}</p>
+        )}
+
+        {result && (
+          <div className="rounded-lg border bg-white p-3 space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-semibold text-green-700">
+                Found {fieldCount} fields from listing
+              </span>
+              <Button size="sm" className="h-7 text-xs bg-green-600 hover:bg-green-700" onClick={handleApply}>
+                Apply to Form
+              </Button>
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-xs">
+              {result.address && <div><span className="text-muted-foreground">Address:</span> <span className="font-medium">{result.address}</span></div>}
+              {result.city && <div><span className="text-muted-foreground">City:</span> <span className="font-medium">{result.city}</span></div>}
+              {result.list_price && <div><span className="text-muted-foreground">Price:</span> <span className="font-medium">${Number(result.list_price).toLocaleString()}</span></div>}
+              {result.bedrooms && <div><span className="text-muted-foreground">Beds:</span> <span className="font-medium">{result.bedrooms}</span></div>}
+              {result.bathrooms && <div><span className="text-muted-foreground">Baths:</span> <span className="font-medium">{result.bathrooms}</span></div>}
+              {result.building_sqft && <div><span className="text-muted-foreground">Sqft:</span> <span className="font-medium">{Number(result.building_sqft).toLocaleString()}</span></div>}
+              {result.year_built && <div><span className="text-muted-foreground">Built:</span> <span className="font-medium">{result.year_built}</span></div>}
+              {result.property_type && <div><span className="text-muted-foreground">Type:</span> <span className="font-medium">{result.property_type}</span></div>}
+              {result.lot_size && <div><span className="text-muted-foreground">Lot:</span> <span className="font-medium">{Number(result.lot_size).toLocaleString()} sqft</span></div>}
+              {result.neighbourhood && <div><span className="text-muted-foreground">Area:</span> <span className="font-medium">{result.neighbourhood}</span></div>}
+              {result.mls_number && <div><span className="text-muted-foreground">MLS:</span> <span className="font-medium">{result.mls_number}</span></div>}
+              {result.tax_amount && <div><span className="text-muted-foreground">Tax:</span> <span className="font-medium">${Number(result.tax_amount).toLocaleString()}/yr</span></div>}
+            </div>
+            {result.description && (
+              <p className="text-[10px] text-muted-foreground mt-1 line-clamp-2">{result.description}</p>
+            )}
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 }

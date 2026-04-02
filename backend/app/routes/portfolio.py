@@ -1002,6 +1002,93 @@ def lookup_property_data(
     )
 
 
+class ListingURLRequest(_BaseModel):
+    url: str
+
+
+@router.post("/extract-listing")
+def extract_listing_data(
+    payload: ListingURLRequest,
+    db: Session = Depends(get_db),
+    _: User = Depends(require_gp_or_ops),
+):
+    """Extract property data from a real estate listing URL (Realtor.ca, Zillow, etc.)
+    using OpenAI web search to read the listing page and return structured data."""
+    from app.db.models import PlatformSetting
+
+    setting = db.query(PlatformSetting).filter(PlatformSetting.key == "OPENAI_API_KEY").first()
+    api_key = setting.value if setting else None
+    if not api_key:
+        import os
+        api_key = os.environ.get("OPENAI_API_KEY")
+    if not api_key:
+        raise HTTPException(400, "OpenAI API key not configured")
+
+    try:
+        from openai import OpenAI as _OpenAI
+    except ImportError:
+        raise HTTPException(400, "OpenAI package not installed")
+
+    client = _OpenAI(api_key=api_key)
+
+    prompt = (
+        f"Visit this real estate listing URL and extract all available property details:\n"
+        f"URL: {payload.url}\n\n"
+        f"Return ONLY a JSON object with these fields (use null for unavailable data):\n"
+        f'{{"address": "full street address", "city": "city name", "province": "province/state code (e.g. AB, BC, ON)", '
+        f'"list_price": number, "bedrooms": number, "bathrooms": number, "building_sqft": number, '
+        f'"lot_size": number (in sqft), "year_built": number, "property_type": "string (e.g. Single Family, Condo, Duplex, Multiplex)", '
+        f'"property_style": "string (e.g. 2 Storey, Bungalow, Split Level)", "garage": "string (e.g. Double Attached, Single Detached, None)", '
+        f'"neighbourhood": "neighbourhood name", "zoning": "zoning code if available", '
+        f'"mls_number": "MLS number if shown", "tax_amount": number (annual property tax), "tax_year": number, '
+        f'"assessed_value": number (assessed/appraised value), '
+        f'"latitude": number, "longitude": number, '
+        f'"description": "brief property description from the listing"}}\n\n'
+        f"Extract as much data as possible from the listing page. "
+        f"For Canadian properties, province should be the 2-letter code (AB, BC, ON, etc.)."
+    )
+
+    try:
+        response = client.responses.create(
+            model="gpt-4o",
+            tools=[{"type": "web_search_preview"}],
+            input=prompt,
+        )
+        text = response.output_text.strip()
+
+        # Parse JSON from response (handle markdown code fences)
+        import json, re
+        text = re.sub(r"^```(?:json)?\s*", "", text)
+        text = re.sub(r"\s*```$", "", text)
+        text = text.strip()
+
+        # Find JSON object in text
+        if text.startswith("{"):
+            data = json.loads(text)
+        else:
+            start = text.find("{")
+            end = text.rfind("}") + 1
+            if start >= 0 and end > start:
+                data = json.loads(text[start:end])
+            else:
+                data = {}
+
+        return {
+            "extracted": data,
+            "source_url": payload.url,
+            "raw_response": text[:500] if not data else None,
+        }
+    except json.JSONDecodeError:
+        return {
+            "extracted": {},
+            "source_url": payload.url,
+            "raw_response": text[:500],
+            "error": "Failed to parse property data from listing",
+        }
+    except Exception as e:
+        raise HTTPException(500, f"Failed to extract listing data: {str(e)}")
+
+
 @router.post("/modeling/estimate-costs", response_model=CostEstimateResult)
 def estimate_construction_costs(
     payload: CostEstimateInput,
