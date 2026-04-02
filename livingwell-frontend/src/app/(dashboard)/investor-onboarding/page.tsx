@@ -46,6 +46,7 @@ import {
   Mic,
   MicOff,
   PhoneOff,
+  Plus,
 } from "lucide-react";
 
 // ── Types ────────────────────────────────────────────────────────────
@@ -1500,7 +1501,7 @@ function InvestorDetailDrawer({
     { key: "comms", label: "Comms" },
     { key: "activity", label: "Activity Log" },
     { key: "followups", label: "Follow-ups" },
-    { key: "documents", label: "Documents" },
+    { key: "documents", label: "Interest & Docs" },
   ];
 
   return (
@@ -2567,7 +2568,10 @@ function InvestorDetailDrawer({
             TAB 4: DOCUMENTS
         ================================================================ */}
         {activeTab === "documents" && (
-          <InvestorDocumentsTab investorId={investorId} />
+          <div className="space-y-4">
+            <InvestorIOISection investorId={investorId} investorName={`${investor.first_name || ""} ${investor.last_name || ""}`.trim()} />
+            <InvestorDocumentsTab investorId={investorId} />
+          </div>
         )}
 
         {/* ================================================================
@@ -2599,6 +2603,236 @@ const DOC_CATEGORIES = [
   { key: "distribution_notice", label: "Distribution Notice", group: "Reporting" },
   { key: "other", label: "Other", group: "Other" },
 ];
+
+// ── Investor IOI (Indication of Interest) Section ─────────────────────
+
+function InvestorIOISection({ investorId, investorName }: { investorId: number; investorName: string }) {
+  const queryClient = useQueryClient();
+  const [addingLpId, setAddingLpId] = useState<number | null>(null);
+  const [ioiAmount, setIoiAmount] = useState("");
+  const [ioiNotes, setIoiNotes] = useState("");
+  const [ioiSource, setIoiSource] = useState("direct");
+  const [saving, setSaving] = useState(false);
+
+  // Get all open LP offerings
+  const { data: lpsRaw } = useQuery({
+    queryKey: ["lp-offerings"],
+    queryFn: () => apiClient.get("/api/investment/lp?limit=100").then(r => {
+      const d = r.data;
+      return Array.isArray(d) ? d : d.items || [];
+    }),
+  });
+
+  // Filter to open LPs only
+  const openLPs = useMemo(() => {
+    if (!lpsRaw) return [];
+    return lpsRaw.filter((lp: any) =>
+      ["open_for_subscription", "partially_funded", "draft", "approved"].includes(lp.status)
+    );
+  }, [lpsRaw]);
+
+  // Get existing IOIs for this investor
+  const { data: existingIOIs = [] } = useQuery<Array<Record<string, any>>>({
+    queryKey: ["investor-iois", investorId],
+    queryFn: () => apiClient.get(`/api/investor/ioi?investor_id=${investorId}`).then(r => r.data),
+  });
+
+  const ioiByLp = useMemo(() => {
+    const map: Record<number, Record<string, any>> = {};
+    for (const ioi of existingIOIs) map[ioi.lp_id] = ioi;
+    return map;
+  }, [existingIOIs]);
+
+  const totalIndicated = existingIOIs.reduce((s, ioi) => s + Number(ioi.indicated_amount || 0), 0);
+
+  const handleCreateIOI = async (lpId: number) => {
+    if (!ioiAmount || Number(ioiAmount) <= 0) { alert("Enter an amount"); return; }
+    setSaving(true);
+    try {
+      await apiClient.post("/api/investor/ioi", {
+        investor_id: investorId,
+        lp_id: lpId,
+        indicated_amount: Number(ioiAmount),
+        source: ioiSource,
+        notes: ioiNotes || null,
+      });
+      queryClient.invalidateQueries({ queryKey: ["investor-iois", investorId] });
+      setAddingLpId(null);
+      setIoiAmount("");
+      setIoiNotes("");
+    } catch (e: any) {
+      alert(e?.response?.data?.detail || "Failed to create IOI");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDeleteIOI = async (ioiId: number) => {
+    if (!confirm("Remove this indication of interest?")) return;
+    await apiClient.delete(`/api/investor/ioi/${ioiId}`);
+    queryClient.invalidateQueries({ queryKey: ["investor-iois", investorId] });
+  };
+
+  const handleUpdateStatus = async (ioiId: number, newStatus: string) => {
+    await apiClient.patch(`/api/investor/ioi/${ioiId}`, { status: newStatus });
+    queryClient.invalidateQueries({ queryKey: ["investor-iois", investorId] });
+  };
+
+  const STATUS_COLORS: Record<string, string> = {
+    expressed: "bg-blue-100 text-blue-700",
+    confirmed: "bg-green-100 text-green-700",
+    converted: "bg-emerald-100 text-emerald-700",
+    withdrawn: "bg-red-100 text-red-700",
+    expired: "bg-gray-100 text-gray-500",
+  };
+
+  return (
+    <Card>
+      <CardHeader className="p-4 pb-2">
+        <div className="flex items-center justify-between">
+          <CardTitle className="text-sm font-semibold flex items-center gap-2">
+            <TrendIcon className="h-4 w-4" />
+            Indications of Interest
+          </CardTitle>
+          {totalIndicated > 0 && (
+            <span className="text-xs text-muted-foreground">
+              Total: <span className="font-bold text-foreground">${totalIndicated.toLocaleString()}</span>
+              {" "}across {existingIOIs.length} fund{existingIOIs.length !== 1 ? "s" : ""}
+            </span>
+          )}
+        </div>
+      </CardHeader>
+      <CardContent className="p-4 pt-0 space-y-2">
+        {/* Existing IOIs */}
+        {existingIOIs.map((ioi: Record<string, any>) => (
+          <div key={ioi.ioi_id} className="rounded-lg border p-3 space-y-1.5">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-medium">{ioi.lp_name || `LP #${ioi.lp_id}`}</span>
+                <Badge className={`text-[9px] ${STATUS_COLORS[ioi.status] || "bg-gray-100"}`}>
+                  {ioi.status}
+                </Badge>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-bold">${Number(ioi.indicated_amount).toLocaleString()}</span>
+                {ioi.status === "expressed" && (
+                  <button
+                    onClick={() => handleUpdateStatus(ioi.ioi_id, "confirmed")}
+                    className="text-[10px] px-1.5 py-0.5 rounded bg-green-50 text-green-700 hover:bg-green-100 border border-green-200"
+                  >
+                    Confirm
+                  </button>
+                )}
+                <button
+                  onClick={() => handleDeleteIOI(ioi.ioi_id)}
+                  className="text-muted-foreground/50 hover:text-red-500"
+                >
+                  <Trash2 className="h-3 w-3" />
+                </button>
+              </div>
+            </div>
+            <div className="flex items-center gap-3 text-[10px] text-muted-foreground">
+              {ioi.source && <span>Source: {ioi.source}</span>}
+              {ioi.created_at && <span>{new Date(ioi.created_at).toLocaleDateString()}</span>}
+              {ioi.notes && <span>— {ioi.notes}</span>}
+            </div>
+            {ioi.subscription_id && (
+              <div className="text-[10px] text-green-600 flex items-center gap-1">
+                <CheckCircle2 className="h-3 w-3" /> Converted to subscription
+              </div>
+            )}
+          </div>
+        ))}
+
+        {/* Open LP Offerings to express interest */}
+        {openLPs.filter((lp: any) => !ioiByLp[lp.lp_id]).length > 0 && (
+          <div className="border-t pt-2 mt-2">
+            <p className="text-[10px] font-semibold uppercase text-muted-foreground mb-1.5">Open Offerings</p>
+            {openLPs.filter((lp: any) => !ioiByLp[lp.lp_id]).map((lp: any) => (
+              <div key={lp.lp_id} className="rounded-lg border border-dashed p-2.5 mb-1.5">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <span className="text-xs font-medium">{lp.name}</span>
+                    <div className="flex items-center gap-2 text-[10px] text-muted-foreground mt-0.5">
+                      {lp.target_raise && <span>Target: ${Number(lp.target_raise).toLocaleString()}</span>}
+                      {lp.unit_price && <span>Unit: ${Number(lp.unit_price).toLocaleString()}</span>}
+                      {lp.minimum_subscription && <span>Min: ${Number(lp.minimum_subscription).toLocaleString()}</span>}
+                    </div>
+                  </div>
+                  {addingLpId === lp.lp_id ? null : (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-6 text-[10px] gap-1"
+                      onClick={() => setAddingLpId(lp.lp_id)}
+                    >
+                      <Plus className="h-2.5 w-2.5" /> Express Interest
+                    </Button>
+                  )}
+                </div>
+                {addingLpId === lp.lp_id && (
+                  <div className="mt-2 rounded border bg-blue-50/30 p-2 space-y-1.5">
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className="space-y-0.5">
+                        <label className="text-[10px] text-muted-foreground">Amount ($) *</label>
+                        <input
+                          type="number"
+                          step="1000"
+                          value={ioiAmount}
+                          onChange={(e) => setIoiAmount(e.target.value)}
+                          placeholder={lp.minimum_subscription ? `Min $${Number(lp.minimum_subscription).toLocaleString()}` : "0"}
+                          className="w-full rounded border bg-background px-2 py-1.5 text-xs"
+                        />
+                      </div>
+                      <div className="space-y-0.5">
+                        <label className="text-[10px] text-muted-foreground">Source</label>
+                        <select
+                          value={ioiSource}
+                          onChange={(e) => setIoiSource(e.target.value)}
+                          className="w-full rounded border bg-background px-2 py-1.5 text-xs"
+                        >
+                          <option value="direct">Direct</option>
+                          <option value="referral">Referral</option>
+                          <option value="website">Website</option>
+                          <option value="event">Event</option>
+                          <option value="cold_outreach">Cold Outreach</option>
+                        </select>
+                      </div>
+                    </div>
+                    <div className="space-y-0.5">
+                      <label className="text-[10px] text-muted-foreground">Notes</label>
+                      <input
+                        type="text"
+                        value={ioiNotes}
+                        onChange={(e) => setIoiNotes(e.target.value)}
+                        placeholder="Optional notes..."
+                        className="w-full rounded border bg-background px-2 py-1.5 text-xs"
+                      />
+                    </div>
+                    <div className="flex gap-2 justify-end">
+                      <Button variant="outline" size="sm" className="h-6 text-[10px]" onClick={() => setAddingLpId(null)}>Cancel</Button>
+                      <Button size="sm" className="h-6 text-[10px]" disabled={saving} onClick={() => handleCreateIOI(lp.lp_id)}>
+                        {saving ? "Saving..." : "Save Interest"}
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+
+        {existingIOIs.length === 0 && openLPs.length === 0 && (
+          <p className="text-xs text-muted-foreground text-center py-3">
+            No open LP offerings available at this time.
+          </p>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+// ── Investor Documents Tab ──────────────────────────────────────────────
 
 function InvestorDocumentsTab({ investorId }: { investorId: number }) {
   const queryClient = useQueryClient();
