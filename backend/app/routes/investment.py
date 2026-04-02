@@ -944,9 +944,28 @@ def list_holdings(
             return {"items": [], "total": 0, "skip": pg.skip, "limit": pg.limit}
         holdings_data = [h for h in holdings_data if h["investor_id"] == investor.investor_id]
 
+    # Only show holdings where the linked subscription is fully complete
+    # (compliance approved + fully funded). Hides holdings that were
+    # auto-created but whose subscription requirements aren't met.
+    verified_holdings = []
+    from decimal import Decimal as _D
+    for h in holdings_data:
+        sub_id = h.get("subscription_id")
+        if sub_id:
+            sub = db.query(Subscription).filter(Subscription.subscription_id == sub_id).first()
+            if sub:
+                compliance_ok = bool(sub.compliance_approved)
+                fully_funded = (sub.funded_amount or _D(0)) >= (sub.commitment_amount or _D(0)) and (sub.funded_amount or _D(0)) > 0
+                if compliance_ok and fully_funded:
+                    verified_holdings.append(h)
+            else:
+                verified_holdings.append(h)  # No linked subscription, show anyway
+        else:
+            verified_holdings.append(h)  # No subscription link (manual/legacy), show anyway
+
     # Manual pagination on the in-memory list
-    total = len(holdings_data)
-    items = [HoldingOut(**h) for h in holdings_data[pg.skip:pg.skip + pg.limit]]
+    total = len(verified_holdings)
+    items = [HoldingOut(**h) for h in verified_holdings[pg.skip:pg.skip + pg.limit]]
     return {"items": items, "total": total, "skip": pg.skip, "limit": pg.limit}
 
 
