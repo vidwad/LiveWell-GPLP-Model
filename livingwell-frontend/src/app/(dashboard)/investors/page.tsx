@@ -192,11 +192,12 @@ export default function InvestorsPage() {
     return list;
   }, [investors, search, lpFilter, statusFilter, accreditedFilter, entityFilter, actionFilter, sortField, sortDir]);
 
-  // Split into active and non-active
+  // Split into active, pending, and non-active
   const activeInvestors = useMemo(() => filtered.filter((inv) => inv.is_active), [filtered]);
-  const nonActiveInvestors = useMemo(() => filtered.filter((inv) => !inv.is_active), [filtered]);
-  const [showSection, setShowSection] = useState<"active" | "non-active">("active");
-  const displayInvestors = showSection === "active" ? activeInvestors : nonActiveInvestors;
+  const pendingInvestors = useMemo(() => filtered.filter((inv) => !inv.is_active && inv.active_subscriptions > 0), [filtered]);
+  const nonActiveInvestors = useMemo(() => filtered.filter((inv) => !inv.is_active && inv.active_subscriptions === 0), [filtered]);
+  const [showSection, setShowSection] = useState<"active" | "pending" | "non-active">("active");
+  const displayInvestors = showSection === "active" ? activeInvestors : showSection === "pending" ? pendingInvestors : nonActiveInvestors;
 
   // Unique LP names for filter dropdown
   const allLpNames = useMemo(() => {
@@ -436,7 +437,7 @@ export default function InvestorsPage() {
         </div>
       </div>
 
-      {/* Active / Non-Active Toggle */}
+      {/* Active / Pending / Non-Active Toggle */}
       <div className="flex items-center gap-1 mb-4 border-b">
         <button
           onClick={() => setShowSection("active")}
@@ -449,6 +450,18 @@ export default function InvestorsPage() {
           <span className="h-2 w-2 rounded-full bg-emerald-500" />
           Active Investors
           <Badge variant="secondary" className="text-[10px] px-1.5">{activeInvestors.length}</Badge>
+        </button>
+        <button
+          onClick={() => setShowSection("pending")}
+          className={`flex items-center gap-2 px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+            showSection === "pending"
+              ? "border-amber-500 text-amber-700"
+              : "border-transparent text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          <span className="h-2 w-2 rounded-full bg-amber-500" />
+          Pending Investors
+          <Badge variant="secondary" className="text-[10px] px-1.5">{pendingInvestors.length}</Badge>
         </button>
         <button
           onClick={() => setShowSection("non-active")}
