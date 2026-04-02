@@ -74,6 +74,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { formatCurrency, formatCurrencyCompact } from "@/lib/utils";
 import { usePermissions } from "@/hooks/usePermissions";
+import { useAuth } from "@/providers/AuthProvider";
 
 /* ── helpers ─────────────────────────────────────────────────────── */
 function statusLabel(s: string) {
@@ -182,6 +183,7 @@ export default function LPDetailPage() {
   const { data: distributions } = useDistributionEvents(lpId);
   const { data: investors } = useInvestors();
   const { canEdit } = usePermissions();
+  const { user } = useAuth();
 
   /* ── mutations ───────────────────────────────────────────────── */
   const updateLP = useUpdateLP();
