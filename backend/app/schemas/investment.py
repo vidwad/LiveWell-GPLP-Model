@@ -254,7 +254,7 @@ class SubscriptionBase(BaseModel):
 
 class SubscriptionCreate(SubscriptionBase):
     investor_id: int
-    lp_id: int
+    lp_id: Optional[int] = None  # Optional in body — comes from URL path
     tranche_id: Optional[int] = None
 
 
