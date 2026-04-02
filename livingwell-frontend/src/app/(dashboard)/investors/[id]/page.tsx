@@ -570,8 +570,30 @@ function SubscriptionWorkflowCard({
           )}
 
           {/* Action Buttons */}
-          {canManage && nextAction && !isTerminal && (
+          {canManage && !isTerminal && !isComplete && (() => {
+            // Determine if we need a status advance or just compliance/payment
+            const dbStepIdx = WORKFLOW_STEPS.findIndex(s => s.status === sub.status);
+            const needsAdvance = nextAction && dbStepIdx < WORKFLOW_STEPS.findIndex(s => s.status === nextAction.nextStatus);
+            const needsComplianceOnly = !complianceOk && dbStepIdx >= WORKFLOW_STEPS.findIndex(s => s.status === "accepted");
+            const needsPaymentOnly = complianceOk && !fullyFunded && dbStepIdx >= WORKFLOW_STEPS.findIndex(s => s.status === "funded");
+
+            return (
             <div className="border-t pt-4">
+              {/* Guidance messages */}
+              {needsComplianceOnly && (
+                <div className="mb-3 rounded-md border border-amber-200 bg-amber-50 p-2.5 text-xs text-amber-800 flex items-center gap-2">
+                  <AlertTriangle className="h-4 w-4 shrink-0" />
+                  <span>Compliance approval required — use the Approve Compliance button above to approve this subscription.</span>
+                </div>
+              )}
+              {needsPaymentOnly && (
+                <div className="mb-3 rounded-md border border-amber-200 bg-amber-50 p-2.5 text-xs text-amber-800 flex items-center gap-2">
+                  <AlertTriangle className="h-4 w-4 shrink-0" />
+                  <span>Full payment required — record and clear payments above. Funded: {formatCurrency(sub.funded_amount)} of {formatCurrency(sub.commitment_amount)}</span>
+                </div>
+              )}
+              {/* Only show advance button if DB status actually needs advancing */}
+              {needsAdvance && nextAction && (
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm font-medium">Next Step</p>
@@ -663,8 +685,10 @@ function SubscriptionWorkflowCard({
                   </Dialog>
                 </div>
               </div>
+              )}
             </div>
-          )}
+            );
+          })()}
 
           {/* Terminal state message */}
           {isTerminal && !isComplete && (
