@@ -1131,6 +1131,39 @@ def extract_listing_data(
         raise HTTPException(500, f"Failed to extract listing data: {str(e)}")
 
 
+@router.get("/properties/{property_id}/ai-assessment")
+def get_property_assessment(
+    property_id: int,
+    db: Session = Depends(get_db),
+    _: User = Depends(get_current_user),
+):
+    """Get the saved AI property assessment."""
+    import json as _json
+    prop = db.query(Property).filter(Property.property_id == property_id).first()
+    if not prop:
+        raise HTTPException(404, "Property not found")
+
+    if not prop.ai_assessment:
+        return None
+
+    missing_fields = []
+    if prop.ai_assessment_missing_fields:
+        try:
+            missing_fields = _json.loads(prop.ai_assessment_missing_fields)
+        except Exception:
+            pass
+
+    return {
+        "property_id": property_id,
+        "community_type": prop.ai_assessment_community_type,
+        "assessment": prop.ai_assessment,
+        "data_available": prop.ai_assessment_data_available,
+        "data_missing": prop.ai_assessment_data_missing,
+        "missing_fields": missing_fields,
+        "generated_at": prop.ai_assessment_updated_at.isoformat() if prop.ai_assessment_updated_at else None,
+    }
+
+
 @router.post("/properties/{property_id}/ai-assessment")
 def generate_property_assessment(
     property_id: int,
@@ -1270,9 +1303,17 @@ def generate_property_assessment(
     except Exception as e:
         raise HTTPException(500, f"AI assessment failed: {str(e)}")
 
-    # Store assessment on property
-    # Use a simple approach — store in a JSON field or notes
-    # For now return it and let frontend cache
+    # Store assessment in database
+    import json as _json
+    now = datetime.datetime.utcnow()
+    prop.ai_assessment = assessment
+    prop.ai_assessment_community_type = community_type
+    prop.ai_assessment_data_available = len(available)
+    prop.ai_assessment_data_missing = len(missing)
+    prop.ai_assessment_missing_fields = _json.dumps(missing)
+    prop.ai_assessment_updated_at = now
+    db.commit()
+
     return {
         "property_id": property_id,
         "community_type": community_type,
@@ -1280,7 +1321,7 @@ def generate_property_assessment(
         "data_available": len(available),
         "data_missing": len(missing),
         "missing_fields": missing,
-        "generated_at": datetime.datetime.utcnow().isoformat(),
+        "generated_at": now.isoformat(),
     }
 
 

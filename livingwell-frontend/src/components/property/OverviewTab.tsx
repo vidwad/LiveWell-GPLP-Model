@@ -544,7 +544,18 @@ export function OverviewTab({
 function AIPropertyAssessment({ propertyId }: { propertyId: number }) {
   const [assessment, setAssessment] = useState<Record<string, any> | null>(null);
   const [loading, setLoading] = useState(false);
+  const [loadingInitial, setLoadingInitial] = useState(true);
   const [error, setError] = useState("");
+
+  // Load saved assessment on mount
+  React.useEffect(() => {
+    apiClient.get(`/api/portfolio/properties/${propertyId}/ai-assessment`)
+      .then(resp => {
+        if (resp.data) setAssessment(resp.data);
+      })
+      .catch(() => {})
+      .finally(() => setLoadingInitial(false));
+  }, [propertyId]);
 
   const generateAssessment = async () => {
     setLoading(true);

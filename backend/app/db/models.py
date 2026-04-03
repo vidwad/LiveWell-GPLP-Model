@@ -1153,6 +1153,14 @@ class Property(Base):
     listing_url = Column(String(1024), nullable=True)
     listing_photo_urls = Column(Text, nullable=True)  # JSON array of image URLs from listing
 
+    # AI Property Assessment
+    ai_assessment = Column(Text, nullable=True)  # Full assessment text
+    ai_assessment_community_type = Column(String(128), nullable=True)
+    ai_assessment_data_available = Column(Integer, nullable=True)
+    ai_assessment_data_missing = Column(Integer, nullable=True)
+    ai_assessment_missing_fields = Column(Text, nullable=True)  # JSON array
+    ai_assessment_updated_at = Column(DateTime, nullable=True)
+
 
 class PropertyImage(Base):
     """Uploaded property photos (hosted by us)."""
