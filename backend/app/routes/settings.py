@@ -85,6 +85,13 @@ DEFAULT_SETTINGS = [
     },
     # Twilio telephony settings
     {
+        "key": "WALKSCORE_API_KEY",
+        "category": "api_keys",
+        "label": "Walk Score API Key",
+        "description": "Walk Score, Transit Score, and Bike Score for any address. Free for up to 5,000 requests/day. Get key at walkscore.com/professional/api.php",
+        "is_secret": True,
+    },
+    {
         "key": "TWILIO_ACCOUNT_SID",
         "category": "api_keys",
         "label": "Twilio Account SID",

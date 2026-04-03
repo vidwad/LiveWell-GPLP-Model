@@ -1,0 +1,113 @@
+"""Location data services — Walk Score, Google Places, Calgary Assessment."""
+
+from __future__ import annotations
+import logging
+import requests
+from typing import Optional
+
+logger = logging.getLogger(__name__)
+
+
+def get_walk_score(address: str, lat: float, lng: float, api_key: str) -> dict:
+    """Get Walk Score, Transit Score, and Bike Score for an address."""
+    try:
+        resp = requests.get(
+            "https://api.walkscore.com/score",
+            params={
+                "format": "json",
+                "address": address,
+                "lat": lat,
+                "lon": lng,
+                "transit": 1,
+                "bike": 1,
+                "wsapikey": api_key,
+            },
+            timeout=10,
+        )
+        data = resp.json()
+        return {
+            "walk_score": data.get("walkscore"),
+            "walk_description": data.get("description"),
+            "transit_score": data.get("transit", {}).get("score") if data.get("transit") else None,
+            "transit_description": data.get("transit", {}).get("description") if data.get("transit") else None,
+            "bike_score": data.get("bike", {}).get("score") if data.get("bike") else None,
+            "bike_description": data.get("bike", {}).get("description") if data.get("bike") else None,
+        }
+    except Exception as e:
+        logger.warning("Walk Score API failed: %s", e)
+        return {}
+
+
+def get_nearby_places(lat: float, lng: float, api_key: str, radius_m: int = 1000) -> dict:
+    """Get nearby amenities using Google Places API."""
+    categories = {
+        "grocery": "grocery_or_supermarket",
+        "schools": "school",
+        "transit": "transit_station",
+        "hospitals": "hospital",
+        "restaurants": "restaurant",
+        "parks": "park",
+        "pharmacies": "pharmacy",
+    }
+
+    results = {}
+    for label, place_type in categories.items():
+        try:
+            resp = requests.get(
+                "https://maps.googleapis.com/maps/api/place/nearbysearch/json",
+                params={
+                    "location": f"{lat},{lng}",
+                    "radius": radius_m,
+                    "type": place_type,
+                    "key": api_key,
+                },
+                timeout=10,
+            )
+            data = resp.json()
+            places = []
+            for p in (data.get("results") or [])[:5]:
+                loc = p.get("geometry", {}).get("location", {})
+                places.append({
+                    "name": p.get("name"),
+                    "address": p.get("vicinity"),
+                    "rating": p.get("rating"),
+                    "lat": loc.get("lat"),
+                    "lng": loc.get("lng"),
+                })
+            results[label] = places
+        except Exception as e:
+            logger.warning("Google Places failed for %s: %s", label, e)
+            results[label] = []
+
+    return results
+
+
+def get_calgary_assessment(address: str) -> dict:
+    """Look up property assessment from City of Calgary Open Data."""
+    try:
+        # Calgary property assessment dataset
+        resp = requests.get(
+            "https://data.calgary.ca/resource/6zp6-pxei.json",
+            params={
+                "$where": f"upper(address) like upper('%{address.split()[0]}%')",
+                "$limit": 5,
+                "$order": "roll_year DESC",
+            },
+            timeout=10,
+        )
+        data = resp.json()
+        if data:
+            return {
+                "assessments": [
+                    {
+                        "address": r.get("address"),
+                        "assessed_value": r.get("assessed_value"),
+                        "roll_year": r.get("roll_year"),
+                        "assessment_class": r.get("assessment_class"),
+                    }
+                    for r in data[:3]
+                ]
+            }
+    except Exception as e:
+        logger.warning("Calgary assessment lookup failed: %s", e)
+    return {}

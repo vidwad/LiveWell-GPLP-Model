@@ -920,6 +920,81 @@ export function AreaResearchTab({ propertyId, address, city, zoning, latitude, l
               </div>
             </Section>
           )}
+
+          {/* Walk Scores */}
+          {result.walk_scores && (result.walk_scores.walk_score || result.walk_scores.transit_score) && (
+            <Section title="Walk Score & Accessibility" icon={MapPin} badge={<SourceTag type="municipal" />}>
+              <div className="grid grid-cols-3 gap-4">
+                {result.walk_scores.walk_score != null && (
+                  <div className="text-center rounded-lg border p-3">
+                    <div className={cn("text-3xl font-bold", result.walk_scores.walk_score >= 70 ? "text-green-600" : result.walk_scores.walk_score >= 50 ? "text-amber-600" : "text-red-500")}>
+                      {result.walk_scores.walk_score}
+                    </div>
+                    <p className="text-xs font-medium mt-1">Walk Score</p>
+                    <p className="text-[10px] text-muted-foreground">{result.walk_scores.walk_description}</p>
+                  </div>
+                )}
+                {result.walk_scores.transit_score != null && (
+                  <div className="text-center rounded-lg border p-3">
+                    <div className={cn("text-3xl font-bold", result.walk_scores.transit_score >= 70 ? "text-green-600" : result.walk_scores.transit_score >= 50 ? "text-amber-600" : "text-red-500")}>
+                      {result.walk_scores.transit_score}
+                    </div>
+                    <p className="text-xs font-medium mt-1">Transit Score</p>
+                    <p className="text-[10px] text-muted-foreground">{result.walk_scores.transit_description}</p>
+                  </div>
+                )}
+                {result.walk_scores.bike_score != null && (
+                  <div className="text-center rounded-lg border p-3">
+                    <div className={cn("text-3xl font-bold", result.walk_scores.bike_score >= 70 ? "text-green-600" : result.walk_scores.bike_score >= 50 ? "text-amber-600" : "text-red-500")}>
+                      {result.walk_scores.bike_score}
+                    </div>
+                    <p className="text-xs font-medium mt-1">Bike Score</p>
+                    <p className="text-[10px] text-muted-foreground">{result.walk_scores.bike_description}</p>
+                  </div>
+                )}
+              </div>
+            </Section>
+          )}
+
+          {/* Nearby Amenities */}
+          {result.nearby_amenities && Object.keys(result.nearby_amenities).some(k => (result.nearby_amenities[k] || []).length > 0) && (
+            <Section title="Nearby Amenities" icon={MapPin} defaultOpen={false} badge={<SourceTag type="municipal" />}>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                {Object.entries(result.nearby_amenities).map(([category, items]: [string, any]) => (
+                  items && items.length > 0 && (
+                    <div key={category} className="space-y-1">
+                      <p className="text-xs font-semibold capitalize">{category}</p>
+                      {items.slice(0, 3).map((place: any, i: number) => (
+                        <div key={i} className="text-[10px] text-muted-foreground flex items-center gap-1">
+                          <span className="truncate">{place.name}</span>
+                          {place.rating && <span className="text-amber-500 shrink-0">★ {place.rating}</span>}
+                        </div>
+                      ))}
+                    </div>
+                  )
+                ))}
+              </div>
+            </Section>
+          )}
+
+          {/* Crime & Safety */}
+          {result.crime_safety && result.crime_safety.summary && (
+            <Section title="Crime & Safety" icon={AlertTriangle} defaultOpen={false} badge={<SourceTag type="web_search" />}>
+              <p className="text-xs text-muted-foreground">{result.crime_safety.summary}</p>
+              {result.crime_safety.crime_rate_trend && (
+                <p className="text-xs mt-1"><span className="font-medium">Trend:</span> {result.crime_safety.crime_rate_trend}</p>
+              )}
+              {result.crime_safety.notable_stats && result.crime_safety.notable_stats.length > 0 && (
+                <ul className="mt-1 space-y-0.5">
+                  {result.crime_safety.notable_stats.map((stat: string, i: number) => (
+                    <li key={i} className="text-[10px] text-muted-foreground flex items-start gap-1">
+                      <span className="text-muted-foreground/50 mt-0.5">•</span> {stat}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </Section>
+          )}
         </div>
       )}
     </div>

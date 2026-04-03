@@ -847,21 +847,60 @@ def research_property_area(
 
         area_desc = f"{address}, {area_name}, {city}" if area_name else f"{address}, {city}"
 
+        # ── Targeted web searches (more specific = better results) ──
+        street_name = address.split(",")[0].strip() if address else ""
         targeted_searches = [
+            # Comparable sales — specific address-based searches
             (
                 f"{realtor_label}_SALES",
-                f"{realtor_board} MLS recent home sales near {area_desc} Alberta "
-                f"last 12 months sale prices addresses property type",
+                f"site:realtor.ca OR site:honestdoor.com recently sold homes near "
+                f"{street_name} {area_name} {city} Alberta 2024 2025 sale price bedrooms",
             ),
+            (
+                f"{realtor_label}_SALES_2",
+                f"{realtor_board} {area_name or city} Alberta detached home sales "
+                f"2024 2025 average price median price sales volume",
+            ),
+            # Active listings
             (
                 f"{realtor_label}_LISTINGS",
-                f"{realtor_board} MLS active real estate listings near {area_desc} Alberta "
-                f"asking prices bedrooms days on market",
+                f"homes for sale near {street_name} {area_name} {city} Alberta "
+                f"realtor.ca listing price bedrooms bathrooms",
             ),
+            # Rental market — CMHC specific
             (
                 "CMHC_RENTAL",
-                f"CMHC rental market survey {city} Alberta {area_name} "
-                f"average rent vacancy rate 2025 2026",
+                f"CMHC rental market report {city} Alberta 2025 2026 "
+                f"average rent vacancy rate purpose-built rental",
+            ),
+            (
+                "LOCAL_RENTS",
+                f"rentals near {area_name or street_name} {city} Alberta "
+                f"average rent per month 1 bedroom 2 bedroom 3 bedroom 2025",
+            ),
+            # Crime and safety
+            (
+                "CRIME_SAFETY",
+                f"{area_name or city} {city} Alberta crime statistics safety "
+                f"crime rate community profile 2024 2025",
+            ),
+            # Schools
+            (
+                "SCHOOLS",
+                f"schools near {street_name} {area_name} {city} Alberta "
+                f"elementary school high school rating distance",
+            ),
+            # Infrastructure and transit
+            (
+                "TRANSIT_INFRA",
+                f"transit access near {street_name} {area_name} {city} Alberta "
+                f"LRT bus routes Green Line Blue Line future transit projects",
+            ),
+            # Market trends specific to area
+            (
+                "MARKET_TRENDS",
+                f"{area_name or city} {city} Alberta real estate market trends 2025 2026 "
+                f"price appreciation inventory supply demand forecast",
             ),
         ]
 
@@ -880,6 +919,72 @@ def research_property_area(
                 logger.warning("Web search failed for %s: %s", label, e)
 
         web_search_data = "\n\n---\n\n".join(search_parts)
+
+        # ── Walk Score API ──
+        walk_score_data = ""
+        try:
+            from app.db.session import SessionLocal as _WS_Session
+            from app.db.models import PlatformSetting as _WS_Setting
+            _ws_db = _WS_Session()
+            ws_key_setting = _ws_db.query(_WS_Setting).filter(_WS_Setting.key == "WALKSCORE_API_KEY").first()
+            ws_key = ws_key_setting.value if ws_key_setting and ws_key_setting.value else None
+            _ws_db.close()
+            if ws_key and subject_lat and subject_lng:
+                from app.services.location_services import get_walk_score
+                ws = get_walk_score(f"{address}, {city}, {province}", subject_lat, subject_lng, ws_key)
+                if ws:
+                    walk_score_data = f"""
+--- WALK SCORE (walkscore.com API — real data) ---
+Walk Score: {ws.get('walk_score')} ({ws.get('walk_description', '')})
+Transit Score: {ws.get('transit_score')} ({ws.get('transit_description', '')})
+Bike Score: {ws.get('bike_score')} ({ws.get('bike_description', '')})
+"""
+        except Exception as e:
+            logger.warning("Walk Score failed: %s", e)
+
+        # ── Google Places API ──
+        nearby_places_data = ""
+        try:
+            from app.db.session import SessionLocal as _GP_Session
+            from app.db.models import PlatformSetting as _GP_Setting
+            _gp_db = _GP_Session()
+            gm_key_setting = _gp_db.query(_GP_Setting).filter(_GP_Setting.key == "GOOGLE_MAPS_API_KEY").first()
+            gm_key = gm_key_setting.value if gm_key_setting and gm_key_setting.value else None
+            _gp_db.close()
+            if gm_key and subject_lat and subject_lng:
+                from app.services.location_services import get_nearby_places
+                places = get_nearby_places(subject_lat, subject_lng, gm_key, radius_m=1500)
+                if places:
+                    parts = ["--- NEARBY AMENITIES (Google Places API — real data) ---"]
+                    for category, items in places.items():
+                        if items:
+                            names = [f"{p['name']} ({p.get('rating', 'N/A')}★)" for p in items[:3]]
+                            parts.append(f"{category.title()}: {', '.join(names)}")
+                    nearby_places_data = "\n".join(parts)
+        except Exception as e:
+            logger.warning("Google Places failed: %s", e)
+
+        # ── Calgary Assessment lookup ──
+        assessment_data = ""
+        if not is_edmonton and subject_lat and subject_lng:
+            try:
+                from app.services.location_services import get_calgary_assessment
+                assessments = get_calgary_assessment(address)
+                if assessments and assessments.get("assessments"):
+                    parts = ["--- CALGARY PROPERTY ASSESSMENT (City of Calgary — real data) ---"]
+                    for a in assessments["assessments"]:
+                        parts.append(f"{a.get('address')}: ${a.get('assessed_value', 'N/A')} (Roll Year: {a.get('roll_year')})")
+                    assessment_data = "\n".join(parts)
+            except Exception as e:
+                logger.warning("Calgary assessment failed: %s", e)
+
+        # Append extra data to web search results
+        if walk_score_data:
+            web_search_data += "\n\n" + walk_score_data
+        if nearby_places_data:
+            web_search_data += "\n\n" + nearby_places_data
+        if assessment_data:
+            web_search_data += "\n\n" + assessment_data
 
     # ── Step 3: AI synthesis — combine real data into structured report ──
     demographics_raw = municipal_data.get("demographics") or {}
@@ -943,7 +1048,7 @@ Count: {len(dev_permits)}
 Count: {len(bldg_permits)}
 {json.dumps(bldg_permits[:15], indent=2, default=str) if bldg_permits else 'None found'}
 {edmonton_extras}
-=== WEB SEARCH DATA ({realtor_board} Sales/Listings, CMHC Rental Market) ===
+=== WEB SEARCH DATA ({realtor_board} Sales/Listings, CMHC Rental Market, Crime, Schools, Transit, Market Trends) ===
 {web_search_data if web_search_data else 'Web search not available — no OpenAI API key configured'}
 """
 
@@ -953,7 +1058,11 @@ Count: {len(bldg_permits)}
 Synthesize ALL of the above real data into a structured JSON report for {city}. Use ONLY facts from the data above.
 For sections where authoritative data was provided (zoning, demographics, permits{', assessments' if is_edmonton else ''}), use those exact numbers.
 For sales/listings/rental data from web search, extract the specific data points found.
-For any section with no data, provide your best estimate based on the neighbourhood and mark it as estimated.
+If Walk Score API data was provided, use those exact scores — do NOT estimate walk scores.
+If Google Places data was provided, use those real amenity names and ratings.
+If Calgary Assessment data was provided, use those real assessed values.
+For crime/safety data from web search, cite the specific statistics found.
+For any section with no data, provide your best estimate based on the neighbourhood and mark it clearly as "AI Estimated".
 
 Return a JSON object with these exact keys:
 
@@ -990,8 +1099,21 @@ Return a JSON object with these exact keys:
     {{"municipal_open_data": true/false, "municipal_source": "{open_data_label}",
       "realtor_board": "{realtor_board}", "realtor_web_search": true/false,
       "cmhc_web_search": true/false,
+      "walk_score_api": true/false, "google_places_api": true/false,
+      "calgary_assessment_api": true/false,
+      "crime_data_searched": true/false, "schools_searched": true/false,
       "community_identified": "community/neighbourhood name or null",
       "dev_permits_found": number, "bldg_permits_found": number}}
+
+14. "nearby_amenities" — from Google Places if available:
+    {{"grocery": [{{"name": "...", "rating": number, "distance_desc": "..."}}],
+      "schools": [...], "transit": [...], "hospitals": [...], "parks": [...], "restaurants": [...]}}
+
+15. "walk_scores" — from Walk Score API if available:
+    {{"walk_score": number, "walk_description": "...", "transit_score": number, "transit_description": "...", "bike_score": number, "bike_description": "..."}}
+
+16. "crime_safety" — from web search:
+    {{"summary": "...", "crime_rate_trend": "...", "notable_stats": [...]}}
 
 CRITICAL: All lat/lng for nearby items must be within {radius_miles} miles of ({subject_lat}, {subject_lng}).
 Return ONLY valid JSON."""
