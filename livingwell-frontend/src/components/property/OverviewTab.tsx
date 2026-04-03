@@ -559,6 +559,24 @@ function AIPropertyAssessment({ propertyId }: { propertyId: number }) {
     }
   };
 
+  const [expanded, setExpanded] = useState(false);
+
+  // Split assessment into sections for better formatting
+  const sections = React.useMemo(() => {
+    if (!assessment?.assessment) return [];
+    const text = assessment.assessment;
+    const parts = text.split(/(?=## \d)/);
+    return parts.map((section: string) => {
+      const lines = section.trim().split("\n");
+      const title = lines[0]?.replace(/^##\s*\d+\.\s*/, "").trim() || "";
+      const body = lines.slice(1).join("\n").trim();
+      return { title, body };
+    }).filter((s: { title: string; body: string }) => s.title && s.body);
+  }, [assessment]);
+
+  const firstSection = sections[0];
+  const remainingSections = sections.slice(1);
+
   return (
     <Card className="border-purple-200 bg-purple-50/20">
       <CardHeader className="pb-2">
@@ -570,7 +588,7 @@ function AIPropertyAssessment({ propertyId }: { propertyId: number }) {
           <div className="flex items-center gap-2">
             {assessment && (
               <span className="text-[10px] text-muted-foreground">
-                {assessment.data_available} data points used · {assessment.data_missing} missing
+                {assessment.data_available} data points · {new Date(assessment.generated_at).toLocaleDateString()}
               </span>
             )}
             <Button
@@ -583,7 +601,7 @@ function AIPropertyAssessment({ propertyId }: { propertyId: number }) {
               {loading ? (
                 <><Loader2 className="h-3 w-3 animate-spin" /> Analyzing...</>
               ) : assessment ? (
-                <><RefreshCw className="h-3 w-3" /> Update Assessment</>
+                <><RefreshCw className="h-3 w-3" /> Update</>
               ) : (
                 <><Sparkles className="h-3 w-3" /> Generate Assessment</>
               )}
@@ -592,8 +610,7 @@ function AIPropertyAssessment({ propertyId }: { propertyId: number }) {
         </div>
         {!assessment && !loading && !error && (
           <p className="text-xs text-muted-foreground mt-1">
-            AI will analyze this property for suitability based on the community type (sober living, student housing, or retirement),
-            assess the current structure, identify renovation opportunities, and evaluate development potential.
+            AI analyzes this property for suitability, assesses structure, renovation opportunities, and development potential.
           </p>
         )}
       </CardHeader>
@@ -616,44 +633,82 @@ function AIPropertyAssessment({ propertyId }: { propertyId: number }) {
         )}
 
         {assessment && !loading && (
-          <div className="space-y-3">
+          <div className="space-y-2">
             {/* Community Type Badge */}
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-medium bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full">
+            <div className="flex items-center gap-2 mb-2">
+              <span className="text-[10px] font-semibold bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full">
                 {assessment.community_type}
               </span>
-              <span className="text-[10px] text-muted-foreground">
-                Generated {new Date(assessment.generated_at).toLocaleDateString()}
-              </span>
+              {assessment.data_missing > 0 && (
+                <span className="text-[10px] text-amber-600">{assessment.data_missing} data points missing</span>
+              )}
             </div>
 
-            {/* Assessment Content */}
-            <div
-              className="prose prose-sm max-w-none text-sm leading-relaxed [&_h2]:text-sm [&_h2]:font-bold [&_h2]:mt-4 [&_h2]:mb-1.5 [&_h2]:text-foreground [&_ul]:mt-1 [&_li]:text-muted-foreground [&_p]:text-muted-foreground [&_strong]:text-foreground"
-              dangerouslySetInnerHTML={{
-                __html: assessment.assessment
-                  .replace(/## /g, "<h2>")
-                  .replace(/\n(?=<h2>)/g, "</h2>\n")
-                  .replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>")
-                  .replace(/- (.*?)(?=\n|$)/g, "<li>$1</li>")
-                  .replace(/(<li>.*<\/li>)/gs, "<ul>$1</ul>")
-                  .replace(/<\/ul>\s*<ul>/g, "")
-                  .replace(/\n\n/g, "</p><p>")
-                  .replace(/\n/g, "<br/>")
-              }}
-            />
-
-            {/* Missing Data Warning */}
-            {assessment.missing_fields && assessment.missing_fields.length > 0 && (
-              <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 mt-3">
-                <p className="text-xs font-medium text-amber-800 flex items-center gap-1.5">
-                  <AlertTriangle className="h-3.5 w-3.5" />
-                  Missing data that would improve this assessment:
-                </p>
-                <p className="text-xs text-amber-700 mt-1">
-                  {assessment.missing_fields.join(", ")}
-                </p>
+            {/* First Section — always visible */}
+            {firstSection && (
+              <div className="rounded-lg border bg-white p-3">
+                <h3 className="text-xs font-bold text-purple-800 mb-1.5">{firstSection.title}</h3>
+                <div className="text-xs text-muted-foreground leading-relaxed whitespace-pre-wrap"
+                  dangerouslySetInnerHTML={{
+                    __html: firstSection.body
+                      .replace(/\*\*(.*?)\*\*/g, "<strong class='text-foreground'>$1</strong>")
+                      .replace(/^- (.*?)$/gm, "<li class='ml-3'>$1</li>")
+                      .replace(/\n/g, "<br/>")
+                  }}
+                />
               </div>
+            )}
+
+            {/* Remaining Sections — collapsible */}
+            {remainingSections.length > 0 && (
+              <>
+                {!expanded && (
+                  <button
+                    onClick={() => setExpanded(true)}
+                    className="w-full text-center text-xs text-purple-600 hover:text-purple-800 py-2 rounded-lg border border-dashed border-purple-200 hover:border-purple-300 hover:bg-purple-50 transition-colors"
+                  >
+                    Show Full Assessment ({remainingSections.length} more sections)
+                  </button>
+                )}
+
+                {expanded && (
+                  <div className="space-y-2">
+                    {remainingSections.map((section: { title: string; body: string }, i: number) => (
+                      <div key={i} className="rounded-lg border bg-white p-3">
+                        <h3 className="text-xs font-bold text-purple-800 mb-1.5">{section.title}</h3>
+                        <div className="text-xs text-muted-foreground leading-relaxed whitespace-pre-wrap"
+                          dangerouslySetInnerHTML={{
+                            __html: section.body
+                              .replace(/\*\*(.*?)\*\*/g, "<strong class='text-foreground'>$1</strong>")
+                              .replace(/^- (.*?)$/gm, "<li class='ml-3'>$1</li>")
+                              .replace(/\n/g, "<br/>")
+                          }}
+                        />
+                      </div>
+                    ))}
+
+                    {/* Missing Data Warning */}
+                    {assessment.missing_fields && assessment.missing_fields.length > 0 && (
+                      <div className="rounded-lg border border-amber-200 bg-amber-50 p-3">
+                        <p className="text-[10px] font-semibold text-amber-800 flex items-center gap-1.5">
+                          <AlertTriangle className="h-3 w-3" />
+                          Data that would improve this assessment:
+                        </p>
+                        <p className="text-[10px] text-amber-700 mt-0.5">
+                          {assessment.missing_fields.join(" · ")}
+                        </p>
+                      </div>
+                    )}
+
+                    <button
+                      onClick={() => setExpanded(false)}
+                      className="w-full text-center text-xs text-muted-foreground hover:text-foreground py-1.5"
+                    >
+                      Collapse
+                    </button>
+                  </div>
+                )}
+              </>
             )}
           </div>
         )}

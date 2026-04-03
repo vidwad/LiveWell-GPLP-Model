@@ -190,6 +190,12 @@ export default function PropertyDetailPage({ params }: { params: { id: string } 
                 <MapPin className="h-3.5 w-3.5" />
                 {property.city}, {property.province}
               </span>
+              {(property.community_focus || property.lp_community_focus) && (
+                <span className="flex items-center gap-1 text-purple-600 font-medium">
+                  <Building2 className="h-3.5 w-3.5" />
+                  {property.community_focus || property.lp_community_focus}
+                </span>
+              )}
               {property.lp_name && (
                 <span className="flex items-center gap-1">
                   <Landmark className="h-3.5 w-3.5" />
