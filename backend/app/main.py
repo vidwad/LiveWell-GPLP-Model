@@ -15,6 +15,7 @@ from app.routes.calculations import router as calculations_router
 from app.routes.documents import router as documents_router
 from app.routes.notifications import router as notifications_router
 from app.routes.portfolio_analytics import router as portfolio_analytics_router
+from app.routes.lp_property_bridge import router as lp_property_bridge_router
 
 
 @asynccontextmanager
@@ -65,6 +66,7 @@ app.include_router(settings_routes.router, prefix="/api/settings", tags=["settin
 app.include_router(twilio_routes.router, prefix="/api/twilio", tags=["twilio"])
 app.include_router(developer_routes.router, prefix="/api/developer", tags=["developer"])
 app.include_router(portfolio_analytics_router, prefix="/api/investment", tags=["portfolio-analytics"])
+app.include_router(lp_property_bridge_router, prefix="/api", tags=["lp-property-bridge"])
 
 # Serve uploaded files statically
 _uploads_dir = Path(__file__).resolve().parent.parent / "uploads"
