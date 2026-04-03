@@ -1052,10 +1052,26 @@ def extract_listing_data(
 
     try:
         # Step 1: Use web search to fetch listing data
+        # Parse address hints from URL for better search results
+        import urllib.parse
+        url_path = urllib.parse.urlparse(payload.url).path
+        url_parts = url_path.strip("/").split("/")
+        address_hint = " ".join(url_parts[-1].replace("-", " ").split()) if url_parts else ""
+
         search_response = client.responses.create(
             model="gpt-4o",
             tools=[{"type": "web_search_preview"}],
-            input=f"Visit this real estate listing URL and extract ALL property details including address, price, bedrooms, bathrooms, square footage, lot size, year built, property type, style, garage, neighbourhood, zoning, MLS number, taxes, assessed value, and any other available data: {payload.url}",
+            input=(
+                f"Search for this property listing and extract ALL available details:\n"
+                f"URL: {payload.url}\n"
+                f"Address hint: {address_hint}\n\n"
+                f"Search for this property on realtor.ca, zillow, redfin, Google, and any other "
+                f"real estate or municipal data sources. Find: address, listing price, bedrooms, "
+                f"bathrooms, square footage, lot size, year built, property type (Single Family, "
+                f"Duplex, etc.), style (Bungalow, 2 Storey, etc.), garage type, neighbourhood, "
+                f"zoning, MLS number, annual property taxes, assessed value, and a brief description. "
+                f"Include as many specific details as possible."
+            ),
         )
         listing_text = search_response.output_text.strip()
 
