@@ -2591,7 +2591,7 @@ class AncillaryRevenueStream(Base):
 # Operating Expense Line Items
 # ---------------------------------------------------------------------------
 
-class ExpenseCalcMethod(str, _Enum):
+class ExpenseCalcMethod(str, enum.Enum):
     """How an operating expense line item is calculated."""
     fixed = "fixed"          # Fixed annual amount
     per_unit = "per_unit"    # Amount per unit per year
