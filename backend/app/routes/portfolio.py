@@ -1048,21 +1048,47 @@ def extract_listing_data(
         f"For Canadian properties, province should be the 2-letter code (AB, BC, ON, etc.)."
     )
 
+    import json, re
+
     try:
-        response = client.responses.create(
+        # Step 1: Use web search to fetch listing data
+        search_response = client.responses.create(
             model="gpt-4o",
             tools=[{"type": "web_search_preview"}],
-            input=prompt,
+            input=f"Visit this real estate listing URL and extract ALL property details including address, price, bedrooms, bathrooms, square footage, lot size, year built, property type, style, garage, neighbourhood, zoning, MLS number, taxes, assessed value, and any other available data: {payload.url}",
         )
-        text = response.output_text.strip()
+        listing_text = search_response.output_text.strip()
 
-        # Parse JSON from response (handle markdown code fences)
-        import json, re
+        # Step 2: Convert the extracted text to structured JSON
+        json_prompt = (
+            f"Convert the following real estate listing data into a JSON object.\n\n"
+            f"Listing data:\n{listing_text}\n\n"
+            f"Return ONLY a valid JSON object (no markdown, no explanation) with these fields "
+            f"(use null for unavailable data):\n"
+            f'{{"address": "street address only", "city": "city", "province": "2-letter code (AB, BC, ON)", '
+            f'"list_price": number, "bedrooms": number, "bathrooms": number, "building_sqft": number, '
+            f'"lot_size": number_sqft, "year_built": number, '
+            f'"property_type": "Single Family/Condo/Duplex/Multiplex/etc", '
+            f'"property_style": "2 Storey/Bungalow/Split Level/etc", '
+            f'"garage": "Double Attached/Single Detached/None/etc", '
+            f'"neighbourhood": "name", "zoning": "code", "mls_number": "number", '
+            f'"tax_amount": number, "tax_year": number, "assessed_value": number, '
+            f'"latitude": number, "longitude": number, '
+            f'"description": "brief description"}}'
+        )
+
+        json_response = client.responses.create(
+            model="gpt-4o",
+            input=json_prompt,
+        )
+        text = json_response.output_text.strip()
+
+        # Parse JSON (handle code fences)
         text = re.sub(r"^```(?:json)?\s*", "", text)
         text = re.sub(r"\s*```$", "", text)
         text = text.strip()
 
-        # Find JSON object in text
+        data = {}
         if text.startswith("{"):
             data = json.loads(text)
         else:
@@ -1070,19 +1096,17 @@ def extract_listing_data(
             end = text.rfind("}") + 1
             if start >= 0 and end > start:
                 data = json.loads(text[start:end])
-            else:
-                data = {}
 
         return {
             "extracted": data,
             "source_url": payload.url,
-            "raw_response": text[:500] if not data else None,
+            "raw_response": listing_text[:300] if not data else None,
         }
     except json.JSONDecodeError:
         return {
             "extracted": {},
             "source_url": payload.url,
-            "raw_response": text[:500],
+            "raw_response": text[:500] if "text" in dir() else None,
             "error": "Failed to parse property data from listing",
         }
     except Exception as e:
