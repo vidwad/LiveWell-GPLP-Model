@@ -65,6 +65,12 @@ export interface Property {
   // Tax
   tax_amount: string | null;
   tax_year: number | null;
+  // Revenue & expenses
+  annual_revenue: string | null;
+  annual_expenses: string | null;
+  annual_other_income: string | null;
+  rent_pricing_mode: string | null;
+  annual_rent_increase_pct: string | null;
   // MLS / market
   mls_number: string | null;
   list_price: string | null;
