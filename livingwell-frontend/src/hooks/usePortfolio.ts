@@ -17,6 +17,12 @@ import {
   ValuationCreate,
   CapRateValuationInput,
   CapRateValuationResult,
+  AncillaryRevenueStream,
+  AncillaryRevenueStreamCreate,
+  AncillaryRevenueSummary,
+  OperatingExpenseLineItem,
+  OperatingExpenseLineItemCreate,
+  OperatingExpenseSummary,
 } from "@/types/portfolio";
 
 function unwrapPaginated<T>(data: { items: T[]; total: number } | T[]): T[] {
@@ -649,6 +655,182 @@ export function useDeleteConstructionDraw(propertyId: number) {
       apiClient.delete(`/api/portfolio/construction-draws/${drawId}`),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["construction-draws", propertyId] });
+    },
+  });
+}
+
+
+// ---------------------------------------------------------------------------
+// Ancillary Revenue Streams
+// ---------------------------------------------------------------------------
+
+export function useAncillaryRevenue(propertyId: number, planId?: number | null) {
+  return useQuery({
+    queryKey: ["ancillary-revenue", propertyId, planId],
+    queryFn: () =>
+      apiClient
+        .get<AncillaryRevenueStream[]>(
+          `/api/portfolio/properties/${propertyId}/ancillary-revenue`,
+          planId ? { params: { plan_id: planId } } : undefined
+        )
+        .then((r) => r.data),
+    enabled: !!propertyId,
+  });
+}
+
+export function useAncillaryRevenueSummary(propertyId: number, planId?: number | null) {
+  return useQuery({
+    queryKey: ["ancillary-revenue-summary", propertyId, planId],
+    queryFn: () =>
+      apiClient
+        .get<AncillaryRevenueSummary>(
+          `/api/portfolio/properties/${propertyId}/ancillary-revenue/summary`,
+          planId ? { params: { plan_id: planId } } : undefined
+        )
+        .then((r) => r.data),
+    enabled: !!propertyId,
+  });
+}
+
+export function useCreateAncillaryRevenue(propertyId: number) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (data: AncillaryRevenueStreamCreate) =>
+      apiClient
+        .post<AncillaryRevenueStream>(
+          `/api/portfolio/properties/${propertyId}/ancillary-revenue`,
+          data
+        )
+        .then((r) => r.data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["ancillary-revenue", propertyId] });
+      qc.invalidateQueries({ queryKey: ["ancillary-revenue-summary", propertyId] });
+    },
+  });
+}
+
+export function useUpdateAncillaryRevenue(propertyId: number) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ streamId, data }: { streamId: number; data: Partial<AncillaryRevenueStreamCreate> }) =>
+      apiClient
+        .patch<AncillaryRevenueStream>(
+          `/api/portfolio/ancillary-revenue/${streamId}`,
+          data
+        )
+        .then((r) => r.data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["ancillary-revenue", propertyId] });
+      qc.invalidateQueries({ queryKey: ["ancillary-revenue-summary", propertyId] });
+    },
+  });
+}
+
+export function useDeleteAncillaryRevenue(propertyId: number) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (streamId: number) =>
+      apiClient.delete(`/api/portfolio/ancillary-revenue/${streamId}`),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["ancillary-revenue", propertyId] });
+      qc.invalidateQueries({ queryKey: ["ancillary-revenue-summary", propertyId] });
+    },
+  });
+}
+
+
+// ---------------------------------------------------------------------------
+// Operating Expense Line Items
+// ---------------------------------------------------------------------------
+
+export function useOperatingExpenses(propertyId: number, planId?: number | null) {
+  return useQuery({
+    queryKey: ["operating-expenses", propertyId, planId],
+    queryFn: () =>
+      apiClient
+        .get<OperatingExpenseLineItem[]>(
+          `/api/portfolio/properties/${propertyId}/operating-expenses`,
+          planId ? { params: { plan_id: planId } } : undefined
+        )
+        .then((r) => r.data),
+    enabled: !!propertyId,
+  });
+}
+
+export function useOperatingExpenseSummary(propertyId: number, planId?: number | null) {
+  return useQuery({
+    queryKey: ["operating-expense-summary", propertyId, planId],
+    queryFn: () =>
+      apiClient
+        .get<OperatingExpenseSummary>(
+          `/api/portfolio/properties/${propertyId}/operating-expenses/summary`,
+          planId ? { params: { plan_id: planId } } : undefined
+        )
+        .then((r) => r.data),
+    enabled: !!propertyId,
+  });
+}
+
+export function useCreateOperatingExpense(propertyId: number) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (data: OperatingExpenseLineItemCreate) =>
+      apiClient
+        .post<OperatingExpenseLineItem>(
+          `/api/portfolio/properties/${propertyId}/operating-expenses`,
+          data
+        )
+        .then((r) => r.data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["operating-expenses", propertyId] });
+      qc.invalidateQueries({ queryKey: ["operating-expense-summary", propertyId] });
+    },
+  });
+}
+
+export function useUpdateOperatingExpense(propertyId: number) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ expenseItemId, data }: { expenseItemId: number; data: Partial<OperatingExpenseLineItemCreate> }) =>
+      apiClient
+        .patch<OperatingExpenseLineItem>(
+          `/api/portfolio/operating-expenses/${expenseItemId}`,
+          data
+        )
+        .then((r) => r.data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["operating-expenses", propertyId] });
+      qc.invalidateQueries({ queryKey: ["operating-expense-summary", propertyId] });
+    },
+  });
+}
+
+export function useDeleteOperatingExpense(propertyId: number) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (expenseItemId: number) =>
+      apiClient.delete(`/api/portfolio/operating-expenses/${expenseItemId}`),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["operating-expenses", propertyId] });
+      qc.invalidateQueries({ queryKey: ["operating-expense-summary", propertyId] });
+    },
+  });
+}
+
+export function useInitializeOperatingExpenses(propertyId: number) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (planId?: number | null) =>
+      apiClient
+        .post<OperatingExpenseLineItem[]>(
+          `/api/portfolio/properties/${propertyId}/operating-expenses/initialize`,
+          null,
+          planId ? { params: { plan_id: planId } } : undefined
+        )
+        .then((r) => r.data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["operating-expenses", propertyId] });
+      qc.invalidateQueries({ queryKey: ["operating-expense-summary", propertyId] });
     },
   });
 }

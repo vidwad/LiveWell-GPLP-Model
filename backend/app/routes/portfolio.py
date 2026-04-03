@@ -435,7 +435,32 @@ def create_debt_facility(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_gp_or_ops),
 ):
-    facility = DebtFacility(**payload.model_dump())
+    data = payload.model_dump()
+
+    # Auto-compute CMHC insurance premium and lender fees
+    commitment = float(data.get("commitment_amount", 0))
+    if data.get("is_cmhc_insured") and data.get("cmhc_insurance_premium_pct"):
+        premium = commitment * float(data["cmhc_insurance_premium_pct"]) / 100
+        data["cmhc_insurance_premium_amount"] = round(premium, 2)
+    else:
+        data.setdefault("cmhc_insurance_premium_amount", None)
+
+    if data.get("lender_fee_pct"):
+        lender_fee = commitment * float(data["lender_fee_pct"]) / 100
+        data["lender_fee_amount"] = round(lender_fee, 2)
+    else:
+        data.setdefault("lender_fee_amount", None)
+
+    # Capitalized fees = CMHC premium + lender fee (rolled into loan balance)
+    cap_fees = float(data.get("cmhc_insurance_premium_amount") or 0) + float(data.get("lender_fee_amount") or 0)
+    data["capitalized_fees"] = round(cap_fees, 2)
+
+    # If CMHC insured, auto-set outstanding balance to include capitalized fees
+    if cap_fees > 0 and float(data.get("outstanding_balance", 0)) == 0:
+        data["outstanding_balance"] = round(commitment + cap_fees, 2)
+        data["drawn_amount"] = round(commitment + cap_fees, 2)
+
+    facility = DebtFacility(**data)
     db.add(facility)
     try:
         db.commit()
@@ -1359,10 +1384,16 @@ def estimate_construction_costs(
 from app.routes.portfolio_valuation import router as valuation_router
 from app.routes.portfolio_construction import router as construction_router
 from app.routes.portfolio_proforma import router as proforma_router
+from app.routes.portfolio_ancillary_revenue import router as ancillary_revenue_router
+from app.routes.portfolio_operating_expenses import router as operating_expenses_router
+from app.routes.portfolio_underwriting import router as underwriting_router
 
 router.include_router(valuation_router)
 router.include_router(construction_router)
 router.include_router(proforma_router)
+router.include_router(ancillary_revenue_router)
+router.include_router(operating_expenses_router)
+router.include_router(underwriting_router)
 
 # ===========================================================================
 # PROPERTY UNITS & BEDS

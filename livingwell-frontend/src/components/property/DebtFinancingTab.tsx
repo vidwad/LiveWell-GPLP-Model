@@ -162,6 +162,10 @@ export function DebtFinancingTab({ propertyId, canEdit, property, totalDebtCommi
     rate_type: "fixed", term_months: "", amortization_months: "",
     io_period_months: "0", origination_date: "", maturity_date: "",
     ltv_covenant: "", dscr_covenant: "", notes: "",
+    // CMHC / Insured Mortgage Fields
+    is_cmhc_insured: false, cmhc_insurance_premium_pct: "",
+    cmhc_application_fee: "", cmhc_program: "",
+    compounding_method: "semi_annual", lender_fee_pct: "",
   });
   const resetDebtForm = () => setDebtForm({
     lender_name: "", debt_type: "permanent_mortgage", commitment_amount: "",
@@ -169,6 +173,9 @@ export function DebtFinancingTab({ propertyId, canEdit, property, totalDebtCommi
     rate_type: "fixed", term_months: "", amortization_months: "",
     io_period_months: "0", origination_date: "", maturity_date: "",
     ltv_covenant: "", dscr_covenant: "", notes: "",
+    is_cmhc_insured: false, cmhc_insurance_premium_pct: "",
+    cmhc_application_fee: "", cmhc_program: "",
+    compounding_method: "semi_annual", lender_fee_pct: "",
   });
 
   const handleCreateDebt = async (e: React.FormEvent) => {
@@ -187,6 +194,13 @@ export function DebtFinancingTab({ propertyId, canEdit, property, totalDebtCommi
         ltv_covenant: debtForm.ltv_covenant ? Number(debtForm.ltv_covenant) : undefined,
         dscr_covenant: debtForm.dscr_covenant ? Number(debtForm.dscr_covenant) : undefined,
         notes: debtForm.notes || undefined,
+        // CMHC fields
+        is_cmhc_insured: debtForm.is_cmhc_insured,
+        cmhc_insurance_premium_pct: debtForm.cmhc_insurance_premium_pct ? Number(debtForm.cmhc_insurance_premium_pct) : undefined,
+        cmhc_application_fee: debtForm.cmhc_application_fee ? Number(debtForm.cmhc_application_fee) : undefined,
+        cmhc_program: debtForm.cmhc_program || undefined,
+        compounding_method: debtForm.compounding_method || "semi_annual",
+        lender_fee_pct: debtForm.lender_fee_pct ? Number(debtForm.lender_fee_pct) : undefined,
       };
       await createDebt.mutateAsync(payload);
       toast.success("Debt facility added");
@@ -214,6 +228,13 @@ export function DebtFinancingTab({ propertyId, canEdit, property, totalDebtCommi
         ltv_covenant: debtForm.ltv_covenant ? Number(debtForm.ltv_covenant) : undefined,
         dscr_covenant: debtForm.dscr_covenant ? Number(debtForm.dscr_covenant) : undefined,
         notes: debtForm.notes || undefined,
+        // CMHC fields
+        is_cmhc_insured: debtForm.is_cmhc_insured,
+        cmhc_insurance_premium_pct: debtForm.cmhc_insurance_premium_pct ? Number(debtForm.cmhc_insurance_premium_pct) : undefined,
+        cmhc_application_fee: debtForm.cmhc_application_fee ? Number(debtForm.cmhc_application_fee) : undefined,
+        cmhc_program: debtForm.cmhc_program || undefined,
+        compounding_method: debtForm.compounding_method || "semi_annual",
+        lender_fee_pct: debtForm.lender_fee_pct ? Number(debtForm.lender_fee_pct) : undefined,
       };
       await updateDebt.mutateAsync(payload);
       toast.success("Debt facility updated");
@@ -237,6 +258,13 @@ export function DebtFinancingTab({ propertyId, canEdit, property, totalDebtCommi
       ltv_covenant: debt.ltv_covenant != null ? String(debt.ltv_covenant) : "",
       dscr_covenant: debt.dscr_covenant != null ? String(debt.dscr_covenant) : "",
       notes: debt.notes ?? "",
+      // CMHC fields
+      is_cmhc_insured: (debt as any).is_cmhc_insured ?? false,
+      cmhc_insurance_premium_pct: (debt as any).cmhc_insurance_premium_pct != null ? String((debt as any).cmhc_insurance_premium_pct) : "",
+      cmhc_application_fee: (debt as any).cmhc_application_fee != null ? String((debt as any).cmhc_application_fee) : "",
+      cmhc_program: (debt as any).cmhc_program ?? "",
+      compounding_method: (debt as any).compounding_method ?? "semi_annual",
+      lender_fee_pct: (debt as any).lender_fee_pct != null ? String((debt as any).lender_fee_pct) : "",
     });
     setEditingDebtId(debt.debt_id);
   };
@@ -295,6 +323,27 @@ export function DebtFinancingTab({ propertyId, canEdit, property, totalDebtCommi
                     <div className="space-y-1"><Label className="text-xs">Min DSCR (x)</Label><Input type="number" step="0.01" value={debtForm.dscr_covenant} onChange={(e) => setDebtForm(f => ({ ...f, dscr_covenant: e.target.value }))} placeholder="1.25" /></div>
                   </div>
                 </div>
+                {/* CMHC / Insured Mortgage Section */}
+                <div className="border rounded-lg p-3 bg-purple-50/30 border-purple-200 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <p className="text-xs font-semibold text-purple-700 flex items-center gap-1.5"><Shield className="h-3.5 w-3.5" />CMHC / Insurance</p>
+                    <label className="flex items-center gap-2 text-xs cursor-pointer">
+                      <input type="checkbox" checked={debtForm.is_cmhc_insured} onChange={(e) => setDebtForm(f => ({ ...f, is_cmhc_insured: e.target.checked }))} className="rounded" />
+                      CMHC Insured
+                    </label>
+                  </div>
+                  {debtForm.is_cmhc_insured && (
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-1"><Label className="text-xs">CMHC Program</Label><Select value={debtForm.cmhc_program} onValueChange={(v) => setDebtForm(f => ({ ...f, cmhc_program: v ?? "" }))}><SelectTrigger><SelectValue placeholder="Select program" /></SelectTrigger><SelectContent><SelectItem value="Standard">Standard</SelectItem><SelectItem value="MLI Select">MLI Select</SelectItem><SelectItem value="Flex">Flex</SelectItem></SelectContent></Select></div>
+                      <div className="space-y-1"><Label className="text-xs">Insurance Premium (%)</Label><Input type="number" step="0.25" value={debtForm.cmhc_insurance_premium_pct} onChange={(e) => setDebtForm(f => ({ ...f, cmhc_insurance_premium_pct: e.target.value }))} placeholder="4.00" /></div>
+                      <div className="space-y-1"><Label className="text-xs">Application Fee ($)</Label><Input type="number" step="100" value={debtForm.cmhc_application_fee} onChange={(e) => setDebtForm(f => ({ ...f, cmhc_application_fee: e.target.value }))} placeholder="3,500" /></div>
+                      <div className="space-y-1"><Label className="text-xs">Lender Fee (%)</Label><Input type="number" step="0.25" value={debtForm.lender_fee_pct} onChange={(e) => setDebtForm(f => ({ ...f, lender_fee_pct: e.target.value }))} placeholder="1.00" /></div>
+                    </div>
+                  )}
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1"><Label className="text-xs">Compounding Method</Label><Select value={debtForm.compounding_method} onValueChange={(v) => setDebtForm(f => ({ ...f, compounding_method: v ?? "semi_annual" }))}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="semi_annual">Semi-Annual (Canadian)</SelectItem><SelectItem value="monthly">Monthly (US)</SelectItem><SelectItem value="annual">Annual</SelectItem></SelectContent></Select></div>
+                  </div>
+                </div>
                 <div className="space-y-1"><Label className="text-xs">Notes</Label><Textarea value={debtForm.notes} onChange={(e) => setDebtForm(f => ({ ...f, notes: e.target.value }))} placeholder="Additional notes..." rows={2} /></div>
                 <Button type="submit" className="w-full" disabled={createDebt.isPending}>{createDebt.isPending ? "Adding..." : "Add Debt Facility"}</Button>
               </form>
@@ -336,6 +385,27 @@ export function DebtFinancingTab({ propertyId, canEdit, property, totalDebtCommi
                   <div className="grid grid-cols-2 gap-3">
                     <div className="space-y-1"><Label className="text-xs">Max LTV Covenant (%)</Label><Input type="number" step="0.01" value={debtForm.ltv_covenant} onChange={(e) => setDebtForm(f => ({ ...f, ltv_covenant: e.target.value }))} /></div>
                     <div className="space-y-1"><Label className="text-xs">Min DSCR Covenant (x)</Label><Input type="number" step="0.01" value={debtForm.dscr_covenant} onChange={(e) => setDebtForm(f => ({ ...f, dscr_covenant: e.target.value }))} /></div>
+                  </div>
+                  {/* CMHC / Insured Mortgage Section */}
+                  <div className="border rounded-lg p-3 bg-purple-50/30 border-purple-200 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <p className="text-xs font-semibold text-purple-700 flex items-center gap-1.5"><Shield className="h-3.5 w-3.5" />CMHC / Insurance</p>
+                      <label className="flex items-center gap-2 text-xs cursor-pointer">
+                        <input type="checkbox" checked={debtForm.is_cmhc_insured} onChange={(e) => setDebtForm(f => ({ ...f, is_cmhc_insured: e.target.checked }))} className="rounded" />
+                        CMHC Insured
+                      </label>
+                    </div>
+                    {debtForm.is_cmhc_insured && (
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="space-y-1"><Label className="text-xs">CMHC Program</Label><Select value={debtForm.cmhc_program} onValueChange={(v) => setDebtForm(f => ({ ...f, cmhc_program: v ?? "" }))}><SelectTrigger><SelectValue placeholder="Select program" /></SelectTrigger><SelectContent><SelectItem value="Standard">Standard</SelectItem><SelectItem value="MLI Select">MLI Select</SelectItem><SelectItem value="Flex">Flex</SelectItem></SelectContent></Select></div>
+                        <div className="space-y-1"><Label className="text-xs">Insurance Premium (%)</Label><Input type="number" step="0.25" value={debtForm.cmhc_insurance_premium_pct} onChange={(e) => setDebtForm(f => ({ ...f, cmhc_insurance_premium_pct: e.target.value }))} placeholder="4.00" /></div>
+                        <div className="space-y-1"><Label className="text-xs">Application Fee ($)</Label><Input type="number" step="100" value={debtForm.cmhc_application_fee} onChange={(e) => setDebtForm(f => ({ ...f, cmhc_application_fee: e.target.value }))} placeholder="3,500" /></div>
+                        <div className="space-y-1"><Label className="text-xs">Lender Fee (%)</Label><Input type="number" step="0.25" value={debtForm.lender_fee_pct} onChange={(e) => setDebtForm(f => ({ ...f, lender_fee_pct: e.target.value }))} placeholder="1.00" /></div>
+                      </div>
+                    )}
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-1"><Label className="text-xs">Compounding Method</Label><Select value={debtForm.compounding_method} onValueChange={(v) => setDebtForm(f => ({ ...f, compounding_method: v ?? "semi_annual" }))}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="semi_annual">Semi-Annual (Canadian)</SelectItem><SelectItem value="monthly">Monthly (US)</SelectItem><SelectItem value="annual">Annual</SelectItem></SelectContent></Select></div>
+                    </div>
                   </div>
                   <div className="space-y-1"><Label className="text-xs">Notes</Label><Textarea value={debtForm.notes} onChange={(e) => setDebtForm(f => ({ ...f, notes: e.target.value }))} rows={2} /></div>
                   <Button type="submit" className="w-full" disabled={updateDebt.isPending}>{updateDebt.isPending ? "Saving..." : "Save Changes"}</Button>

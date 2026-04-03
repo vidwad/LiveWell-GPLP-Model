@@ -886,6 +886,17 @@ class DebtFacility(Base):
     ltv_covenant = Column(Numeric(5, 2))   # Max LTV e.g. 75.00
     dscr_covenant = Column(Numeric(5, 2))  # Min DSCR e.g. 1.25
 
+    # CMHC / Insured Mortgage Fields
+    is_cmhc_insured = Column(Boolean, default=False)  # Whether this is a CMHC-insured mortgage
+    cmhc_insurance_premium_pct = Column(Numeric(5, 2))  # CMHC insurance premium as % of loan (e.g. 4.00)
+    cmhc_insurance_premium_amount = Column(Numeric(15, 2))  # Computed premium amount
+    cmhc_application_fee = Column(Numeric(10, 2))  # CMHC application fee
+    cmhc_program = Column(String(64))  # e.g. "MLI Select", "Standard", "Flex"
+    compounding_method = Column(String(20), default="semi_annual")  # semi_annual (Canadian std), monthly, annual
+    lender_fee_pct = Column(Numeric(5, 2))  # Lender origination fee as % of loan
+    lender_fee_amount = Column(Numeric(15, 2))  # Computed lender fee
+    capitalized_fees = Column(Numeric(15, 2), default=0)  # Total fees rolled into loan balance
+
     notes = Column(Text)
     created_at = Column(DateTime, default=func.now())
     updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
@@ -2540,3 +2551,81 @@ class ScreenPermission(Base):
     __table_args__ = (
         UniqueConstraint("screen_key", "role", name="uq_screen_role"),
     )
+
+
+# ---------------------------------------------------------------------------
+# Ancillary Revenue Streams
+# ---------------------------------------------------------------------------
+
+class AncillaryRevenueStream(Base):
+    """Individual ancillary revenue stream for a property (parking, pets, storage, etc.).
+
+    Each stream tracks the total available count, utilization rate, and
+    monthly rate per unit to compute projected ancillary revenue.  Streams
+    can be linked to a development plan (post-development projections) or
+    left unlinked (baseline / as-is).
+    """
+    __tablename__ = "ancillary_revenue_streams"
+
+    stream_id = Column(Integer, primary_key=True, index=True)
+    property_id = Column(Integer, ForeignKey("properties.property_id", ondelete="CASCADE"), nullable=False, index=True)
+    # NULL = baseline / as-is; set = projected state after that plan
+    development_plan_id = Column(Integer, ForeignKey("development_plans.plan_id", ondelete="CASCADE"), nullable=True, index=True)
+
+    stream_type = Column(String(64), nullable=False)  # parking, pet_fee, storage, bike, laundry, other
+    description = Column(String(256), nullable=True)   # e.g. "Covered Parking Stalls"
+    total_count = Column(Integer, nullable=False, default=0)  # total available (e.g. 8 parking spots)
+    utilization_pct = Column(Numeric(5, 2), nullable=False, default=100)  # expected utilization (e.g. 75.00 = 75%)
+    monthly_rate = Column(Numeric(10, 2), nullable=False, default=0)  # rate per unit per month
+    annual_escalation_pct = Column(Numeric(5, 2), nullable=True, default=0)  # annual increase %
+
+    notes = Column(Text, nullable=True)
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    updated_at = Column(DateTime, nullable=True, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    property = relationship("Property", backref="ancillary_revenue_streams")
+    development_plan = relationship("DevelopmentPlan", backref="ancillary_revenue_streams")
+
+
+# ---------------------------------------------------------------------------
+# Operating Expense Line Items
+# ---------------------------------------------------------------------------
+
+class ExpenseCalcMethod(str, _Enum):
+    """How an operating expense line item is calculated."""
+    fixed = "fixed"          # Fixed annual amount
+    per_unit = "per_unit"    # Amount per unit per year
+    pct_egi = "pct_egi"      # Percentage of Effective Gross Income
+
+
+class OperatingExpenseLineItem(Base):
+    """Individual operating expense line item for a property.
+
+    Supports three calculation methods:
+    - fixed: base_amount is the total annual cost
+    - per_unit: base_amount × number of units = annual cost
+    - pct_egi: base_amount is a percentage (e.g. 7.0 = 7%) of EGI
+
+    Each item has its own annual escalation rate.
+    Items can be linked to a development plan (post-development) or
+    left unlinked (baseline / as-is).
+    """
+    __tablename__ = "operating_expense_line_items"
+
+    expense_item_id = Column(Integer, primary_key=True, index=True)
+    property_id = Column(Integer, ForeignKey("properties.property_id", ondelete="CASCADE"), nullable=False, index=True)
+    # NULL = baseline / as-is; set = projected state after that plan
+    development_plan_id = Column(Integer, ForeignKey("development_plans.plan_id", ondelete="CASCADE"), nullable=True, index=True)
+
+    category = Column(String(64), nullable=False)  # property_tax, insurance, utilities, salaries, management_fee, repairs_maintenance, miscellaneous, reserves, elevator, premium_services, other
+    description = Column(String(256), nullable=True)  # e.g. "Caretaker Salary"
+    calc_method = Column(_enum(ExpenseCalcMethod), nullable=False, default=ExpenseCalcMethod.per_unit)
+    base_amount = Column(Numeric(14, 2), nullable=False, default=0)  # per-unit $, fixed $, or % depending on calc_method
+    annual_escalation_pct = Column(Numeric(5, 2), nullable=False, default=3)  # annual increase %
+
+    notes = Column(Text, nullable=True)
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    updated_at = Column(DateTime, nullable=True, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    property = relationship("Property", backref="operating_expense_items")
+    development_plan = relationship("DevelopmentPlan", backref="operating_expense_items")

@@ -260,6 +260,15 @@ export interface DebtFacility {
   dscr_covenant: number | null;
   notes: string | null;
   created_at: string | null;
+  // CMHC / Insurance fields
+  is_cmhc_insured: boolean;
+  cmhc_insurance_premium_pct: number | null;
+  cmhc_insurance_premium_amount: number | null;
+  cmhc_application_fee: number | null;
+  cmhc_program: string | null;
+  compounding_method: string;
+  lender_fee_pct: number | null;
+  capitalized_fees: number | null;
 }
 
 export interface DebtFacilityCreate {
@@ -277,6 +286,13 @@ export interface DebtFacilityCreate {
   ltv_covenant?: number;
   dscr_covenant?: number;
   notes?: string;
+  // CMHC / Insurance fields
+  is_cmhc_insured?: boolean;
+  cmhc_insurance_premium_pct?: number;
+  cmhc_application_fee?: number;
+  cmhc_program?: string;
+  compounding_method?: string;
+  lender_fee_pct?: number;
 }
 
 // ── Projection Types ────────────────────────────────────────────────
@@ -657,4 +673,87 @@ export interface EditPlanForm {
   estimated_stabilization_date: string;
   rent_pricing_mode: string;
   annual_rent_increase_pct: number;
+}
+
+// ── Ancillary Revenue Streams ───────────────────────────────────────
+export interface AncillaryRevenueStream {
+  stream_id: number;
+  property_id: number;
+  development_plan_id: number | null;
+  stream_type: string;
+  description: string | null;
+  total_count: number;
+  utilization_pct: number;
+  monthly_rate: number;
+  annual_escalation_pct: number | null;
+  notes: string | null;
+  monthly_revenue: number | null;
+  annual_revenue: number | null;
+  created_at: string | null;
+  updated_at: string | null;
+}
+
+export interface AncillaryRevenueStreamCreate {
+  stream_type: string;
+  description?: string;
+  total_count: number;
+  utilization_pct: number;
+  monthly_rate: number;
+  annual_escalation_pct?: number;
+  development_plan_id?: number | null;
+  notes?: string;
+}
+
+// ── Operating Expense Line Items ─────────────────────────────────────
+export interface OperatingExpenseLineItem {
+  expense_item_id: number;
+  property_id: number;
+  development_plan_id: number | null;
+  category: string;
+  description: string | null;
+  calc_method: string;
+  base_amount: number;
+  annual_escalation_pct: number;
+  notes: string | null;
+  computed_annual_amount: number | null;
+  created_at: string | null;
+  updated_at: string | null;
+}
+
+export interface OperatingExpenseLineItemCreate {
+  category: string;
+  description?: string;
+  calc_method: string;
+  base_amount: number;
+  annual_escalation_pct?: number;
+  development_plan_id?: number | null;
+  notes?: string;
+}
+
+export interface OperatingExpenseSummary {
+  property_id: number;
+  plan_id: number | null;
+  total_units: number;
+  egi: number;
+  total_annual_expenses: number;
+  expense_ratio: number;
+  items: OperatingExpenseLineItem[];
+}
+
+export interface AncillaryRevenueSummary {
+  property_id: number;
+  plan_id: number | null;
+  stream_count: number;
+  total_monthly_revenue: number;
+  total_annual_revenue: number;
+  streams: {
+    stream_id: number;
+    stream_type: string;
+    description: string | null;
+    total_count: number;
+    utilization_pct: number;
+    monthly_rate: number;
+    monthly_revenue: number;
+    annual_revenue: number;
+  }[];
 }

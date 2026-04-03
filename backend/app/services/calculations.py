@@ -171,11 +171,40 @@ def calculate_ltv(
     }
 
 
+def _effective_monthly_rate(
+    annual_interest_rate: float,
+    compounding: str = "semi_annual",
+) -> float:
+    """Convert annual nominal rate to effective monthly rate.
+
+    Canadian mortgages compound semi-annually by law.  This converts the
+    nominal annual rate to an effective monthly rate using the correct
+    compounding convention.
+
+    Args:
+        annual_interest_rate: Nominal annual rate as percentage (e.g. 5.25)
+        compounding: "semi_annual" (Canadian standard), "monthly", or "annual"
+
+    Returns:
+        Effective monthly interest rate as a decimal
+    """
+    r = annual_interest_rate / 100
+    if compounding == "semi_annual":
+        # Canadian standard: (1 + r/2)^2 = (1 + m)^12
+        # => m = (1 + r/2)^(1/6) - 1
+        return (1 + r / 2) ** (1 / 6) - 1
+    elif compounding == "annual":
+        return (1 + r) ** (1 / 12) - 1
+    else:  # monthly (US standard)
+        return r / 12
+
+
 def calculate_annual_debt_service(
     outstanding_balance: float,
     annual_interest_rate: float,
     amortization_months: int,
     io_period_remaining_months: int = 0,
+    compounding: str = "semi_annual",
 ) -> float:
     """
     Calculate annual debt service (principal + interest).
@@ -183,11 +212,14 @@ def calculate_annual_debt_service(
     During IO period: interest only.
     After IO period: fully amortizing P&I.
 
+    Supports Canadian semi-annual compounding (default), monthly, or annual.
+
     Args:
         outstanding_balance: Current loan balance
         annual_interest_rate: Annual rate as percentage (e.g. 5.25)
         amortization_months: Total amortization period in months
         io_period_remaining_months: Months remaining in IO period
+        compounding: "semi_annual" (Canadian standard), "monthly", or "annual"
 
     Returns:
         Annual debt service amount
@@ -195,7 +227,7 @@ def calculate_annual_debt_service(
     if outstanding_balance <= 0 or annual_interest_rate <= 0:
         return 0.0
 
-    monthly_rate = (annual_interest_rate / 100) / 12
+    monthly_rate = _effective_monthly_rate(annual_interest_rate, compounding)
 
     if io_period_remaining_months > 0:
         # Interest-only payment
@@ -210,6 +242,63 @@ def calculate_annual_debt_service(
         monthly_payment = outstanding_balance * monthly_rate
 
     return round(monthly_payment * 12, 2)
+
+
+def generate_amortization_schedule(
+    principal: float,
+    annual_interest_rate: float,
+    amortization_months: int,
+    term_months: int = 0,
+    io_period_months: int = 0,
+    compounding: str = "semi_annual",
+) -> list[dict]:
+    """Generate a month-by-month amortization schedule.
+
+    Args:
+        principal: Original loan amount
+        annual_interest_rate: Nominal annual rate as percentage
+        amortization_months: Total amortization period in months
+        term_months: Loan term in months (0 = full amortization)
+        io_period_months: Number of interest-only months at start
+        compounding: Compounding method
+
+    Returns:
+        List of dicts with month, payment, principal, interest, balance
+    """
+    if principal <= 0 or annual_interest_rate <= 0 or amortization_months <= 0:
+        return []
+
+    monthly_rate = _effective_monthly_rate(annual_interest_rate, compounding)
+    balance = principal
+    schedule = []
+    total_months = term_months if term_months > 0 else amortization_months
+
+    # Calculate the P&I payment for the amortizing portion
+    pi_payment = principal * (
+        monthly_rate * (1 + monthly_rate) ** amortization_months
+    ) / ((1 + monthly_rate) ** amortization_months - 1)
+
+    for month in range(1, total_months + 1):
+        interest = balance * monthly_rate
+        if month <= io_period_months:
+            # Interest-only period
+            payment = interest
+            principal_paid = 0.0
+        else:
+            payment = pi_payment
+            principal_paid = payment - interest
+
+        balance = max(balance - principal_paid, 0)
+
+        schedule.append({
+            "month": month,
+            "payment": round(payment, 2),
+            "principal": round(principal_paid, 2),
+            "interest": round(interest, 2),
+            "balance": round(balance, 2),
+        })
+
+    return schedule
 
 
 def calculate_irr(

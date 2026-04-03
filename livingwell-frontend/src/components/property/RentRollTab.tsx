@@ -22,6 +22,7 @@ import {
   useCreateBed,
   useDeleteBed,
 } from "@/hooks/usePortfolio";
+import { AncillaryRevenueSection } from "@/components/property/AncillaryRevenueSection";
 import type {
   Bed,
   Bedroom,
@@ -278,6 +279,14 @@ export function RentRollTab({ propertyId, canEdit, property }: RentRollTabProps)
           </CardContent>
         </Card>
       </div>
+
+      {/* ANCILLARY REVENUE — Baseline */}
+      <AncillaryRevenueSection
+        propertyId={propertyId}
+        planId={null}
+        canEdit={canEdit}
+        label="Ancillary Revenue — Baseline"
+      />
 
       {/* DEVELOPMENT PLAN PHASES */}
       {((rentRollData as RentRollResponse | undefined)?.plan_phases || []).map((plan: RentRollPlanPhase, planIdx: number) => {
@@ -645,6 +654,14 @@ export function RentRollTab({ propertyId, canEdit, property }: RentRollTabProps)
                 </CardContent>
               </Card>
             )}
+
+            {/* Ancillary Revenue for this Plan */}
+            <AncillaryRevenueSection
+              propertyId={propertyId}
+              planId={plan.plan_id}
+              canEdit={canEdit}
+              label={`Ancillary Revenue — ${plan.plan_label}`}
+            />
 
             {/* Cash Flow Summary for this Plan */}
             {pr && (

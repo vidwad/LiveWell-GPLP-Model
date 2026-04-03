@@ -337,6 +337,13 @@ class DebtFacilityCreate(BaseModel):
     debt_purpose: str = "acquisition"  # acquisition, construction, refinancing
     replaces_debt_id: int | None = None  # links refinancing to original debt
     development_plan_id: int | None = None  # NULL = baseline, set = plan-specific
+    # CMHC / Insured Mortgage Fields
+    is_cmhc_insured: bool = False
+    cmhc_insurance_premium_pct: float | None = None
+    cmhc_application_fee: float | None = None
+    cmhc_program: str | None = None  # "MLI Select", "Standard", "Flex"
+    compounding_method: str = "semi_annual"  # semi_annual (Canadian std), monthly, annual
+    lender_fee_pct: float | None = None
     notes: str | None = None
 
 class DebtFacilityOut(BaseModel):
@@ -360,6 +367,16 @@ class DebtFacilityOut(BaseModel):
     debt_purpose: str = "acquisition"
     replaces_debt_id: int | None = None
     development_plan_id: int | None = None
+    # CMHC / Insured Mortgage Fields
+    is_cmhc_insured: bool = False
+    cmhc_insurance_premium_pct: float | None = None
+    cmhc_insurance_premium_amount: float | None = None
+    cmhc_application_fee: float | None = None
+    cmhc_program: str | None = None
+    compounding_method: str = "semi_annual"
+    lender_fee_pct: float | None = None
+    lender_fee_amount: float | None = None
+    capitalized_fees: float | None = None
     notes: str | None
     created_at: datetime.datetime | None
 
@@ -563,3 +580,101 @@ class ConstructionDrawOut(BaseModel):
     created_at: datetime.datetime | None
 
     model_config = {"from_attributes": True}
+
+
+# ---------------------------------------------------------------------------
+# Ancillary Revenue Streams
+# ---------------------------------------------------------------------------
+
+class AncillaryRevenueStreamCreate(BaseModel):
+    stream_type: str  # parking, pet_fee, storage, bike, laundry, other
+    description: str | None = None
+    total_count: int = 0
+    utilization_pct: Decimal = Decimal("100")
+    monthly_rate: Decimal = Decimal("0")
+    annual_escalation_pct: Decimal = Decimal("0")
+    development_plan_id: int | None = None
+    notes: str | None = None
+
+
+class AncillaryRevenueStreamUpdate(BaseModel):
+    stream_type: str | None = None
+    description: str | None = None
+    total_count: int | None = None
+    utilization_pct: Decimal | None = None
+    monthly_rate: Decimal | None = None
+    annual_escalation_pct: Decimal | None = None
+    development_plan_id: int | None = None
+    notes: str | None = None
+
+
+class AncillaryRevenueStreamOut(BaseModel):
+    stream_id: int
+    property_id: int
+    development_plan_id: int | None
+    stream_type: str
+    description: str | None
+    total_count: int
+    utilization_pct: Decimal
+    monthly_rate: Decimal
+    annual_escalation_pct: Decimal | None
+    notes: str | None
+    # Computed fields (not stored, calculated on read)
+    monthly_revenue: Decimal | None = None
+    annual_revenue: Decimal | None = None
+    created_at: datetime.datetime | None
+    updated_at: datetime.datetime | None
+
+    model_config = {"from_attributes": True}
+
+
+# ---------------------------------------------------------------------------
+# Operating Expense Line Items
+# ---------------------------------------------------------------------------
+
+class OperatingExpenseLineItemCreate(BaseModel):
+    category: str  # property_tax, insurance, utilities, salaries, management_fee, repairs_maintenance, miscellaneous, reserves, elevator, premium_services, other
+    description: str | None = None
+    calc_method: str = "per_unit"  # fixed, per_unit, pct_egi
+    base_amount: Decimal = Decimal("0")
+    annual_escalation_pct: Decimal = Decimal("3")
+    development_plan_id: int | None = None
+    notes: str | None = None
+
+
+class OperatingExpenseLineItemUpdate(BaseModel):
+    category: str | None = None
+    description: str | None = None
+    calc_method: str | None = None
+    base_amount: Decimal | None = None
+    annual_escalation_pct: Decimal | None = None
+    development_plan_id: int | None = None
+    notes: str | None = None
+
+
+class OperatingExpenseLineItemOut(BaseModel):
+    expense_item_id: int
+    property_id: int
+    development_plan_id: int | None
+    category: str
+    description: str | None
+    calc_method: str
+    base_amount: Decimal
+    annual_escalation_pct: Decimal
+    notes: str | None
+    # Computed fields
+    computed_annual_amount: Decimal | None = None
+    created_at: datetime.datetime | None
+    updated_at: datetime.datetime | None
+
+    model_config = {"from_attributes": True}
+
+
+class OperatingExpenseSummary(BaseModel):
+    property_id: int
+    plan_id: int | None
+    total_units: int
+    egi: Decimal
+    total_annual_expenses: Decimal
+    expense_ratio: Decimal  # total_annual_expenses / EGI * 100
+    items: list[OperatingExpenseLineItemOut]

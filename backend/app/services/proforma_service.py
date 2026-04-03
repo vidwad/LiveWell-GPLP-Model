@@ -67,7 +67,19 @@ def generate_proforma(
     if gross_potential_rent <= 0 and prop.annual_revenue:
         gross_potential_rent = _d(prop.annual_revenue)
 
-    other_income = _d(prop.annual_other_income)
+    # Ancillary revenue streams (parking, pets, storage, etc.)
+    ancillary_streams = db.query(m.AncillaryRevenueStream).filter(
+        m.AncillaryRevenueStream.property_id == property_id,
+        m.AncillaryRevenueStream.development_plan_id == plan_id,
+    ).all()
+    ancillary_annual = 0.0
+    for s in ancillary_streams:
+        utilization = float(s.utilization_pct or 100) / 100.0
+        monthly = float(s.monthly_rate or 0) * (s.total_count or 0) * utilization
+        ancillary_annual += monthly * 12
+
+    # Fall back to property.annual_other_income if no ancillary streams
+    other_income = ancillary_annual if ancillary_annual > 0 else _d(prop.annual_other_income)
     gross_potential = gross_potential_rent + other_income
 
     # Vacancy
@@ -76,34 +88,68 @@ def generate_proforma(
     egi = gross_potential - vacancy_loss
 
     # --- Expenses ---
-    # Try community expenses if property has a community
-    annual_expenses = 0.0
-    if prop.community_id:
-        from app.services.operations_service import compute_expenses
-        import datetime
-        yr = datetime.date.today().year
-        exp_data = compute_expenses(db, prop.community_id, yr)
-        # Prorate by property count in community
-        total_props = db.query(m.Property).filter(m.Property.community_id == prop.community_id).count()
-        if total_props > 0:
-            annual_expenses = exp_data.get("total_expenses", 0) / total_props
+    # First, check for granular operating expense line items
+    expense_items = db.query(m.OperatingExpenseLineItem).filter(
+        m.OperatingExpenseLineItem.property_id == property_id,
+        m.OperatingExpenseLineItem.development_plan_id == plan_id,
+    ).all()
 
-    # Fall back to property.annual_expenses
-    if annual_expenses <= 0 and prop.annual_expenses:
-        annual_expenses = _d(prop.annual_expenses)
-
-    # Property tax and insurance (estimate as % of value if not available)
     prop_value = _d(prop.current_market_value or prop.assessed_value or prop.purchase_price)
-    property_tax = prop_value * 0.01  # ~1% default estimate
-    insurance = prop_value * 0.003  # ~0.3% default estimate
+    num_units = len(units) if units else 1
 
-    mgmt_fee_decimal = management_fee_rate / 100
-    mgmt_fee = egi * mgmt_fee_decimal
-    reserves = egi * (replacement_reserve_pct / 100)
+    if expense_items:
+        # Use granular line items
+        annual_expenses = 0.0
+        property_tax = 0.0
+        insurance = 0.0
+        mgmt_fee = 0.0
+        reserves = 0.0
+        for item in expense_items:
+            base = float(item.base_amount or 0)
+            method = item.calc_method.value if hasattr(item.calc_method, 'value') else (item.calc_method or 'fixed')
+            if method == 'per_unit':
+                item_annual = base * num_units
+            elif method == 'pct_egi':
+                item_annual = egi * (base / 100.0)
+            else:  # fixed
+                item_annual = base
 
-    total_exp = annual_expenses + property_tax + insurance + mgmt_fee + reserves
+            annual_expenses += item_annual
+            cat = item.category or ''
+            if cat == 'property_tax':
+                property_tax += item_annual
+            elif cat == 'insurance':
+                insurance += item_annual
+            elif cat == 'management_fee':
+                mgmt_fee += item_annual
+            elif cat == 'reserves':
+                reserves += item_annual
+
+        total_exp = annual_expenses
+        mgmt_fee_decimal = management_fee_rate / 100  # keep for output
+    else:
+        # Fall back to legacy logic
+        annual_expenses = 0.0
+        if prop.community_id:
+            from app.services.operations_service import compute_expenses
+            import datetime
+            yr = datetime.date.today().year
+            exp_data = compute_expenses(db, prop.community_id, yr)
+            total_props = db.query(m.Property).filter(m.Property.community_id == prop.community_id).count()
+            if total_props > 0:
+                annual_expenses = exp_data.get("total_expenses", 0) / total_props
+
+        if annual_expenses <= 0 and prop.annual_expenses:
+            annual_expenses = _d(prop.annual_expenses)
+
+        property_tax = prop_value * 0.01
+        insurance = prop_value * 0.003
+        mgmt_fee_decimal = management_fee_rate / 100
+        mgmt_fee = egi * mgmt_fee_decimal
+        reserves = egi * (replacement_reserve_pct / 100)
+        total_exp = annual_expenses + property_tax + insurance + mgmt_fee + reserves
+
     noi = egi - total_exp
-
     expense_ratio = (total_exp / egi * 100) if egi > 0 else 0
 
     # --- Debt Service ---
