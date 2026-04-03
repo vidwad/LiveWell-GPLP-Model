@@ -67,9 +67,10 @@ const METHOD_LABELS: Record<string, string> = {
 interface Props {
   propertyId: number;
   canEdit: boolean;
+  activePhase?: "as_is" | "post_renovation" | "full_development";
 }
 
-export function ValuationTab({ propertyId, canEdit }: Props) {
+export function ValuationTab({ propertyId, canEdit, activePhase = "as_is" }: Props) {
   const { data: property } = useProperty(propertyId);
   const { data: valuations, isLoading } = useValuations(propertyId);
   const createValuation = useCreateValuation(propertyId);
@@ -171,6 +172,41 @@ export function ValuationTab({ propertyId, canEdit }: Props) {
 
   return (
     <div className="space-y-6">
+      {/* Phase Context Banner */}
+      {activePhase === "as_is" && (
+        <Card className="bg-blue-50 dark:bg-blue-950/20 border-blue-200 dark:border-blue-800">
+          <CardContent className="py-3 px-4 flex items-center gap-3">
+            <DollarSign className="h-4 w-4 text-blue-600 shrink-0" />
+            <p className="text-sm text-blue-800 dark:text-blue-200">
+              <span className="font-medium">As-Is Valuation</span> — Current property value based on
+              existing operations, comparable sales, and market cap rates.
+            </p>
+          </CardContent>
+        </Card>
+      )}
+      {activePhase === "post_renovation" && (
+        <Card className="bg-amber-50 dark:bg-amber-950/20 border-amber-200 dark:border-amber-800">
+          <CardContent className="py-3 px-4 flex items-center gap-3">
+            <DollarSign className="h-4 w-4 text-amber-600 shrink-0" />
+            <p className="text-sm text-amber-800 dark:text-amber-200">
+              <span className="font-medium">Post-Renovation Valuation</span> — Projected property value
+              after renovations, reflecting improved rental income and reduced cap rate.
+            </p>
+          </CardContent>
+        </Card>
+      )}
+      {activePhase === "full_development" && (
+        <Card className="bg-green-50 dark:bg-green-950/20 border-green-200 dark:border-green-800">
+          <CardContent className="py-3 px-4 flex items-center gap-3">
+            <DollarSign className="h-4 w-4 text-green-600 shrink-0" />
+            <p className="text-sm text-green-800 dark:text-green-200">
+              <span className="font-medium">Developed Property Valuation</span> — Stabilized value of the
+              fully developed property, used for CMHC permanent financing and capital distribution analysis.
+            </p>
+          </CardContent>
+        </Card>
+      )}
+
       {/* ── Current Value KPI ── */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <Card className="border-l-4 border-l-blue-500">

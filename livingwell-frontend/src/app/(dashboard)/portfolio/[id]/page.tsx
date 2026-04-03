@@ -369,6 +369,7 @@ export default function PropertyDetailPage({ params }: { params: { id: string } 
             stage={stage}
             canEdit={canEdit}
             userRole={user?.role}
+            activePhase={activePhase}
           />
         </TabsContent>
 
@@ -384,12 +385,12 @@ export default function PropertyDetailPage({ params }: { params: { id: string } 
 
         {/* ── Development Plans ── */}
         <TabsContent value="plans" className="mt-6">
-          <DevPlansTab propertyId={propertyId} canEdit={canEdit} />
+          <DevPlansTab propertyId={propertyId} canEdit={canEdit} activePhase={activePhase} />
         </TabsContent>
 
         {/* ── Construction Budget vs Actual ── */}
         <TabsContent value="construction" className="mt-6">
-          <ConstructionBudgetTab propertyId={propertyId} canEdit={canEdit} />
+          <ConstructionBudgetTab propertyId={propertyId} canEdit={canEdit} activePhase={activePhase} />
         </TabsContent>
 
         {/* ── Debt & Financing ── */}
@@ -410,6 +411,7 @@ export default function PropertyDetailPage({ params }: { params: { id: string } 
           <ProjectionsTab
             propertyId={propertyId}
             totalAnnualDebtService={totalAnnualDebtService}
+            activePhase={activePhase}
           />
         </TabsContent>
 
@@ -421,12 +423,13 @@ export default function PropertyDetailPage({ params }: { params: { id: string } 
             property={property}
             totalDebtOutstanding={totalDebtOutstanding}
             totalAnnualDebtService={totalAnnualDebtService}
+            activePhase={activePhase}
           />
         </TabsContent>
 
         {/* ── Valuation Tab ── */}
         <TabsContent value="valuation" className="mt-6">
-          <ValuationTab propertyId={propertyId} canEdit={canEdit} />
+          <ValuationTab propertyId={propertyId} canEdit={canEdit} activePhase={activePhase} />
         </TabsContent>
 
         {/* ── Pro Forma Tab ── */}

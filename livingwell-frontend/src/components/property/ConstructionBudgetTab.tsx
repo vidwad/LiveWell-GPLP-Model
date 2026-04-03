@@ -93,6 +93,7 @@ function categoryColor(cat: string) {
 interface Props {
   propertyId: number;
   canEdit: boolean;
+  activePhase?: "as_is" | "post_renovation" | "full_development";
 }
 
 const emptyExpenseForm = {
@@ -115,7 +116,7 @@ const emptyDrawForm = {
   notes: "",
 };
 
-export function ConstructionBudgetTab({ propertyId, canEdit }: Props) {
+export function ConstructionBudgetTab({ propertyId, canEdit, activePhase = "full_development" }: Props) {
   const { data: plans, isLoading: plansLoading } = useDevelopmentPlans(propertyId);
   const { data: debtFacilities } = useDebtFacilities(propertyId);
 
@@ -288,8 +289,46 @@ export function ConstructionBudgetTab({ propertyId, canEdit }: Props) {
     );
   }
 
+  /* ── Phase-aware empty states ── */
+  if (activePhase === "as_is") {
+    return (
+      <div className="space-y-6">
+        <Card className="border-dashed border-2">
+          <CardContent className="flex flex-col items-center justify-center py-16 text-center">
+            <div className="rounded-full bg-muted p-4 mb-4">
+              <HardHat className="h-10 w-10 text-muted-foreground" />
+            </div>
+            <h3 className="text-lg font-semibold mb-2">No Construction Activity</h3>
+            <p className="text-sm text-muted-foreground max-w-md mb-4">
+              This property is currently in the <Badge variant="outline">As-Is</Badge> phase.
+              Construction budgets are tracked when the property moves to a renovation or
+              full development phase.
+            </p>
+            <p className="text-xs text-muted-foreground">
+              Switch to <span className="font-medium">Post-Renovation</span> or <span className="font-medium">Full Development</span> phase
+              using the selector above to manage construction budgets.
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
+      {/* Phase Context Banner */}
+      {activePhase === "post_renovation" && (
+        <Card className="bg-amber-50 dark:bg-amber-950/20 border-amber-200 dark:border-amber-800">
+          <CardContent className="py-3 px-4 flex items-center gap-3">
+            <AlertCircle className="h-4 w-4 text-amber-600 shrink-0" />
+            <p className="text-sm text-amber-800 dark:text-amber-200">
+              <span className="font-medium">Renovation Budget</span> — Tracking renovation costs for unit upgrades, additions, and improvements.
+              For full construction budgets, switch to the Full Development phase.
+            </p>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Plan Selector */}
       {plans.length > 1 && (
         <div className="flex items-center gap-3">

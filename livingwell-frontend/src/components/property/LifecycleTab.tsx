@@ -67,9 +67,10 @@ interface LifecycleTabProps {
   stage: string;
   canEdit: boolean;
   userRole?: string;
+  activePhase?: "as_is" | "post_renovation" | "full_development";
 }
 
-export function LifecycleTab({ propertyId, stage, canEdit, userRole }: LifecycleTabProps) {
+export function LifecycleTab({ propertyId, stage, canEdit, userRole, activePhase = "as_is" }: LifecycleTabProps) {
   const { data: transitions } = useStageTransitions(propertyId);
   const { data: allowedTransitions } = useAllowedTransitions(propertyId);
   const transitionMutation = useTransitionProperty(propertyId);
@@ -84,6 +85,41 @@ export function LifecycleTab({ propertyId, stage, canEdit, userRole }: Lifecycle
 
   return (
     <div className="space-y-6">
+      {/* Phase Context Banner */}
+      {activePhase === "as_is" && (
+        <Card className="bg-blue-50 dark:bg-blue-950/20 border-blue-200 dark:border-blue-800">
+          <CardContent className="py-3 px-4 flex items-center gap-3">
+            <Activity className="h-4 w-4 text-blue-600 shrink-0" />
+            <p className="text-sm text-blue-800 dark:text-blue-200">
+              <span className="font-medium">As-Is Operations</span> — The property is operating in its current state.
+              Use the stage pipeline below to track acquisition progress and plan future development milestones.
+            </p>
+          </CardContent>
+        </Card>
+      )}
+      {activePhase === "post_renovation" && (
+        <Card className="bg-amber-50 dark:bg-amber-950/20 border-amber-200 dark:border-amber-800">
+          <CardContent className="py-3 px-4 flex items-center gap-3">
+            <Activity className="h-4 w-4 text-amber-600 shrink-0" />
+            <p className="text-sm text-amber-800 dark:text-amber-200">
+              <span className="font-medium">Renovation Phase</span> — Track renovation milestones and stage transitions
+              as the property undergoes improvements.
+            </p>
+          </CardContent>
+        </Card>
+      )}
+      {activePhase === "full_development" && (
+        <Card className="bg-green-50 dark:bg-green-950/20 border-green-200 dark:border-green-800">
+          <CardContent className="py-3 px-4 flex items-center gap-3">
+            <Activity className="h-4 w-4 text-green-600 shrink-0" />
+            <p className="text-sm text-green-800 dark:text-green-200">
+              <span className="font-medium">Full Development</span> — Track the complete development lifecycle from
+              planning through construction, lease-up, and stabilization.
+            </p>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Stage Progress Timeline */}
       <Card>
         <CardHeader className="pb-3">

@@ -23,9 +23,10 @@ const PHASE_COLORS: Record<string, string> = {
 interface ProjectionsTabProps {
   propertyId: number;
   totalAnnualDebtService: number;
+  activePhase?: "as_is" | "post_renovation" | "full_development";
 }
 
-export function ProjectionsTab({ propertyId, totalAnnualDebtService }: ProjectionsTabProps) {
+export function ProjectionsTab({ propertyId, totalAnnualDebtService, activePhase = "as_is" }: ProjectionsTabProps) {
   const { mutateAsync: runProjection, isPending: projPending } = useRunProjection(propertyId);
   const [projResults, setProjResults] = useState<ProjectionResult | null>(null);
   const [useCapRateCurve, setUseCapRateCurve] = useState(false);
@@ -98,6 +99,42 @@ export function ProjectionsTab({ propertyId, totalAnnualDebtService }: Projectio
   const sf = (key: string, val: string) => setProjForm((prev) => ({ ...prev, [key]: val }));
 
   return (
+    <div className="space-y-6">
+      {/* Phase Context Banner */}
+      {activePhase === "as_is" && (
+        <Card className="bg-blue-50 dark:bg-blue-950/20 border-blue-200 dark:border-blue-800">
+          <CardContent className="py-3 px-4 flex items-center gap-3">
+            <BarChart3 className="h-4 w-4 text-blue-600 shrink-0" />
+            <p className="text-sm text-blue-800 dark:text-blue-200">
+              <span className="font-medium">As-Is Projections</span> — Project forward from the property's
+              current operating performance. Construction timeline fields are optional.
+            </p>
+          </CardContent>
+        </Card>
+      )}
+      {activePhase === "post_renovation" && (
+        <Card className="bg-amber-50 dark:bg-amber-950/20 border-amber-200 dark:border-amber-800">
+          <CardContent className="py-3 px-4 flex items-center gap-3">
+            <BarChart3 className="h-4 w-4 text-amber-600 shrink-0" />
+            <p className="text-sm text-amber-800 dark:text-amber-200">
+              <span className="font-medium">Post-Renovation Projections</span> — Project forward with
+              improved rents and updated unit mix after renovations are complete.
+            </p>
+          </CardContent>
+        </Card>
+      )}
+      {activePhase === "full_development" && (
+        <Card className="bg-green-50 dark:bg-green-950/20 border-green-200 dark:border-green-800">
+          <CardContent className="py-3 px-4 flex items-center gap-3">
+            <BarChart3 className="h-4 w-4 text-green-600 shrink-0" />
+            <p className="text-sm text-green-800 dark:text-green-200">
+              <span className="font-medium">Full Development Projections</span> — Includes construction period
+              (zero income), lease-up ramp, and stabilized operations for the fully developed property.
+            </p>
+          </CardContent>
+        </Card>
+      )}
+
     <div className="grid gap-6 lg:grid-cols-[380px_1fr]">
       {/* Projection Inputs Panel */}
       <Card>
@@ -354,6 +391,7 @@ export function ProjectionsTab({ propertyId, totalAnnualDebtService }: Projectio
           </React.Fragment>
         )}
       </div>
+    </div>
     </div>
   );
 }

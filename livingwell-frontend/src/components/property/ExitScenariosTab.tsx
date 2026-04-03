@@ -40,9 +40,10 @@ interface ExitScenariosTabProps {
   property: Record<string, any>;
   totalDebtOutstanding: number;
   totalAnnualDebtService: number;
+  activePhase?: "as_is" | "post_renovation" | "full_development";
 }
 
-export function ExitScenariosTab({ propertyId, canEdit, property, totalDebtOutstanding, totalAnnualDebtService }: ExitScenariosTabProps) {
+export function ExitScenariosTab({ propertyId, canEdit, property, totalDebtOutstanding, totalAnnualDebtService, activePhase = "as_is" }: ExitScenariosTabProps) {
   const { data: refiScenarios } = useRefinanceScenarios(propertyId);
   const { mutateAsync: createRefi, isPending: refiPending } = useCreateRefinanceScenario(propertyId);
   const { mutateAsync: deleteRefi } = useDeleteRefinanceScenario(propertyId);
@@ -173,6 +174,41 @@ export function ExitScenariosTab({ propertyId, canEdit, property, totalDebtOutst
 
   return (
     <div className="space-y-8">
+      {/* Phase Context Banner */}
+      {activePhase === "as_is" && (
+        <Card className="bg-blue-50 dark:bg-blue-950/20 border-blue-200 dark:border-blue-800">
+          <CardContent className="py-3 px-4 flex items-center gap-3">
+            <Landmark className="h-4 w-4 text-blue-600 shrink-0" />
+            <p className="text-sm text-blue-800 dark:text-blue-200">
+              <span className="font-medium">As-Is Exit Analysis</span> — Model refinancing and sale scenarios
+              based on the property's current operating performance and market value.
+            </p>
+          </CardContent>
+        </Card>
+      )}
+      {activePhase === "post_renovation" && (
+        <Card className="bg-amber-50 dark:bg-amber-950/20 border-amber-200 dark:border-amber-800">
+          <CardContent className="py-3 px-4 flex items-center gap-3">
+            <Landmark className="h-4 w-4 text-amber-600 shrink-0" />
+            <p className="text-sm text-amber-800 dark:text-amber-200">
+              <span className="font-medium">Post-Renovation Exit Analysis</span> — Model exit scenarios
+              based on the improved property value and enhanced rental income after renovations.
+            </p>
+          </CardContent>
+        </Card>
+      )}
+      {activePhase === "full_development" && (
+        <Card className="bg-green-50 dark:bg-green-950/20 border-green-200 dark:border-green-800">
+          <CardContent className="py-3 px-4 flex items-center gap-3">
+            <Landmark className="h-4 w-4 text-green-600 shrink-0" />
+            <p className="text-sm text-green-800 dark:text-green-200">
+              <span className="font-medium">Developed Property Exit Analysis</span> — Model refinancing
+              (including CMHC permanent takeout) and disposition scenarios based on the fully developed property.
+            </p>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Refinance Scenarios */}
       <section>
         <h3 className="text-base font-semibold mb-4 flex items-center gap-2"><Landmark className="h-4 w-4 text-muted-foreground" />Refinance Scenarios</h3>

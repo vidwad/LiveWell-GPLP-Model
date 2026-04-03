@@ -42,9 +42,10 @@ import type { DevelopmentPlan, DevelopmentPlanCreate, EditPlanForm } from "@/typ
 interface DevPlansTabProps {
   propertyId: number;
   canEdit: boolean;
+  activePhase?: "as_is" | "post_renovation" | "full_development";
 }
 
-export function DevPlansTab({ propertyId, canEdit }: DevPlansTabProps) {
+export function DevPlansTab({ propertyId, canEdit, activePhase = "full_development" }: DevPlansTabProps) {
   const { data: plans } = useDevelopmentPlans(propertyId);
   const { mutateAsync: createPlan, isPending: planPending } = useCreatePlan(propertyId);
   const { mutateAsync: updatePlan, isPending: updatePlanPending } = useUpdatePlan(propertyId);
@@ -129,6 +130,35 @@ export function DevPlansTab({ propertyId, canEdit }: DevPlansTabProps) {
   };
 
   return (
+    <div className="space-y-6">
+      {/* Phase Context Banner */}
+      {activePhase === "as_is" && (
+        <Card className="bg-blue-50 dark:bg-blue-950/20 border-blue-200 dark:border-blue-800">
+          <CardContent className="py-4 px-4 flex items-start gap-3">
+            <Layers className="h-5 w-5 text-blue-600 shrink-0 mt-0.5" />
+            <div>
+              <p className="text-sm font-medium text-blue-800 dark:text-blue-200 mb-1">Plan Your Future Development</p>
+              <p className="text-sm text-blue-700 dark:text-blue-300">
+                The property is currently in the <Badge variant="outline" className="mx-1">As-Is</Badge> phase.
+                You can create development plans now to model future scenarios — compare different unit mixes,
+                construction costs, and projected returns before committing to a renovation or full development.
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+      {activePhase === "post_renovation" && (
+        <Card className="bg-amber-50 dark:bg-amber-950/20 border-amber-200 dark:border-amber-800">
+          <CardContent className="py-3 px-4 flex items-center gap-3">
+            <Layers className="h-4 w-4 text-amber-600 shrink-0" />
+            <p className="text-sm text-amber-800 dark:text-amber-200">
+              <span className="font-medium">Renovation Plans</span> — Define and compare renovation scenarios
+              including unit upgrades, bed additions, and cost estimates.
+            </p>
+          </CardContent>
+        </Card>
+      )}
+
     <Card>
       <CardHeader className="flex flex-row items-center justify-between">
         <CardTitle className="text-base">Development Plans</CardTitle>
@@ -384,5 +414,6 @@ export function DevPlansTab({ propertyId, canEdit }: DevPlansTabProps) {
         })()}
       </CardContent>
     </Card>
+    </div>
   );
 }
