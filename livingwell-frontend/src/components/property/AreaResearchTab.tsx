@@ -223,7 +223,7 @@ function Section({
 /* ── Severity Badge ────────────────────────────────────────────────────── */
 
 function SeverityBadge({ severity }: { severity: string }) {
-  const s = severity.toLowerCase();
+  const s = (severity || "low").toLowerCase();
   const colors =
     s === "high" || s === "critical"
       ? "bg-red-100 text-red-800 border-red-200"
@@ -238,7 +238,7 @@ function SeverityBadge({ severity }: { severity: string }) {
 }
 
 function StatusBadge({ status }: { status: string }) {
-  const s = status.toLowerCase();
+  const s = (status || "").toLowerCase();
   const colors = s.includes("approved") || s.includes("completed")
     ? "bg-green-100 text-green-800"
     : s.includes("pending") || s.includes("under")
@@ -267,7 +267,7 @@ function ScoreCircle({ score, max = 10, label }: { score: number; max?: number; 
 /* ── Trend Display ─────────────────────────────────────────────────────── */
 
 function TrendBadge({ trend }: { trend: string }) {
-  const t = trend.toLowerCase();
+  const t = (trend || "stable").toLowerCase();
   const isUp = t.includes("increas") || t.includes("appreciat");
   const isDown = t.includes("decreas") || t.includes("declin");
   return (

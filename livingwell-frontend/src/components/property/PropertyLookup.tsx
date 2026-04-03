@@ -109,9 +109,10 @@ interface ApplicableFields {
 /* ── Source Icon ────────────────────────────────────────────────────────── */
 
 function SourceBadge({ source }: { source: string }) {
-  const isAI = source.toLowerCase().includes("ai");
-  const isMLS = source.toLowerCase().includes("mls") || source.toLowerCase().includes("repliers");
-  const isCity = source.toLowerCase().includes("city") || source.toLowerCase().includes("calgary") || source.toLowerCase().includes("edmonton");
+  const s = (source || "").toLowerCase();
+  const isAI = s.includes("ai");
+  const isMLS = s.includes("mls") || s.includes("repliers");
+  const isCity = s.includes("city") || s.includes("calgary") || s.includes("edmonton");
 
   return (
     <Badge
