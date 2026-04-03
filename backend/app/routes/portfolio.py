@@ -1043,9 +1043,11 @@ def extract_listing_data(
         f'"mls_number": "MLS number if shown", "tax_amount": number (annual property tax), "tax_year": number, '
         f'"assessed_value": number (assessed/appraised value), '
         f'"latitude": number, "longitude": number, '
-        f'"description": "brief property description from the listing"}}\n\n'
+        f'"description": "brief property description from the listing", '
+        f'"image_urls": ["array of any property photo URLs found"]}}\n\n'
         f"Extract as much data as possible from the listing page. "
-        f"For Canadian properties, province should be the 2-letter code (AB, BC, ON, etc.)."
+        f"For Canadian properties, province should be the 2-letter code (AB, BC, ON, etc.). "
+        f"Include any property photo/image URLs you can find from the listing."
     )
 
     import json, re
@@ -2292,3 +2294,144 @@ def get_rent_roll_template(
             },
         ],
     }
+
+
+# ===========================================================================
+# Property Images
+# ===========================================================================
+
+from app.db.models import PropertyImage
+
+
+@router.get("/properties/{property_id}/images")
+def list_property_images(
+    property_id: int,
+    db: Session = Depends(get_db),
+    _: User = Depends(get_current_user),
+):
+    """List all images for a property (uploaded + listing reference URLs)."""
+    prop = db.query(Property).filter(Property.property_id == property_id).first()
+    if not prop:
+        raise HTTPException(404, "Property not found")
+
+    images = db.query(PropertyImage).filter(
+        PropertyImage.property_id == property_id
+    ).order_by(PropertyImage.sort_order).all()
+
+    listing_photos = []
+    if prop.listing_photo_urls:
+        import json
+        try:
+            listing_photos = json.loads(prop.listing_photo_urls)
+        except Exception:
+            pass
+
+    return {
+        "uploaded": [
+            {
+                "image_id": img.image_id,
+                "file_url": img.file_url,
+                "caption": img.caption,
+                "category": img.category,
+                "is_primary": img.is_primary,
+                "sort_order": img.sort_order,
+            }
+            for img in images
+        ],
+        "listing_url": prop.listing_url,
+        "listing_photos": listing_photos,
+    }
+
+
+@router.post("/properties/{property_id}/images")
+def upload_property_image(
+    property_id: int,
+    file: UploadFile = File(...),
+    caption: str = "",
+    category: str = "exterior",
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_gp_or_ops),
+):
+    """Upload a property photo."""
+    from pathlib import Path as _Path
+    import uuid
+
+    prop = db.query(Property).filter(Property.property_id == property_id).first()
+    if not prop:
+        raise HTTPException(404, "Property not found")
+
+    uploads_dir = _Path(__file__).resolve().parent.parent.parent / "uploads" / "property-images"
+    uploads_dir.mkdir(parents=True, exist_ok=True)
+
+    ext = file.filename.split(".")[-1] if file.filename and "." in file.filename else "jpg"
+    filename = f"prop_{property_id}_{uuid.uuid4().hex[:8]}.{ext}"
+    filepath = uploads_dir / filename
+
+    with open(filepath, "wb") as f:
+        content = file.file.read()
+        f.write(content)
+
+    file_url = f"/uploads/property-images/{filename}"
+
+    # Check if this is the first image
+    existing_count = db.query(PropertyImage).filter(PropertyImage.property_id == property_id).count()
+
+    image = PropertyImage(
+        property_id=property_id,
+        file_url=file_url,
+        caption=caption,
+        category=category,
+        is_primary=existing_count == 0,
+        sort_order=existing_count,
+        uploaded_by=current_user.user_id,
+    )
+    db.add(image)
+    db.commit()
+    db.refresh(image)
+
+    return {
+        "image_id": image.image_id,
+        "file_url": image.file_url,
+        "caption": image.caption,
+        "category": image.category,
+        "is_primary": image.is_primary,
+    }
+
+
+@router.delete("/properties/images/{image_id}")
+def delete_property_image(
+    image_id: int,
+    db: Session = Depends(get_db),
+    _: User = Depends(require_gp_or_ops),
+):
+    """Delete a property image."""
+    image = db.query(PropertyImage).filter(PropertyImage.image_id == image_id).first()
+    if not image:
+        raise HTTPException(404, "Image not found")
+    db.delete(image)
+    db.commit()
+    return {"status": "deleted"}
+
+
+@router.post("/properties/{property_id}/listing-photos")
+def save_listing_photos(
+    property_id: int,
+    db: Session = Depends(get_db),
+    _: User = Depends(require_gp_or_ops),
+    listing_url: str = "",
+    photo_urls: list[str] = [],
+):
+    """Save reference photo URLs from a listing."""
+    import json
+
+    prop = db.query(Property).filter(Property.property_id == property_id).first()
+    if not prop:
+        raise HTTPException(404, "Property not found")
+
+    if listing_url:
+        prop.listing_url = listing_url
+    if photo_urls:
+        prop.listing_photo_urls = json.dumps(photo_urls)
+
+    db.commit()
+    return {"status": "saved", "listing_url": prop.listing_url, "photo_count": len(photo_urls)}

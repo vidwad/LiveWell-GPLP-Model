@@ -30,6 +30,10 @@ import {
   Activity,
   HardHat,
   Banknote,
+  Image as ImageIcon,
+  Upload,
+  Loader2,
+  ExternalLink,
 } from "lucide-react";
 import {
   useProperty,
@@ -42,6 +46,10 @@ import { Button } from "@/components/ui/button";
 import { LinkButton } from "@/components/ui/link-button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { useQuery } from "@tanstack/react-query";
+import { apiClient } from "@/lib/api";
 import { formatCurrencyCompact, formatDate, cn } from "@/lib/utils";
 
 /* ── Stage helpers ──────────────────────────────────────────────────────────── */
@@ -271,6 +279,7 @@ export default function PropertyDetailPage({ params }: { params: { id: string } 
             <TabsTrigger value="exit"><TrendingUp className="h-4 w-4 sm:mr-1.5" /><span className="hidden sm:inline">Exit Scenarios</span></TabsTrigger>
             <TabsTrigger value="valuation"><Banknote className="h-4 w-4 sm:mr-1.5" /><span className="hidden sm:inline">Valuation</span></TabsTrigger>
             <TabsTrigger value="proforma"><Calculator className="h-4 w-4 sm:mr-1.5" /><span className="hidden sm:inline">Pro Forma</span></TabsTrigger>
+            <TabsTrigger value="photos"><ImageIcon className="h-4 w-4 sm:mr-1.5" /><span className="hidden sm:inline">Photos</span></TabsTrigger>
           </TabsList>
         </div>
 
@@ -369,7 +378,164 @@ export default function PropertyDetailPage({ params }: { params: { id: string } 
           <ProFormaTab propertyId={propertyId} />
         </TabsContent>
 
+        {/* ── Photos ── */}
+        <TabsContent value="photos" className="mt-6">
+          <PropertyPhotosTab propertyId={propertyId} />
+        </TabsContent>
+
       </Tabs>
+    </div>
+  );
+}
+
+// ── Property Photos Tab ─────────────────────────────────────────────
+
+function PropertyPhotosTab({ propertyId }: { propertyId: number }) {
+  const { data, isLoading, refetch } = useQuery({
+    queryKey: ["property-images", propertyId],
+    queryFn: () => apiClient.get(`/api/portfolio/properties/${propertyId}/images`).then(r => r.data),
+  });
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
+  const [uploading, setUploading] = React.useState(false);
+  const [caption, setCaption] = React.useState("");
+  const [category, setCategory] = React.useState("exterior");
+
+  const uploaded = data?.uploaded || [];
+  const listingPhotos = data?.listing_photos || [];
+  const listingUrl = data?.listing_url;
+
+  const handleUpload = async (file: File) => {
+    setUploading(true);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("caption", caption);
+      formData.append("category", category);
+      await apiClient.post(`/api/portfolio/properties/${propertyId}/images`, formData, {
+        headers: { "Content-Type": "multipart/form-data" },
+      });
+      refetch();
+      setCaption("");
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    } catch {
+      alert("Failed to upload image");
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handleDelete = async (imageId: number) => {
+    if (!confirm("Delete this image?")) return;
+    await apiClient.delete(`/api/portfolio/properties/images/${imageId}`);
+    refetch();
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* Upload Section */}
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm font-semibold flex items-center gap-2">
+            <Upload className="h-4 w-4" /> Upload Property Photos
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="flex gap-3 items-end">
+            <div className="space-y-1">
+              <label className="text-xs text-muted-foreground">Category</label>
+              <select value={category} onChange={e => setCategory(e.target.value)} className="rounded border bg-background px-2 py-1.5 text-sm">
+                <option value="exterior">Exterior</option>
+                <option value="interior">Interior</option>
+                <option value="kitchen">Kitchen</option>
+                <option value="bathroom">Bathroom</option>
+                <option value="bedroom">Bedroom</option>
+                <option value="yard">Yard</option>
+                <option value="garage">Garage</option>
+                <option value="basement">Basement</option>
+                <option value="other">Other</option>
+              </select>
+            </div>
+            <div className="flex-1 space-y-1">
+              <label className="text-xs text-muted-foreground">Caption (optional)</label>
+              <Input value={caption} onChange={e => setCaption(e.target.value)} placeholder="e.g. Front view, Kitchen renovation..." />
+            </div>
+            <Button variant="outline" disabled={uploading} onClick={() => fileInputRef.current?.click()}>
+              {uploading ? <><Loader2 className="h-4 w-4 animate-spin mr-1" /> Uploading...</> : <><Upload className="h-4 w-4 mr-1" /> Upload</>}
+            </Button>
+            <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={e => { if (e.target.files?.[0]) handleUpload(e.target.files[0]); }} />
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Uploaded Photos */}
+      {uploaded.length > 0 && (
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-semibold">Property Photos ({uploaded.length})</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+              {uploaded.map((img: any) => (
+                <div key={img.image_id} className="relative group rounded-lg overflow-hidden border">
+                  <img src={`${apiClient.defaults.baseURL}${img.file_url}`} alt={img.caption || "Property"} className="w-full h-40 object-cover" />
+                  <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-colors flex items-end">
+                    <div className="w-full p-2 bg-gradient-to-t from-black/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity">
+                      <p className="text-white text-xs truncate">{img.caption || img.category}</p>
+                      <button onClick={() => handleDelete(img.image_id)} className="text-red-300 hover:text-red-100 text-[10px] mt-0.5">Delete</button>
+                    </div>
+                  </div>
+                  {img.is_primary && (
+                    <span className="absolute top-1 left-1 text-[8px] bg-blue-600 text-white px-1.5 py-0.5 rounded">Primary</span>
+                  )}
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Listing Reference Photos */}
+      {(listingPhotos.length > 0 || listingUrl) && (
+        <Card>
+          <CardHeader className="pb-2">
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                <ExternalLink className="h-4 w-4" /> Listing Reference Photos
+              </CardTitle>
+              {listingUrl && (
+                <a href={listingUrl} target="_blank" rel="noopener" className="text-xs text-blue-600 hover:underline">
+                  View Original Listing
+                </a>
+              )}
+            </div>
+            <p className="text-[10px] text-muted-foreground">Reference images from the original listing (externally hosted)</p>
+          </CardHeader>
+          <CardContent>
+            {listingPhotos.length > 0 ? (
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+                {listingPhotos.map((url: string, i: number) => (
+                  <div key={i} className="rounded-lg overflow-hidden border">
+                    <img src={url} alt={`Listing photo ${i + 1}`} className="w-full h-40 object-cover" onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-xs text-muted-foreground">No listing photos extracted.</p>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Empty State */}
+      {isLoading ? (
+        <Skeleton className="h-40 w-full" />
+      ) : uploaded.length === 0 && listingPhotos.length === 0 && (
+        <div className="text-center py-12">
+          <ImageIcon className="h-10 w-10 text-muted-foreground/30 mx-auto mb-2" />
+          <p className="text-sm text-muted-foreground">No photos yet</p>
+          <p className="text-xs text-muted-foreground mt-1">Upload property photos or import from a listing</p>
+        </div>
+      )}
     </div>
   );
 }

@@ -1144,6 +1144,31 @@ class Property(Base):
     units = relationship(
         "Unit", back_populates="property", cascade="all, delete-orphan"
     )
+    images = relationship(
+        "PropertyImage", back_populates="property", cascade="all, delete-orphan",
+        order_by="PropertyImage.sort_order"
+    )
+
+    # Reference URLs from listing (not hosted by us)
+    listing_url = Column(String(1024), nullable=True)
+    listing_photo_urls = Column(Text, nullable=True)  # JSON array of image URLs from listing
+
+
+class PropertyImage(Base):
+    """Uploaded property photos (hosted by us)."""
+    __tablename__ = "property_images"
+
+    image_id = Column(Integer, primary_key=True, index=True)
+    property_id = Column(Integer, ForeignKey("properties.property_id", ondelete="CASCADE"), nullable=False, index=True)
+    file_url = Column(String(1024), nullable=False)
+    caption = Column(String(256), nullable=True)
+    category = Column(String(64), nullable=True)  # exterior, interior, kitchen, bathroom, yard, etc.
+    is_primary = Column(Boolean, default=False, nullable=False)
+    sort_order = Column(Integer, default=0, nullable=False)
+    uploaded_by = Column(Integer, ForeignKey("users.user_id"), nullable=True)
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+
+    property = relationship("Property", back_populates="images")
 
 
 class DevelopmentPlan(Base):

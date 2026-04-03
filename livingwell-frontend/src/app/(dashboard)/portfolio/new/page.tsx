@@ -34,6 +34,8 @@ export default function NewPropertyPage() {
   const [showLocationDetails, setShowLocationDetails] = useState(false);
   const [showMarketDetails, setShowMarketDetails] = useState(false);
   const [estimatedMonthlyRent, setEstimatedMonthlyRent] = useState(0);
+  const [listingUrl, setListingUrl] = useState("");
+  const [listingPhotoUrls, setListingPhotoUrls] = useState<string[]>([]);
 
   useEffect(() => {
     api.investment.getLPs().then((lps: any[]) => setLpOptions(lps.map(l => ({ lp_id: l.lp_id, name: l.name }))));
@@ -80,6 +82,16 @@ export default function NewPropertyPage() {
       } else {
         toast.success("Property created");
       }
+
+      // Save listing URL and photo URLs if from import
+      if (listingUrl || listingPhotoUrls.length > 0) {
+        try {
+          await apiClient.post(`/api/portfolio/properties/${prop.property_id}/listing-photos`, null, {
+            params: { listing_url: listingUrl, photo_urls: listingPhotoUrls },
+          });
+        } catch { /* best effort */ }
+      }
+
       router.push(`/portfolio/${prop.property_id}`);
     } catch {
       toast.error("Failed to create property");
@@ -126,7 +138,9 @@ export default function NewPropertyPage() {
         setShowBuildingDetails(true);
         setShowLocationDetails(true);
         setShowMarketDetails(true);
-        toast.success(`Imported ${Object.keys(data).filter(k => data[k] != null).length} fields from listing`);
+        if (data._source_url) setListingUrl(data._source_url);
+        if (data.image_urls && Array.isArray(data.image_urls)) setListingPhotoUrls(data.image_urls);
+        toast.success(`Imported ${Object.keys(data).filter(k => data[k] != null && !k.startsWith("_")).length} fields from listing`);
       }} />
 
       <Card>
@@ -519,7 +533,7 @@ function ListingImportCard({ onImport }: { onImport: (data: Record<string, any>)
 
   const handleApply = () => {
     if (result) {
-      onImport(result);
+      onImport({ ...result, _source_url: url });
       setResult(null);
       setUrl("");
     }
