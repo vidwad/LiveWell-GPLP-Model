@@ -4,6 +4,7 @@ import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import React, { useState, useCallback, useEffect } from "react";
 import { TrendChart } from "@/components/charts/TrendChart";
+import { PortfolioAnalyticsTab } from "@/components/investment/PortfolioAnalyticsTab";
 import {
   ArrowLeft,
   Landmark,
@@ -562,6 +563,7 @@ export default function LPDetailPage() {
             <TabsTrigger value="projections" className="text-xs sm:text-sm">Projections</TabsTrigger>
             <TabsTrigger value="pnl" className="text-xs sm:text-sm">P&L</TabsTrigger>
             <TabsTrigger value="nav" className="text-xs sm:text-sm">NAV</TabsTrigger>
+            <TabsTrigger value="portfolio-analytics" className="text-xs sm:text-sm">Portfolio Analytics</TabsTrigger>
           </TabsList>
         </div>
 
@@ -1425,6 +1427,11 @@ export default function LPDetailPage() {
               )}
             </div>
           )}
+        </TabsContent>
+
+        {/* ── Portfolio Analytics Tab ──────────────────────────── */}
+        <TabsContent value="portfolio-analytics" className="mt-4">
+          <PortfolioAnalyticsTab lpId={lpId} />
         </TabsContent>
       </Tabs>
 
