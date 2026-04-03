@@ -220,6 +220,23 @@ function Section({
   );
 }
 
+/* ── Source Tag (shows where data came from) ──────────────────────────── */
+
+function SourceTag({ type }: { type: "municipal" | "web_search" | "ai_analysis" | "cmhc" }) {
+  const config = {
+    municipal: { label: "Municipal Open Data", color: "bg-green-100 text-green-700 border-green-200", icon: "🏛️" },
+    web_search: { label: "Web Search", color: "bg-amber-100 text-amber-700 border-amber-200", icon: "🔍" },
+    ai_analysis: { label: "AI Analysis", color: "bg-purple-100 text-purple-700 border-purple-200", icon: "🤖" },
+    cmhc: { label: "CMHC / Market Data", color: "bg-blue-100 text-blue-700 border-blue-200", icon: "📊" },
+  };
+  const c = config[type];
+  return (
+    <span className={cn("inline-flex items-center gap-0.5 rounded-full border px-1.5 py-0 text-[9px] font-medium", c.color)}>
+      {c.icon} {c.label}
+    </span>
+  );
+}
+
 /* ── Severity Badge ────────────────────────────────────────────────────── */
 
 function SeverityBadge({ severity }: { severity: string }) {
@@ -548,7 +565,7 @@ export function AreaResearchTab({ propertyId, address, city, zoning, latitude, l
           {/* Comparable Sales */}
           {result.comparable_sales && result.comparable_sales.length > 0 && (
             <Section title="Comparable Sales" icon={DollarSign} badge={
-              <Badge variant="secondary" className="text-[10px]">{result.comparable_sales.length} comps</Badge>
+              <div className="flex items-center gap-1.5"><SourceTag type="web_search" /><Badge variant="secondary" className="text-[10px]">{result.comparable_sales.length} comps</Badge></div>
             }>
               <div className="overflow-x-auto">
                 <Table>
@@ -584,7 +601,7 @@ export function AreaResearchTab({ propertyId, address, city, zoning, latitude, l
           {/* Active Listings */}
           {result.active_listings && result.active_listings.length > 0 && (
             <Section title="Active Listings" icon={Home} badge={
-              <Badge variant="secondary" className="text-[10px]">{result.active_listings.length} listings</Badge>
+              <div className="flex items-center gap-1.5"><SourceTag type="web_search" /><Badge variant="secondary" className="text-[10px]">{result.active_listings.length} listings</Badge></div>
             }>
               <div className="overflow-x-auto">
                 <Table>
@@ -617,7 +634,7 @@ export function AreaResearchTab({ propertyId, address, city, zoning, latitude, l
 
           {/* Zoning Information */}
           {result.zoning_info && (
-            <Section title="Zoning Information" icon={Landmark}>
+            <Section title="Zoning Information" icon={Landmark} badge={<SourceTag type="municipal" />}>
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="space-y-3">
                   <div>
@@ -668,7 +685,7 @@ export function AreaResearchTab({ propertyId, address, city, zoning, latitude, l
 
           {/* Rezoning Activity */}
           {result.rezoning_activity && result.rezoning_activity.length > 0 && (
-            <Section title="Rezoning Applications" icon={Landmark} defaultOpen={false}>
+            <Section title="Rezoning Applications" icon={Landmark} defaultOpen={false} badge={<SourceTag type="municipal" />}>
               <div className="space-y-3">
                 {result.rezoning_activity.map((rz, i) => (
                   <div key={i} className="rounded-lg border p-3 space-y-1">
@@ -688,7 +705,7 @@ export function AreaResearchTab({ propertyId, address, city, zoning, latitude, l
 
           {/* Rental Market */}
           {result.rental_market && (
-            <Section title="Rental Market" icon={DollarSign}>
+            <Section title="Rental Market" icon={DollarSign} badge={<SourceTag type="cmhc" />}>
               <div className="grid gap-4 sm:grid-cols-2">
                 <div>
                   <div className="grid grid-cols-2 gap-3">
@@ -732,7 +749,7 @@ export function AreaResearchTab({ propertyId, address, city, zoning, latitude, l
 
           {/* Demographics */}
           {result.demographics && (
-            <Section title="Demographics & Accessibility" icon={Users} defaultOpen={false}>
+            <Section title="Demographics & Accessibility" icon={Users} defaultOpen={false} badge={<SourceTag type="municipal" />}>
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="space-y-3">
                   <div className="grid grid-cols-2 gap-3">
@@ -791,7 +808,7 @@ export function AreaResearchTab({ propertyId, address, city, zoning, latitude, l
           {/* Development Activity */}
           {result.development_activity && result.development_activity.length > 0 && (
             <Section title="Nearby Development Activity" icon={Building2} defaultOpen={false} badge={
-              <Badge variant="secondary" className="text-[10px]">{result.development_activity.length} projects</Badge>
+              <div className="flex items-center gap-1.5"><SourceTag type="municipal" /><Badge variant="secondary" className="text-[10px]">{result.development_activity.length} projects</Badge></div>
             }>
               <div className="space-y-3">
                 {result.development_activity.map((dev, i) => (
@@ -814,7 +831,7 @@ export function AreaResearchTab({ propertyId, address, city, zoning, latitude, l
 
           {/* Market Insights */}
           {result.market_insights && (
-            <Section title="Market Insights" icon={BarChart3}>
+            <Section title="Market Insights" icon={BarChart3} badge={<SourceTag type="ai_analysis" />}>
               <div className="grid gap-3 grid-cols-2 sm:grid-cols-3">
                 <div className="rounded-lg border p-3 text-center">
                   <p className="text-lg font-bold">{formatCurrency(result.market_insights.median_home_price)}</p>
@@ -848,7 +865,7 @@ export function AreaResearchTab({ propertyId, address, city, zoning, latitude, l
 
           {/* Risks & Considerations */}
           {result.risks_and_considerations && result.risks_and_considerations.length > 0 && (
-            <Section title="Risks & Considerations" icon={AlertTriangle} defaultOpen={false}>
+            <Section title="Risks & Considerations" icon={AlertTriangle} defaultOpen={false} badge={<SourceTag type="ai_analysis" />}>
               <div className="space-y-3">
                 {result.risks_and_considerations.map((risk, i) => (
                   <div key={i} className="rounded-lg border p-3 space-y-1">
@@ -870,7 +887,7 @@ export function AreaResearchTab({ propertyId, address, city, zoning, latitude, l
 
           {/* Redevelopment Potential */}
           {result.redevelopment_potential && (
-            <Section title="Redevelopment Potential" icon={Target}>
+            <Section title="Redevelopment Potential" icon={Target} badge={<SourceTag type="ai_analysis" />}>
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="space-y-3">
                   <div className="flex items-center gap-4">
