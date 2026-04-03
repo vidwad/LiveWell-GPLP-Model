@@ -912,17 +912,122 @@ CRITICAL COORDINATE RULES:
 
 Be specific with numbers. Use realistic values for {city}, {province}. Do not use placeholder text."""
 
-    result = _call_claude_json(prompt, max_tokens=4096)
+    # ── Use OpenAI with web search for REAL data ──
+    # Multi-step: search for each data category, then combine into structured JSON
+    import os, json, re
+
+    openai_key = os.environ.get("OPENAI_API_KEY")
+    if not openai_key:
+        from app.db.session import SessionLocal
+        from app.db.models import PlatformSetting
+        _db = SessionLocal()
+        _setting = _db.query(PlatformSetting).filter(PlatformSetting.key == "OPENAI_API_KEY").first()
+        openai_key = _setting.value if _setting else None
+        _db.close()
+
+    if not openai_key:
+        # Fall back to Claude without web search
+        result = _call_claude_json(prompt, max_tokens=4096)
+        if result and "summary" in result:
+            result["address"] = address
+            result["city"] = city
+            result["radius_miles"] = radius_miles
+            if subject_lat and subject_lng:
+                result["subject_location"] = {"lat": subject_lat, "lng": subject_lng}
+            return result
+        return _area_research_fallback(address, city, radius_miles, zoning)
+
+    from openai import OpenAI as _OpenAI
+    client = _OpenAI(api_key=openai_key)
+
+    # Step 1: Web search for real area data across multiple categories
+    search_queries = [
+        f"Recent home sales near {address}, {city} {province} in the last 12 months, with prices and addresses",
+        f"Active real estate listings near {address}, {city} {province}, with prices and details",
+        f"Rezoning applications and development permits near {address}, {city} {province}, approved or pending",
+        f"New development projects and construction near {address}, {city} {province}",
+        f"Rental market data for {city} {province} neighbourhood near {address}, average rents, vacancy rates",
+        f"Zoning bylaw for {zoning or 'residential'} zone in {city} {province}, permitted uses, density, height limits",
+        f"Demographics and population data for neighbourhood near {address}, {city} {province}",
+    ]
+
+    search_results = []
+    for query in search_queries:
+        try:
+            resp = client.responses.create(
+                model="gpt-4o",
+                tools=[{"type": "web_search_preview"}],
+                input=query,
+            )
+            search_results.append(resp.output_text.strip())
+        except Exception:
+            search_results.append("")
+
+    combined_research = "\n\n---\n\n".join([
+        f"SEARCH: {q}\nRESULTS:\n{r}" for q, r in zip(search_queries, search_results) if r
+    ])
+
+    # Step 2: Convert all search results into structured JSON
+    coord_info = ""
+    if subject_lat and subject_lng:
+        coord_info = f"\nSubject property coordinates: lat={subject_lat}, lng={subject_lng}. All nearby items must be within {radius_miles} miles."
+
+    json_prompt = f"""Convert the following REAL research data into a structured JSON report for {address}, {city}.
+{coord_info}
+
+IMPORTANT: Use ONLY data that was actually found in the search results below. Do NOT fabricate or estimate data.
+If data for a section was not found, use empty arrays or null values. Mark any items as real data from search.
+
+Research Data:
+{combined_research}
+
+Return a JSON object with these exact keys:
+1. "summary" — 3-4 sentence executive summary based on the REAL data found
+2. "subject_location" — {{"lat": number, "lng": number}}
+3. "comparable_sales" — array of real recent sales found, each with: address, lat, lng, sale_price, sale_date, property_type, bedrooms, lot_size_sqft, price_per_sqft, notes
+4. "active_listings" — array of real listings found, each with: address, lat, lng, list_price, property_type, bedrooms, days_on_market, status
+5. "zoning_info" — real zoning data: current_zoning, zoning_description, max_density, max_height, setback_requirements, parking_requirements, permitted_uses (array), discretionary_uses (array)
+6. "rezoning_activity" — array of real rezoning applications: location, lat, lng, from_zone, to_zone, status, application_date, description
+7. "rental_market" — real rental data: average_rent_1br, average_rent_2br, average_rent_3br, average_rent_per_bed, vacancy_rate_pct, rent_trend, rent_growth_annual_pct, notes
+8. "demographics" — real data: population, median_household_income, median_age, population_growth_pct, major_employers (array), transit_access, walk_score_estimate
+9. "development_activity" — array of real projects: project_name, location, lat, lng, type, units, status, estimated_completion, description
+10. "market_insights" — median_home_price, price_trend, price_growth_annual_pct, avg_days_on_market, absorption_rate, investment_grade, opportunity_score
+11. "risks_and_considerations" — array: category, description, severity, mitigation
+12. "redevelopment_potential" — score, rationale, best_use_recommendation, estimated_arv, key_considerations (array)
+
+For coordinates, use realistic lat/lng for {city} area near {address}. Calgary is ~51.04, -114.07. Edmonton is ~53.54, -113.49.
+Return ONLY valid JSON."""
+
+    try:
+        json_resp = client.chat.completions.create(
+            model="gpt-4o",
+            messages=[{"role": "user", "content": json_prompt}],
+            max_tokens=4096,
+        )
+        text = json_resp.choices[0].message.content.strip()
+        text = re.sub(r"^```(?:json)?\s*", "", text)
+        text = re.sub(r"\s*```$", "", text)
+        text = text.strip()
+
+        if text.startswith("{"):
+            result = json.loads(text)
+        else:
+            start = text.find("{")
+            end = text.rfind("}") + 1
+            result = json.loads(text[start:end]) if start >= 0 else {}
+    except Exception:
+        result = {}
+
     if result and "summary" in result:
         result["address"] = address
         result["city"] = city
         result["radius_miles"] = radius_miles
-        # Override subject_location with real coordinates if available
+        result["data_source"] = "web_search"
         if subject_lat and subject_lng:
             result["subject_location"] = {"lat": subject_lat, "lng": subject_lng}
         return result
 
-    # Fallback with structured mock data
+    # Final fallback
     return _area_research_fallback(address, city, radius_miles, zoning)
 
 
