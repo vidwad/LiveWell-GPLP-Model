@@ -55,9 +55,14 @@ export function RentRollTab({ propertyId, canEdit, property, activePhase }: Rent
   const [newBedRent, setNewBedRent] = useState("1400");
   const [newBedRoom, setNewBedRoom] = useState<number>(1);
 
+  // Phase filtering: determine which sections to show
+  const showBaseline = !activePhase || activePhase === "as_is";
+  const showDevelopmentPlans = !activePhase || activePhase === "post_renovation" || activePhase === "full_development";
+
   return (
     <div className="space-y-6">
       {/* BASELINE (As-Acquired) */}
+      {showBaseline && <>
       <div>
         <div className="flex items-center gap-2 mb-4">
           <div className="h-8 w-1 bg-blue-600 rounded" />
@@ -288,8 +293,11 @@ export function RentRollTab({ propertyId, canEdit, property, activePhase }: Rent
         canEdit={canEdit}
         label="Ancillary Revenue — Baseline"
       />
+      </>}
+
 
       {/* DEVELOPMENT PLAN PHASES */}
+      {showDevelopmentPlans && <>
       {((rentRollData as RentRollResponse | undefined)?.plan_phases || []).map((plan: RentRollPlanPhase, planIdx: number) => {
         const pr = plan.rent_roll;
         const comp = plan.comparison_vs_previous;
@@ -728,6 +736,7 @@ export function RentRollTab({ propertyId, canEdit, property, activePhase }: Rent
           </CardContent>
         </Card>
       )}
+      </>}
     </div>
   );
 }

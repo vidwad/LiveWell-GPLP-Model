@@ -4,6 +4,7 @@ import React, { useState } from "react";
 import { MapPin, DollarSign, Calendar, Building2, Landmark, TrendingUp, Pencil, Loader2, Sparkles, RefreshCw, AlertTriangle } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -195,7 +196,9 @@ export function OverviewTab({
   totalDebtOutstanding,
   debtFacilitiesCount,
   onPropertyUpdated,
+  activePhase,
 }: OverviewTabProps) {
+  const phaseLabel = activePhase === "as_is" ? "As-Is" : activePhase === "post_renovation" ? "Post-Renovation" : activePhase === "full_development" ? "Full Development" : null;
   return (
     <div className="space-y-6">
       {/* AI Preliminary Property Assessment */}
@@ -294,6 +297,9 @@ export function OverviewTab({
             <CardTitle className="text-base flex items-center gap-2">
               <DollarSign className="h-4 w-4 text-muted-foreground" />
               Financial Snapshot
+              {phaseLabel && (
+                <Badge variant="secondary" className="ml-2 text-xs">{phaseLabel}</Badge>
+              )}
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -318,19 +324,20 @@ export function OverviewTab({
                 <dt className="text-muted-foreground shrink-0">Outstanding</dt>
                 <dd className="font-medium text-right text-amber-600 tabular-nums whitespace-nowrap">{totalDebtOutstanding > 0 ? formatCurrencyCompact(totalDebtOutstanding) : "$0"}</dd>
               </div>
-              {activePlan && (
+              {/* Show construction cost only for development phases or when no phase filter */}
+              {(!activePhase || activePhase === "full_development" || activePhase === "post_renovation") && activePlan && (
                 <>
                   <div className="flex justify-between gap-4 py-2.5 border-b border-dashed">
                     <dt className="text-muted-foreground shrink-0">Construction Cost</dt>
-                    <dd className="font-medium text-right tabular-nums whitespace-nowrap">{activePlan.estimated_construction_cost ? formatCurrencyCompact(activePlan.estimated_construction_cost) : "—"}</dd>
+                    <dd className="font-medium text-right tabular-nums whitespace-nowrap">{activePlan.estimated_construction_cost ? formatCurrencyCompact(activePlan.estimated_construction_cost) : "\u2014"}</dd>
                   </div>
                   <div className="flex justify-between gap-4 py-2.5">
-                    <dt className="text-muted-foreground shrink-0">Annual NOI</dt>
-                    <dd className="font-semibold text-right text-green-600 tabular-nums whitespace-nowrap">{activePlan.projected_annual_noi ? formatCurrencyCompact(activePlan.projected_annual_noi) : "—"}</dd>
+                    <dt className="text-muted-foreground shrink-0">Projected NOI</dt>
+                    <dd className="font-semibold text-right text-green-600 tabular-nums whitespace-nowrap">{activePlan.projected_annual_noi ? formatCurrencyCompact(activePlan.projected_annual_noi) : "\u2014"}</dd>
                   </div>
                 </>
               )}
-              {!activePlan && (
+              {(!activePhase || activePhase === "full_development" || activePhase === "post_renovation") && !activePlan && (
                 <div className="flex justify-between py-2">
                   <dt className="text-muted-foreground">Development Plan</dt>
                   <dd className="text-muted-foreground italic">No active plan</dd>

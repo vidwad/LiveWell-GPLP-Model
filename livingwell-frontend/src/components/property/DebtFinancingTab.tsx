@@ -146,10 +146,23 @@ interface DebtFinancingTabProps {
   totalDebtCommitment: number;
   totalDebtOutstanding: number;
   totalAnnualDebtService: number;
+  activePhase?: "as_is" | "post_renovation" | "full_development";
 }
 
-export function DebtFinancingTab({ propertyId, canEdit, property, totalDebtCommitment, totalDebtOutstanding, totalAnnualDebtService }: DebtFinancingTabProps) {
-  const { data: debtFacilities } = useDebtFacilities(propertyId);
+export function DebtFinancingTab({ propertyId, canEdit, property, totalDebtCommitment, totalDebtOutstanding, totalAnnualDebtService, activePhase }: DebtFinancingTabProps) {
+  const { data: allDebtFacilities } = useDebtFacilities(propertyId);
+
+  // Phase-aware filtering: map debt types to lifecycle phases
+  const debtFacilities = (() => {
+    if (!allDebtFacilities || !activePhase) return allDebtFacilities;
+    const phaseDebtTypes: Record<string, string[]> = {
+      as_is: ["permanent_mortgage", "bridge_loan", "line_of_credit"],
+      post_renovation: ["permanent_mortgage", "bridge_loan", "line_of_credit", "mezzanine"],
+      full_development: ["construction_loan", "permanent_mortgage", "mezzanine"],
+    };
+    const allowedTypes = phaseDebtTypes[activePhase] || [];
+    return allDebtFacilities.filter((d: DebtFacility) => allowedTypes.includes(d.debt_type));
+  })();
   const createDebt = useCreateDebtFacility(propertyId);
   const updateDebt = useUpdateDebtFacility(propertyId);
 

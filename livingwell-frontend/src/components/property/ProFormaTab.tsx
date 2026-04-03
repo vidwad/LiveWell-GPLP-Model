@@ -75,12 +75,12 @@ export function ProFormaTab({ propertyId, activePhase }: { propertyId: number; a
 
   const generateMutation = useMutation({
     mutationFn: (params: typeof inputs) =>
-      apiClient.post<ProFormaData>(`/api/portfolio/properties/${propertyId}/pro-forma/generate`, params).then(r => r.data),
+      apiClient.post<ProFormaData>(`/api/portfolio/properties/${propertyId}/pro-forma/generate`, { ...params, phase: activePhase || undefined }).then(r => r.data),
   });
 
   const saveMutation = useMutation({
     mutationFn: (params: typeof inputs) =>
-      apiClient.post<ProFormaData>(`/api/portfolio/properties/${propertyId}/pro-forma/save`, params).then(r => r.data),
+      apiClient.post<ProFormaData>(`/api/portfolio/properties/${propertyId}/pro-forma/save`, { ...params, phase: activePhase || undefined }).then(r => r.data),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["pro-formas", propertyId] }),
   });
 
@@ -112,6 +112,11 @@ export function ProFormaTab({ propertyId, activePhase }: { propertyId: number; a
           <CardTitle className="flex items-center gap-2">
             <Calculator className="h-5 w-5" />
             Stabilized Pro Forma Generator
+            {activePhase && (
+              <Badge variant="secondary" className="ml-2 text-xs">
+                {activePhase === "as_is" ? "As-Is" : activePhase === "post_renovation" ? "Post-Renovation" : "Full Development"}
+              </Badge>
+            )}
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -272,7 +277,7 @@ export function ProFormaTab({ propertyId, activePhase }: { propertyId: number; a
       {/* Granular Operating Expenses */}
       <OperatingExpensesSection
         propertyId={propertyId}
-        planId={null}
+        planId={activePhase === "full_development" || activePhase === "post_renovation" ? undefined : null}
         canEdit={true}
       />
 

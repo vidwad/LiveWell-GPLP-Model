@@ -143,7 +143,12 @@ export function UnitsBedsTab({ propertyId, canEdit, activePhase }: UnitsBedsTabP
     </div>
   );
 
-  /* ── Shared unit mix + floor breakdown renderer ── */
+  // Phase filtering: determine which sections to show
+  const showBaseline = !activePhase || activePhase === "as_is";
+  const showRedevelopment = !activePhase || activePhase === "post_renovation" || activePhase === "full_development";
+  const showNetImpact = !activePhase || activePhase === "post_renovation" || activePhase === "full_development";
+
+  /* ---- Shared unit mix + floor breakdown renderer ---- */
   const renderMixAndFloor = (s: UnitSummaryBase) => (
     <div className="grid gap-6 lg:grid-cols-2">
       <Card>
@@ -191,7 +196,7 @@ export function UnitsBedsTab({ propertyId, canEdit, activePhase }: UnitsBedsTabP
   return (
     <div className="space-y-6">
       {/* SECTION 1: CURRENT OPERATIONS (Baseline / As-Acquired Units) */}
-      <div>
+      {showBaseline && <div>
         <div className="flex items-center gap-2 mb-4">
           <div className="h-8 w-1 bg-blue-600 rounded" />
           <Home className="h-5 w-5 text-blue-600" />
@@ -331,10 +336,10 @@ export function UnitsBedsTab({ propertyId, canEdit, activePhase }: UnitsBedsTabP
             )}
           </CardContent>
         </Card>
-      </div>
+      </div>}
 
       {/* SECTION 2: REDEVELOPMENT PLAN (Planned Units) */}
-      {hasRedev && redevPhases.map((phase: RedevelopmentPhase) => (
+      {showRedevelopment && hasRedev && redevPhases.map((phase: RedevelopmentPhase) => (
         <div key={phase.plan_id}>
           <div className="flex items-center gap-2 mb-4 mt-2">
             <div className="h-8 w-1 bg-amber-500 rounded" />
@@ -431,7 +436,7 @@ export function UnitsBedsTab({ propertyId, canEdit, activePhase }: UnitsBedsTabP
       ))}
 
       {/* SECTION 3: NET IMPACT OF REDEVELOPMENT */}
-      {hasRedev && unitSummary?.net_impact && (() => {
+      {showNetImpact && hasRedev && unitSummary?.net_impact && (() => {
         const ni = unitSummary.net_impact;
         const fmtDelta = (v: number) => {
           if (v > 0) return `+${v.toLocaleString()}`;

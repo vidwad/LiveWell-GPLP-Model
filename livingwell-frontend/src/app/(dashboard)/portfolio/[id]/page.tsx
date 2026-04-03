@@ -401,6 +401,7 @@ export default function PropertyDetailPage({ params }: { params: { id: string } 
             totalDebtCommitment={totalDebtCommitment}
             totalDebtOutstanding={totalDebtOutstanding}
             totalAnnualDebtService={totalAnnualDebtService}
+            activePhase={activePhase}
           />
         </TabsContent>
 
