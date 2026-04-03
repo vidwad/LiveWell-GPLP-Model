@@ -549,6 +549,13 @@ class ConstructionBudgetSummary(BaseModel):
     total_actual: Decimal
     total_variance: Decimal
     by_category: dict[str, dict]
+    # Cost metrics
+    cost_per_unit: float | None = None
+    cost_per_sqft: float | None = None
+    cost_per_bed: float | None = None
+    total_units: int | None = None
+    building_sqft: float | None = None
+    total_beds: int | None = None
 
 
 # ---------------------------------------------------------------------------

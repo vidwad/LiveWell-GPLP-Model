@@ -356,6 +356,39 @@ export function ConstructionBudgetTab({ propertyId, canEdit }: Props) {
         </Card>
       </div>
 
+      {/* ── Cost Metrics ── */}
+      {totalBudgeted > 0 && (summary?.cost_per_unit || summary?.cost_per_sqft || summary?.cost_per_bed) && (
+        <div className="grid grid-cols-3 gap-4">
+          {summary?.cost_per_unit != null && (
+            <Card className="border-l-4 border-l-indigo-500">
+              <CardContent className="pt-4 pb-3 px-4">
+                <p className="text-xs text-muted-foreground font-medium">Cost / Unit</p>
+                <p className="text-lg font-bold">{formatCurrency(summary.cost_per_unit)}</p>
+                <p className="text-xs text-muted-foreground">{summary.total_units} unit{summary.total_units !== 1 ? "s" : ""}</p>
+              </CardContent>
+            </Card>
+          )}
+          {summary?.cost_per_sqft != null && (
+            <Card className="border-l-4 border-l-teal-500">
+              <CardContent className="pt-4 pb-3 px-4">
+                <p className="text-xs text-muted-foreground font-medium">Cost / Sq Ft</p>
+                <p className="text-lg font-bold">{formatCurrency(summary.cost_per_sqft)}</p>
+                <p className="text-xs text-muted-foreground">{Number(summary.building_sqft ?? 0).toLocaleString()} sq ft</p>
+              </CardContent>
+            </Card>
+          )}
+          {summary?.cost_per_bed != null && (
+            <Card className="border-l-4 border-l-pink-500">
+              <CardContent className="pt-4 pb-3 px-4">
+                <p className="text-xs text-muted-foreground font-medium">Cost / Bed</p>
+                <p className="text-lg font-bold">{formatCurrency(summary.cost_per_bed)}</p>
+                <p className="text-xs text-muted-foreground">{summary.total_beds} bed{summary.total_beds !== 1 ? "s" : ""}</p>
+              </CardContent>
+            </Card>
+          )}
+        </div>
+      )}
+
       {/* ── Budget Progress Bar ── */}
       {totalBudgeted > 0 && (
         <Card>
@@ -536,6 +569,7 @@ export function ConstructionBudgetTab({ propertyId, canEdit }: Props) {
                     <TableHead className="text-right">Budgeted</TableHead>
                     <TableHead className="text-right">Actual</TableHead>
                     <TableHead className="text-right">Variance</TableHead>
+                    <TableHead className="text-right">% of Budget</TableHead>
                     {canEdit && <TableHead className="text-right">Actions</TableHead>}
                   </TableRow>
                 </TableHeader>
@@ -578,6 +612,7 @@ export function ConstructionBudgetTab({ propertyId, canEdit }: Props) {
                             <Input className="h-8 w-24 text-right" type="number" step="0.01" value={expenseForm.actual_amount} onChange={(e) => setExpenseForm((f) => ({ ...f, actual_amount: e.target.value }))} />
                           </TableCell>
                           <TableCell />
+                          <TableCell />
                           <TableCell className="text-right">
                             <div className="flex items-center justify-end gap-1">
                               <Button variant="ghost" size="icon" className="h-7 w-7 text-green-600" onClick={() => handleUpdateExpense(exp.expense_id)}>
@@ -608,6 +643,9 @@ export function ConstructionBudgetTab({ propertyId, canEdit }: Props) {
                         <TableCell className="text-right tabular-nums">{formatCurrency(actual)}</TableCell>
                         <TableCell className={cn("text-right tabular-nums font-medium", variance >= 0 ? "text-green-600" : "text-red-600")}>
                           {variance >= 0 ? "" : "-"}{formatCurrency(Math.abs(variance))}
+                        </TableCell>
+                        <TableCell className="text-right tabular-nums text-muted-foreground">
+                          {totalBudgeted > 0 ? `${((budgeted / totalBudgeted) * 100).toFixed(1)}%` : "—"}
                         </TableCell>
                         {canEdit && (
                           <TableCell className="text-right">

@@ -146,6 +146,20 @@ def get_construction_budget_summary(
         by_category[cat]["variance"] = by_category[cat]["budgeted"] - by_category[cat]["actual"]
         by_category[cat] = {k: float(v) for k, v in by_category[cat].items()}
 
+    # ── Cost metrics: $/unit, $/sqft, $/bed ──
+    prop = db.query(Property).filter(Property.property_id == property_id).first()
+    plan = db.query(DevelopmentPlan).filter(DevelopmentPlan.plan_id == plan_id).first()
+
+    # Use plan's target units/beds if available, else baseline property counts
+    total_units = int(plan.target_units or 0) if plan and plan.target_units else int(prop.bedrooms or 0) if prop else 0
+    building_sqft = float(plan.target_sqft or 0) if plan and hasattr(plan, 'target_sqft') and plan.target_sqft else float(prop.building_sqft or 0) if prop else 0
+    total_beds = int(plan.target_beds or 0) if plan and hasattr(plan, 'target_beds') and plan.target_beds else total_units
+
+    budget_f = float(total_budgeted)
+    cost_per_unit = round(budget_f / total_units, 2) if total_units > 0 else None
+    cost_per_sqft = round(budget_f / building_sqft, 2) if building_sqft > 0 else None
+    cost_per_bed = round(budget_f / total_beds, 2) if total_beds > 0 else None
+
     return ConstructionBudgetSummary(
         property_id=property_id,
         plan_id=plan_id,
@@ -154,6 +168,12 @@ def get_construction_budget_summary(
         total_actual=total_actual,
         total_variance=total_budgeted - total_actual,
         by_category=by_category,
+        cost_per_unit=cost_per_unit,
+        cost_per_sqft=cost_per_sqft,
+        cost_per_bed=cost_per_bed,
+        total_units=total_units,
+        building_sqft=building_sqft,
+        total_beds=total_beds,
     )
 
 

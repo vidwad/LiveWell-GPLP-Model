@@ -48,9 +48,10 @@ import type {
 interface UnitsBedsTabProps {
   propertyId: number;
   canEdit: boolean;
+  activePhase?: "as_is" | "post_renovation" | "full_development";
 }
 
-export function UnitsBedsTab({ propertyId, canEdit }: UnitsBedsTabProps) {
+export function UnitsBedsTab({ propertyId, canEdit, activePhase }: UnitsBedsTabProps) {
   const { data: units } = usePropertyUnits(propertyId);
   const { data: unitSummary } = usePropertyUnitSummary(propertyId);
   const createUnit = useCreatePropertyUnit(propertyId);

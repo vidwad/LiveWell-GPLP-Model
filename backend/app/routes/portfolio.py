@@ -641,6 +641,8 @@ class _YearProjectionOut(_BaseModel):
     annual_debt_service: float
     cash_flow: float
     cumulative_cash_flow: float
+    implied_cap_rate: float = 0.0
+    implied_value: float = 0.0
 
 
 class _FeesSummaryOut(_BaseModel):
@@ -739,6 +741,8 @@ class _ProjectionInput(_BaseModel):
     property_fmv_at_turnover: float = 0.0     # FMV at turnover
     lp_profit_share: float = 0.70             # 70% to LP
     gp_profit_share: float = 0.30             # 30% to GP
+    # Variable cap rate curve: {"1": 0.06, "5": 0.055, "10": 0.05}
+    cap_rate_curve: dict | None = None
 
 
 @router.post("/properties/{property_id}/projection", response_model=_ProjectionResultOut)
@@ -917,6 +921,7 @@ def run_projection(
         property_fmv_at_turnover=payload.property_fmv_at_turnover,
         lp_profit_share=payload.lp_profit_share,
         gp_profit_share=payload.gp_profit_share,
+        cap_rate_curve=payload.cap_rate_curve,
     )
 
     projections = proj_engine.project()
@@ -955,6 +960,8 @@ def run_projection(
                 annual_debt_service=y.annual_debt_service,
                 cash_flow=y.cash_flow,
                 cumulative_cash_flow=y.cumulative_cash_flow,
+                implied_cap_rate=y.implied_cap_rate,
+                implied_value=y.implied_value,
             )
             for y in projections
         ],

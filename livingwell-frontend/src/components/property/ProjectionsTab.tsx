@@ -28,6 +28,12 @@ interface ProjectionsTabProps {
 export function ProjectionsTab({ propertyId, totalAnnualDebtService }: ProjectionsTabProps) {
   const { mutateAsync: runProjection, isPending: projPending } = useRunProjection(propertyId);
   const [projResults, setProjResults] = useState<ProjectionResult | null>(null);
+  const [useCapRateCurve, setUseCapRateCurve] = useState(false);
+  const [capRateCurvePoints, setCapRateCurvePoints] = useState<{year: string; rate: string}[]>([
+    { year: "1", rate: "6.0" },
+    { year: "5", rate: "5.5" },
+    { year: "10", rate: "5.0" },
+  ]);
   const [projForm, setProjForm] = useState({
     planned_units: "", monthly_rent_per_unit: "", annual_expense_ratio: "35",
     vacancy_rate: "5", annual_rent_increase: "3", expense_growth_rate: "2",
@@ -78,6 +84,9 @@ export function ProjectionsTab({ propertyId, totalAnnualDebtService }: Projectio
         total_equity_invested: projForm.total_equity_invested ? Number(projForm.total_equity_invested) : undefined,
         debt_balance_at_exit: projForm.debt_balance_at_exit ? Number(projForm.debt_balance_at_exit) : undefined,
         carrying_cost_annual: projForm.carrying_cost_annual ? Number(projForm.carrying_cost_annual) : undefined,
+        cap_rate_curve: useCapRateCurve
+          ? Object.fromEntries(capRateCurvePoints.filter(p => p.year && p.rate).map(p => [p.year, Number(p.rate) / 100]))
+          : undefined,
       };
       const result = await runProjection(input) as ProjectionResult;
       setProjResults(result);
@@ -168,6 +177,45 @@ export function ProjectionsTab({ propertyId, totalAnnualDebtService }: Projectio
                 <div className="space-y-1"><Label className="text-xs">Property FMV at Turnover ($)</Label><Input type="number" value={f.property_fmv_at_turnover} onChange={(e) => sf("property_fmv_at_turnover", e.target.value)} placeholder="If applicable" /></div>
               </div>
             </div>
+            {/* Variable Cap Rate Curve */}
+            <div className="rounded-lg border border-teal-200 bg-teal-50/50 p-3 space-y-3">
+              <div className="flex items-center justify-between">
+                <p className="text-xs font-semibold text-teal-700">Variable Cap Rate Curve</p>
+                <label className="flex items-center gap-1.5 cursor-pointer">
+                  <input type="checkbox" checked={useCapRateCurve} onChange={(e) => setUseCapRateCurve(e.target.checked)} className="rounded" />
+                  <span className="text-xs text-muted-foreground">Enable</span>
+                </label>
+              </div>
+              {useCapRateCurve && (
+                <div className="space-y-2">
+                  <p className="text-[10px] text-muted-foreground">Set cap rates at specific years. Values are interpolated between points.</p>
+                  {capRateCurvePoints.map((pt, idx) => (
+                    <div key={idx} className="flex items-center gap-2">
+                      <div className="flex-1 space-y-0.5">
+                        <Label className="text-[10px]">Year</Label>
+                        <Input type="number" min="1" max="30" value={pt.year} onChange={(e) => {
+                          const updated = [...capRateCurvePoints];
+                          updated[idx] = { ...updated[idx], year: e.target.value };
+                          setCapRateCurvePoints(updated);
+                        }} className="h-7 text-xs" />
+                      </div>
+                      <div className="flex-1 space-y-0.5">
+                        <Label className="text-[10px]">Cap Rate (%)</Label>
+                        <Input type="number" step="0.1" value={pt.rate} onChange={(e) => {
+                          const updated = [...capRateCurvePoints];
+                          updated[idx] = { ...updated[idx], rate: e.target.value };
+                          setCapRateCurvePoints(updated);
+                        }} className="h-7 text-xs" />
+                      </div>
+                      <Button type="button" variant="ghost" size="icon" className="h-7 w-7 mt-3 text-red-400 hover:text-red-600" onClick={() => {
+                        if (capRateCurvePoints.length > 1) setCapRateCurvePoints(capRateCurvePoints.filter((_, i) => i !== idx));
+                      }}>&times;</Button>
+                    </div>
+                  ))}
+                  <Button type="button" variant="outline" size="sm" className="w-full text-xs" onClick={() => setCapRateCurvePoints([...capRateCurvePoints, { year: "", rate: "" }])}>+ Add Point</Button>
+                </div>
+              )}
+            </div>
             {/* Profit Sharing */}
             <div className="rounded-lg border border-indigo-200 bg-indigo-50/50 p-3 space-y-3">
               <p className="text-xs font-semibold text-indigo-700">Profit Sharing</p>
@@ -203,7 +251,7 @@ export function ProjectionsTab({ propertyId, totalAnnualDebtService }: Projectio
               <CardContent>
                 <div className="overflow-x-auto rounded-lg border">
                   <Table>
-                    <TableHeader><TableRow className="bg-muted/50"><TableHead>Year</TableHead><TableHead>Phase</TableHead><TableHead className="text-right">Gross Potential Rent</TableHead><TableHead className="text-right">Vacancy Loss</TableHead><TableHead className="text-right">EGI</TableHead><TableHead className="text-right">OpEx</TableHead><TableHead className="text-right">NOI</TableHead><TableHead className="text-right">Debt Svc</TableHead><TableHead className="text-right">Cash Flow</TableHead><TableHead className="text-right">Cumulative</TableHead></TableRow></TableHeader>
+                    <TableHeader><TableRow className="bg-muted/50"><TableHead>Year</TableHead><TableHead>Phase</TableHead><TableHead className="text-right">Gross Potential Rent</TableHead><TableHead className="text-right">Vacancy Loss</TableHead><TableHead className="text-right">EGI</TableHead><TableHead className="text-right">OpEx</TableHead><TableHead className="text-right">NOI</TableHead><TableHead className="text-right">Debt Svc</TableHead><TableHead className="text-right">Cash Flow</TableHead><TableHead className="text-right">Cumulative</TableHead>{useCapRateCurve && <><TableHead className="text-right">Cap Rate</TableHead><TableHead className="text-right">Implied Value</TableHead></>}</TableRow></TableHeader>
                     <TableBody>
                       {projResults.projections.map((row, i) => (
                         <TableRow key={i} className={String(row.phase) === "construction" ? "bg-red-50/30" : String(row.phase) === "lease_up" ? "bg-yellow-50/30" : ""}>
@@ -217,6 +265,7 @@ export function ProjectionsTab({ propertyId, totalAnnualDebtService }: Projectio
                           <TableCell className="text-right">{formatCurrency(row.annual_debt_service)}</TableCell>
                           <TableCell className={cn("text-right font-semibold", row.cash_flow < 0 ? "text-red-600" : "text-green-600")}>{formatCurrency(row.cash_flow)}</TableCell>
                           <TableCell className={cn("text-right", row.cumulative_cash_flow < 0 ? "text-red-600" : "text-green-600")}>{formatCurrency(row.cumulative_cash_flow)}</TableCell>
+                          {useCapRateCurve && <><TableCell className="text-right text-teal-600">{(row.implied_cap_rate ?? 0) > 0 ? `${((row.implied_cap_rate ?? 0) * 100).toFixed(2)}%` : "\u2014"}</TableCell><TableCell className="text-right text-teal-700 font-medium">{(row.implied_value ?? 0) > 0 ? formatCurrency(row.implied_value ?? 0) : "\u2014"}</TableCell></>}
                         </TableRow>
                       ))}
                     </TableBody>

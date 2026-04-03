@@ -26,6 +26,7 @@ interface OverviewTabProps {
   totalDebtOutstanding: number;
   debtFacilitiesCount: number;
   onPropertyUpdated?: () => void;
+  activePhase?: "as_is" | "post_renovation" | "full_development";
 }
 
 function EditPropertyDialog({ property, onSaved }: { property: Record<string, any>; onSaved: () => void }) {

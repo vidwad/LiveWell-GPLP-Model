@@ -308,6 +308,8 @@ export interface ProjectionRow {
   annual_debt_service: number;
   cash_flow: number;
   cumulative_cash_flow: number;
+  implied_cap_rate?: number;
+  implied_value?: number;
 }
 
 export interface ProjectionFees {
@@ -547,6 +549,7 @@ export interface ProjectionInput {
   total_equity_invested?: number;
   debt_balance_at_exit?: number;
   carrying_cost_annual?: number;
+  cap_rate_curve?: Record<string, number>;
 }
 
 // ── Valuation Types ─────────────────────────────────────────────────
@@ -623,6 +626,12 @@ export interface ConstructionBudgetSummary {
   total_actual: string;
   total_variance: string;
   by_category: Record<string, { budgeted: number; actual: number; variance: number }>;
+  cost_per_unit?: number | null;
+  cost_per_sqft?: number | null;
+  cost_per_bed?: number | null;
+  total_units?: number | null;
+  total_beds?: number | null;
+  building_sqft?: number | null;
 }
 
 export interface ConstructionDraw {

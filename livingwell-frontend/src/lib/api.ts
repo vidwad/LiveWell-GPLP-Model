@@ -275,6 +275,17 @@ export const documents = {
     apiClient.get(`/api/documents/${documentId}/download`, { responseType: "blob" }).then(r => r.data),
   markViewed: (documentId: number) =>
     apiClient.patch(`/api/documents/${documentId}/viewed`).then(r => r.data),
+  // Property Documents
+  listByProperty: (propertyId: number, category?: string) =>
+    apiClient.get(`/api/documents/property/${propertyId}`, { params: category ? { category } : {} }).then(r => r.data),
+  uploadPropertyDocument: (propertyId: number, formData: FormData) =>
+    apiClient.post(`/api/documents/property/${propertyId}/upload`, formData, {
+      headers: { "Content-Type": "multipart/form-data" },
+    }).then(r => r.data),
+  deletePropertyDocument: (documentId: number) =>
+    apiClient.delete(`/api/documents/property-doc/${documentId}`).then(r => r.data),
+  downloadPropertyDocument: (documentId: number) =>
+    apiClient.get(`/api/documents/property-doc/${documentId}/download`, { responseType: "blob" }).then(r => r.data),
 };
 
 // ── Property Managers ──────────────────────────────────────────────────

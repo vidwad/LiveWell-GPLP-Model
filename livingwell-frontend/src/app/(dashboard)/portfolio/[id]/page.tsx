@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { useState } from "react";
 import { useRouter } from "next/navigation";
 import { ProFormaTab } from "@/components/property/ProFormaTab";
 import { AreaResearchTab } from "@/components/property/AreaResearchTab";
@@ -14,6 +14,7 @@ import { DevPlansTab } from "@/components/property/DevPlansTab";
 import { DebtFinancingTab } from "@/components/property/DebtFinancingTab";
 import { ProjectionsTab } from "@/components/property/ProjectionsTab";
 import { ExitScenariosTab } from "@/components/property/ExitScenariosTab";
+import { PropertyDocumentsTab } from "@/components/property/PropertyDocumentsTab";
 import { toast } from "sonner";
 import {
   ArrowLeft,
@@ -34,6 +35,9 @@ import {
   Upload,
   Loader2,
   ExternalLink,
+  FolderOpen,
+  Eye,
+  Wrench,
 } from "lucide-react";
 import {
   useProperty,
@@ -118,6 +122,7 @@ export default function PropertyDetailPage({ params }: { params: { id: string } 
   const { data: debtFacilities } = useDebtFacilities(propertyId);
 
   const canEdit = user?.role === "DEVELOPER" || user?.role === "GP_ADMIN" || user?.role === "OPERATIONS_MANAGER";
+  const [activePhase, setActivePhase] = useState<"as_is" | "post_renovation" | "full_development">("as_is");
 
   /* ── Computed values ── */
   const totalDebtCommitment = (debtFacilities ?? []).reduce(
@@ -190,10 +195,10 @@ export default function PropertyDetailPage({ params }: { params: { id: string } 
                 <MapPin className="h-3.5 w-3.5" />
                 {property.city}, {property.province}
               </span>
-              {(property.community_focus || property.lp_community_focus) && (
+              {((property as Record<string, any>).community_focus || (property as Record<string, any>).lp_community_focus) && (
                 <span className="flex items-center gap-1 text-purple-600 font-medium">
                   <Building2 className="h-3.5 w-3.5" />
-                  {property.community_focus || property.lp_community_focus}
+                  {(property as Record<string, any>).community_focus || (property as Record<string, any>).lp_community_focus}
                 </span>
               )}
               {property.lp_name && (
@@ -268,6 +273,48 @@ export default function PropertyDetailPage({ params }: { params: { id: string } 
       </div>
 
       {/* ════════════════════════════════════════════════════════════════════════
+          PHASE SELECTOR
+      ════════════════════════════════════════════════════════════════════════ */}
+      <div className="flex items-center gap-1 p-1 bg-muted/50 rounded-lg w-fit">
+        <button
+          onClick={() => setActivePhase("as_is")}
+          className={cn(
+            "flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-all",
+            activePhase === "as_is"
+              ? "bg-white shadow-sm text-foreground"
+              : "text-muted-foreground hover:text-foreground hover:bg-white/50"
+          )}
+        >
+          <Eye className="h-3.5 w-3.5" />
+          As-Is
+        </button>
+        <button
+          onClick={() => setActivePhase("post_renovation")}
+          className={cn(
+            "flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-all",
+            activePhase === "post_renovation"
+              ? "bg-white shadow-sm text-foreground"
+              : "text-muted-foreground hover:text-foreground hover:bg-white/50"
+          )}
+        >
+          <Wrench className="h-3.5 w-3.5" />
+          Post-Renovation
+        </button>
+        <button
+          onClick={() => setActivePhase("full_development")}
+          className={cn(
+            "flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-all",
+            activePhase === "full_development"
+              ? "bg-white shadow-sm text-foreground"
+              : "text-muted-foreground hover:text-foreground hover:bg-white/50"
+          )}
+        >
+          <HardHat className="h-3.5 w-3.5" />
+          Full Development
+        </button>
+      </div>
+
+      {/* ════════════════════════════════════════════════════════════════════════
           TABS
       ════════════════════════════════════════════════════════════════════════ */}
       <Tabs defaultValue="overview">
@@ -286,6 +333,7 @@ export default function PropertyDetailPage({ params }: { params: { id: string } 
             <TabsTrigger value="exit"><TrendingUp className="h-4 w-4 sm:mr-1.5" /><span className="hidden sm:inline">Exit Scenarios</span></TabsTrigger>
             <TabsTrigger value="valuation"><Banknote className="h-4 w-4 sm:mr-1.5" /><span className="hidden sm:inline">Valuation</span></TabsTrigger>
             <TabsTrigger value="proforma"><Calculator className="h-4 w-4 sm:mr-1.5" /><span className="hidden sm:inline">Pro Forma</span></TabsTrigger>
+            <TabsTrigger value="documents"><FolderOpen className="h-4 w-4 sm:mr-1.5" /><span className="hidden sm:inline">Documents</span></TabsTrigger>
           </TabsList>
         </div>
 
@@ -298,6 +346,7 @@ export default function PropertyDetailPage({ params }: { params: { id: string } 
             totalDebtOutstanding={totalDebtOutstanding}
             debtFacilitiesCount={(debtFacilities ?? []).length}
             onPropertyUpdated={() => refetchProperty()}
+            activePhase={activePhase}
           />
         </TabsContent>
 
@@ -325,12 +374,12 @@ export default function PropertyDetailPage({ params }: { params: { id: string } 
 
         {/* ── Units & Beds ── */}
         <TabsContent value="units" className="mt-6">
-          <UnitsBedsTab propertyId={propertyId} canEdit={canEdit} />
+          <UnitsBedsTab propertyId={propertyId} canEdit={canEdit} activePhase={activePhase} />
         </TabsContent>
 
         {/* ── Rent Roll ── */}
         <TabsContent value="rentroll" className="mt-6">
-          <RentRollTab propertyId={propertyId} canEdit={canEdit} property={property} />
+          <RentRollTab propertyId={propertyId} canEdit={canEdit} property={property} activePhase={activePhase} />
         </TabsContent>
 
         {/* ── Development Plans ── */}
@@ -381,7 +430,12 @@ export default function PropertyDetailPage({ params }: { params: { id: string } 
 
         {/* ── Pro Forma Tab ── */}
         <TabsContent value="proforma" className="mt-4">
-          <ProFormaTab propertyId={propertyId} />
+          <ProFormaTab propertyId={propertyId} activePhase={activePhase} />
+        </TabsContent>
+
+        {/* ── Documents ── */}
+        <TabsContent value="documents" className="mt-6">
+          <PropertyDocumentsTab propertyId={propertyId} canEdit={canEdit} />
         </TabsContent>
 
         {/* ── Photos ── */}

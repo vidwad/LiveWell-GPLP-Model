@@ -36,9 +36,10 @@ interface RentRollTabProps {
   propertyId: number;
   canEdit: boolean;
   property: Record<string, any>;
+  activePhase?: "as_is" | "post_renovation" | "full_development";
 }
 
-export function RentRollTab({ propertyId, canEdit, property }: RentRollTabProps) {
+export function RentRollTab({ propertyId, canEdit, property, activePhase }: RentRollTabProps) {
   const { data: rentRollData } = useRentRoll(propertyId);
   const updatePricingMode = useUpdateRentPricingMode(propertyId);
   const updateAnnualRentIncrease = useUpdateAnnualRentIncrease(propertyId);

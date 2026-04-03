@@ -55,7 +55,7 @@ const fmt = (n: number | null | undefined) => {
 const fmtPct = (n: number | null | undefined) => (n != null ? `${n.toFixed(2)}%` : "—");
 const fmtX = (n: number | null | undefined) => (n != null ? `${n.toFixed(2)}x` : "—");
 
-export function ProFormaTab({ propertyId }: { propertyId: number }) {
+export function ProFormaTab({ propertyId, activePhase }: { propertyId: number; activePhase?: "as_is" | "post_renovation" | "full_development" }) {
   const qc = useQueryClient();
   const [scenarios, setScenarios] = useState<ProFormaData[]>([]);
   const [inputs, setInputs] = useState({

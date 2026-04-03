@@ -40,6 +40,8 @@ class YearProjection:
     annual_debt_service: float
     cash_flow: float              # NOI – Debt Service – construction mgmt fee
     cumulative_cash_flow: float
+    implied_cap_rate: float = 0.0     # variable cap rate for this year
+    implied_value: float = 0.0        # NOI / cap_rate for this year
 
 
 @dataclass
@@ -128,6 +130,9 @@ class LifecycleProjectionEngine:
         total_equity_invested: float = 0.0,
         debt_balance_at_exit: float = 0.0,
         projection_years: int = 10,
+        # Variable cap rate curve: dict of {year: cap_rate}
+        # e.g. {1: 0.06, 5: 0.055, 10: 0.05} — interpolates between points
+        cap_rate_curve: Optional[dict] = None,
         # LP Fee parameters
         management_fee_rate: float = 0.025,       # 2.5% of gross revenues
         construction_mgmt_fee_rate: float = 0.015, # 1.5% of construction budget
@@ -169,6 +174,9 @@ class LifecycleProjectionEngine:
         self.total_equity = total_equity_invested
         self.debt_at_exit = debt_balance_at_exit
         self.projection_years = projection_years
+
+        # Variable cap rate curve
+        self.cap_rate_curve = cap_rate_curve  # {year: cap_rate}
 
         # LP Fee parameters
         self.management_fee_rate = management_fee_rate
@@ -215,6 +223,36 @@ class LifecycleProjectionEngine:
             return 1  # No construction → already stabilized
         lease_up_years = max(1, math.ceil(self.lease_up_months / 12))
         return lu_start + lease_up_years
+
+    # ── Cap rate interpolation ──
+
+    def _get_cap_rate_for_year(self, year: int) -> float:
+        """Get the cap rate for a given year, interpolating between curve points.
+        If no curve is provided, returns the flat exit_cap_rate."""
+        if not self.cap_rate_curve:
+            return self.exit_cap_rate
+
+        # Parse curve keys as integers and sort
+        points = sorted((int(k), float(v)) for k, v in self.cap_rate_curve.items())
+        if not points:
+            return self.exit_cap_rate
+
+        # Before first point
+        if year <= points[0][0]:
+            return points[0][1]
+        # After last point
+        if year >= points[-1][0]:
+            return points[-1][1]
+
+        # Linear interpolation between surrounding points
+        for i in range(len(points) - 1):
+            y1, r1 = points[i]
+            y2, r2 = points[i + 1]
+            if y1 <= year <= y2:
+                t = (year - y1) / (y2 - y1)
+                return round(r1 + t * (r2 - r1), 6)
+
+        return self.exit_cap_rate
 
     # ── Core projection ──
 
@@ -275,6 +313,10 @@ class LifecycleProjectionEngine:
             cash_flow = round(noi - ds - constr_mgmt, 2)
             cumulative_cf = round(cumulative_cf + cash_flow, 2)
 
+            # Variable cap rate and implied value
+            year_cap_rate = self._get_cap_rate_for_year(year)
+            implied_value = round(noi / year_cap_rate, 2) if year_cap_rate > 0 and noi > 0 else 0.0
+
             results.append(YearProjection(
                 year=year,
                 phase=phase,
@@ -291,6 +333,8 @@ class LifecycleProjectionEngine:
                 annual_debt_service=ds,
                 cash_flow=cash_flow,
                 cumulative_cash_flow=cumulative_cf,
+                implied_cap_rate=year_cap_rate,
+                implied_value=implied_value,
             ))
 
         return results
@@ -397,9 +441,10 @@ class LifecycleProjectionEngine:
         total_cf = sum(y.cash_flow for y in projections)
         exit_noi = projections[-1].noi
 
-        # Terminal value
-        if self.exit_cap_rate > 0:
-            terminal_value = round(exit_noi / self.exit_cap_rate, 2)
+        # Terminal value — use variable cap rate for exit year if curve exists
+        exit_year_cap = self._get_cap_rate_for_year(len(projections))
+        if exit_year_cap > 0:
+            terminal_value = round(exit_noi / exit_year_cap, 2)
         else:
             terminal_value = 0.0
 
@@ -436,7 +481,7 @@ class LifecycleProjectionEngine:
         return ProjectionSummary(
             total_cash_flow=round(total_cf, 2),
             exit_noi=round(exit_noi, 2),
-            exit_cap_rate=self.exit_cap_rate,
+            exit_cap_rate=exit_year_cap,
             terminal_value=terminal_value,
             disposition_costs=disposition_costs,
             net_exit_proceeds=net_exit,
