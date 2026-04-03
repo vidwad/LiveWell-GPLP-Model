@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import { MapPin, DollarSign, Calendar, Building2, Landmark, TrendingUp, Pencil, Loader2 } from "lucide-react";
+import { MapPin, DollarSign, Calendar, Building2, Landmark, TrendingUp, Pencil, Loader2, Sparkles, RefreshCw, AlertTriangle } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -197,6 +197,9 @@ export function OverviewTab({
 }: OverviewTabProps) {
   return (
     <div className="space-y-6">
+      {/* AI Preliminary Property Assessment */}
+      <AIPropertyAssessment propertyId={property.property_id} />
+
       <div className="grid gap-6 lg:grid-cols-2">
         {/* Property Details */}
         <Card>
@@ -532,5 +535,129 @@ export function OverviewTab({
         </Card>
       )}
     </div>
+  );
+}
+
+
+// ── AI Preliminary Property Assessment ──────────────────────────────
+
+function AIPropertyAssessment({ propertyId }: { propertyId: number }) {
+  const [assessment, setAssessment] = useState<Record<string, any> | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  const generateAssessment = async () => {
+    setLoading(true);
+    setError("");
+    try {
+      const resp = await apiClient.post(`/api/portfolio/properties/${propertyId}/ai-assessment`);
+      setAssessment(resp.data);
+    } catch (e: any) {
+      setError(e?.response?.data?.detail || "Failed to generate assessment");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <Card className="border-purple-200 bg-purple-50/20">
+      <CardHeader className="pb-2">
+        <div className="flex items-center justify-between">
+          <CardTitle className="text-base flex items-center gap-2">
+            <Sparkles className="h-5 w-5 text-purple-600" />
+            AI Preliminary Property Assessment
+          </CardTitle>
+          <div className="flex items-center gap-2">
+            {assessment && (
+              <span className="text-[10px] text-muted-foreground">
+                {assessment.data_available} data points used · {assessment.data_missing} missing
+              </span>
+            )}
+            <Button
+              size="sm"
+              variant="outline"
+              className={`h-7 text-xs gap-1 ${assessment ? "" : "bg-purple-100 border-purple-300 text-purple-700 hover:bg-purple-200"}`}
+              disabled={loading}
+              onClick={generateAssessment}
+            >
+              {loading ? (
+                <><Loader2 className="h-3 w-3 animate-spin" /> Analyzing...</>
+              ) : assessment ? (
+                <><RefreshCw className="h-3 w-3" /> Update Assessment</>
+              ) : (
+                <><Sparkles className="h-3 w-3" /> Generate Assessment</>
+              )}
+            </Button>
+          </div>
+        </div>
+        {!assessment && !loading && !error && (
+          <p className="text-xs text-muted-foreground mt-1">
+            AI will analyze this property for suitability based on the community type (sober living, student housing, or retirement),
+            assess the current structure, identify renovation opportunities, and evaluate development potential.
+          </p>
+        )}
+      </CardHeader>
+      <CardContent>
+        {error && (
+          <div className="flex items-start gap-2 text-sm text-red-700 bg-red-50 rounded-lg p-3">
+            <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
+            <span>{error}</span>
+          </div>
+        )}
+
+        {loading && (
+          <div className="flex items-center gap-3 py-8 justify-center">
+            <Loader2 className="h-6 w-6 animate-spin text-purple-500" />
+            <div>
+              <p className="text-sm font-medium">Analyzing property...</p>
+              <p className="text-xs text-muted-foreground">This may take 15-30 seconds</p>
+            </div>
+          </div>
+        )}
+
+        {assessment && !loading && (
+          <div className="space-y-3">
+            {/* Community Type Badge */}
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-medium bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full">
+                {assessment.community_type}
+              </span>
+              <span className="text-[10px] text-muted-foreground">
+                Generated {new Date(assessment.generated_at).toLocaleDateString()}
+              </span>
+            </div>
+
+            {/* Assessment Content */}
+            <div
+              className="prose prose-sm max-w-none text-sm leading-relaxed [&_h2]:text-sm [&_h2]:font-bold [&_h2]:mt-4 [&_h2]:mb-1.5 [&_h2]:text-foreground [&_ul]:mt-1 [&_li]:text-muted-foreground [&_p]:text-muted-foreground [&_strong]:text-foreground"
+              dangerouslySetInnerHTML={{
+                __html: assessment.assessment
+                  .replace(/## /g, "<h2>")
+                  .replace(/\n(?=<h2>)/g, "</h2>\n")
+                  .replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>")
+                  .replace(/- (.*?)(?=\n|$)/g, "<li>$1</li>")
+                  .replace(/(<li>.*<\/li>)/gs, "<ul>$1</ul>")
+                  .replace(/<\/ul>\s*<ul>/g, "")
+                  .replace(/\n\n/g, "</p><p>")
+                  .replace(/\n/g, "<br/>")
+              }}
+            />
+
+            {/* Missing Data Warning */}
+            {assessment.missing_fields && assessment.missing_fields.length > 0 && (
+              <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 mt-3">
+                <p className="text-xs font-medium text-amber-800 flex items-center gap-1.5">
+                  <AlertTriangle className="h-3.5 w-3.5" />
+                  Missing data that would improve this assessment:
+                </p>
+                <p className="text-xs text-amber-700 mt-1">
+                  {assessment.missing_fields.join(", ")}
+                </p>
+              </div>
+            )}
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 }

@@ -268,6 +268,7 @@ export default function PropertyDetailPage({ params }: { params: { id: string } 
         <div className="overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0">
           <TabsList variant="line" className="w-full sm:w-auto">
             <TabsTrigger value="overview"><Building2 className="h-4 w-4 sm:mr-1.5" /><span className="hidden sm:inline">Overview</span></TabsTrigger>
+            <TabsTrigger value="photos"><ImageIcon className="h-4 w-4 sm:mr-1.5" /><span className="hidden sm:inline">Photos</span></TabsTrigger>
             <TabsTrigger value="area-research"><MapPin className="h-4 w-4 sm:mr-1.5" /><span className="hidden sm:inline">Area Research</span></TabsTrigger>
             <TabsTrigger value="lifecycle"><Activity className="h-4 w-4 sm:mr-1.5" /><span className="hidden sm:inline">Lifecycle</span></TabsTrigger>
             <TabsTrigger value="units"><Ruler className="h-4 w-4 sm:mr-1.5" /><span className="hidden sm:inline">Units & Beds</span></TabsTrigger>
@@ -279,7 +280,6 @@ export default function PropertyDetailPage({ params }: { params: { id: string } 
             <TabsTrigger value="exit"><TrendingUp className="h-4 w-4 sm:mr-1.5" /><span className="hidden sm:inline">Exit Scenarios</span></TabsTrigger>
             <TabsTrigger value="valuation"><Banknote className="h-4 w-4 sm:mr-1.5" /><span className="hidden sm:inline">Valuation</span></TabsTrigger>
             <TabsTrigger value="proforma"><Calculator className="h-4 w-4 sm:mr-1.5" /><span className="hidden sm:inline">Pro Forma</span></TabsTrigger>
-            <TabsTrigger value="photos"><ImageIcon className="h-4 w-4 sm:mr-1.5" /><span className="hidden sm:inline">Photos</span></TabsTrigger>
           </TabsList>
         </div>
 

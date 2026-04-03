@@ -1131,6 +1131,159 @@ def extract_listing_data(
         raise HTTPException(500, f"Failed to extract listing data: {str(e)}")
 
 
+@router.post("/properties/{property_id}/ai-assessment")
+def generate_property_assessment(
+    property_id: int,
+    db: Session = Depends(get_db),
+    _: User = Depends(require_gp_or_ops),
+):
+    """Generate an AI preliminary property assessment based on all available data.
+
+    Analyzes the property for suitability as sober living (RecoverWell),
+    student housing (StudyWell), or retirement housing (RetireWell) based
+    on the community type. Covers: property overview, suitability assessment,
+    current structure usability, renovation opportunities, and development potential.
+    """
+    from app.db.models import PlatformSetting, Community
+
+    prop = db.query(Property).filter(Property.property_id == property_id).first()
+    if not prop:
+        raise HTTPException(404, "Property not found")
+
+    # Determine community type
+    community_type = "general housing"
+    community_name = ""
+    if prop.community_id:
+        community = db.query(Community).filter(Community.community_id == prop.community_id).first()
+        if community:
+            community_name = community.name or ""
+    # Also check LP focus
+    lp_focus = ""
+    if prop.lp_id and prop.lp:
+        lp_focus = prop.lp.community_focus or prop.lp.purpose_type or ""
+
+    focus = (community_name + " " + lp_focus).lower()
+    if "recover" in focus or "sober" in focus:
+        community_type = "sober living (RecoverWell)"
+        operator_role = "an expert operator of sober living and addiction recovery housing"
+    elif "study" in focus or "student" in focus:
+        community_type = "student housing (StudyWell)"
+        operator_role = "an expert operator of student housing near universities and colleges"
+    elif "retire" in focus or "senior" in focus:
+        community_type = "retirement housing (RetireWell)"
+        operator_role = "an expert operator of retirement and senior living communities"
+    else:
+        operator_role = "an expert real estate operator specializing in shared living communities"
+
+    # Gather all property data
+    import datetime
+    data_points = {
+        "Address": prop.address,
+        "City": prop.city,
+        "Province": prop.province,
+        "Property Type": prop.property_type,
+        "Property Style": prop.property_style,
+        "Year Built": prop.year_built,
+        "Building Sqft": float(prop.building_sqft) if prop.building_sqft else None,
+        "Lot Size Sqft": float(prop.lot_size) if prop.lot_size else None,
+        "Bedrooms": prop.bedrooms,
+        "Bathrooms": prop.bathrooms,
+        "Garage": prop.garage,
+        "Zoning": prop.zoning,
+        "Max Buildable Area": float(prop.max_buildable_area) if prop.max_buildable_area else None,
+        "Floor Area Ratio": float(prop.floor_area_ratio) if prop.floor_area_ratio else None,
+        "Neighbourhood": prop.neighbourhood,
+        "List Price": float(prop.list_price) if prop.list_price else None,
+        "Purchase Price": float(prop.purchase_price) if prop.purchase_price else None,
+        "Assessed Value": float(prop.assessed_value) if prop.assessed_value else None,
+        "Current Market Value": float(prop.current_market_value) if prop.current_market_value else None,
+        "Tax Amount": float(prop.tax_amount) if prop.tax_amount else None,
+        "Tax Year": prop.tax_year,
+        "MLS Number": prop.mls_number,
+        "Development Stage": prop.development_stage.value if prop.development_stage else None,
+        "Community Type": community_type,
+    }
+
+    # Count available vs missing data
+    available = {k: v for k, v in data_points.items() if v is not None}
+    missing = [k for k, v in data_points.items() if v is None]
+
+    data_summary = "\n".join([f"- {k}: {v}" for k, v in available.items()])
+    missing_summary = ", ".join(missing) if missing else "None"
+
+    # Get OpenAI key
+    setting = db.query(PlatformSetting).filter(PlatformSetting.key == "OPENAI_API_KEY").first()
+    api_key = setting.value if setting else None
+    if not api_key:
+        import os
+        api_key = os.environ.get("OPENAI_API_KEY")
+    if not api_key:
+        raise HTTPException(400, "OpenAI API key not configured")
+
+    try:
+        from openai import OpenAI as _OpenAI
+    except ImportError:
+        raise HTTPException(400, "OpenAI package not installed")
+
+    client = _OpenAI(api_key=api_key)
+
+    prompt = (
+        f"You are {operator_role}. Today's date is {datetime.date.today().isoformat()}.\n\n"
+        f"Analyze this property for use as {community_type}. "
+        f"Provide a preliminary assessment covering the following sections:\n\n"
+        f"## 1. Property Overview\n"
+        f"Brief summary of the property based on available data.\n\n"
+        f"## 2. Suitability Assessment for {community_type.split('(')[0].strip()}\n"
+        f"How well does this property suit the intended use? Consider layout, "
+        f"location, size, bedroom count, accessibility, and neighbourhood.\n\n"
+        f"## 3. Strengths & Advantages\n"
+        f"What are the positive aspects of this property for this use?\n\n"
+        f"## 4. Challenges & Concerns\n"
+        f"What problems or obstacles exist? Zoning issues, structural limitations, "
+        f"neighbourhood concerns, regulatory requirements.\n\n"
+        f"## 5. Current Structure Usability\n"
+        f"Can the property be used as-is or with minimal changes? What works "
+        f"and what doesn't in the current layout?\n\n"
+        f"## 6. Immediate Renovation Opportunities\n"
+        f"What quick renovations would improve the property for this use? "
+        f"Estimated impact and rough cost range.\n\n"
+        f"## 7. Development Potential\n"
+        f"Based on lot size, zoning, and buildable area, what development "
+        f"opportunities exist? Could a larger building be built? Secondary suites? "
+        f"Additions?\n\n"
+        f"## 8. Data Completeness Note\n"
+        f"Comment on the completeness of data available for this assessment.\n\n"
+        f"Available Property Data:\n{data_summary}\n\n"
+        f"Missing Data: {missing_summary}\n\n"
+        f"Provide specific, actionable insights. Use numbers where possible. "
+        f"If data is insufficient for a section, explicitly state what additional "
+        f"information would be needed."
+    )
+
+    try:
+        response = client.chat.completions.create(
+            model="gpt-4o",
+            messages=[{"role": "user", "content": prompt}],
+            max_tokens=3000,
+        )
+        assessment = response.choices[0].message.content.strip()
+    except Exception as e:
+        raise HTTPException(500, f"AI assessment failed: {str(e)}")
+
+    # Store assessment on property
+    # Use a simple approach — store in a JSON field or notes
+    # For now return it and let frontend cache
+    return {
+        "property_id": property_id,
+        "community_type": community_type,
+        "assessment": assessment,
+        "data_available": len(available),
+        "data_missing": len(missing),
+        "missing_fields": missing,
+        "generated_at": datetime.datetime.utcnow().isoformat(),
+    }
+
+
 @router.post("/modeling/estimate-costs", response_model=CostEstimateResult)
 def estimate_construction_costs(
     payload: CostEstimateInput,
