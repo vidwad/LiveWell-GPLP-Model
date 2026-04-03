@@ -145,10 +145,26 @@ interface RedevelopmentPotential {
   key_considerations: string[];
 }
 
+interface DataSources {
+  // New multi-city fields
+  municipal_open_data?: boolean;
+  municipal_source?: string;
+  realtor_board?: string;
+  realtor_web_search?: boolean;
+  cmhc_web_search?: boolean;
+  community_identified?: string | null;
+  dev_permits_found?: number;
+  bldg_permits_found?: number;
+  // Legacy Calgary-only fields (backwards compat)
+  calgary_open_data?: boolean;
+  creb_web_search?: boolean;
+}
+
 interface AreaResearchResult {
   address: string;
   city: string;
   radius_miles: number;
+  data_source?: string;
   subject_location?: { lat: number; lng: number };
   summary: string;
   comparable_sales?: ComparableSale[];
@@ -161,6 +177,7 @@ interface AreaResearchResult {
   market_insights?: MarketInsights;
   risks_and_considerations?: RiskItem[];
   redevelopment_potential?: RedevelopmentPotential;
+  data_sources?: DataSources;
 }
 
 /* ── Collapsible Section ───────────────────────────────────────────────── */
@@ -438,6 +455,42 @@ export function AreaResearchTab({ propertyId, address, city, zoning, latitude, l
                   <p className="text-sm text-muted-foreground mt-1">{result.summary}</p>
                 </div>
               </div>
+
+              {/* Data Sources */}
+              {result.data_sources && (
+                <div className="flex flex-wrap gap-1.5 mt-3">
+                  {(result.data_sources.municipal_open_data || result.data_sources.calgary_open_data) && (
+                    <Badge variant="outline" className="text-[10px] bg-green-50 text-green-700 border-green-300">
+                      {result.data_sources.municipal_source || "City of Calgary Open Data"}
+                    </Badge>
+                  )}
+                  {(result.data_sources.realtor_web_search || result.data_sources.creb_web_search) && (
+                    <Badge variant="outline" className="text-[10px] bg-amber-50 text-amber-700 border-amber-300">
+                      {result.data_sources.realtor_board || "CREB"} / MLS
+                    </Badge>
+                  )}
+                  {result.data_sources.cmhc_web_search && (
+                    <Badge variant="outline" className="text-[10px] bg-purple-50 text-purple-700 border-purple-300">
+                      CMHC Rental Survey
+                    </Badge>
+                  )}
+                  {result.data_sources.community_identified && (
+                    <Badge variant="outline" className="text-[10px] bg-blue-50 text-blue-700 border-blue-300">
+                      {result.data_sources.community_identified}
+                    </Badge>
+                  )}
+                  {(result.data_sources.dev_permits_found ?? 0) > 0 && (
+                    <Badge variant="outline" className="text-[10px]">
+                      {result.data_sources.dev_permits_found} dev permits
+                    </Badge>
+                  )}
+                  {(result.data_sources.bldg_permits_found ?? 0) > 0 && (
+                    <Badge variant="outline" className="text-[10px]">
+                      {result.data_sources.bldg_permits_found} bldg permits
+                    </Badge>
+                  )}
+                </div>
+              )}
 
               {/* Quick stats row */}
               {(result.market_insights || result.redevelopment_potential) && (

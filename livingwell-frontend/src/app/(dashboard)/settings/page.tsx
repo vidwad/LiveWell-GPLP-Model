@@ -25,6 +25,10 @@ import {
   CircleDot,
   Mail,
   Phone,
+  Database,
+  Building2,
+  Globe,
+  Train,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -84,6 +88,78 @@ function IntegrationStatusBadge({ status }: { status: string }) {
     <Badge variant="outline" className="text-gray-500 gap-1">
       <X className="h-3 w-3" /> Not Configured
     </Badge>
+  );
+}
+
+/* ── Source Item (Area Research Data Sources) ─────────────────────────── */
+
+function SourceItem({
+  tier,
+  name,
+  url,
+  note,
+  datasets,
+  requiresKey,
+  isConfigured,
+}: {
+  tier: 1 | 2 | 3;
+  name: string;
+  url?: string;
+  note?: string;
+  datasets?: string[];
+  requiresKey?: string;
+  isConfigured?: boolean;
+}) {
+  const tierColors = {
+    1: "bg-green-100 text-green-800 border-green-200",
+    2: "bg-amber-100 text-amber-800 border-amber-200",
+    3: "bg-blue-100 text-blue-800 border-blue-200",
+  };
+  const tierLabels = { 1: "Tier 1", 2: "Tier 2", 3: "Tier 3" };
+
+  return (
+    <div className="border rounded-md p-2.5 space-y-1">
+      <div className="flex items-center justify-between">
+        <span className="font-medium text-xs">{name}</span>
+        <Badge className={cn("text-[9px] px-1.5 py-0", tierColors[tier])}>
+          {tierLabels[tier]}
+        </Badge>
+      </div>
+      {url && (
+        <a
+          href={url}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-[10px] text-blue-600 hover:underline flex items-center gap-0.5"
+        >
+          <Globe className="h-2.5 w-2.5" /> {url.replace("https://", "")}
+        </a>
+      )}
+      {note && <p className="text-[10px] text-muted-foreground">{note}</p>}
+      {datasets && datasets.length > 0 && (
+        <ul className="text-[10px] text-muted-foreground space-y-0.5 mt-1">
+          {datasets.map((d) => (
+            <li key={d} className="flex items-center gap-1">
+              <Check className="h-2.5 w-2.5 text-green-600 shrink-0" /> {d}
+            </li>
+          ))}
+        </ul>
+      )}
+      {requiresKey && (
+        <div className="flex items-center gap-1 mt-1">
+          <Key className="h-2.5 w-2.5 text-muted-foreground" />
+          <span className="text-[10px] text-muted-foreground">
+            Requires: {requiresKey}
+          </span>
+          {isConfigured !== undefined &&
+            (isConfigured ? (
+              <Check className="h-2.5 w-2.5 text-green-600" />
+            ) : (
+              <X className="h-2.5 w-2.5 text-red-500" />
+            ))}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -480,6 +556,156 @@ export default function SettingsPage() {
           </CardContent>
         </Card>
       )}
+
+      {/* Area Research Data Sources */}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base flex items-center gap-2">
+            <Database className="h-4 w-4" />
+            Area Research — Source Stack
+          </CardTitle>
+          <p className="text-xs text-muted-foreground">
+            Data sources used when generating area research reports. Tier 1 sources are
+            queried via direct API; Tier 2 uses AI-powered web search.
+          </p>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {/* Calgary */}
+          <div>
+            <h3 className="text-sm font-semibold flex items-center gap-1.5 mb-2">
+              <Building2 className="h-3.5 w-3.5" />
+              Calgary
+            </h3>
+            <div className="grid gap-2 sm:grid-cols-2 text-xs">
+              <SourceItem
+                tier={1}
+                name="City of Calgary Open Data"
+                url="https://data.calgary.ca"
+                datasets={[
+                  "Development Permits",
+                  "Building Permits",
+                  "Land Use Designation Codes",
+                  "Civic Census by Community",
+                  "Census by Community 2019",
+                ]}
+              />
+              <SourceItem
+                tier={2}
+                name="CREB / MLS"
+                note="Comparable sales & active listings via web search"
+                requiresKey="OPENAI_API_KEY"
+                isConfigured={
+                  !!(settings || []).find(
+                    (s) => s.key === "OPENAI_API_KEY" && s.is_configured
+                  )
+                }
+              />
+              <SourceItem
+                tier={2}
+                name="CMHC Rental Market Survey"
+                note="Vacancy rates, average rents, rent trends via web search"
+                requiresKey="OPENAI_API_KEY"
+                isConfigured={
+                  !!(settings || []).find(
+                    (s) => s.key === "OPENAI_API_KEY" && s.is_configured
+                  )
+                }
+              />
+              <SourceItem
+                tier={3}
+                name="AI Synthesis"
+                note="Combines all data into structured report"
+                requiresKey="ANTHROPIC_API_KEY or OPENAI_API_KEY"
+                isConfigured={
+                  !!(settings || []).find(
+                    (s) =>
+                      (s.key === "ANTHROPIC_API_KEY" ||
+                        s.key === "OPENAI_API_KEY") &&
+                      s.is_configured
+                  )
+                }
+              />
+            </div>
+          </div>
+
+          <Separator />
+
+          {/* Edmonton */}
+          <div>
+            <h3 className="text-sm font-semibold flex items-center gap-1.5 mb-2">
+              <Building2 className="h-3.5 w-3.5" />
+              Edmonton
+            </h3>
+            <div className="grid gap-2 sm:grid-cols-2 text-xs">
+              <SourceItem
+                tier={1}
+                name="City of Edmonton Open Data"
+                url="https://data.edmonton.ca"
+                datasets={[
+                  "Development Permits",
+                  "General Building Permits",
+                  "Zoning Bylaw (2023 framework)",
+                  "Property Assessments (Current + Historical)",
+                  "Census Population by Age Range",
+                  "Neighbourhood Boundaries",
+                  "LRT Stations & ETS Bus Stops",
+                ]}
+              />
+              <SourceItem
+                tier={2}
+                name="REALTORS Association of Edmonton / MLS"
+                note="Comparable sales & active listings via web search"
+                requiresKey="OPENAI_API_KEY"
+                isConfigured={
+                  !!(settings || []).find(
+                    (s) => s.key === "OPENAI_API_KEY" && s.is_configured
+                  )
+                }
+              />
+              <SourceItem
+                tier={2}
+                name="CMHC Rental Market Survey"
+                note="Vacancy rates, average rents by zone via web search"
+                requiresKey="OPENAI_API_KEY"
+                isConfigured={
+                  !!(settings || []).find(
+                    (s) => s.key === "OPENAI_API_KEY" && s.is_configured
+                  )
+                }
+              />
+              <SourceItem
+                tier={3}
+                name="AI Synthesis"
+                note="Combines all data into structured report"
+                requiresKey="ANTHROPIC_API_KEY or OPENAI_API_KEY"
+                isConfigured={
+                  !!(settings || []).find(
+                    (s) =>
+                      (s.key === "ANTHROPIC_API_KEY" ||
+                        s.key === "OPENAI_API_KEY") &&
+                      s.is_configured
+                  )
+                }
+              />
+            </div>
+          </div>
+
+          <div className="pt-2 border-t text-[10px] text-muted-foreground space-y-1">
+            <p>
+              <strong>Tier 1 (Authoritative):</strong> Direct API — always
+              available, no API keys required. Real-time municipal data.
+            </p>
+            <p>
+              <strong>Tier 2 (Market Data):</strong> AI-powered web search —
+              requires OpenAI API key for CREB/RAE/CMHC queries.
+            </p>
+            <p>
+              <strong>Tier 3 (Synthesis):</strong> AI combines all sources into
+              a structured investment report — requires Anthropic or OpenAI key.
+            </p>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Settings by Category */}
       {["api_keys", "ai", "email", "telephony", "general"].map((category) => {

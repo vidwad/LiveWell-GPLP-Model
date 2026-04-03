@@ -771,264 +771,283 @@ def research_property_area(
     subject_lat: Optional[float] = None,
     subject_lng: Optional[float] = None,
 ) -> dict:
-    """AI-powered area research for real estate due diligence.
+    """Area research using authoritative Alberta municipal data sources.
 
-    Generates a comprehensive research report covering comparable sales,
-    active listings, zoning, rents, demographics, and development activity
-    within the specified radius of the property.
+    Data pipeline:
+    1. City Open Data — development permits, building permits, zoning,
+       demographics, property assessments, transit (real-time API)
+       - Calgary: data.calgary.ca  |  Edmonton: data.edmonton.ca
+    2. Real estate board + CMHC rental data — via targeted web search
+       - Calgary: CREB  |  Edmonton: REALTORS Association of Edmonton
+    3. AI synthesis — combines all real data into structured report
     """
-    context_parts = [
-        f"Property Address: {address}",
-        f"City: {city}, {province}, Canada",
-        f"Search Radius: {radius_miles} miles",
-    ]
-    if subject_lat and subject_lng:
-        context_parts.append(f"EXACT Subject Property Coordinates: lat={subject_lat}, lng={subject_lng}")
-        context_parts.append(f"USE THESE EXACT COORDINATES as the center point. All nearby properties must be within {radius_miles} miles of this point.")
-    if zoning:
-        context_parts.append(f"Current Zoning: {zoning}")
-    if property_type:
-        context_parts.append(f"Property Type: {property_type}")
-    if additional_context:
-        context_parts.append(f"Additional Context: {additional_context}")
+    import os, re
 
-    context = "\n".join(context_parts)
+    # ── Step 0: Resolve coordinates and detect city ──
+    city_lower = city.lower().strip()
+    is_edmonton = "edmonton" in city_lower
+    is_calgary = "calgary" in city_lower
 
-    prompt = f"""Conduct a comprehensive area research report for a real estate investment opportunity.
+    if not subject_lat or not subject_lng:
+        base = _CITY_COORDS.get(city_lower, (51.0447, -114.0719))
+        subject_lat, subject_lng = base
 
-{context}
+    # ── Step 1: Fetch authoritative municipal open data ──
+    if is_edmonton:
+        from app.services.edmonton_data import fetch_all_edmonton_data
+        municipal_data = fetch_all_edmonton_data(
+            lat=subject_lat, lng=subject_lng,
+            radius_miles=radius_miles, zoning_code=zoning,
+        )
+        # Normalize Edmonton data keys to common interface
+        community_info = municipal_data.get("neighbourhood") or {}
+        community_name_key = "neighbourhood_name"
+        community_label = "Neighbourhood"
+        open_data_label = "City of Edmonton Open Data (data.edmonton.ca)"
+        realtor_board = "REALTORS Association of Edmonton"
+        realtor_label = "RAE"
+    else:
+        from app.services.calgary_data import fetch_all_calgary_data
+        municipal_data = fetch_all_calgary_data(
+            lat=subject_lat, lng=subject_lng,
+            radius_miles=radius_miles, zoning_code=zoning,
+        )
+        community_info = municipal_data.get("community") or {}
+        community_name_key = "community_name"
+        community_label = "Community"
+        open_data_label = "City of Calgary Open Data (data.calgary.ca)"
+        realtor_board = "CREB"
+        realtor_label = "CREB"
 
-You are an expert Alberta real estate analyst. Based on your knowledge of this area, provide a detailed
-research report. Use realistic, current data points and ranges typical for this specific neighbourhood.
+    area_name = community_info.get(community_name_key, "")
+    logger.info(
+        "%s Open Data fetched: %s=%s, dev_permits=%d, bldg_permits=%d",
+        "Edmonton" if is_edmonton else "Calgary",
+        community_label.lower(), area_name or "unknown",
+        len(municipal_data.get("development_permits") or []),
+        len(municipal_data.get("building_permits") or []),
+    )
 
-Return JSON with these exact keys:
-
-1. "summary" (string) — 3-4 sentence executive summary of the area as an investment location
-
-2. "subject_location" (object) — the approximate lat/lng of the subject property:
-   - lat (number — latitude, e.g. 51.0447)
-   - lng (number — longitude, e.g. -114.0719)
-
-3. "comparable_sales" (array of objects) — 4-6 recent comparable property sales within the radius, each with:
-   - address (string — realistic street name in the area)
-   - lat (number — approximate latitude)
-   - lng (number — approximate longitude)
-   - sale_price (number)
-   - sale_date (string — within last 12 months, YYYY-MM format)
-   - property_type (string — e.g. "Single Family", "Duplex", "Multi-Family")
-   - bedrooms (number)
-   - lot_size_sqft (number)
-   - price_per_sqft (number)
-   - notes (string — brief detail like "Renovated" or "Estate sale")
-
-4. "active_listings" (array of objects) — 3-5 currently listed properties nearby, each with:
-   - address (string)
-   - lat (number — approximate latitude)
-   - lng (number — approximate longitude)
-   - list_price (number)
-   - property_type (string)
-   - bedrooms (number)
-   - days_on_market (number)
-   - status (string — "Active", "Pending", "Price Reduced")
-
-5. "zoning_info" (object) with:
-   - current_zoning (string — the zoning code)
-   - zoning_description (string — what the zoning allows)
-   - max_density (string — e.g. "Up to 4 units per lot")
-   - max_height (string)
-   - setback_requirements (string)
-   - parking_requirements (string)
-   - permitted_uses (array of strings)
-   - discretionary_uses (array of strings)
-
-6. "rezoning_activity" (array of objects) — 2-4 recent or pending rezoning applications nearby, each with:
-   - location (string — approximate address or intersection)
-   - lat (number — approximate latitude)
-   - lng (number — approximate longitude)
-   - from_zone (string)
-   - to_zone (string)
-   - status (string — "Approved", "Pending", "Under Review")
-   - application_date (string — YYYY-MM format)
-   - description (string — what the developer is proposing)
-
-7. "rental_market" (object) with:
-   - average_rent_1br (number — monthly)
-   - average_rent_2br (number)
-   - average_rent_3br (number)
-   - average_rent_per_bed (number — for shared living / SRO)
-   - vacancy_rate_pct (number)
-   - rent_trend (string — "increasing", "stable", "decreasing")
-   - rent_growth_annual_pct (number)
-   - notes (string — market commentary)
-
-8. "demographics" (object) with:
-   - population (number — area population)
-   - median_household_income (number)
-   - median_age (number)
-   - population_growth_pct (number — annual)
-   - major_employers (array of strings — top 3-5 nearby employers)
-   - transit_access (string — description of transit options)
-   - walk_score_estimate (number — 0-100)
-
-9. "development_activity" (array of objects) — 3-5 notable development projects nearby, each with:
-   - project_name (string)
-   - location (string)
-   - lat (number — approximate latitude)
-   - lng (number — approximate longitude)
-   - type (string — e.g. "Residential", "Mixed-Use", "Commercial")
-   - units (number or null)
-   - status (string — "Proposed", "Under Construction", "Completed")
-   - estimated_completion (string — YYYY or YYYY-QN format)
-   - description (string)
-
-10. "market_insights" (object) with:
-   - median_home_price (number)
-   - price_trend (string — "appreciating", "stable", "declining")
-   - price_growth_annual_pct (number)
-   - avg_days_on_market (number)
-   - absorption_rate (string — e.g. "2.5 months of inventory")
-   - investment_grade (string — "A", "B+", "B", "B-", "C+", "C")
-   - opportunity_score (number — 1-10, 10 being highest opportunity)
-
-11. "risks_and_considerations" (array of objects) — 3-5 items, each with:
-    - category (string — "Environmental", "Market", "Regulatory", "Infrastructure", "Social")
-    - description (string)
-    - severity (string — "Low", "Medium", "High")
-    - mitigation (string)
-
-12. "redevelopment_potential" (object) with:
-    - score (number — 1-10)
-    - rationale (string — 2-3 sentences)
-    - best_use_recommendation (string — e.g. "4-plex conversion" or "8-unit multiplex")
-    - estimated_arv (number — after-renovation value estimate)
-    - key_considerations (array of strings)
-
-CRITICAL COORDINATE RULES:
-- The subject property is at approximately {address}, {city}. Look up its actual coordinates.
-- ALL comparable sales, active listings, rezoning activity, and development projects MUST have lat/lng coordinates that are WITHIN {radius_miles} miles of the subject property.
-- For {city}, typical coordinates are: Calgary ~51.04 lat, -114.07 lng; Edmonton ~53.54 lat, -113.49 lng.
-- Vary coordinates by small amounts (0.001-0.01 degrees) to place properties on nearby streets, NOT across the city.
-- A {radius_miles}-mile radius is approximately {radius_miles * 0.015:.4f} degrees of latitude/longitude variation.
-
-Be specific with numbers. Use realistic values for {city}, {province}. Do not use placeholder text."""
-
-    # ── Use OpenAI with web search for REAL data ──
-    # Multi-step: search for each data category, then combine into structured JSON
-    import os, json, re
-
+    # ── Step 2: Targeted web search for real estate board + CMHC data ──
+    web_search_data = ""
     openai_key = os.environ.get("OPENAI_API_KEY")
     if not openai_key:
         from app.db.session import SessionLocal
         from app.db.models import PlatformSetting
         _db = SessionLocal()
-        _setting = _db.query(PlatformSetting).filter(PlatformSetting.key == "OPENAI_API_KEY").first()
+        _setting = _db.query(PlatformSetting).filter(
+            PlatformSetting.key == "OPENAI_API_KEY"
+        ).first()
         openai_key = _setting.value if _setting else None
         _db.close()
 
-    if not openai_key:
-        # Fall back to Claude without web search
-        result = _call_claude_json(prompt, max_tokens=4096)
-        if result and "summary" in result:
-            result["address"] = address
-            result["city"] = city
-            result["radius_miles"] = radius_miles
-            if subject_lat and subject_lng:
-                result["subject_location"] = {"lat": subject_lat, "lng": subject_lng}
-            return result
-        return _area_research_fallback(address, city, radius_miles, zoning)
+    if openai_key:
+        from openai import OpenAI as _OpenAI
+        client = _OpenAI(api_key=openai_key)
 
-    from openai import OpenAI as _OpenAI
-    client = _OpenAI(api_key=openai_key)
+        area_desc = f"{address}, {area_name}, {city}" if area_name else f"{address}, {city}"
 
-    # Step 1: Web search for real area data across multiple categories
-    search_queries = [
-        f"Recent home sales near {address}, {city} {province} in the last 12 months, with prices and addresses",
-        f"Active real estate listings near {address}, {city} {province}, with prices and details",
-        f"Rezoning applications and development permits near {address}, {city} {province}, approved or pending",
-        f"New development projects and construction near {address}, {city} {province}",
-        f"Rental market data for {city} {province} neighbourhood near {address}, average rents, vacancy rates",
-        f"Zoning bylaw for {zoning or 'residential'} zone in {city} {province}, permitted uses, density, height limits",
-        f"Demographics and population data for neighbourhood near {address}, {city} {province}",
-    ]
+        targeted_searches = [
+            (
+                f"{realtor_label}_SALES",
+                f"{realtor_board} MLS recent home sales near {area_desc} Alberta "
+                f"last 12 months sale prices addresses property type",
+            ),
+            (
+                f"{realtor_label}_LISTINGS",
+                f"{realtor_board} MLS active real estate listings near {area_desc} Alberta "
+                f"asking prices bedrooms days on market",
+            ),
+            (
+                "CMHC_RENTAL",
+                f"CMHC rental market survey {city} Alberta {area_name} "
+                f"average rent vacancy rate 2025 2026",
+            ),
+        ]
 
-    search_results = []
-    for query in search_queries:
-        try:
-            resp = client.responses.create(
-                model="gpt-4o",
-                tools=[{"type": "web_search_preview"}],
-                input=query,
-            )
-            search_results.append(resp.output_text.strip())
-        except Exception:
-            search_results.append("")
+        search_parts = []
+        for label, query in targeted_searches:
+            try:
+                resp = client.responses.create(
+                    model="gpt-4o",
+                    tools=[{"type": "web_search_preview"}],
+                    input=query,
+                )
+                text = resp.output_text.strip()
+                if text:
+                    search_parts.append(f"[{label}]\n{text}")
+            except Exception as e:
+                logger.warning("Web search failed for %s: %s", label, e)
 
-    combined_research = "\n\n---\n\n".join([
-        f"SEARCH: {q}\nRESULTS:\n{r}" for q, r in zip(search_queries, search_results) if r
-    ])
+        web_search_data = "\n\n---\n\n".join(search_parts)
 
-    # Step 2: Convert all search results into structured JSON
-    coord_info = ""
-    if subject_lat and subject_lng:
-        coord_info = f"\nSubject property coordinates: lat={subject_lat}, lng={subject_lng}. All nearby items must be within {radius_miles} miles."
+    # ── Step 3: AI synthesis — combine real data into structured report ──
+    demographics_raw = municipal_data.get("demographics") or {}
+    zoning_raw = municipal_data.get("zoning") or {}
+    dev_permits = municipal_data.get("development_permits") or []
+    bldg_permits = municipal_data.get("building_permits") or []
 
-    json_prompt = f"""Convert the following REAL research data into a structured JSON report for {address}, {city}.
-{coord_info}
+    # Build Edmonton-specific extra data sections
+    edmonton_extras = ""
+    if is_edmonton:
+        assessments = municipal_data.get("property_assessments") or []
+        transit = municipal_data.get("transit") or {}
+        neighbourhood_info = municipal_data.get("neighbourhood_info") or {}
 
-IMPORTANT: Use ONLY data that was actually found in the search results below. Do NOT fabricate or estimate data.
-If data for a section was not found, use empty arrays or null values. Mark any items as real data from search.
+        if assessments:
+            edmonton_extras += f"""
+--- PROPERTY ASSESSMENTS (City of Edmonton, within {min(radius_miles, 1.0)} mi) ---
+Count: {len(assessments)}
+{json.dumps(assessments[:10], indent=2, default=str)}
+"""
+        if transit:
+            edmonton_extras += f"""
+--- TRANSIT ACCESS ---
+LRT Stations nearby: {len(transit.get('lrt_stations', []))}
+{json.dumps(transit.get('lrt_stations', []), indent=2, default=str) if transit.get('lrt_stations') else 'None within 1 mile'}
+Bus stops within 0.3 mi: {transit.get('bus_stops_nearby', 0)}
+"""
+        if neighbourhood_info:
+            edmonton_extras += f"""
+--- NEIGHBOURHOOD INFO ---
+{json.dumps(neighbourhood_info, indent=2, default=str)}
+"""
 
-Research Data:
-{combined_research}
+    data_context = f"""You are synthesizing a real estate area research report from AUTHORITATIVE DATA SOURCES.
+All data below is REAL — extracted from official government databases and market sources.
+
+=== SUBJECT PROPERTY ===
+Address: {address}
+City: {city}, {province}
+Coordinates: lat={subject_lat}, lng={subject_lng}
+Search Radius: {radius_miles} miles
+{'Current Zoning: ' + zoning if zoning else ''}
+{'Property Type: ' + property_type if property_type else ''}
+{'{}: {}'.format(community_label, area_name) if area_name else ''}
+{'Additional Context: ' + additional_context if additional_context else ''}
+
+=== {open_data_label.upper()} ===
+
+--- ZONING / LAND USE DISTRICT ---
+{json.dumps(zoning_raw, indent=2, default=str) if zoning_raw else 'Not available — no zoning code provided or detected'}
+{'Detected zoning code: ' + municipal_data.get('detected_zoning_code', '') if municipal_data.get('detected_zoning_code') else ''}
+
+--- {community_label.upper()} DEMOGRAPHICS ---
+{json.dumps(demographics_raw, indent=2, default=str) if demographics_raw else community_label + ' not identified'}
+
+--- DEVELOPMENT PERMITS (last 2 years, within {radius_miles} mi) ---
+Count: {len(dev_permits)}
+{json.dumps(dev_permits[:15], indent=2, default=str) if dev_permits else 'None found'}
+
+--- BUILDING PERMITS (last 2 years, within {radius_miles} mi) ---
+Count: {len(bldg_permits)}
+{json.dumps(bldg_permits[:15], indent=2, default=str) if bldg_permits else 'None found'}
+{edmonton_extras}
+=== WEB SEARCH DATA ({realtor_board} Sales/Listings, CMHC Rental Market) ===
+{web_search_data if web_search_data else 'Web search not available — no OpenAI API key configured'}
+"""
+
+    synthesis_prompt = f"""{data_context}
+
+=== YOUR TASK ===
+Synthesize ALL of the above real data into a structured JSON report for {city}. Use ONLY facts from the data above.
+For sections where authoritative data was provided (zoning, demographics, permits{', assessments' if is_edmonton else ''}), use those exact numbers.
+For sales/listings/rental data from web search, extract the specific data points found.
+For any section with no data, provide your best estimate based on the neighbourhood and mark it as estimated.
 
 Return a JSON object with these exact keys:
-1. "summary" — 3-4 sentence executive summary based on the REAL data found
-2. "subject_location" — {{"lat": number, "lng": number}}
-3. "comparable_sales" — array of real recent sales found, each with: address, lat, lng, sale_price, sale_date, property_type, bedrooms, lot_size_sqft, price_per_sqft, notes
-4. "active_listings" — array of real listings found, each with: address, lat, lng, list_price, property_type, bedrooms, days_on_market, status
-5. "zoning_info" — real zoning data: current_zoning, zoning_description, max_density, max_height, setback_requirements, parking_requirements, permitted_uses (array), discretionary_uses (array)
-6. "rezoning_activity" — array of real rezoning applications: location, lat, lng, from_zone, to_zone, status, application_date, description
-7. "rental_market" — real rental data: average_rent_1br, average_rent_2br, average_rent_3br, average_rent_per_bed, vacancy_rate_pct, rent_trend, rent_growth_annual_pct, notes
-8. "demographics" — real data: population, median_household_income, median_age, population_growth_pct, major_employers (array), transit_access, walk_score_estimate
-9. "development_activity" — array of real projects: project_name, location, lat, lng, type, units, status, estimated_completion, description
-10. "market_insights" — median_home_price, price_trend, price_growth_annual_pct, avg_days_on_market, absorption_rate, investment_grade, opportunity_score
-11. "risks_and_considerations" — array: category, description, severity, mitigation
-12. "redevelopment_potential" — score, rationale, best_use_recommendation, estimated_arv, key_considerations (array)
 
-For coordinates, use realistic lat/lng for {city} area near {address}. Calgary is ~51.04, -114.07. Edmonton is ~53.54, -113.49.
+1. "summary" — 3-4 sentence executive summary citing specific data points from the sources above
+
+2. "subject_location" — {{"lat": {subject_lat}, "lng": {subject_lng}}}
+
+3. "comparable_sales" — array from {realtor_board} data above. Each: address, lat, lng, sale_price, sale_date, property_type, bedrooms, lot_size_sqft, price_per_sqft, notes
+
+4. "active_listings" — array from {realtor_board} data above. Each: address, lat, lng, list_price, property_type, bedrooms, days_on_market, status
+
+5. "zoning_info" — from {open_data_label} above:
+   current_zoning, zoning_description, max_density, max_height, setback_requirements, parking_requirements, permitted_uses (array), discretionary_uses (array)
+
+6. "rezoning_activity" — derive from development permits that show land use changes. Each: location, lat, lng, from_zone, to_zone, status, application_date, description
+
+7. "rental_market" — from CMHC data above:
+   average_rent_1br, average_rent_2br, average_rent_3br, average_rent_per_bed, vacancy_rate_pct, rent_trend, rent_growth_annual_pct, notes
+
+8. "demographics" — from municipal census data above:
+   population, median_household_income, median_age, population_growth_pct, major_employers (array), transit_access, walk_score_estimate
+
+9. "development_activity" — from development permits + building permits above, grouped into notable projects. Each: project_name, location, lat, lng, type, units, status, estimated_completion, description
+
+10. "market_insights" — synthesized from sales data + permits{' + property assessments' if is_edmonton else ''}:
+    median_home_price, price_trend, price_growth_annual_pct, avg_days_on_market, absorption_rate, investment_grade, opportunity_score
+
+11. "risks_and_considerations" — 3-5 items based on the real data patterns. Each: category, description, severity, mitigation
+
+12. "redevelopment_potential" — informed by zoning rules, permit activity, and market data:
+    score (1-10), rationale, best_use_recommendation, estimated_arv, key_considerations (array)
+
+13. "data_sources" — object listing what real sources were used:
+    {{"municipal_open_data": true/false, "municipal_source": "{open_data_label}",
+      "realtor_board": "{realtor_board}", "realtor_web_search": true/false,
+      "cmhc_web_search": true/false,
+      "community_identified": "community/neighbourhood name or null",
+      "dev_permits_found": number, "bldg_permits_found": number}}
+
+CRITICAL: All lat/lng for nearby items must be within {radius_miles} miles of ({subject_lat}, {subject_lng}).
 Return ONLY valid JSON."""
 
-    try:
-        json_resp = client.chat.completions.create(
-            model="gpt-4o",
-            messages=[{"role": "user", "content": json_prompt}],
-            max_tokens=4096,
-        )
-        text = json_resp.choices[0].message.content.strip()
-        text = re.sub(r"^```(?:json)?\s*", "", text)
-        text = re.sub(r"\s*```$", "", text)
-        text = text.strip()
+    # Try Claude first (our primary AI), then OpenAI fallback
+    result = _call_claude_json(synthesis_prompt, max_tokens=4096)
 
-        if text.startswith("{"):
-            result = json.loads(text)
-        else:
-            start = text.find("{")
-            end = text.rfind("}") + 1
-            result = json.loads(text[start:end]) if start >= 0 else {}
-    except Exception:
-        result = {}
+    if not result or "summary" not in result:
+        # Fallback to OpenAI for synthesis
+        if openai_key:
+            try:
+                from openai import OpenAI as _OpenAI
+                client = _OpenAI(api_key=openai_key)
+                json_resp = client.chat.completions.create(
+                    model="gpt-4o",
+                    messages=[{"role": "user", "content": synthesis_prompt}],
+                    max_tokens=4096,
+                )
+                text = json_resp.choices[0].message.content.strip()
+                text = re.sub(r"^```(?:json)?\s*", "", text)
+                text = re.sub(r"\s*```$", "", text)
+                text = text.strip()
+                if text.startswith("{"):
+                    result = json.loads(text)
+                else:
+                    start = text.find("{")
+                    end = text.rfind("}") + 1
+                    result = json.loads(text[start:end]) if start >= 0 else {}
+            except Exception as e:
+                logger.warning("OpenAI synthesis failed: %s", e)
+                result = {}
 
     if result and "summary" in result:
         result["address"] = address
         result["city"] = city
         result["radius_miles"] = radius_miles
-        result["data_source"] = "web_search"
-        if subject_lat and subject_lng:
-            result["subject_location"] = {"lat": subject_lat, "lng": subject_lng}
+        result["data_source"] = "authoritative"
+        result["subject_location"] = {"lat": subject_lat, "lng": subject_lng}
+        # Ensure data_sources is present
+        if "data_sources" not in result:
+            result["data_sources"] = {
+                "municipal_open_data": bool(dev_permits or bldg_permits or demographics_raw),
+                "municipal_source": open_data_label,
+                "realtor_board": realtor_board,
+                "realtor_web_search": bool(web_search_data and realtor_label in web_search_data),
+                "cmhc_web_search": bool(web_search_data and "CMHC" in web_search_data),
+                "community_identified": area_name or None,
+                "dev_permits_found": len(dev_permits),
+                "bldg_permits_found": len(bldg_permits),
+            }
         return result
 
-    # Final fallback
-    return _area_research_fallback(address, city, radius_miles, zoning)
+    # Final fallback — return what we have from open data without AI
+    return _area_research_fallback_with_real_data(
+        address, city, radius_miles, zoning, subject_lat, subject_lng, municipal_data
+    )
 
 
 # Default city coordinates for fallback
@@ -1039,6 +1058,173 @@ _CITY_COORDS = {
     "lethbridge": (49.6935, -112.8418),
     "medicine hat": (50.0405, -110.6764),
 }
+
+
+def _area_research_fallback_with_real_data(
+    address: str,
+    city: str,
+    radius_miles: float,
+    zoning: Optional[str],
+    lat: float,
+    lng: float,
+    municipal_data: dict,
+) -> dict:
+    """Build a report from municipal open data when no AI is available for synthesis."""
+    is_edmonton = "edmonton" in city.lower()
+
+    # Normalize keys across Calgary / Edmonton data shapes
+    if is_edmonton:
+        community = municipal_data.get("neighbourhood") or {}
+        community_name = community.get("neighbourhood_name", "")
+        open_data_label = "City of Edmonton Open Data"
+        realtor_board = "REALTORS Association of Edmonton"
+    else:
+        community = municipal_data.get("community") or {}
+        community_name = community.get("community_name", "")
+        open_data_label = "City of Calgary Open Data"
+        realtor_board = "CREB"
+
+    demographics = municipal_data.get("demographics") or {}
+    zoning_info = municipal_data.get("zoning") or {}
+    dev_permits = municipal_data.get("development_permits") or []
+    bldg_permits = municipal_data.get("building_permits") or []
+
+    # Build development_activity from real dev permits
+    dev_activity = []
+    for dp in dev_permits[:5]:
+        # Edmonton uses "permit_type" / "description"; Calgary uses "category"
+        cat = dp.get("category") or dp.get("permit_type") or "Development"
+        desc = dp.get("description") or dp.get("description_of_development") or ""
+        dev_activity.append({
+            "project_name": cat,
+            "location": dp.get("address", ""),
+            "lat": dp.get("latitude", lat),
+            "lng": dp.get("longitude", lng),
+            "type": "Residential" if "resid" in cat.lower() else "Mixed-Use",
+            "units": None,
+            "status": dp.get("status", ""),
+            "estimated_completion": "",
+            "description": desc,
+        })
+
+    # Build rezoning_activity from dev permits
+    rezoning = []
+    for dp in dev_permits:
+        is_discretionary = (
+            dp.get("permitted_discretionary") == "Discretionary"
+            or dp.get("permit_class") == "Discretionary Development"
+        )
+        if is_discretionary:
+            rezoning.append({
+                "location": dp.get("address", ""),
+                "lat": dp.get("latitude", lat),
+                "lng": dp.get("longitude", lng),
+                "from_zone": "",
+                "to_zone": dp.get("land_use_district") or dp.get("zoning", ""),
+                "status": dp.get("status", ""),
+                "application_date": (dp.get("applied_date") or "")[:7],
+                "description": dp.get("description", ""),
+            })
+        if len(rezoning) >= 4:
+            break
+
+    # Zoning info from official data
+    zoning_section = {
+        "current_zoning": zoning_info.get("code", zoning or "Unknown"),
+        "zoning_description": zoning_info.get("description", ""),
+        "max_density": "",
+        "max_height": "",
+        "setback_requirements": "",
+        "parking_requirements": "",
+        "permitted_uses": [],
+        "discretionary_uses": [],
+    }
+    if zoning_info.get("bylaw_url"):
+        zoning_section["bylaw_url"] = zoning_info["bylaw_url"]
+
+    # Demographics — Edmonton uses total_population; Calgary uses population
+    population = demographics.get("population") or demographics.get("total_population")
+    median_age = demographics.get("median_age") or demographics.get("median_age_estimate")
+    demo_section = {
+        "population": population,
+        "median_household_income": None,
+        "median_age": median_age,
+        "population_growth_pct": demographics.get("population_growth_pct"),
+        "major_employers": [],
+        "transit_access": "",
+        "walk_score_estimate": None,
+    }
+
+    # Edmonton transit enrichment
+    if is_edmonton:
+        transit = municipal_data.get("transit") or {}
+        lrt = transit.get("lrt_stations") or []
+        bus = transit.get("bus_stops_nearby", 0)
+        if lrt:
+            names = [s.get("name", "") for s in lrt[:3]]
+            demo_section["transit_access"] = f"LRT: {', '.join(names)}. {bus} bus stops nearby."
+        elif bus:
+            demo_section["transit_access"] = f"{bus} bus stops within walking distance. No LRT nearby."
+
+    return {
+        "address": address,
+        "city": city,
+        "radius_miles": radius_miles,
+        "data_source": "municipal_open_data_only",
+        "subject_location": {"lat": lat, "lng": lng},
+        "summary": (
+            f"Area research for {address}, {city}"
+            f"{' (' + community_name + ')' if community_name else ''}. "
+            f"Based on {open_data_label}: {len(dev_permits)} development permits "
+            f"and {len(bldg_permits)} building permits found within {radius_miles} miles. "
+            f"{'Population: ' + str(population) + '. ' if population else ''}"
+            f"Configure ANTHROPIC_API_KEY or OPENAI_API_KEY for full AI-synthesized analysis "
+            f"with {realtor_board} sales data and CMHC rental market data."
+        ),
+        "comparable_sales": [],
+        "active_listings": [],
+        "zoning_info": zoning_section,
+        "rezoning_activity": rezoning,
+        "rental_market": {
+            "average_rent_1br": None,
+            "average_rent_2br": None,
+            "average_rent_3br": None,
+            "average_rent_per_bed": None,
+            "vacancy_rate_pct": demographics.get("vacancy_rate_pct"),
+            "rent_trend": None,
+            "rent_growth_annual_pct": None,
+            "notes": f"CMHC rental data requires AI integration. Enable API keys for {city}-specific analysis.",
+        },
+        "demographics": demo_section,
+        "development_activity": dev_activity,
+        "market_insights": {
+            "median_home_price": None,
+            "price_trend": None,
+            "price_growth_annual_pct": None,
+            "avg_days_on_market": None,
+            "absorption_rate": None,
+            "investment_grade": None,
+            "opportunity_score": None,
+        },
+        "risks_and_considerations": [],
+        "redevelopment_potential": {
+            "score": None,
+            "rationale": "Enable AI for redevelopment analysis.",
+            "best_use_recommendation": None,
+            "estimated_arv": None,
+            "key_considerations": [],
+        },
+        "data_sources": {
+            "municipal_open_data": bool(dev_permits or bldg_permits or demographics),
+            "municipal_source": open_data_label,
+            "realtor_board": realtor_board,
+            "realtor_web_search": False,
+            "cmhc_web_search": False,
+            "community_identified": community_name or None,
+            "dev_permits_found": len(dev_permits),
+            "bldg_permits_found": len(bldg_permits),
+        },
+    }
 
 
 def _area_research_fallback(
