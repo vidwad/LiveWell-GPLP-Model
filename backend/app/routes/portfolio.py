@@ -1602,6 +1602,7 @@ from app.routes.portfolio_proforma import router as proforma_router
 from app.routes.portfolio_ancillary_revenue import router as ancillary_revenue_router
 from app.routes.portfolio_operating_expenses import router as operating_expenses_router
 from app.routes.portfolio_underwriting import router as underwriting_router
+from app.routes.portfolio_lifecycle import router as lifecycle_router
 
 router.include_router(valuation_router)
 router.include_router(construction_router)
@@ -1609,6 +1610,7 @@ router.include_router(proforma_router)
 router.include_router(ancillary_revenue_router)
 router.include_router(operating_expenses_router)
 router.include_router(underwriting_router)
+router.include_router(lifecycle_router)
 
 # ===========================================================================
 # PROPERTY UNITS & BEDS

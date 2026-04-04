@@ -8,6 +8,7 @@ import {
   Layers,
   GitCompare,
   Pencil,
+  TrendingUp,
 } from "lucide-react";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -247,6 +248,10 @@ export function DevPlansTab({ propertyId, canEdit, activePhase = "full_developme
                     <TableHead>Start</TableHead>
                     <TableHead>Completion</TableHead>
                     <TableHead className="text-right">Proj. NOI</TableHead>
+                    <TableHead className="text-right">Exit Year</TableHead>
+                    <TableHead className="text-right">Sale Price</TableHead>
+                    <TableHead className="text-right">IRR</TableHead>
+                    <TableHead className="text-right">Equity Multiple</TableHead>
                     {canEdit && <TableHead className="text-right">Actions</TableHead>}
                   </TableRow>
                 </TableHeader>
@@ -267,6 +272,10 @@ export function DevPlansTab({ propertyId, canEdit, activePhase = "full_developme
                       <TableCell>{plan.development_start_date ? formatDate(plan.development_start_date) : "—"}</TableCell>
                       <TableCell>{plan.estimated_completion_date ? formatDate(plan.estimated_completion_date) : "—"}</TableCell>
                       <TableCell className="text-right font-medium text-green-600">{plan.projected_annual_noi ? formatCurrency(Number(plan.projected_annual_noi)) : "—"}</TableCell>
+                      <TableCell className="text-right">{plan.exit_sale_year ?? "—"}</TableCell>
+                      <TableCell className="text-right">{plan.exit_sale_price ? formatCurrency(Number(plan.exit_sale_price)) : "—"}</TableCell>
+                      <TableCell className="text-right font-medium text-blue-600">{plan.exit_irr != null ? `${Number(plan.exit_irr).toFixed(1)}%` : "—"}</TableCell>
+                      <TableCell className="text-right font-medium">{plan.exit_equity_multiple != null ? `${Number(plan.exit_equity_multiple).toFixed(2)}x` : "—"}</TableCell>
                       {canEdit && (
                         <TableCell className="text-right">
                           <div className="flex items-center justify-end gap-1">
@@ -336,6 +345,22 @@ export function DevPlansTab({ propertyId, canEdit, activePhase = "full_developme
                     <div className="space-y-2"><Label>Est. Completion Date</Label><Input type="date" value={editPlanForm.estimated_completion_date} onChange={(e) => setEditPlanForm((f) => ({ ...f, estimated_completion_date: e.target.value }))} /></div>
                     <div className="space-y-2"><Label>Est. Stabilization Date</Label><Input type="date" value={editPlanForm.estimated_stabilization_date} onChange={(e) => setEditPlanForm((f) => ({ ...f, estimated_stabilization_date: e.target.value }))} /></div>
                   </div>
+                  {/* Exit Assumptions */}
+                  <div className="rounded-lg border border-green-200 bg-green-50/50 p-3 space-y-3">
+                    <p className="text-xs font-semibold text-green-700 flex items-center gap-1.5">
+                      <TrendingUp className="h-3.5 w-3.5" /> Exit Assumptions for This Strategy
+                    </p>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div className="space-y-2"><Label className="text-xs">Exit Sale Year</Label><Input type="number" value={(editPlanForm as any).exit_sale_year || ""} onChange={(e) => setEditPlanForm((f: any) => ({ ...f, exit_sale_year: Number(e.target.value) || 0 }))} placeholder="e.g. 2032" /></div>
+                      <div className="space-y-2"><Label className="text-xs">Exit Cap Rate (%)</Label><Input type="number" step="0.1" value={(editPlanForm as any).exit_cap_rate || ""} onChange={(e) => setEditPlanForm((f: any) => ({ ...f, exit_cap_rate: Number(e.target.value) || 0 }))} placeholder="e.g. 5.0" /></div>
+                      <div className="space-y-2"><Label className="text-xs">Exit NOI ($)</Label><Input type="number" value={(editPlanForm as any).exit_noi || ""} onChange={(e) => setEditPlanForm((f: any) => ({ ...f, exit_noi: Number(e.target.value) || 0 }))} placeholder="Stabilized NOI at sale" /></div>
+                      <div className="space-y-2"><Label className="text-xs">Selling Cost (%)</Label><Input type="number" step="0.1" value={(editPlanForm as any).exit_selling_cost_pct || ""} onChange={(e) => setEditPlanForm((f: any) => ({ ...f, exit_selling_cost_pct: Number(e.target.value) || 0 }))} placeholder="5.0" /></div>
+                      <div className="space-y-2"><Label className="text-xs">Gross Sale Price ($)</Label><Input type="number" value={(editPlanForm as any).exit_sale_price || ""} onChange={(e) => setEditPlanForm((f: any) => ({ ...f, exit_sale_price: Number(e.target.value) || 0 }))} placeholder="Auto: NOI / cap" /></div>
+                      <div className="space-y-2"><Label className="text-xs">Net Proceeds ($)</Label><Input type="number" value={(editPlanForm as any).exit_net_proceeds || ""} onChange={(e) => setEditPlanForm((f: any) => ({ ...f, exit_net_proceeds: Number(e.target.value) || 0 }))} /></div>
+                      <div className="space-y-2"><Label className="text-xs">Projected IRR (%)</Label><Input type="number" step="0.1" value={(editPlanForm as any).exit_irr || ""} onChange={(e) => setEditPlanForm((f: any) => ({ ...f, exit_irr: Number(e.target.value) || 0 }))} /></div>
+                      <div className="space-y-2"><Label className="text-xs">Projected Equity Multiple (x)</Label><Input type="number" step="0.01" value={(editPlanForm as any).exit_equity_multiple || ""} onChange={(e) => setEditPlanForm((f: any) => ({ ...f, exit_equity_multiple: Number(e.target.value) || 0 }))} /></div>
+                    </div>
+                  </div>
                   <div className="flex gap-2 justify-end">
                     <Button variant="outline" onClick={() => setEditingPlanId(null)}>Cancel</Button>
                     <Button onClick={handleSavePlan} disabled={updatePlanPending}>
@@ -367,6 +392,15 @@ export function DevPlansTab({ propertyId, canEdit, activePhase = "full_developme
             { label: "Projected Annual NOI", a: planA.projected_annual_noi ? formatCurrency(Number(planA.projected_annual_noi)) : "—", b: planB.projected_annual_noi ? formatCurrency(Number(planB.projected_annual_noi)) : "—", diff: planA.projected_annual_noi && planB.projected_annual_noi ? formatCurrency(Number(planB.projected_annual_noi) - Number(planA.projected_annual_noi)) : undefined, diffColor: Number(planB.projected_annual_noi || 0) >= Number(planA.projected_annual_noi || 0) ? "text-green-600" : "text-red-600" },
             { label: "Start Date", a: planA.development_start_date ? formatDate(planA.development_start_date) : "—", b: planB.development_start_date ? formatDate(planB.development_start_date) : "—" },
             { label: "Est. Completion", a: planA.estimated_completion_date ? formatDate(planA.estimated_completion_date) : "—", b: planB.estimated_completion_date ? formatDate(planB.estimated_completion_date) : "—" },
+            // Exit projections
+            { label: "───── Exit Projections ─────", a: "", b: "" },
+            { label: "Exit Sale Year", a: planA.exit_sale_year ? String(planA.exit_sale_year) : "—", b: planB.exit_sale_year ? String(planB.exit_sale_year) : "—" },
+            { label: "Exit NOI", a: planA.exit_noi ? formatCurrency(Number(planA.exit_noi)) : "—", b: planB.exit_noi ? formatCurrency(Number(planB.exit_noi)) : "—", diff: planA.exit_noi && planB.exit_noi ? formatCurrency(Number(planB.exit_noi) - Number(planA.exit_noi)) : undefined, diffColor: Number(planB.exit_noi || 0) >= Number(planA.exit_noi || 0) ? "text-green-600" : "text-red-600" },
+            { label: "Exit Cap Rate", a: planA.exit_cap_rate ? `${Number(planA.exit_cap_rate).toFixed(2)}%` : "—", b: planB.exit_cap_rate ? `${Number(planB.exit_cap_rate).toFixed(2)}%` : "—" },
+            { label: "Gross Sale Price", a: planA.exit_sale_price ? formatCurrency(Number(planA.exit_sale_price)) : "—", b: planB.exit_sale_price ? formatCurrency(Number(planB.exit_sale_price)) : "—", diff: planA.exit_sale_price && planB.exit_sale_price ? formatCurrency(Number(planB.exit_sale_price) - Number(planA.exit_sale_price)) : undefined, diffColor: Number(planB.exit_sale_price || 0) >= Number(planA.exit_sale_price || 0) ? "text-green-600" : "text-red-600" },
+            { label: "Net Sale Proceeds", a: planA.exit_net_proceeds ? formatCurrency(Number(planA.exit_net_proceeds)) : "—", b: planB.exit_net_proceeds ? formatCurrency(Number(planB.exit_net_proceeds)) : "—", diff: planA.exit_net_proceeds && planB.exit_net_proceeds ? formatCurrency(Number(planB.exit_net_proceeds) - Number(planA.exit_net_proceeds)) : undefined, diffColor: Number(planB.exit_net_proceeds || 0) >= Number(planA.exit_net_proceeds || 0) ? "text-green-600" : "text-red-600" },
+            { label: "IRR Through Sale", a: planA.exit_irr != null ? `${Number(planA.exit_irr).toFixed(1)}%` : "—", b: planB.exit_irr != null ? `${Number(planB.exit_irr).toFixed(1)}%` : "—", diff: planA.exit_irr != null && planB.exit_irr != null ? `${(Number(planB.exit_irr) - Number(planA.exit_irr)).toFixed(1)}%` : undefined, diffColor: Number(planB.exit_irr || 0) >= Number(planA.exit_irr || 0) ? "text-green-600" : "text-red-600" },
+            { label: "Equity Multiple", a: planA.exit_equity_multiple != null ? `${Number(planA.exit_equity_multiple).toFixed(2)}x` : "—", b: planB.exit_equity_multiple != null ? `${Number(planB.exit_equity_multiple).toFixed(2)}x` : "—", diff: planA.exit_equity_multiple != null && planB.exit_equity_multiple != null ? `${(Number(planB.exit_equity_multiple) - Number(planA.exit_equity_multiple)).toFixed(2)}x` : undefined, diffColor: Number(planB.exit_equity_multiple || 0) >= Number(planA.exit_equity_multiple || 0) ? "text-green-600" : "text-red-600" },
           ];
 
           return (

@@ -1,7 +1,8 @@
 "use client";
 
 import React, { useState } from "react";
-import { MapPin, DollarSign, Calendar, Building2, Landmark, TrendingUp, Pencil, Loader2, Sparkles, RefreshCw, AlertTriangle } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { MapPin, DollarSign, Calendar, Building2, Landmark, TrendingUp, Pencil, Loader2, Sparkles, RefreshCw, AlertTriangle, Target } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -199,6 +200,26 @@ export function OverviewTab({
   activePhase,
 }: OverviewTabProps) {
   const phaseLabel = activePhase === "as_is" ? "As-Is" : activePhase === "post_renovation" ? "Post-Renovation" : activePhase === "full_development" ? "Full Development" : null;
+
+  // Fetch exit forecast and acquisition baseline for overview KPIs
+  const { data: exitForecast } = useQuery({
+    queryKey: ["exit-forecast", property.property_id],
+    queryFn: () => apiClient.get(`/api/portfolio/properties/${property.property_id}/exit-forecast`).then(r => r.data),
+    enabled: property.property_id > 0,
+  });
+  const { data: acqBaseline } = useQuery({
+    queryKey: ["acquisition-baseline", property.property_id],
+    queryFn: () => apiClient.get(`/api/portfolio/properties/${property.property_id}/acquisition-baseline`).then(r => r.data),
+    enabled: property.property_id > 0,
+  });
+
+  const saleStatusColors: Record<string, string> = {
+    planned: "bg-slate-100 text-slate-700 border-slate-200",
+    marketed: "bg-blue-100 text-blue-700 border-blue-200",
+    under_contract: "bg-amber-100 text-amber-700 border-amber-200",
+    sold: "bg-green-100 text-green-700 border-green-200",
+  };
+
   return (
     <div className="space-y-6">
       {/* Investment Summary — Key Returns Snapshot */}
@@ -347,6 +368,53 @@ export function OverviewTab({
                 </div>
               )}
             </dl>
+
+            {/* Exit KPIs */}
+            {(exitForecast?.exists || acqBaseline?.exists) && (
+              <div className="mt-4 pt-3 border-t">
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                  <Target className="h-3 w-3" /> Exit & Returns
+                </p>
+                <dl className="space-y-0 text-sm">
+                  <div className="flex justify-between gap-4 py-2 border-b border-dashed">
+                    <dt className="text-muted-foreground shrink-0">Target Exit Year</dt>
+                    <dd className="font-medium text-right">
+                      {exitForecast?.forecast_sale_year ?? acqBaseline?.target_sale_year ?? "—"}
+                    </dd>
+                  </div>
+                  {exitForecast?.forecast_sale_price && (
+                    <div className="flex justify-between gap-4 py-2 border-b border-dashed">
+                      <dt className="text-muted-foreground shrink-0">Projected Sale Price</dt>
+                      <dd className="font-medium text-right tabular-nums text-blue-600">{formatCurrencyCompact(exitForecast.forecast_sale_price)}</dd>
+                    </div>
+                  )}
+                  {exitForecast?.forecast_net_proceeds && (
+                    <div className="flex justify-between gap-4 py-2 border-b border-dashed">
+                      <dt className="text-muted-foreground shrink-0">Net Proceeds</dt>
+                      <dd className="font-semibold text-right tabular-nums text-green-600">{formatCurrencyCompact(exitForecast.forecast_net_proceeds)}</dd>
+                    </div>
+                  )}
+                  {(exitForecast?.forecast_irr || acqBaseline?.target_irr) && (
+                    <div className="flex justify-between gap-4 py-2 border-b border-dashed">
+                      <dt className="text-muted-foreground shrink-0">Forecast IRR</dt>
+                      <dd className="font-bold text-right text-green-700">
+                        {exitForecast?.forecast_irr != null ? `${Number(exitForecast.forecast_irr).toFixed(1)}%` : acqBaseline?.target_irr != null ? `${Number(acqBaseline.target_irr).toFixed(1)}% (target)` : "—"}
+                      </dd>
+                    </div>
+                  )}
+                  {exitForecast?.sale_status && (
+                    <div className="flex justify-between gap-4 py-2">
+                      <dt className="text-muted-foreground shrink-0">Sale Status</dt>
+                      <dd>
+                        <span className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold capitalize ${saleStatusColors[exitForecast.sale_status] || "bg-gray-100 text-gray-700"}`}>
+                          {exitForecast.sale_status.replace(/_/g, " ")}
+                        </span>
+                      </dd>
+                    </div>
+                  )}
+                </dl>
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>

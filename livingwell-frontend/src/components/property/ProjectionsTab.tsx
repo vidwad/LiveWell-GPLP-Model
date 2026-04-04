@@ -29,9 +29,11 @@ interface ProjectionsTabProps {
   activePlan?: Record<string, any> | null;
   phaseFilteredDebts?: any[];
   phasePlanId?: number | null;
+  proFormaData?: Record<string, any> | null;
+  financialSnapshot?: Record<string, any> | null;
 }
 
-export function ProjectionsTab({ propertyId, totalAnnualDebtService, activePhase = "as_is", activePlan, phaseFilteredDebts, phasePlanId }: ProjectionsTabProps) {
+export function ProjectionsTab({ propertyId, totalAnnualDebtService, activePhase = "as_is", activePlan, phaseFilteredDebts, phasePlanId, proFormaData, financialSnapshot }: ProjectionsTabProps) {
   const { mutateAsync: runProjection, isPending: projPending } = useRunProjection(propertyId);
   const [projResults, setProjResults] = useState<ProjectionResult | null>(null);
   const [useCapRateCurve, setUseCapRateCurve] = useState(false);
@@ -68,7 +70,7 @@ export function ProjectionsTab({ propertyId, totalAnnualDebtService, activePhase
     enabled: propertyId > 0,
   });
 
-  // Auto-populate form fields from plan and underwriting data when phase changes
+  // Auto-populate form fields from plan, underwriting data, pro forma, and financial snapshot
   useEffect(() => {
     setProjForm(prev => {
       const updates: Record<string, string> = {};
@@ -100,10 +102,57 @@ export function ProjectionsTab({ propertyId, totalAnnualDebtService, activePhase
         if (totalOutstanding > 0) updates.debt_balance_at_exit = String(Math.round(totalOutstanding));
       }
 
+      // Auto-fill from financial snapshot (equity, acquisition cost)
+      if (financialSnapshot) {
+        const eq = financialSnapshot.equity;
+        if (eq) {
+          if (!prev.total_equity_invested && eq.equity_value > 0)
+            updates.total_equity_invested = String(Math.round(eq.equity_value));
+          if (!prev.acquisition_cost && eq.purchase_price > 0)
+            updates.acquisition_cost = String(Math.round(eq.purchase_price));
+        }
+        // Auto-fill rent per unit from snapshot
+        const rr = financialSnapshot.rent_roll;
+        if (rr && !prev.monthly_rent_per_unit && rr.avg_rent_per_bed > 0) {
+          updates.monthly_rent_per_unit = String(Math.round(rr.avg_rent_per_bed));
+        }
+      }
+
       if (Object.keys(updates).length === 0) return prev;
       return { ...prev, ...updates };
     });
-  }, [uwSummary, activePlan, totalAnnualDebtService, phaseFilteredDebts]);
+  }, [uwSummary, activePlan, totalAnnualDebtService, phaseFilteredDebts, financialSnapshot]);
+
+  // Auto-fill from Pro Forma results when generated on the Pro Forma tab
+  useEffect(() => {
+    if (!proFormaData) return;
+    setProjForm(prev => {
+      const updates: Record<string, string> = {};
+
+      // Pro Forma expense ratio → projection expense ratio
+      if (proFormaData.expense_ratio != null && proFormaData.expense_ratio > 0) {
+        updates.annual_expense_ratio = String(proFormaData.expense_ratio.toFixed(1));
+      }
+
+      // Pro Forma vacancy rate
+      if (proFormaData.vacancy_rate != null) {
+        updates.vacancy_rate = String(proFormaData.vacancy_rate);
+      }
+
+      // Pro Forma debt service
+      if (proFormaData.annual_debt_service > 0) {
+        updates.annual_debt_service = String(Math.round(proFormaData.annual_debt_service));
+      }
+
+      // Pro Forma total equity
+      if (proFormaData.total_equity > 0) {
+        updates.total_equity_invested = String(Math.round(proFormaData.total_equity));
+      }
+
+      if (Object.keys(updates).length === 0) return prev;
+      return { ...prev, ...updates };
+    });
+  }, [proFormaData]);
 
   const handleRunProjection = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -188,6 +237,38 @@ export function ProjectionsTab({ propertyId, totalAnnualDebtService, activePhase
           </CardContent>
         </Card>
       )}
+
+    {/* Data Flow Banner */}
+    {(proFormaData || financialSnapshot) && (
+      <Card className="bg-indigo-50 dark:bg-indigo-950/20 border-indigo-200 dark:border-indigo-800">
+        <CardContent className="py-2.5 px-4">
+          <div className="flex items-center gap-3 text-xs text-indigo-700 dark:text-indigo-300 flex-wrap">
+            <DollarSign className="h-3.5 w-3.5 shrink-0" />
+            <span className="font-medium">Auto-populated from:</span>
+            {proFormaData && (
+              <span className="bg-indigo-100 dark:bg-indigo-900/40 px-2 py-0.5 rounded-full">
+                Pro Forma (NOI: ${Math.round(proFormaData.noi ?? 0).toLocaleString()}, Expense Ratio: {proFormaData.expense_ratio?.toFixed(1)}%)
+              </span>
+            )}
+            {financialSnapshot?.rent_roll && (
+              <span className="bg-indigo-100 dark:bg-indigo-900/40 px-2 py-0.5 rounded-full">
+                Rent Roll ({financialSnapshot.rent_roll.unit_count} units, ${Math.round(financialSnapshot.rent_roll.monthly_rent).toLocaleString()}/mo)
+              </span>
+            )}
+            {financialSnapshot?.debt?.annual_debt_service > 0 && (
+              <span className="bg-indigo-100 dark:bg-indigo-900/40 px-2 py-0.5 rounded-full">
+                Debt (ADS: ${Math.round(financialSnapshot.debt.annual_debt_service).toLocaleString()})
+              </span>
+            )}
+            {financialSnapshot?.equity?.equity_value > 0 && (
+              <span className="bg-indigo-100 dark:bg-indigo-900/40 px-2 py-0.5 rounded-full">
+                Equity: ${Math.round(financialSnapshot.equity.equity_value).toLocaleString()}
+              </span>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+    )}
 
     <div className="grid gap-6 lg:grid-cols-[380px_1fr]">
       {/* Projection Inputs Panel */}
@@ -359,6 +440,30 @@ export function ProjectionsTab({ propertyId, totalAnnualDebtService, activePhase
                           {useCapRateCurve && <><TableCell className="text-right text-teal-600">{(row.implied_cap_rate ?? 0) > 0 ? `${((row.implied_cap_rate ?? 0) * 100).toFixed(2)}%` : "\u2014"}</TableCell><TableCell className="text-right text-teal-700 font-medium">{(row.implied_value ?? 0) > 0 ? formatCurrency(row.implied_value ?? 0) : "\u2014"}</TableCell></>}
                         </TableRow>
                       ))}
+                      {/* ── Terminal Sale Event Row ── */}
+                      {projResults.summary && projResults.summary.terminal_value > 0 && (
+                        <>
+                          <TableRow className="border-t-2 border-green-300">
+                            <TableCell colSpan={useCapRateCurve ? 12 : 10} className="py-1 bg-green-50 dark:bg-green-950/20">
+                              <span className="text-xs font-bold text-green-700 uppercase tracking-wider flex items-center gap-1.5">
+                                <TrendingUp className="h-3 w-3" /> Sale Event — Year {projResults.projections.length}
+                              </span>
+                            </TableCell>
+                          </TableRow>
+                          <TableRow className="bg-green-50/50 dark:bg-green-950/10">
+                            <TableCell className="font-bold text-green-700">EXIT</TableCell>
+                            <TableCell><span className="px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">sale</span></TableCell>
+                            <TableCell className="text-right text-sm text-muted-foreground" colSpan={4}>
+                              Exit NOI: {formatCurrency(projResults.summary.exit_noi)} @ {f.exit_cap_rate}% cap
+                            </TableCell>
+                            <TableCell className="text-right font-bold text-green-700">{formatCurrency(projResults.summary.terminal_value)}</TableCell>
+                            <TableCell className="text-right text-red-600">-{formatCurrency(projResults.summary.disposition_costs + (Number(f.debt_balance_at_exit) || 0))}</TableCell>
+                            <TableCell className="text-right font-bold text-green-700 text-base">{formatCurrency(projResults.summary.net_exit_proceeds)}</TableCell>
+                            <TableCell className="text-right font-bold text-green-700">{formatCurrency(projResults.summary.total_return)}</TableCell>
+                            {useCapRateCurve && <><TableCell /><TableCell /></>}
+                          </TableRow>
+                        </>
+                      )}
                     </TableBody>
                   </Table>
                 </div>

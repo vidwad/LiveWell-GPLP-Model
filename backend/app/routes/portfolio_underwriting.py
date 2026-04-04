@@ -1,9 +1,13 @@
 """
-Lender Underwriting Summary
-============================
+Lender Underwriting Summary & Financial Snapshot
+==================================================
 Computes all key metrics a commercial lender (bank, credit union, CMHC)
 needs to evaluate a multi-family property loan application.
+Also provides a lightweight financial snapshot for cross-tab data flow.
 """
+from datetime import date as _date
+from dateutil.relativedelta import relativedelta
+
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
@@ -335,4 +339,211 @@ def get_underwriting_summary(
         "total_units": num_units,
         "total_beds": total_beds_count,
         "total_sqft": round(total_sqft, 2),
+    }
+
+
+# ---------------------------------------------------------------------------
+# Financial Snapshot — lightweight endpoint for cross-tab data wiring
+# ---------------------------------------------------------------------------
+
+@router.get("/properties/{property_id}/financial-snapshot")
+def get_financial_snapshot(
+    property_id: int,
+    plan_id: int | None = Query(None, description="Development plan ID (null = baseline)"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_investor_or_above),
+):
+    """Lightweight financial snapshot for wiring data across tabs.
+
+    Returns rent roll totals, debt summary, equity calculation, and
+    development timeline auto-calculations. This endpoint is designed
+    to be fast and is called by multiple Financial Analysis sub-tabs.
+    """
+    from app.services.calculations import calculate_annual_debt_service
+
+    prop = db.query(Property).filter(Property.property_id == property_id).first()
+    if not prop:
+        raise HTTPException(404, "Property not found")
+
+    # ── Rent Roll ────────────────────────────────────────────────────
+    if plan_id is not None:
+        units = db.query(Unit).filter(
+            Unit.property_id == property_id,
+            Unit.development_plan_id == plan_id,
+        ).all()
+        if not units:
+            units = db.query(Unit).filter(
+                Unit.property_id == property_id,
+                Unit.development_plan_id.is_(None),
+            ).all()
+    else:
+        units = db.query(Unit).filter(
+            Unit.property_id == property_id,
+            Unit.renovation_phase != RenovationPhase.post_renovation,
+        ).all()
+
+    beds = []
+    for u in units:
+        if plan_id is not None:
+            plan_beds = db.query(Bed).filter(
+                Bed.unit_id == u.unit_id, Bed.is_post_renovation == True,
+            ).all()
+            beds.extend(plan_beds if plan_beds else db.query(Bed).filter(Bed.unit_id == u.unit_id).all())
+        else:
+            beds.extend(db.query(Bed).filter(
+                Bed.unit_id == u.unit_id, Bed.is_post_renovation == False,
+            ).all())
+
+    occupied_beds = sum(1 for b in beds if b.status and b.status.value == "occupied")
+    total_beds = len(beds)
+    monthly_rent = sum(_f(b.monthly_rent) for b in beds)
+    annual_rent = monthly_rent * 12
+    if annual_rent <= 0 and prop.annual_revenue:
+        annual_rent = _f(prop.annual_revenue)
+        monthly_rent = annual_rent / 12
+
+    avg_rent_per_bed = (monthly_rent / total_beds) if total_beds > 0 else 0
+    occupancy_rate = (occupied_beds / total_beds * 100) if total_beds > 0 else 0
+
+    # Ancillary revenue
+    ancillary_streams = db.query(AncillaryRevenueStream).filter(
+        AncillaryRevenueStream.property_id == property_id,
+        AncillaryRevenueStream.development_plan_id == plan_id,
+    ).all()
+    ancillary_annual = sum(
+        float(s.monthly_rate or 0) * (s.total_count or 0) * float(s.utilization_pct or 100) / 100.0 * 12
+        for s in ancillary_streams
+    )
+    other_income = ancillary_annual if ancillary_annual > 0 else _f(prop.annual_other_income)
+
+    # ── Expenses ─��───────────────────────────────────────────────────
+    expense_items = db.query(OperatingExpenseLineItem).filter(
+        OperatingExpenseLineItem.property_id == property_id,
+        OperatingExpenseLineItem.development_plan_id == plan_id,
+    ).all()
+
+    num_units = len(units) if units else 1
+    egi = (annual_rent + other_income) * 0.95  # assume 5% vacancy for snapshot
+    total_expenses = 0.0
+    if expense_items:
+        for item in expense_items:
+            base = float(item.base_amount or 0)
+            method = item.calc_method.value if hasattr(item.calc_method, 'value') else (item.calc_method or 'fixed')
+            if method == 'per_unit':
+                total_expenses += base * num_units
+            elif method == 'pct_egi':
+                total_expenses += egi * (base / 100.0)
+            else:
+                total_expenses += base
+    else:
+        total_expenses = _f(prop.annual_expenses) if prop.annual_expenses else (egi * 0.35)
+
+    noi = egi - total_expenses
+    expense_ratio = (total_expenses / egi * 100) if egi > 0 else 0
+
+    # ── Debt ���──────────────────────���─────────────────────────────────
+    if plan_id is not None:
+        plan_debts = db.query(DebtFacility).filter(
+            DebtFacility.property_id == property_id,
+            DebtFacility.development_plan_id == plan_id,
+        ).all()
+        all_replaced_ids = {d.replaces_debt_id for d in plan_debts if d.replaces_debt_id}
+        active_plan_debts = [d for d in plan_debts if d.debt_id not in all_replaced_ids]
+        baseline_debts = db.query(DebtFacility).filter(
+            DebtFacility.property_id == property_id,
+            DebtFacility.development_plan_id == None,
+            DebtFacility.status == DebtStatus.active,
+        ).all()
+        debts = active_plan_debts + [d for d in baseline_debts if d.debt_id not in all_replaced_ids]
+    else:
+        debts = db.query(DebtFacility).filter(
+            DebtFacility.property_id == property_id,
+            DebtFacility.development_plan_id == None,
+            DebtFacility.status == DebtStatus.active,
+        ).all()
+
+    total_debt = 0.0
+    total_ads = 0.0
+    for d in debts:
+        balance = _f(d.outstanding_balance or d.commitment_amount)
+        total_debt += balance
+        if balance > 0 and d.interest_rate:
+            compounding = getattr(d, 'compounding_method', None) or 'semi_annual'
+            total_ads += calculate_annual_debt_service(
+                balance, _f(d.interest_rate),
+                d.amortization_months or 0, d.io_period_months or 0,
+                compounding=compounding,
+            )
+
+    # ── Equity ────────────��──────────────────────────────────────────
+    purchase_price = _f(prop.purchase_price)
+    current_value = _f(prop.current_market_value or prop.assessed_value or prop.purchase_price)
+    equity_value = current_value - total_debt
+    cash_flow_after_debt = noi - total_ads
+
+    # ── Development Timeline Auto-Calcs ──────────────────────────────
+    completion_date = None
+    stabilization_date = None
+    plan = None
+    if plan_id:
+        plan = db.query(DevelopmentPlan).filter(DevelopmentPlan.plan_id == plan_id).first()
+    if not plan:
+        plan = db.query(DevelopmentPlan).filter(
+            DevelopmentPlan.property_id == property_id,
+            DevelopmentPlan.status == "active",
+        ).first()
+
+    if plan:
+        start = getattr(plan, 'construction_start_date', None) or getattr(plan, 'start_date', None)
+        duration_months = getattr(plan, 'construction_duration_months', None)
+        lease_up_months = getattr(plan, 'lease_up_months', None) or 0
+        if start and duration_months:
+            if isinstance(start, str):
+                try:
+                    start = _date.fromisoformat(start)
+                except ValueError:
+                    start = None
+            if start:
+                completion_date = str(start + relativedelta(months=int(duration_months)))
+                stabilization_date = str(
+                    start + relativedelta(months=int(duration_months) + int(lease_up_months))
+                )
+
+    return {
+        # Rent Roll
+        "rent_roll": {
+            "monthly_rent": round(monthly_rent, 2),
+            "annual_rent": round(annual_rent, 2),
+            "other_income": round(other_income, 2),
+            "total_annual_revenue": round(annual_rent + other_income, 2),
+            "unit_count": num_units,
+            "bed_count": total_beds,
+            "avg_rent_per_bed": round(avg_rent_per_bed, 2),
+            "occupancy_rate": round(occupancy_rate, 1),
+        },
+        # Expenses
+        "expenses": {
+            "total_annual": round(total_expenses, 2),
+            "expense_ratio": round(expense_ratio, 1),
+            "noi": round(noi, 2),
+        },
+        # Debt
+        "debt": {
+            "total_outstanding": round(total_debt, 2),
+            "annual_debt_service": round(total_ads, 2),
+            "facility_count": len(debts),
+            "cash_flow_after_debt": round(cash_flow_after_debt, 2),
+        },
+        # Equity
+        "equity": {
+            "purchase_price": round(purchase_price, 2),
+            "current_value": round(current_value, 2),
+            "total_debt": round(total_debt, 2),
+            "equity_value": round(equity_value, 2),
+        },
+        # Auto-Calculations
+        "auto_calcs": {
+            "completion_date": completion_date,
+            "stabilization_date": stabilization_date,
+        },
     }

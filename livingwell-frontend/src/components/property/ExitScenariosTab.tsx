@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api";
 import { toast } from "sonner";
@@ -43,9 +43,11 @@ interface ExitScenariosTabProps {
   totalDebtOutstanding: number;
   totalAnnualDebtService: number;
   activePhase?: "as_is" | "post_renovation" | "full_development";
+  proFormaData?: Record<string, any> | null;
+  financialSnapshot?: Record<string, any> | null;
 }
 
-export function ExitScenariosTab({ propertyId, canEdit, property, totalDebtOutstanding, totalAnnualDebtService, activePhase = "as_is" }: ExitScenariosTabProps) {
+export function ExitScenariosTab({ propertyId, canEdit, property, totalDebtOutstanding, totalAnnualDebtService, activePhase = "as_is", proFormaData, financialSnapshot }: ExitScenariosTabProps) {
   const { data: refiScenarios } = useRefinanceScenarios(propertyId);
   const { mutateAsync: createRefi, isPending: refiPending } = useCreateRefinanceScenario(propertyId);
   const { mutateAsync: deleteRefi } = useDeleteRefinanceScenario(propertyId);
@@ -93,9 +95,50 @@ export function ExitScenariosTab({ propertyId, canEdit, property, totalDebtOutst
     enabled: propertyId > 0,
   });
 
-  const computedEquity = (property?.purchase_price ?? 0) - totalDebtOutstanding;
-  const computedNOI = uwSummary?.noi ?? ((property?.annual_revenue ?? 0) - (property?.annual_expenses ?? 0));
+  // Cascading data: Pro Forma → Underwriting → Property fallback
+  const computedEquity = financialSnapshot?.equity?.equity_value
+    ?? ((property?.purchase_price ?? 0) - totalDebtOutstanding);
+  const computedNOI = proFormaData?.noi
+    ?? uwSummary?.noi
+    ?? financialSnapshot?.expenses?.noi
+    ?? ((property?.annual_revenue ?? 0) - (property?.annual_expenses ?? 0));
   const computedCashFlow = computedNOI - totalAnnualDebtService;
+  const computedValue = proFormaData?.implied_value_at_cap
+    ?? uwSummary?.implied_value_at_cap
+    ?? financialSnapshot?.equity?.current_value
+    ?? (property?.current_market_value ?? property?.purchase_price ?? 0);
+
+  // Auto-fill refinance and sale form defaults from upstream data
+  useEffect(() => {
+    setRefiForm(prev => {
+      const updates: Record<string, string> = {};
+      if (!prev.assumed_new_valuation && computedValue > 0)
+        updates.assumed_new_valuation = String(Math.round(computedValue));
+      if (!prev.existing_debt_payout && totalDebtOutstanding > 0)
+        updates.existing_debt_payout = String(Math.round(totalDebtOutstanding));
+      if (!prev.total_equity_invested && computedEquity > 0)
+        updates.total_equity_invested = String(Math.round(computedEquity));
+      if (!prev.annual_noi_at_refi && computedNOI > 0)
+        updates.annual_noi_at_refi = String(Math.round(computedNOI));
+      if (Object.keys(updates).length === 0) return prev;
+      return { ...prev, ...updates };
+    });
+    setSaleForm(prev => {
+      const updates: Record<string, string> = {};
+      if (!prev.assumed_sale_price && computedValue > 0)
+        updates.assumed_sale_price = String(Math.round(computedValue));
+      if (!prev.debt_payout && totalDebtOutstanding > 0)
+        updates.debt_payout = String(Math.round(totalDebtOutstanding));
+      if (!prev.total_equity_invested && computedEquity > 0)
+        updates.total_equity_invested = String(Math.round(computedEquity));
+      if (!prev.annual_noi_at_sale && computedNOI > 0)
+        updates.annual_noi_at_sale = String(Math.round(computedNOI));
+      if (!prev.annual_cash_flow && computedCashFlow > 0)
+        updates.annual_cash_flow = String(Math.round(computedCashFlow));
+      if (Object.keys(updates).length === 0) return prev;
+      return { ...prev, ...updates };
+    });
+  }, [computedValue, computedEquity, computedNOI, computedCashFlow, totalDebtOutstanding]);
 
   const handleCreateRefi = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -228,6 +271,33 @@ export function ExitScenariosTab({ propertyId, canEdit, property, totalDebtOutst
               <span className="font-medium">Developed Property Exit Analysis</span> — Model refinancing
               (including CMHC permanent takeout) and disposition scenarios based on the fully developed property.
             </p>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Data Flow Banner */}
+      {(proFormaData || financialSnapshot) && (
+        <Card className="bg-indigo-50 dark:bg-indigo-950/20 border-indigo-200 dark:border-indigo-800">
+          <CardContent className="py-2.5 px-4">
+            <div className="flex items-center gap-3 text-xs text-indigo-700 dark:text-indigo-300 flex-wrap">
+              <TrendingUp className="h-3.5 w-3.5 shrink-0" />
+              <span className="font-medium">Auto-populated:</span>
+              <span className="bg-indigo-100 dark:bg-indigo-900/40 px-2 py-0.5 rounded-full">
+                NOI: ${Math.round(computedNOI).toLocaleString()}
+              </span>
+              <span className="bg-indigo-100 dark:bg-indigo-900/40 px-2 py-0.5 rounded-full">
+                Value: ${Math.round(computedValue).toLocaleString()}
+              </span>
+              <span className="bg-indigo-100 dark:bg-indigo-900/40 px-2 py-0.5 rounded-full">
+                Equity: ${Math.round(computedEquity).toLocaleString()}
+              </span>
+              <span className="bg-indigo-100 dark:bg-indigo-900/40 px-2 py-0.5 rounded-full">
+                Debt: ${Math.round(totalDebtOutstanding).toLocaleString()}
+              </span>
+              {proFormaData && (
+                <span className="text-indigo-500 italic">via Pro Forma</span>
+              )}
+            </div>
           </CardContent>
         </Card>
       )}

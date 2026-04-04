@@ -171,6 +171,19 @@ export interface DevelopmentPlan {
   estimated_stabilization_date: string | null;
   rent_pricing_mode: string | null;
   annual_rent_increase_pct: string | null;
+  // Exit assumptions
+  exit_sale_year: number | null;
+  exit_noi: string | null;
+  exit_cap_rate: string | null;
+  exit_sale_price: string | null;
+  exit_selling_cost_pct: string | null;
+  exit_mortgage_prepayment_pct: string | null;
+  exit_net_proceeds: string | null;
+  exit_irr: string | null;
+  exit_equity_multiple: string | null;
+  hold_period_after_stabilization_months: number | null;
+  lease_up_months: number | null;
+  construction_duration_months: number | null;
 }
 
 export interface DevelopmentPlanCreate {
@@ -692,6 +705,15 @@ export interface EditPlanForm {
   estimated_stabilization_date: string;
   rent_pricing_mode: string;
   annual_rent_increase_pct: number;
+  // Exit assumptions (optional in form)
+  exit_sale_year?: number;
+  exit_noi?: number;
+  exit_cap_rate?: number;
+  exit_sale_price?: number;
+  exit_selling_cost_pct?: number;
+  exit_net_proceeds?: number;
+  exit_irr?: number;
+  exit_equity_multiple?: number;
 }
 
 // ── Ancillary Revenue Streams ───────────────────────────────────────

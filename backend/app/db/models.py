@@ -101,7 +101,28 @@ class DevelopmentStage(str, enum.Enum):
     construction = "construction"
     lease_up = "lease_up"
     stabilized = "stabilized"
-    exit = "exit"
+    exit_planned = "exit_planned"
+    exit_marketed = "exit_marketed"
+    exit_under_contract = "exit_under_contract"
+    exit_closed = "exit_closed"
+    exit = "exit"  # kept for backward compat
+
+
+class DispositionType(str, enum.Enum):
+    """Intended sale condition at exit."""
+    stabilized_sale = "stabilized_sale"
+    redevelopment_sale = "redevelopment_sale"
+    partial_lease_up_sale = "partial_lease_up_sale"
+    as_is_sale = "as_is_sale"
+    portfolio_sale = "portfolio_sale"
+
+
+class SaleStatus(str, enum.Enum):
+    """Sale process status for exit tracking."""
+    planned = "planned"
+    marketed = "marketed"
+    under_contract = "under_contract"
+    sold = "sold"
 
 
 class MaintenanceStatus(str, enum.Enum):
@@ -1172,6 +1193,165 @@ class Property(Base):
     ai_assessment_missing_fields = Column(Text, nullable=True)  # JSON array
     ai_assessment_updated_at = Column(DateTime, nullable=True)
 
+    # ── Lifecycle relationships ──
+    acquisition_baseline = relationship(
+        "AcquisitionBaseline", back_populates="property", uselist=False, cascade="all, delete-orphan"
+    )
+    exit_forecast = relationship(
+        "ExitForecast", back_populates="property", uselist=False, cascade="all, delete-orphan"
+    )
+    exit_actual = relationship(
+        "ExitActual", back_populates="property", uselist=False, cascade="all, delete-orphan"
+    )
+
+
+class AcquisitionBaseline(Base):
+    """Immutable record of acquisition facts and original LP mandate.
+
+    Created once at acquisition. Later plans, forecasts, and actuals
+    are measured against these original assumptions.
+    """
+    __tablename__ = "acquisition_baselines"
+
+    baseline_id = Column(Integer, primary_key=True, index=True)
+    property_id = Column(Integer, ForeignKey("properties.property_id", ondelete="CASCADE"), nullable=False, unique=True, index=True)
+
+    # ── Acquisition facts ──
+    purchase_price = Column(Numeric(16, 2), nullable=True)
+    purchase_date = Column(Date, nullable=True)
+    closing_costs = Column(Numeric(14, 2), nullable=True)
+    total_acquisition_cost = Column(Numeric(16, 2), nullable=True)  # price + closing
+
+    # ── Initial capital stack ──
+    initial_equity = Column(Numeric(16, 2), nullable=True)
+    initial_debt = Column(Numeric(16, 2), nullable=True)
+
+    # ── As-acquired operating assumptions ──
+    acquisition_noi = Column(Numeric(14, 2), nullable=True)  # NOI at purchase
+    acquisition_cap_rate = Column(Numeric(5, 2), nullable=True)  # going-in cap rate %
+    acquisition_occupancy_pct = Column(Numeric(5, 2), nullable=True)
+
+    # ── LP hold mandate ──
+    target_hold_years = Column(Integer, nullable=True)  # e.g. 7-10
+    target_sale_year = Column(Integer, nullable=True)  # e.g. 2033
+    earliest_sale_date = Column(Date, nullable=True)
+    latest_sale_date = Column(Date, nullable=True)
+
+    # ── Original exit assumptions ──
+    original_exit_cap_rate = Column(Numeric(5, 2), nullable=True)  # underwritten exit cap %
+    original_exit_noi = Column(Numeric(14, 2), nullable=True)  # underwritten stabilized NOI at exit
+    original_selling_cost_pct = Column(Numeric(5, 2), nullable=True, default=5.0)
+    original_sale_price = Column(Numeric(16, 2), nullable=True)  # underwritten gross sale price
+    original_net_proceeds = Column(Numeric(16, 2), nullable=True)
+
+    # ── Original return targets ──
+    target_irr = Column(Numeric(8, 4), nullable=True)  # e.g. 0.18 = 18%
+    target_equity_multiple = Column(Numeric(8, 4), nullable=True)  # e.g. 2.0
+    intended_disposition_type = Column(_enum(DispositionType), nullable=True)
+
+    # ── Metadata ──
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    created_by = Column(Integer, ForeignKey("users.user_id"), nullable=True)
+    notes = Column(Text, nullable=True)
+
+    property = relationship("Property", back_populates="acquisition_baseline")
+
+
+class ExitForecast(Base):
+    """Current management forecast for the exit event.
+
+    Updated periodically as the GP's view of the sale evolves.
+    Compared against AcquisitionBaseline to track variance.
+    """
+    __tablename__ = "exit_forecasts"
+
+    forecast_id = Column(Integer, primary_key=True, index=True)
+    property_id = Column(Integer, ForeignKey("properties.property_id", ondelete="CASCADE"), nullable=False, unique=True, index=True)
+
+    # ── Sale status ──
+    sale_status = Column(_enum(SaleStatus), nullable=True, default=SaleStatus.planned)
+
+    # ── Forecast exit assumptions ──
+    forecast_sale_year = Column(Integer, nullable=True)
+    forecast_sale_date = Column(Date, nullable=True)
+    forecast_exit_noi = Column(Numeric(16, 2), nullable=True)
+    forecast_exit_cap_rate = Column(Numeric(5, 2), nullable=True)
+    forecast_sale_price = Column(Numeric(16, 2), nullable=True)
+    forecast_selling_cost_pct = Column(Numeric(5, 2), nullable=True, default=5.0)
+    forecast_selling_costs = Column(Numeric(16, 2), nullable=True)
+    forecast_debt_payoff = Column(Numeric(16, 2), nullable=True)
+    forecast_mortgage_prepayment = Column(Numeric(14, 2), nullable=True)
+    forecast_net_proceeds = Column(Numeric(16, 2), nullable=True)
+
+    # ── Forecast returns ──
+    forecast_irr = Column(Numeric(8, 4), nullable=True)
+    forecast_equity_multiple = Column(Numeric(8, 4), nullable=True)
+
+    # ── Disposition plan ──
+    planned_disposition_type = Column(_enum(DispositionType), nullable=True)
+    planned_sale_condition = Column(String(256), nullable=True)  # e.g. "stabilized at 95% occupancy"
+
+    # ── Sale readiness ──
+    min_occupancy_threshold_pct = Column(Numeric(5, 2), nullable=True, default=90)
+    required_trailing_months = Column(Integer, nullable=True, default=12)
+    outstanding_capex_items = Column(Text, nullable=True)  # JSON or free text
+    unresolved_leasing_issues = Column(Text, nullable=True)
+
+    # ── Metadata ──
+    last_updated_at = Column(DateTime, nullable=True, default=datetime.utcnow, onupdate=datetime.utcnow)
+    updated_by = Column(Integer, ForeignKey("users.user_id"), nullable=True)
+    notes = Column(Text, nullable=True)
+
+    property = relationship("Property", back_populates="exit_forecast")
+
+
+class ExitActual(Base):
+    """Immutable record of actual realized disposition.
+
+    Filled in as the sale process progresses and finalized at close.
+    Compared against AcquisitionBaseline and ExitForecast for variance reporting.
+    """
+    __tablename__ = "exit_actuals"
+
+    actual_id = Column(Integer, primary_key=True, index=True)
+    property_id = Column(Integer, ForeignKey("properties.property_id", ondelete="CASCADE"), nullable=False, unique=True, index=True)
+
+    # ── Sale process dates ──
+    listing_date = Column(Date, nullable=True)
+    broker_name = Column(String(256), nullable=True)
+    offer_date = Column(Date, nullable=True)
+    contract_date = Column(Date, nullable=True)
+    close_date = Column(Date, nullable=True)
+
+    # ── Actual financials ──
+    actual_sale_price = Column(Numeric(16, 2), nullable=True)
+    actual_selling_costs = Column(Numeric(14, 2), nullable=True)
+    actual_mortgage_payout = Column(Numeric(16, 2), nullable=True)
+    actual_mortgage_prepayment_penalty = Column(Numeric(14, 2), nullable=True)
+    actual_net_proceeds = Column(Numeric(16, 2), nullable=True)
+
+    # ── Actual performance at exit ──
+    actual_exit_noi = Column(Numeric(14, 2), nullable=True)
+    actual_exit_occupancy_pct = Column(Numeric(5, 2), nullable=True)
+    actual_exit_cap_rate = Column(Numeric(5, 2), nullable=True)  # implied from price/NOI
+
+    # ── Realized returns ──
+    total_equity_invested = Column(Numeric(16, 2), nullable=True)
+    total_interim_distributions = Column(Numeric(16, 2), nullable=True)
+    total_refinance_proceeds = Column(Numeric(16, 2), nullable=True)
+    total_sale_proceeds = Column(Numeric(16, 2), nullable=True)
+    total_lp_distributions = Column(Numeric(16, 2), nullable=True)
+    realized_irr = Column(Numeric(8, 4), nullable=True)
+    realized_equity_multiple = Column(Numeric(8, 4), nullable=True)
+
+    # ── Metadata ──
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    finalized_at = Column(DateTime, nullable=True)
+    finalized_by = Column(Integer, ForeignKey("users.user_id"), nullable=True)
+    notes = Column(Text, nullable=True)
+
+    property = relationship("Property", back_populates="exit_actual")
+
 
 class PropertyImage(Base):
     """Uploaded property photos (hosted by us)."""
@@ -1227,6 +1407,22 @@ class DevelopmentPlan(Base):
     # Rent roll configuration for this plan's projected state
     rent_pricing_mode = Column(_enum(RentPricingMode), nullable=True)  # how rent is priced after this plan
     annual_rent_increase_pct = Column(Numeric(5, 2), nullable=True, default=0)  # projected annual rent escalation
+
+    # ── Exit assumptions for this strategy ──
+    exit_sale_year = Column(Integer, nullable=True)  # e.g. 2032
+    exit_noi = Column(Numeric(16, 2), nullable=True)  # projected NOI at exit
+    exit_cap_rate = Column(Numeric(5, 2), nullable=True)  # exit cap rate % (e.g. 5.0)
+    exit_sale_price = Column(Numeric(16, 2), nullable=True)  # projected gross sale price
+    exit_selling_cost_pct = Column(Numeric(5, 2), nullable=True, default=5.0)  # selling costs %
+    exit_mortgage_prepayment_pct = Column(Numeric(5, 2), nullable=True)  # prepayment penalty %
+    exit_net_proceeds = Column(Numeric(16, 2), nullable=True)  # projected net sale proceeds
+    exit_irr = Column(Numeric(8, 4), nullable=True)  # projected IRR through sale
+    exit_equity_multiple = Column(Numeric(8, 4), nullable=True)  # projected equity multiple
+    hold_period_after_stabilization_months = Column(Integer, nullable=True)  # months of stabilized ops before sale
+
+    # ── Lease-up assumptions ──
+    lease_up_months = Column(Integer, nullable=True)  # months to reach stabilized occupancy
+    construction_duration_months = Column(Integer, nullable=True)  # alternative to days
 
     property = relationship("Property", back_populates="development_plans")
     planned_units_rel = relationship("Unit", back_populates="development_plan", cascade="all, delete-orphan")

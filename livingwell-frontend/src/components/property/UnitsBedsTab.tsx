@@ -34,7 +34,11 @@ import {
   useCreatePropertyUnit,
   useDeletePropertyUnit,
   useImportRentRoll,
+  useCreateBed,
+  useDeleteBed,
 } from "@/hooks/usePortfolio";
+import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import type {
   PropertyUnit,
   Bed,
@@ -58,10 +62,15 @@ export function UnitsBedsTab({ propertyId, canEdit, activePhase }: UnitsBedsTabP
   const deleteUnit = useDeletePropertyUnit(propertyId);
   const importRentRoll = useImportRentRoll(propertyId);
 
+  const createBed = useCreateBed(propertyId);
+  const deleteBed = useDeleteBed(propertyId);
+
   const [expandedUnit, setExpandedUnit] = useState<number | null>(null);
   const [showAddUnit, setShowAddUnit] = useState(false);
   const [showImport, setShowImport] = useState(false);
   const [importResult, setImportResult] = useState<{ created_units: number; created_beds: number; errors: string[] } | null>(null);
+  const [addingBedToUnit, setAddingBedToUnit] = useState<number | null>(null);
+  const [newBed, setNewBed] = useState({ bed_label: "", monthly_rent: "", rent_type: "per_bed", status: "available" });
 
   const baselineUnits = ((units ?? []) as PropertyUnit[]).filter((u) => !u.development_plan_id);
   const redevUnits = ((units ?? []) as PropertyUnit[]).filter((u) => u.development_plan_id);
@@ -93,25 +102,78 @@ export function UnitsBedsTab({ propertyId, canEdit, activePhase }: UnitsBedsTabP
           {expandedUnit === unit.unit_id ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
         </div>
       </div>
-      {expandedUnit === unit.unit_id && unit.beds && unit.beds.length > 0 && (
-        <div className="border-t px-4 py-3 bg-muted/30">
-          <table className="w-full text-sm">
-            <thead><tr className="text-left text-muted-foreground">
-              <th className="pb-2">Bed</th><th className="pb-2 text-right">Monthly Rent</th><th className="pb-2">Rent Type</th><th className="pb-2">Status</th>
-            </tr></thead>
-            <tbody>
-              {unit.beds.map((bed: Bed) => (
-                <tr key={bed.bed_id} className="border-t">
-                  <td className="py-2">{bed.bed_label}</td>
-                  <td className="py-2 text-right">${Number(bed.monthly_rent).toLocaleString()}</td>
-                  <td className="py-2 capitalize">{bed.rent_type.replace("_", " ")}</td>
-                  <td className="py-2">
-                    <Badge variant={bed.status === "occupied" ? "default" : bed.status === "available" ? "secondary" : "destructive"} className="capitalize">{bed.status}</Badge>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+      {expandedUnit === unit.unit_id && (
+        <div className="border-t px-4 py-3 bg-muted/30 space-y-3">
+          {unit.beds && unit.beds.length > 0 && (
+            <table className="w-full text-sm">
+              <thead><tr className="text-left text-muted-foreground">
+                <th className="pb-2">Bed</th><th className="pb-2 text-right">Monthly Rent</th><th className="pb-2">Rent Type</th><th className="pb-2">Status</th>{canEdit && <th className="pb-2 w-8"></th>}
+              </tr></thead>
+              <tbody>
+                {unit.beds.map((bed: Bed) => (
+                  <tr key={bed.bed_id} className="border-t">
+                    <td className="py-2">{bed.bed_label}</td>
+                    <td className="py-2 text-right">${Number(bed.monthly_rent).toLocaleString()}</td>
+                    <td className="py-2 capitalize">{bed.rent_type.replace("_", " ")}</td>
+                    <td className="py-2">
+                      <Badge variant={bed.status === "occupied" ? "default" : bed.status === "available" ? "secondary" : "destructive"} className="capitalize">{bed.status}</Badge>
+                    </td>
+                    {canEdit && (
+                      <td className="py-2">
+                        <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={() => { if (confirm(`Delete bed "${bed.bed_label}"?`)) deleteBed.mutate(bed.bed_id, { onSuccess: () => toast.success("Bed deleted") }); }}>
+                          <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                        </Button>
+                      </td>
+                    )}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+          {unit.beds && unit.beds.length === 0 && (
+            <p className="text-sm text-muted-foreground text-center py-2">No beds in this unit yet.</p>
+          )}
+          {/* Add Bed */}
+          {canEdit && (
+            <>
+              {addingBedToUnit === unit.unit_id ? (
+                <div className="flex items-end gap-2 pt-2 border-t">
+                  <div className="flex-1 space-y-1">
+                    <label className="text-xs font-medium text-muted-foreground">Bed Label</label>
+                    <Input value={newBed.bed_label} onChange={(e) => setNewBed(p => ({ ...p, bed_label: e.target.value }))} placeholder="e.g. Bed A" className="h-8 text-sm" />
+                  </div>
+                  <div className="w-28 space-y-1">
+                    <label className="text-xs font-medium text-muted-foreground">Rent ($/mo)</label>
+                    <Input type="number" value={newBed.monthly_rent} onChange={(e) => setNewBed(p => ({ ...p, monthly_rent: e.target.value }))} placeholder="0" className="h-8 text-sm" />
+                  </div>
+                  <div className="w-28 space-y-1">
+                    <label className="text-xs font-medium text-muted-foreground">Status</label>
+                    <Select value={newBed.status} onValueChange={(v) => setNewBed(p => ({ ...p, status: v }))}>
+                      <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="available">Available</SelectItem>
+                        <SelectItem value="occupied">Occupied</SelectItem>
+                        <SelectItem value="reserved">Reserved</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <Button size="sm" className="h-8" disabled={createBed.isPending} onClick={() => {
+                    if (!newBed.bed_label.trim()) { toast.error("Bed label is required"); return; }
+                    createBed.mutate({ unitId: unit.unit_id, data: { bed_label: newBed.bed_label, monthly_rent: Number(newBed.monthly_rent) || 0, rent_type: newBed.rent_type, status: newBed.status } }, {
+                      onSuccess: () => { toast.success("Bed added"); setNewBed({ bed_label: "", monthly_rent: "", rent_type: "per_bed", status: "available" }); setAddingBedToUnit(null); },
+                    });
+                  }}>
+                    {createBed.isPending ? "Adding..." : "Add"}
+                  </Button>
+                  <Button variant="ghost" size="sm" className="h-8" onClick={() => setAddingBedToUnit(null)}>Cancel</Button>
+                </div>
+              ) : (
+                <Button variant="outline" size="sm" className="w-full" onClick={() => { setAddingBedToUnit(unit.unit_id); setNewBed({ bed_label: `Bed ${(unit.beds?.length ?? 0) + 1}`, monthly_rent: "", rent_type: "per_bed", status: "available" }); }}>
+                  <Plus className="h-3.5 w-3.5 mr-1.5" /> Add Bed
+                </Button>
+              )}
+            </>
+          )}
         </div>
       )}
     </div>

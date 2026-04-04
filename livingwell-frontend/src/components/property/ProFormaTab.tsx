@@ -55,7 +55,17 @@ const fmt = (n: number | null | undefined) => {
 const fmtPct = (n: number | null | undefined) => (n != null ? `${n.toFixed(2)}%` : "—");
 const fmtX = (n: number | null | undefined) => (n != null ? `${n.toFixed(2)}x` : "—");
 
-export function ProFormaTab({ propertyId, activePhase }: { propertyId: number; activePhase?: "as_is" | "post_renovation" | "full_development" }) {
+export function ProFormaTab({
+  propertyId,
+  activePhase,
+  financialSnapshot,
+  onProFormaGenerated,
+}: {
+  propertyId: number;
+  activePhase?: "as_is" | "post_renovation" | "full_development";
+  financialSnapshot?: Record<string, any> | null;
+  onProFormaGenerated?: (data: Record<string, any>) => void;
+}) {
   const qc = useQueryClient();
   const [scenarios, setScenarios] = useState<ProFormaData[]>([]);
   const [inputs, setInputs] = useState({
@@ -92,6 +102,7 @@ export function ProFormaTab({ propertyId, activePhase }: { propertyId: number; a
   const handleGenerate = async () => {
     const data = await generateMutation.mutateAsync(inputs);
     setScenarios(prev => [...prev, data]);
+    onProFormaGenerated?.(data);
   };
 
   const handleSave = async () => {
@@ -104,8 +115,56 @@ export function ProFormaTab({ propertyId, activePhase }: { propertyId: number; a
 
   const comparing = scenarios.length >= 2;
 
+  const rr = financialSnapshot?.rent_roll;
+  const snap = financialSnapshot;
+
   return (
     <div className="space-y-6">
+      {/* Rent Roll Data Source Banner */}
+      {rr && rr.annual_rent > 0 && (
+        <Card className="bg-emerald-50 dark:bg-emerald-950/20 border-emerald-200 dark:border-emerald-800">
+          <CardContent className="py-3 px-4">
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <p className="text-sm text-emerald-800 dark:text-emerald-200 flex items-center gap-2">
+                <Calculator className="h-4 w-4 shrink-0" />
+                <span className="font-medium">Data Source: Rent Roll</span>
+                <span className="text-emerald-600 dark:text-emerald-400">
+                  {rr.unit_count} units &middot; {rr.bed_count} beds &middot; {rr.occupancy_rate}% occupied
+                </span>
+              </p>
+              <div className="flex items-center gap-4 text-sm tabular-nums">
+                <span className="text-emerald-700 dark:text-emerald-300">
+                  <span className="text-xs text-emerald-600 mr-1">Monthly:</span>
+                  <span className="font-semibold">${rr.monthly_rent.toLocaleString()}</span>
+                </span>
+                <span className="text-emerald-700 dark:text-emerald-300">
+                  <span className="text-xs text-emerald-600 mr-1">Annual GPR:</span>
+                  <span className="font-semibold">${rr.annual_rent.toLocaleString()}</span>
+                </span>
+                {rr.other_income > 0 && (
+                  <span className="text-emerald-700 dark:text-emerald-300">
+                    <span className="text-xs text-emerald-600 mr-1">Other:</span>
+                    <span className="font-semibold">${Math.round(rr.other_income).toLocaleString()}</span>
+                  </span>
+                )}
+                {snap?.debt?.annual_debt_service > 0 && (
+                  <span className="text-emerald-700 dark:text-emerald-300">
+                    <span className="text-xs text-emerald-600 mr-1">ADS:</span>
+                    <span className="font-semibold">${Math.round(snap.debt.annual_debt_service).toLocaleString()}</span>
+                  </span>
+                )}
+                {snap?.expenses?.noi != null && (
+                  <span className="text-emerald-700 dark:text-emerald-300">
+                    <span className="text-xs text-emerald-600 mr-1">NOI:</span>
+                    <span className="font-semibold">${Math.round(snap.expenses.noi).toLocaleString()}</span>
+                  </span>
+                )}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Input Controls */}
       <Card>
         <CardHeader>
