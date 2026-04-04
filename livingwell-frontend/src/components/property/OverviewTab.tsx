@@ -201,6 +201,9 @@ export function OverviewTab({
   const phaseLabel = activePhase === "as_is" ? "As-Is" : activePhase === "post_renovation" ? "Post-Renovation" : activePhase === "full_development" ? "Full Development" : null;
   return (
     <div className="space-y-6">
+      {/* Investment Summary — Key Returns Snapshot */}
+      <InvestmentSummaryCard propertyId={property.property_id} />
+
       {/* AI Preliminary Property Assessment */}
       <AIPropertyAssessment propertyId={property.property_id} />
 
@@ -548,6 +551,167 @@ export function OverviewTab({
 
 
 // ── AI Preliminary Property Assessment ──────────────────────────────
+
+// ── Investment Summary Card ─────────────────────────────────────────
+
+function InvestmentSummaryCard({ propertyId }: { propertyId: number }) {
+  const [data, setData] = React.useState<Record<string, any> | null>(null);
+  const [loading, setLoading] = React.useState(true);
+
+  React.useEffect(() => {
+    apiClient.get(`/api/portfolio/properties/${propertyId}/investment-summary`)
+      .then(r => setData(r.data))
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, [propertyId]);
+
+  if (loading) return <div className="h-32 bg-muted/30 rounded-lg animate-pulse" />;
+  if (!data) return null;
+
+  const fmt = (n: number | null | undefined) => n != null ? `$${n.toLocaleString()}` : "—";
+  const pct = (n: number | null | undefined) => n != null ? `${n}%` : "—";
+
+  const dscr_color = !data.dscr ? "text-muted-foreground" : data.dscr >= 1.5 ? "text-green-600" : data.dscr >= 1.2 ? "text-blue-600" : data.dscr >= 1.0 ? "text-amber-600" : "text-red-600";
+  const ltv_color = !data.ltv ? "text-muted-foreground" : data.ltv <= 65 ? "text-green-600" : data.ltv <= 75 ? "text-blue-600" : data.ltv <= 80 ? "text-amber-600" : "text-red-600";
+
+  return (
+    <Card className="border-blue-200 bg-gradient-to-r from-blue-50/50 to-indigo-50/30">
+      <CardHeader className="pb-2">
+        <CardTitle className="text-base flex items-center gap-2">
+          <TrendingUp className="h-5 w-5 text-blue-600" />
+          Investment Summary
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {/* Primary Returns Row */}
+        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3">
+          <div className="rounded-lg border bg-white p-2.5 text-center">
+            <p className="text-[10px] uppercase text-muted-foreground font-medium">NOI</p>
+            <p className="text-lg font-bold text-green-700">{fmt(data.noi)}</p>
+            <p className="text-[9px] text-muted-foreground">Annual</p>
+          </div>
+          <div className="rounded-lg border bg-white p-2.5 text-center">
+            <p className="text-[10px] uppercase text-muted-foreground font-medium">DSCR</p>
+            <p className={`text-lg font-bold ${dscr_color}`}>{data.dscr ? `${data.dscr}x` : "—"}</p>
+            <p className="text-[9px] text-muted-foreground">{data.dscr ? (data.dscr >= 1.25 ? "Healthy" : data.dscr >= 1.0 ? "Tight" : "Distressed") : "No debt"}</p>
+          </div>
+          <div className="rounded-lg border bg-white p-2.5 text-center">
+            <p className="text-[10px] uppercase text-muted-foreground font-medium">Cap Rate</p>
+            <p className="text-lg font-bold text-indigo-700">{pct(data.cap_rate)}</p>
+            <p className="text-[9px] text-muted-foreground">Current</p>
+          </div>
+          <div className="rounded-lg border bg-white p-2.5 text-center">
+            <p className="text-[10px] uppercase text-muted-foreground font-medium">LTV</p>
+            <p className={`text-lg font-bold ${ltv_color}`}>{pct(data.ltv)}</p>
+            <p className="text-[9px] text-muted-foreground">{data.ltv ? (data.ltv <= 75 ? "Conservative" : "Elevated") : "—"}</p>
+          </div>
+          <div className="rounded-lg border bg-white p-2.5 text-center">
+            <p className="text-[10px] uppercase text-muted-foreground font-medium">Cash-on-Cash</p>
+            <p className="text-lg font-bold text-emerald-700">{pct(data.cash_on_cash)}</p>
+            <p className="text-[9px] text-muted-foreground">Annual</p>
+          </div>
+          <div className="rounded-lg border bg-white p-2.5 text-center">
+            <p className="text-[10px] uppercase text-muted-foreground font-medium">Debt Yield</p>
+            <p className="text-lg font-bold">{pct(data.debt_yield)}</p>
+            <p className="text-[9px] text-muted-foreground">NOI / Debt</p>
+          </div>
+        </div>
+
+        {/* Cash Flow Waterfall */}
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-2 text-xs">
+          <div className="rounded border p-2 bg-white">
+            <p className="text-[9px] text-muted-foreground">Gross Potential Rent</p>
+            <p className="font-bold">{fmt(data.baseline_annual_gpr)}</p>
+          </div>
+          <div className="rounded border p-2 bg-white">
+            <p className="text-[9px] text-muted-foreground">+ Ancillary Revenue</p>
+            <p className="font-bold">{fmt(data.annual_ancillary)}</p>
+          </div>
+          <div className="rounded border p-2 bg-white">
+            <p className="text-[9px] text-muted-foreground">EGI (after vacancy)</p>
+            <p className="font-bold">{fmt(data.egi)}</p>
+          </div>
+          <div className="rounded border p-2 bg-white">
+            <p className="text-[9px] text-muted-foreground">- Operating Expenses</p>
+            <p className="font-bold text-red-600">({fmt(data.total_opex)})</p>
+            {data.expense_ratio && <p className="text-[8px] text-muted-foreground">{data.expense_ratio}% ratio</p>}
+          </div>
+          <div className="rounded border p-2 bg-green-50 border-green-200">
+            <p className="text-[9px] text-green-700 font-medium">= NOI</p>
+            <p className="font-bold text-green-700">{fmt(data.noi)}</p>
+          </div>
+        </div>
+
+        {/* Capital Stack + Development */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
+          <div className="rounded border p-2 bg-white">
+            <p className="text-[9px] text-muted-foreground">Purchase Price</p>
+            <p className="font-bold">{fmt(data.purchase_price)}</p>
+          </div>
+          <div className="rounded border p-2 bg-white">
+            <p className="text-[9px] text-muted-foreground">Total Debt</p>
+            <p className="font-bold">{fmt(data.total_debt_outstanding)}</p>
+          </div>
+          <div className="rounded border p-2 bg-white">
+            <p className="text-[9px] text-muted-foreground">Equity</p>
+            <p className="font-bold">{fmt(data.total_equity)}</p>
+          </div>
+          <div className="rounded border p-2 bg-white">
+            <p className="text-[9px] text-muted-foreground">Break-Even Occ.</p>
+            <p className="font-bold">{pct(data.breakeven_occupancy)}</p>
+          </div>
+        </div>
+
+        {/* Development Metrics (if applicable) */}
+        {data.has_development_plan && (
+          <div className="rounded-lg border border-cyan-200 bg-cyan-50/30 p-3">
+            <p className="text-[10px] font-semibold uppercase text-cyan-700 mb-2">Development Metrics</p>
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-2 text-xs">
+              <div>
+                <p className="text-[9px] text-muted-foreground">Dev Cost</p>
+                <p className="font-bold">{fmt(data.dev_total_cost)}</p>
+              </div>
+              <div>
+                <p className="text-[9px] text-muted-foreground">Total Investment</p>
+                <p className="font-bold">{fmt(data.total_investment)}</p>
+              </div>
+              <div>
+                <p className="text-[9px] text-muted-foreground">Yield on Cost</p>
+                <p className="font-bold text-cyan-700">{pct(data.yield_on_cost)}</p>
+              </div>
+              <div>
+                <p className="text-[9px] text-muted-foreground">LTC</p>
+                <p className="font-bold">{pct(data.ltc)}</p>
+              </div>
+              <div>
+                <p className="text-[9px] text-muted-foreground">Stabilized NOI</p>
+                <p className="font-bold text-green-700">{fmt(data.projected_stabilized_noi)}</p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Risk Flags */}
+        {data.risk_flags && data.risk_flags.length > 0 && (
+          <div className="space-y-1">
+            {data.risk_flags.map((flag: any, i: number) => (
+              <div key={i} className={`flex items-start gap-2 text-xs rounded-md px-2.5 py-1.5 ${
+                flag.severity === "critical" ? "bg-red-100 text-red-800" :
+                flag.severity === "high" ? "bg-red-50 text-red-700" :
+                flag.severity === "medium" ? "bg-amber-50 text-amber-700" :
+                "bg-blue-50 text-blue-700"
+              }`}>
+                <AlertTriangle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+                <span>{flag.message}</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 
 function AIPropertyAssessment({ propertyId }: { propertyId: number }) {
   const [assessment, setAssessment] = useState<Record<string, any> | null>(null);

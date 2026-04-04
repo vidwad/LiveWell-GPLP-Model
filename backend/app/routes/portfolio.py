@@ -1002,6 +1002,209 @@ from pydantic import BaseModel as _BaseModel
 from typing import Optional as _Opt
 
 
+@router.get("/properties/{property_id}/investment-summary")
+def get_investment_summary(
+    property_id: int,
+    db: Session = Depends(get_db),
+    _: User = Depends(get_current_user),
+):
+    """Unified investment summary — key returns metrics computed from all data sources.
+
+    Pulls from: property, units/beds, rent roll, debt facilities, development plans,
+    operating expenses, ancillary revenue. Returns a single snapshot for deal evaluation.
+    """
+    from decimal import Decimal as D
+    from app.db.models import AncillaryRevenueStream
+
+    prop = db.query(Property).filter(Property.property_id == property_id).first()
+    if not prop:
+        raise HTTPException(404, "Property not found")
+
+    # ── Gather all data ──
+    all_units = db.query(Unit).filter(Unit.property_id == property_id).all()
+    baseline_units = [u for u in all_units if u.development_plan_id is None]
+    all_debt = db.query(DebtFacility).filter(DebtFacility.property_id == property_id).all()
+    baseline_debt = [d for d in all_debt if d.development_plan_id is None]
+    all_plans = db.query(DevelopmentPlan).filter(DevelopmentPlan.property_id == property_id).order_by(DevelopmentPlan.version).all()
+    active_plan = next((p for p in all_plans if p.status and p.status.value == "active"), all_plans[0] if all_plans else None)
+
+    # ── Baseline rent roll ──
+    total_beds_baseline = sum(u.bed_count or 0 for u in baseline_units)
+    baseline_monthly_rent = 0.0
+    for u in baseline_units:
+        for bed in u.beds:
+            baseline_monthly_rent += float(bed.monthly_rent or 0)
+    baseline_annual_gpr = baseline_monthly_rent * 12
+
+    # Ancillary revenue (baseline)
+    ancillary_streams = db.query(AncillaryRevenueStream).filter(
+        AncillaryRevenueStream.property_id == property_id,
+        AncillaryRevenueStream.development_plan_id == None,
+    ).all()
+    annual_ancillary = sum(
+        float(s.monthly_rate or 0) * (s.count or 1) * (float(s.utilization_pct or 100) / 100) * 12
+        for s in ancillary_streams
+    )
+
+    # Operating expenses (baseline)
+    try:
+        from app.db.models import OperatingExpenseLineItem
+        opex_items = db.query(OperatingExpenseLineItem).filter(
+            OperatingExpenseLineItem.property_id == property_id,
+            OperatingExpenseLineItem.development_plan_id == None,
+        ).all()
+        total_opex = 0.0
+        for item in opex_items:
+            base = float(item.base_amount or 0)
+            method = item.calc_method.value if hasattr(item.calc_method, "value") else str(item.calc_method or "fixed")
+            if method == "per_unit":
+                total_opex += base * len(baseline_units)
+            elif method == "pct_egi":
+                total_opex += (baseline_annual_gpr + annual_ancillary) * (base / 100)
+            else:
+                total_opex += base
+    except Exception:
+        total_opex = 0.0
+
+    # ── Computed metrics ──
+    vacancy_rate = 5.0  # Default assumption
+    egi = (baseline_annual_gpr + annual_ancillary) * (1 - vacancy_rate / 100)
+    noi = egi - total_opex
+
+    # Debt service
+    total_debt_outstanding = sum(float(d.outstanding_balance or 0) for d in baseline_debt)
+    total_debt_commitment = sum(float(d.commitment_amount or 0) for d in baseline_debt)
+    annual_debt_service = 0.0
+    for d in baseline_debt:
+        if d.outstanding_balance and d.interest_rate:
+            rate = float(d.interest_rate) / 100
+            bal = float(d.outstanding_balance)
+            if d.amortization_months and d.amortization_months > 0:
+                # Canadian semi-annual compounding
+                mr = rate / 12
+                n = d.amortization_months
+                if mr > 0:
+                    pmt = bal * (mr * (1 + mr) ** n) / ((1 + mr) ** n - 1)
+                else:
+                    pmt = bal / n
+                annual_debt_service += pmt * 12
+            else:
+                annual_debt_service += bal * rate
+
+    cash_flow_after_debt = noi - annual_debt_service
+
+    # Purchase/equity
+    purchase_price = float(prop.purchase_price or 0)
+    market_value = float(prop.current_market_value or prop.assessed_value or purchase_price or 0)
+    total_equity = purchase_price - total_debt_outstanding if purchase_price > 0 else 0
+
+    # Ratios
+    dscr = round(noi / annual_debt_service, 2) if annual_debt_service > 0 else None
+    ltv = round(total_debt_outstanding / market_value * 100, 1) if market_value > 0 else None
+    cap_rate = round(noi / market_value * 100, 2) if market_value > 0 else None
+    cash_on_cash = round(cash_flow_after_debt / total_equity * 100, 1) if total_equity > 0 else None
+    debt_yield = round(noi / total_debt_outstanding * 100, 1) if total_debt_outstanding > 0 else None
+    expense_ratio = round(total_opex / egi * 100, 1) if egi > 0 else None
+    breakeven_occ = round((total_opex + annual_debt_service) / baseline_annual_gpr * 100, 1) if baseline_annual_gpr > 0 else None
+
+    # Development metrics
+    dev_total_cost = float(active_plan.estimated_construction_cost or 0) if active_plan else 0
+    dev_planned_units = active_plan.planned_units if active_plan else 0
+    dev_planned_beds = active_plan.planned_beds if active_plan else 0
+
+    # Projected stabilized rent for development plan
+    dev_units = [u for u in all_units if active_plan and u.development_plan_id == active_plan.plan_id] if active_plan else []
+    dev_monthly_rent = 0.0
+    dev_beds = 0
+    for u in dev_units:
+        for bed in u.beds:
+            dev_monthly_rent += float(bed.monthly_rent or 0)
+            dev_beds += 1
+    dev_annual_gpr = dev_monthly_rent * 12
+    projected_stabilized_noi = float(active_plan.projected_annual_noi or 0) if active_plan else 0
+
+    # Yield on cost
+    total_investment = purchase_price + dev_total_cost
+    yield_on_cost = round(projected_stabilized_noi / total_investment * 100, 2) if total_investment > 0 and projected_stabilized_noi > 0 else None
+
+    # LTC (loan to cost) for construction
+    construction_debt = [d for d in all_debt if d.debt_type and d.debt_type.value == "construction_loan"]
+    total_construction_debt = sum(float(d.commitment_amount or 0) for d in construction_debt)
+    ltc = round(total_construction_debt / dev_total_cost * 100, 1) if dev_total_cost > 0 and total_construction_debt > 0 else None
+
+    # Risk flags
+    risk_flags = []
+    if dscr and dscr < 1.2:
+        risk_flags.append({"type": "covenant", "severity": "high", "message": f"DSCR is {dscr}x — below typical 1.2x covenant"})
+    if ltv and ltv > 80:
+        risk_flags.append({"type": "leverage", "severity": "medium", "message": f"LTV is {ltv}% — high leverage"})
+    if breakeven_occ and breakeven_occ > 85:
+        risk_flags.append({"type": "occupancy", "severity": "medium", "message": f"Break-even occupancy is {breakeven_occ}% — limited margin"})
+    for d in all_debt:
+        if d.maturity_date:
+            import datetime
+            days_to_maturity = (d.maturity_date - datetime.date.today()).days
+            if 0 < days_to_maturity < 365:
+                risk_flags.append({"type": "maturity", "severity": "high", "message": f"{d.lender_name} matures in {days_to_maturity} days ({d.maturity_date})"})
+            elif days_to_maturity <= 0:
+                risk_flags.append({"type": "maturity", "severity": "critical", "message": f"{d.lender_name} matured on {d.maturity_date} — needs refinancing"})
+    if total_opex == 0 and len(baseline_units) > 0:
+        risk_flags.append({"type": "data", "severity": "low", "message": "No operating expenses entered — NOI may be overstated"})
+
+    return {
+        # Property basics
+        "property_id": property_id,
+        "address": prop.address,
+        "purchase_price": purchase_price,
+        "market_value": market_value,
+        "appreciation_pct": round((market_value - purchase_price) / purchase_price * 100, 1) if purchase_price > 0 else None,
+
+        # Revenue
+        "baseline_units": len(baseline_units),
+        "baseline_beds": total_beds_baseline,
+        "baseline_monthly_rent": round(baseline_monthly_rent, 2),
+        "baseline_annual_gpr": round(baseline_annual_gpr, 2),
+        "annual_ancillary": round(annual_ancillary, 2),
+        "egi": round(egi, 2),
+
+        # Expenses
+        "total_opex": round(total_opex, 2),
+        "expense_ratio": expense_ratio,
+
+        # Returns
+        "noi": round(noi, 2),
+        "annual_debt_service": round(annual_debt_service, 2),
+        "cash_flow_after_debt": round(cash_flow_after_debt, 2),
+
+        # Ratios
+        "dscr": dscr,
+        "ltv": ltv,
+        "cap_rate": cap_rate,
+        "cash_on_cash": cash_on_cash,
+        "debt_yield": debt_yield,
+        "breakeven_occupancy": breakeven_occ,
+
+        # Capital stack
+        "total_debt_outstanding": round(total_debt_outstanding, 2),
+        "total_equity": round(total_equity, 2),
+
+        # Development
+        "has_development_plan": active_plan is not None,
+        "dev_total_cost": dev_total_cost,
+        "dev_planned_units": dev_planned_units,
+        "dev_planned_beds": dev_planned_beds,
+        "dev_annual_gpr": round(dev_annual_gpr, 2),
+        "projected_stabilized_noi": projected_stabilized_noi,
+        "yield_on_cost": yield_on_cost,
+        "total_investment": round(total_investment, 2),
+        "ltc": ltc,
+
+        # Risk
+        "risk_flags": risk_flags,
+        "risk_count": len(risk_flags),
+    }
+
+
 class PropertyLookupRequest(_BaseModel):
     address: str
     city: str = "Calgary"
