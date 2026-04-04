@@ -117,14 +117,14 @@ def create_unit_and_beds(property_id):
     # Create 8 beds across 6 bedrooms
     beds_config = [
         # (label, monthly_rent, bedroom_number, rent_type)
-        ("BR1-A", 750.00, 1, "private_pay"),    # Bedroom 1 (Master) - single
-        ("BR2-A", 550.00, 2, "shared_room"),     # Bedroom 2 - double occ, bed A
+        ("BR1-A", 750.00, 1, "private_pay"),    # Bedroom 1 (Master) - single ($750)
+        ("BR2-A", 550.00, 2, "shared_room"),     # Bedroom 2 - double occ, bed A ($1,100/room)
         ("BR2-B", 550.00, 2, "shared_room"),     # Bedroom 2 - double occ, bed B
-        ("BR3-A", 700.00, 3, "private_pay"),     # Bedroom 3 - single
-        ("BR4-A", 650.00, 4, "private_pay"),     # Bedroom 4 (Basement) - single
-        ("BR5-A", 550.00, 5, "shared_room"),     # Bedroom 5 (Basement converted) - double, bed A
-        ("BR5-B", 550.00, 5, "shared_room"),     # Bedroom 5 (Basement converted) - double, bed B
-        ("BR6-A", 625.00, 6, "private_pay"),     # Bedroom 6 (Basement converted) - single
+        ("BR3-A", 700.00, 3, "private_pay"),     # Bedroom 3 - single ($700)
+        ("BR4-A", 650.00, 4, "private_pay"),     # Bedroom 4 (Basement) - single ($650)
+        ("BR5-A", 550.00, 5, "shared_room"),     # Bedroom 5 (Basement converted) - double ($1,100/room)
+        ("BR5-B", 550.00, 5, "shared_room"),     # Bedroom 5 - bed B
+        ("BR6-A", 625.00, 6, "private_pay"),     # Bedroom 6 (Basement converted) - single ($625)
     ]
     
     bed_ids = []
@@ -286,29 +286,26 @@ def create_acquisition_mortgage(property_id):
     print("\n═══ STEP 5: Acquisition Mortgage ═══")
     
     purchase_price = 465000.00
-    ltv = 0.75
-    loan_amount = purchase_price * ltv  # $348,750
-    
+    loan_amount = 465000.00  # 100% financed
+
     debt_data = {
-        "lender_name": "ATB Financial",
+        "lender_name": "RFA Mortgage",
         "debt_type": "permanent_mortgage",
         "status": "active",
         "debt_purpose": "acquisition",
         "commitment_amount": loan_amount,
         "drawn_amount": loan_amount,
         "outstanding_balance": loan_amount,
-        "interest_rate": 5.49,
+        "interest_rate": 5.50,
         "rate_type": "fixed",
         "term_months": 60,  # 5-year term
         "amortization_months": 300,  # 25-year amortization
         "io_period_months": 0,
         "origination_date": "2025-01-15",
         "maturity_date": "2030-01-15",
-        "ltv_covenant": 75.00,
-        "dscr_covenant": 1.20,
         "compounding_method": "semi_annual",
         "is_cmhc_insured": False,
-        "notes": "Conventional mortgage, 75% LTV, 5-year fixed, 25-year amortization",
+        "notes": "Mortgage, 5-year fixed @ 5.5%, 25-year amortization, semi-annual compounding",
     }
     
     result = api_post(f"/api/portfolio/properties/{property_id}/debt", debt_data)
@@ -331,14 +328,14 @@ def validate_calculations(property_id):
     # Expected values from our scenario
     expected = {
         "annual_bed_revenue": 59100.00,  # 8 beds: 750+550+550+700+650+550+550+625 = 4925/mo x 12
-        "annual_ancillary": 5412.00,     # parking 1200 + pets 1200 + storage 1809 + laundry 1200 = 5409 (rounding)
-        "gross_potential": 64512.00,      # bed + ancillary
+        "annual_ancillary": 5409.00,     # parking 1200 + pets 1200 + storage 1809 + laundry 1200
+        "gross_potential": 64509.00,     # bed + ancillary
         "vacancy_rate": 5.0,
-        "egi": 61286.40,                 # GPR x 0.95
+        "egi": 61283.55,                 # GPR x 0.95
         "total_fixed_expenses": 27000.00, # sum of fixed items
         "mgmt_fee_pct": 8.0,
-        "loan_amount": 348750.00,
-        "interest_rate": 5.49,
+        "loan_amount": 465000.00,
+        "interest_rate": 5.50,
     }
     
     # 1. Get property details

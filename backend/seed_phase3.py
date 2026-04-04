@@ -1,24 +1,25 @@
 """
 Phase 3: Full Development Seed Script
 =======================================
-New 6-unit / 24-bed purpose-built development at 1847 Bowness Road NW (property_id=11)
+New 6-unit / 18-bedroom / 24-bed purpose-built development at 1847 Bowness Road NW
 
 Scenario:
 - Demolish existing house, build 6-unit purpose-built rental
-- 6 units × 4 beds each = 24 beds
-- Mix of 2BR and 3BR units with shared rooms
+- 6 units × 3 bedrooms × 4 beds each = 18 bedrooms, 24 beds
+  - Each unit: 2 single-occupancy BR + 1 double-occupancy BR
+  - Per unit: $863 + $805 + $1,300 (2×$650) = $2,968/mo
 - Construction budget: $1.8M total
-  - Hard costs: $1,400,000
-  - Soft costs: $180,000
-  - Site costs: $80,000
-  - Financing costs: $60,000
-  - Contingency: 5% = $80,000
+  - Hard costs: $1,500,000
+  - Soft costs: $200,000
+  - Site costs: $100,000
 - Construction loan: $1,350,000 (75% LTC), 7.5% IO
-- Take-out CMHC insured mortgage: $1,620,000 (90% LTV @ stabilized value)
-  - 3.89% fixed, 40-year amortization
-  - CMHC premium: 4.0%
+- Take-out CMHC insured mortgage: $2,430,000 (75% LTV @ stabilized value $3.24M)
+  - 3.85% fixed, 35-year amortization
+  - CMHC premium: 2.75% ($66,825)
   - MLI Select program
-- Stabilized rents: avg $850/bed/month
+  - DSCR: 1.10x
+- Stabilized NOI: $145,783
+- 5% annual rent growth, 2% expense growth
 """
 import requests
 import json
@@ -54,15 +55,15 @@ plan_data = {
     "planned_units": 6,
     "planned_beds": 24,
     "planned_sqft": 6000,
-    "hard_costs": 1400000,
-    "soft_costs": 180000,
-    "site_costs": 80000,
-    "financing_costs": 60000,
-    "contingency_percent": 5.0,
+    "hard_costs": 1500000,
+    "soft_costs": 200000,
+    "site_costs": 100000,
+    "financing_costs": 0,
+    "contingency_percent": 0,
     "cost_per_sqft": 300,
     "estimated_construction_cost": 1800000,
-    "projected_annual_revenue": 244800,  # 24 beds × $850 × 12
-    "projected_annual_noi": 150000,  # rough estimate
+    "projected_annual_revenue": 222714,  # $213,696 beds + $9,018 ancillary
+    "projected_annual_noi": 145783,
     "development_start_date": "2025-09-01",
     "construction_duration_days": 365,
     "estimated_completion_date": "2026-09-01",
@@ -83,14 +84,14 @@ else:
 # ── STEP 2: Create 6 Post-Development Units ─────────────────
 print("\n═══ STEP 2: Create 6 Post-Development Units ═══")
 
-# Unit mix: 3 × 3BR units (4 beds each) + 3 × 2BR units (4 beds each)
+# All 6 units are 3BR (2 single-occ + 1 double-occ bedroom = 4 beds each)
 unit_configs = [
-    {"unit_number": "101", "unit_type": "3br", "bed_count": 4, "sqft": 1100, "floor": "1", "bedroom_count": 3},
-    {"unit_number": "102", "unit_type": "2br", "bed_count": 4, "sqft": 900,  "floor": "1", "bedroom_count": 2},
-    {"unit_number": "201", "unit_type": "3br", "bed_count": 4, "sqft": 1100, "floor": "2", "bedroom_count": 3},
-    {"unit_number": "202", "unit_type": "2br", "bed_count": 4, "sqft": 900,  "floor": "2", "bedroom_count": 2},
-    {"unit_number": "301", "unit_type": "3br", "bed_count": 4, "sqft": 1100, "floor": "3", "bedroom_count": 3},
-    {"unit_number": "302", "unit_type": "2br", "bed_count": 4, "sqft": 900,  "floor": "3", "bedroom_count": 2},
+    {"unit_number": "101", "unit_type": "3br", "bed_count": 4, "sqft": 1000, "floor": "1", "bedroom_count": 3},
+    {"unit_number": "102", "unit_type": "3br", "bed_count": 4, "sqft": 1000, "floor": "1", "bedroom_count": 3},
+    {"unit_number": "201", "unit_type": "3br", "bed_count": 4, "sqft": 1000, "floor": "2", "bedroom_count": 3},
+    {"unit_number": "202", "unit_type": "3br", "bed_count": 4, "sqft": 1000, "floor": "2", "bedroom_count": 3},
+    {"unit_number": "301", "unit_type": "3br", "bed_count": 4, "sqft": 1000, "floor": "3", "bedroom_count": 3},
+    {"unit_number": "302", "unit_type": "3br", "bed_count": 4, "sqft": 1000, "floor": "3", "bedroom_count": 3},
 ]
 
 unit_ids = []
@@ -117,21 +118,16 @@ print("\n═══ STEP 3: Create Beds for Each Unit ═══")
 conn = sqlite3.connect('livingwell_dev.db')
 cursor = conn.cursor()
 
-# Bed configurations per unit type
-# 3BR units: BR1 (private $900), BR2 (shared 2×$800), BR3 (private $875)
-# 2BR units: BR1 (shared 2×$825), BR2 (shared 2×$825)
+# Bed configurations — all units are identical 3BR
+# BR1 (single $863), BR2 (single $805), BR3 (double 2×$650 = $1,300/room)
+# Per unit: $863 + $805 + $650 + $650 = $2,968/mo
+# Rents are 15% above as-is baseline rates for new construction
 bed_configs = {
     "3br": [
-        {"bed_label": "BR1-A", "monthly_rent": 900, "bedroom_number": 1, "rent_type": "private_pay"},
-        {"bed_label": "BR2-A", "monthly_rent": 800, "bedroom_number": 2, "rent_type": "shared_room"},
-        {"bed_label": "BR2-B", "monthly_rent": 800, "bedroom_number": 2, "rent_type": "shared_room"},
-        {"bed_label": "BR3-A", "monthly_rent": 875, "bedroom_number": 3, "rent_type": "private_pay"},
-    ],
-    "2br": [
-        {"bed_label": "BR1-A", "monthly_rent": 825, "bedroom_number": 1, "rent_type": "shared_room"},
-        {"bed_label": "BR1-B", "monthly_rent": 825, "bedroom_number": 1, "rent_type": "shared_room"},
-        {"bed_label": "BR2-A", "monthly_rent": 825, "bedroom_number": 2, "rent_type": "shared_room"},
-        {"bed_label": "BR2-B", "monthly_rent": 825, "bedroom_number": 2, "rent_type": "shared_room"},
+        {"bed_label": "BR1-A", "monthly_rent": 863, "bedroom_number": 1, "rent_type": "private_pay"},
+        {"bed_label": "BR2-A", "monthly_rent": 805, "bedroom_number": 2, "rent_type": "private_pay"},
+        {"bed_label": "BR3-A", "monthly_rent": 650, "bedroom_number": 3, "rent_type": "shared_room"},
+        {"bed_label": "BR3-B", "monthly_rent": 650, "bedroom_number": 3, "rent_type": "shared_room"},
     ],
 }
 
@@ -168,10 +164,10 @@ print(f"  Avg Rent/Bed:       ${total_monthly / total_beds:,.2f}/mo") if total_b
 print("\n═══ STEP 4: Stabilized Ancillary Revenue ═══")
 
 ancillary_streams = [
-    {"stream_type": "parking", "description": "Surface parking (12 spots)", "total_count": 12, "monthly_rate": 75.00, "utilization_pct": 85, "development_plan_id": PLAN_ID},
-    {"stream_type": "storage", "description": "Storage lockers (8 available)", "total_count": 8, "monthly_rate": 50.00, "utilization_pct": 75, "development_plan_id": PLAN_ID},
-    {"stream_type": "laundry", "description": "Coin laundry (2 machines)", "total_count": 2, "monthly_rate": 150.00, "utilization_pct": 100, "development_plan_id": PLAN_ID},
-    {"stream_type": "pet_fee", "description": "Pet fees (est. 6 pets)", "total_count": 6, "monthly_rate": 50.00, "utilization_pct": 100, "development_plan_id": PLAN_ID},
+    {"stream_type": "parking", "description": "Surface Parking (6 stalls)", "total_count": 6, "monthly_rate": 50.00, "utilization_pct": 100, "development_plan_id": PLAN_ID},
+    {"stream_type": "pet_fee", "description": "Pet Fees (6 units @ 50% util)", "total_count": 6, "monthly_rate": 50.00, "utilization_pct": 50, "development_plan_id": PLAN_ID},
+    {"stream_type": "storage", "description": "Storage Lockers (6 available)", "total_count": 6, "monthly_rate": 75.00, "utilization_pct": 67, "development_plan_id": PLAN_ID},
+    # Laundry is in-unit — no revenue
 ]
 
 anc_total = 0
@@ -191,12 +187,12 @@ print(f"  Total Ancillary: ${anc_total:,.2f}/yr")
 print("\n═══ STEP 5: Stabilized Operating Expenses ═══")
 
 expenses = [
-    {"category": "property_tax", "description": "Municipal Property Tax", "calc_method": "fixed", "base_amount": 18000, "development_plan_id": PLAN_ID},
-    {"category": "insurance", "description": "Property & Liability Insurance", "calc_method": "fixed", "base_amount": 8400, "development_plan_id": PLAN_ID},
-    {"category": "utilities", "description": "All Utilities (owner-paid)", "calc_method": "fixed", "base_amount": 24000, "development_plan_id": PLAN_ID},
-    {"category": "repairs_maintenance", "description": "Maintenance & Repairs", "calc_method": "fixed", "base_amount": 9600, "development_plan_id": PLAN_ID},
+    {"category": "property_tax", "description": "Municipal Property Tax", "calc_method": "fixed", "base_amount": 10800, "development_plan_id": PLAN_ID},
+    {"category": "insurance", "description": "Property & Liability Insurance", "calc_method": "fixed", "base_amount": 5400, "development_plan_id": PLAN_ID},
+    {"category": "utilities", "description": "All Utilities (owner-paid)", "calc_method": "fixed", "base_amount": 14400, "development_plan_id": PLAN_ID},
+    {"category": "repairs_maintenance", "description": "Maintenance & Repairs", "calc_method": "fixed", "base_amount": 6000, "development_plan_id": PLAN_ID},
     {"category": "management_fee", "description": "Property Management (8% of EGI)", "calc_method": "pct_egi", "base_amount": 8.0, "development_plan_id": PLAN_ID},
-    {"category": "other", "description": "Common Area & Admin", "calc_method": "fixed", "base_amount": 6000, "development_plan_id": PLAN_ID},
+    {"category": "other", "description": "Common Area & Admin", "calc_method": "fixed", "base_amount": 5069, "development_plan_id": PLAN_ID},
     {"category": "reserves", "description": "Capital Reserves ($300/bed/yr)", "calc_method": "fixed", "base_amount": 7200, "development_plan_id": PLAN_ID},
 ]
 
@@ -231,15 +227,16 @@ cursor.execute('''INSERT INTO debt_facilities
 construction_debt_id = cursor.lastrowid
 print(f"  ✓ Construction Loan: $1,350,000 @ 7.5% IO (ID: {construction_debt_id})")
 
-# CMHC Take-out Mortgage: $1,620,000 (90% of $1.8M stabilized value)
-# CMHC premium: 4.0% = $64,800
-# Total insured amount: $1,684,800
-cmhc_premium_pct = 4.0
-cmhc_commitment = 1620000.00
-cmhc_premium_amount = cmhc_commitment * cmhc_premium_pct / 100  # $64,800
-cmhc_total = cmhc_commitment + cmhc_premium_amount  # $1,684,800
+# CMHC Take-out Mortgage: $2,430,000 (75% LTV on $3,240,000 stabilized value)
+# CMHC premium: 2.75% = $66,825
+# Total insured amount: $2,496,825
+# DSCR: $145,783 / $132,800 = 1.10x (meets CMHC minimum)
+cmhc_premium_pct = 2.75
+cmhc_commitment = 2430000.00
+cmhc_premium_amount = cmhc_commitment * cmhc_premium_pct / 100  # $66,825
+cmhc_total = cmhc_commitment + cmhc_premium_amount  # $2,496,825
 
-cursor.execute('''INSERT INTO debt_facilities 
+cursor.execute('''INSERT INTO debt_facilities
     (property_id, lender_name, debt_type, status, debt_purpose, development_plan_id,
      commitment_amount, drawn_amount, outstanding_balance,
      interest_rate, rate_type, term_months, amortization_months, io_period_months,
@@ -247,14 +244,14 @@ cursor.execute('''INSERT INTO debt_facilities
      is_cmhc_insured, cmhc_insurance_premium_pct, cmhc_insurance_premium_amount,
      cmhc_application_fee, cmhc_program, capitalized_fees,
      lender_fee_pct, lender_fee_amount, notes)
-    VALUES 
+    VALUES
     (?, 'First National', 'permanent_mortgage', 'pending', 'refinancing', ?,
      ?, ?, ?,
-     3.89, 'fixed', 120, 480, 0,
+     3.85, 'fixed', 120, 420, 0,
      '2027-03-01', '2037-03-01', 'semi_annual',
      1, ?, ?,
      3500, 'MLI Select', ?,
-     0.5, ?, 'CMHC MLI Select insured mortgage, 90% LTV, 10-year term, 40-year amortization')
+     0.5, ?, 'CMHC MLI Select insured mortgage, 75% LTV, 10-year term, 35-year amortization')
 ''', (PROPERTY_ID, PLAN_ID,
       cmhc_commitment, cmhc_total, cmhc_total,
       cmhc_premium_pct, cmhc_premium_amount,
@@ -262,15 +259,16 @@ cursor.execute('''INSERT INTO debt_facilities
       cmhc_commitment * 0.005))  # lender fee 0.5%
 
 # Update capitalized fees to include lender fee
-lender_fee = cmhc_commitment * 0.005  # $8,100
-total_cap_fees = cmhc_premium_amount + lender_fee  # $72,900
+lender_fee = cmhc_commitment * 0.005  # $12,150
+total_cap_fees = cmhc_premium_amount + lender_fee  # $78,975
 cursor.execute('UPDATE debt_facilities SET capitalized_fees = ? WHERE debt_id = (SELECT MAX(debt_id) FROM debt_facilities)', (total_cap_fees,))
 
 cmhc_debt_id = cursor.lastrowid
-print(f"  ✓ CMHC Mortgage: ${cmhc_commitment:,.0f} + ${cmhc_premium_amount:,.0f} premium = ${cmhc_total:,.0f} @ 3.89% (ID: {cmhc_debt_id})")
+print(f"  ✓ CMHC Mortgage: ${cmhc_commitment:,.0f} + ${cmhc_premium_amount:,.0f} premium = ${cmhc_total:,.0f} @ 3.85% (ID: {cmhc_debt_id})")
 print(f"    CMHC Premium: {cmhc_premium_pct}% = ${cmhc_premium_amount:,.0f}")
 print(f"    Lender Fee: 0.5% = ${lender_fee:,.0f}")
 print(f"    Total Capitalized Fees: ${total_cap_fees:,.0f}")
+print(f"    35-year amortization, 75% LTV, DSCR 1.10x")
 
 conn.commit()
 conn.close()
@@ -331,26 +329,24 @@ print(f"  Total Beds:              {uw.get('total_beds')}")
 # ── Manual Verification ──────────────────────────────────────
 print("\n═══ MANUAL VERIFICATION ═══")
 
-# 3BR units: $900 + $800 + $800 + $875 = $3,375/unit × 3 = $10,125
-# 2BR units: $825 × 4 = $3,300/unit × 3 = $9,900
-expected_monthly = 10125 + 9900  # $20,025
-expected_annual = expected_monthly * 12  # $240,300
+# All 6 units: $863 + $805 + $650 + $650 = $2,968/unit × 6 = $17,808/mo
+expected_monthly = 2968 * 6  # $17,808
+expected_annual = expected_monthly * 12  # $213,696
 
-# Ancillary: parking 12×$75×0.85×12 + storage 8×$50×0.75×12 + laundry 2×$150×12 + pet 6×$50×12
-exp_parking = 12 * 75 * 0.85 * 12  # $9,180
-exp_storage = 8 * 50 * 0.75 * 12   # $3,600
-exp_laundry = 2 * 150 * 1.0 * 12   # $3,600
-exp_pet = 6 * 50 * 1.0 * 12        # $3,600
-expected_ancillary = exp_parking + exp_storage + exp_laundry + exp_pet  # $19,980
+# Ancillary: parking 6×$50×1.0×12 + pet 6×$50×0.5×12 + storage 6×$75×0.67×12
+exp_parking = 6 * 50 * 1.0 * 12    # $3,600
+exp_pet = 6 * 50 * 0.50 * 12       # $1,800
+exp_storage = 6 * 75 * 0.67 * 12   # $3,618
+expected_ancillary = exp_parking + exp_pet + exp_storage  # $9,018
 
-expected_gpr = expected_annual + expected_ancillary
-expected_vacancy = expected_gpr * 0.05
-expected_egi = expected_gpr - expected_vacancy
+expected_gpr = expected_annual + expected_ancillary  # $222,714
+expected_vacancy = expected_gpr * 0.05  # $11,136
+expected_egi = expected_gpr - expected_vacancy  # $211,578
 
-expected_fixed_exp = 18000 + 8400 + 24000 + 9600 + 6000 + 7200  # $73,200
-expected_mgmt = expected_egi * 0.08
-expected_total_exp = expected_fixed_exp + expected_mgmt
-expected_noi = expected_egi - expected_total_exp
+expected_fixed_exp = 10800 + 5400 + 14400 + 6000 + 5069 + 7200  # $48,869
+expected_mgmt = expected_egi * 0.08  # $16,926
+expected_total_exp = expected_fixed_exp + expected_mgmt  # $65,795
+expected_noi = expected_egi - expected_total_exp  # $145,783
 
 print(f"  Expected Monthly Rent:  ${expected_monthly:,.2f}")
 print(f"  Expected Annual Rent:   ${expected_annual:,.2f}")

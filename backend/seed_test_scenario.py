@@ -8,9 +8,9 @@ Replicates the fully validated 1847 Bowness Road NW test scenario on
 any fresh database (SQLite or PostgreSQL).
 
 Phases seeded:
-  1. As-Is Baseline  — 6BR / 8-bed house, $59,100 GPR, $348,750 mortgage
-  2. Post-Renovation — Kitchen reno ($35K), 8 beds at higher rents
-  3. Full Development — 6-unit / 24-bed build, construction loan, CMHC MLI Select
+  1. As-Is Baseline  — 6BR / 8-bed house, $59,100 GPR, $465,000 mortgage @ 5.5%
+  2. Post-Renovation — Kitchen reno ($31,350), +$50/bed/month rent bump
+  3. Full Development — 6-unit / 18-BR / 24-bed build, CMHC MLI Select 75% LTV
 
 Usage:
   cd LiveWell-GPLP-Model/backend
@@ -208,8 +208,8 @@ def seed():
         db.flush()
 
         baseline_beds = [
-            ("BR1-A", 800, 1), ("BR2-A", 600, 2), ("BR2-B", 600, 2),
-            ("BR3-A", 775, 3), ("BR4-A", 700, 4), ("BR5-A", 550, 5),
+            ("BR1-A", 750, 1), ("BR2-A", 550, 2), ("BR2-B", 550, 2),
+            ("BR3-A", 700, 3), ("BR4-A", 650, 4), ("BR5-A", 550, 5),
             ("BR5-B", 550, 5), ("BR6-A", 625, 6),
         ]
         for label, rent, br_num in baseline_beds:
@@ -248,9 +248,9 @@ def seed():
 
         # ── Baseline Operating Expenses ──
         baseline_opex = [
-            ("property_tax",       "Municipal Property Tax",          "fixed",   3500, 2),
-            ("insurance",          "Property & Liability Insurance",  "fixed",   2200, 2),
-            ("utilities",          "All Utilities (owner-paid)",      "fixed",  10800, 2),
+            ("property_tax",       "Municipal Property Tax",          "fixed",   3800, 2),
+            ("insurance",          "Property & Liability Insurance",  "fixed",   2400, 2),
+            ("utilities",          "All Utilities (owner-paid)",      "fixed",  12000, 2),
             ("repairs_maintenance","Maintenance & Repairs",           "fixed",   4000, 2),
             ("management_fee",     "Property Management (8% of EGI)","pct_egi",    8, 0),
             ("other",              "Landscaping & Snow Removal",      "fixed",   2400, 2),
@@ -275,10 +275,10 @@ def seed():
             debt_type="permanent_mortgage",
             status="active",
             debt_purpose="acquisition",
-            commitment_amount=Decimal("348750"),
-            drawn_amount=Decimal("348750"),
-            outstanding_balance=Decimal("348750"),
-            interest_rate=Decimal("4.79"),
+            commitment_amount=Decimal("465000"),
+            drawn_amount=Decimal("465000"),
+            outstanding_balance=Decimal("465000"),
+            interest_rate=Decimal("5.5"),
             rate_type="fixed",
             term_months=60,
             amortization_months=300,
@@ -300,7 +300,7 @@ def seed():
             property_id=pid,
             plan_name="Kitchen Renovation",
             status="active",
-            estimated_construction_cost=Decimal("35000"),
+            estimated_construction_cost=Decimal("31350"),
             planned_units=1,
             planned_beds=8,
             planned_sqft=Decimal("2000"),
@@ -326,9 +326,9 @@ def seed():
         db.flush()
 
         reno_beds = [
-            ("BR1-A", 850, 1), ("BR2-A", 625, 2), ("BR2-B", 625, 2),
-            ("BR3-A", 800, 3), ("BR4-A", 750, 4), ("BR5-A", 625, 5),
-            ("BR5-B", 625, 5), ("BR6-A", 685, 6),
+            ("BR1-A", 800, 1), ("BR2-A", 600, 2), ("BR2-B", 600, 2),
+            ("BR3-A", 750, 3), ("BR4-A", 700, 4), ("BR5-A", 600, 5),
+            ("BR5-B", 600, 5), ("BR6-A", 675, 6),
         ]
         for label, rent, br_num in reno_beds:
             db.add(Bed(
@@ -391,7 +391,7 @@ def seed():
         print("\n[6/8] Creating Phase 3: Full Development plan...")
         dev_plan = DevelopmentPlan(
             property_id=pid,
-            plan_name="Full Development 6-Unit/24-Bed",
+            plan_name="Full Development 6-Unit/18-BR/24-Bed",
             status="active",
             estimated_construction_cost=Decimal("1800000"),
             hard_costs=Decimal("1500000"),
@@ -409,57 +409,31 @@ def seed():
         db.flush()
         dev_plan_id = dev_plan.plan_id
 
-        # 3x 3BR units (4 beds each)
-        three_br_beds = [
-            ("BR1-A", 900, 1), ("BR2-A", 800, 2),
-            ("BR2-B", 800, 2), ("BR3-A", 875, 3),
+        # 6x 3BR units (4 beds each: 2 single-occ + 1 double-occ bedroom)
+        # Rents are 15% above as-is rates for new construction
+        unit_beds = [
+            ("BR1-A", 863, 1),   # single occupancy
+            ("BR2-A", 805, 2),   # single occupancy
+            ("BR3-A", 650, 3),   # double occupancy bed A
+            ("BR3-B", 650, 3),   # double occupancy bed B
         ]
-        for i in range(1, 4):
+        for i in range(1, 7):
+            floor_num = (i - 1) // 2 + 1  # floors 1,1,2,2,3,3
             u = Unit(
                 property_id=pid,
                 unit_number=f"Unit {i}",
                 unit_type="3br",
                 bed_count=4,
                 bedroom_count=3,
-                sqft=Decimal("1100"),
-                floor=str(i),
+                sqft=Decimal("1000"),
+                floor=str(floor_num),
                 is_occupied=True,
                 renovation_phase="post_renovation",
                 development_plan_id=dev_plan_id,
             )
             db.add(u)
             db.flush()
-            for label, rent, br_num in three_br_beds:
-                db.add(Bed(
-                    unit_id=u.unit_id,
-                    bed_label=label,
-                    monthly_rent=Decimal(str(rent)),
-                    status="occupied",
-                    bedroom_number=br_num,
-                    is_post_renovation=True,
-                ))
-
-        # 3x 2BR units (4 beds each)
-        two_br_beds = [
-            ("BR1-A", 825, 1), ("BR1-B", 825, 1),
-            ("BR2-A", 825, 2), ("BR2-B", 825, 2),
-        ]
-        for i in range(4, 7):
-            u = Unit(
-                property_id=pid,
-                unit_number=f"Unit {i}",
-                unit_type="2br",
-                bed_count=4,
-                bedroom_count=2,
-                sqft=Decimal("900"),
-                floor=str(i - 3),
-                is_occupied=True,
-                renovation_phase="post_renovation",
-                development_plan_id=dev_plan_id,
-            )
-            db.add(u)
-            db.flush()
-            for label, rent, br_num in two_br_beds:
+            for label, rent, br_num in unit_beds:
                 db.add(Bed(
                     unit_id=u.unit_id,
                     bed_label=label,
@@ -472,12 +446,11 @@ def seed():
         db.flush()
         print(f"  ✓ 6 units, 24 beds created for development plan (id={dev_plan_id})")
 
-        # Dev plan ancillary revenue
+        # Dev plan ancillary revenue (laundry in-unit, no revenue)
         dev_ancillary = [
-            ("parking",  "Surface parking (12 spots)",  12, 85,  75, 0),
-            ("storage",  "Storage lockers (8 available)", 8, 75,  50, 0),
-            ("laundry",  "Coin laundry (2 machines)",     2, 100, 150, 0),
-            ("pet_fee",  "Pet fees (est. 6 pets)",        6, 100,  50, 0),
+            ("parking",  "Surface Parking (6 stalls)",    6, 100, 50, 0),
+            ("pet_fee",  "Pet Fees (6 units @ 50% util)", 6,  50, 50, 0),
+            ("storage",  "Storage Lockers (6 available)", 6,  67, 75, 0),
         ]
         for stype, desc, count, util, rate, esc in dev_ancillary:
             db.add(AncillaryRevenueStream(
@@ -492,14 +465,16 @@ def seed():
             ))
 
         # Dev plan operating expenses
+        # Fixed total: $48,869 + 8% mgmt of $211,578 EGI ($16,926) = $65,795
+        # NOI target: $211,578 - $65,795 = $145,783
         dev_opex = [
-            ("property_tax",       "Municipal Property Tax",          "fixed",  18000, 3),
-            ("insurance",          "Property & Liability Insurance",  "fixed",   8400, 3),
-            ("utilities",          "All Utilities (owner-paid)",      "fixed",  24000, 3),
-            ("repairs_maintenance","Maintenance & Repairs",           "fixed",   9600, 3),
-            ("management_fee",     "Property Management (8% of EGI)","pct_egi",    8, 3),
-            ("other",              "Common Area & Admin",             "fixed",   6000, 3),
-            ("reserves",           "Capital Reserves ($300/bed/yr)",  "fixed",   7200, 3),
+            ("property_tax",       "Municipal Property Tax",          "fixed",  10800, 2),
+            ("insurance",          "Property & Liability Insurance",  "fixed",   5400, 2),
+            ("utilities",          "All Utilities (owner-paid)",      "fixed",  14400, 2),
+            ("repairs_maintenance","Maintenance & Repairs",           "fixed",   6000, 2),
+            ("management_fee",     "Property Management (8% of EGI)","pct_egi",    8, 0),
+            ("other",              "Common Area & Admin",             "fixed",   5069, 2),
+            ("reserves",           "Capital Reserves ($300/bed/yr)",  "fixed",   7200, 2),
         ]
         for cat, desc, method, amount, esc in dev_opex:
             db.add(OperatingExpenseLineItem(
@@ -541,7 +516,12 @@ def seed():
         db.flush()
         construction_debt_id = construction_loan.debt_id
 
-        # ── Debt: CMHC MLI Select Take-Out Mortgage ──
+        # ── Debt: CMHC MLI Select Take-Out Mortgage (75% LTV) ──
+        # Stabilized value: $145,783 / 4.5% cap = $3,240,000
+        # Loan: $3,240,000 × 75% = $2,430,000
+        # CMHC premium: 2.75% = $66,825
+        # Total insured mortgage: $2,496,825
+        # Annual debt service: ~$132,800 → DSCR = 1.10x
         cmhc_mortgage = DebtFacility(
             property_id=pid,
             lender_name="First National",
@@ -550,26 +530,26 @@ def seed():
             debt_purpose="refinancing",
             replaces_debt_id=construction_debt_id,
             development_plan_id=dev_plan_id,
-            commitment_amount=Decimal("1620000"),
-            drawn_amount=Decimal("1684800"),
-            outstanding_balance=Decimal("1684800"),
-            interest_rate=Decimal("3.89"),
+            commitment_amount=Decimal("2430000"),
+            drawn_amount=Decimal("2496825"),
+            outstanding_balance=Decimal("2496825"),
+            interest_rate=Decimal("3.85"),
             rate_type="fixed",
             term_months=120,
-            amortization_months=480,
+            amortization_months=420,
             io_period_months=0,
             origination_date=date(2027, 3, 1),
             maturity_date=date(2037, 3, 1),
             is_cmhc_insured=True,
-            cmhc_insurance_premium_pct=Decimal("4.0"),
-            cmhc_insurance_premium_amount=Decimal("64800"),
+            cmhc_insurance_premium_pct=Decimal("2.75"),
+            cmhc_insurance_premium_amount=Decimal("66825"),
             cmhc_application_fee=Decimal("3500"),
             cmhc_program="MLI Select",
             compounding_method="semi_annual",
             lender_fee_pct=Decimal("0.5"),
-            capitalized_fees=Decimal("72900"),
-            lender_fee_amount=Decimal("8100"),
-            notes="CMHC MLI Select insured mortgage, 90% LTV, 10-year term, 40-year amortization",
+            capitalized_fees=Decimal("78975"),
+            lender_fee_amount=Decimal("12150"),
+            notes="CMHC MLI Select insured mortgage, 75% LTV, 10-year term, 35-year amortization",
         )
         db.add(cmhc_mortgage)
         db.flush()
@@ -587,18 +567,19 @@ def seed():
         print(f"  LP ID:              {lp.lp_id}")
         print(f"  Baseline Unit:      {baseline_unit.unit_id} (8 beds, GPR=${total_baseline_rent * 12:,}/yr)")
         print(f"  Reno Plan ID:       {reno_plan_id} (8 beds, GPR=${total_reno_rent * 12:,}/yr)")
-        print(f"  Dev Plan ID:        {dev_plan_id} (24 beds, GPR=$240,300/yr)")
+        print(f"  Dev Plan ID:        {dev_plan_id} (24 beds, GPR=$213,696/yr)")
         print(f"  Baseline Debt ID:   {baseline_debt_id}")
         print(f"  Construction Debt:  {construction_debt_id}")
         print(f"  CMHC Mortgage:      {cmhc_mortgage.debt_id}")
 
         print("\n  Expected validated results:")
         print("  ─────────────────────────────────────────────")
-        print("  Baseline NOI:       $29,380.87  |  DSCR: 1.15x")
-        print("  Post-Reno NOI:      $36,302.95  |  DSCR: 1.42x")
-        print("  Stabilized NOI:     $154,284.72 |  DSCR: 1.86x")
-        print("  7-Year IRR:         18.45%      |  EM: 3.65x")
-        print("  10-Year IRR:        20.30%      |  EM: 5.80x")
+        print("  Baseline NOI:       $29,381     |  CF: -$4,219 (negative, pre-reno)")
+        print("  Post-Reno NOI:      $33,544     |  CF: -$56 (breakeven)")
+        print("  Stabilized NOI:     $145,783    |  DSCR: 1.10x (CMHC min)")
+        print("  Refi Distribution:  $1,055,000  |  Exit Cap: 4.75%")
+        print("  Sale (Yr 7) NOI:    $185,956    |  Sale Price: $3,915,000")
+        print("  Net Sale Proceeds:  $1,417,550  |  Rent Growth: 5%/yr")
 
     except Exception as e:
         db.rollback()

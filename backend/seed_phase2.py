@@ -4,9 +4,9 @@ Phase 2: Post-Renovation Seed Script
 Kitchen renovation for 1847 Bowness Road NW (property_id=11)
 
 Scenario:
-- $35,000 kitchen renovation
+- $31,350 kitchen renovation
 - Same 6 bedrooms, 8 beds
-- Post-reno rents increase ~15% on average
+- Post-reno rents increase $50/bed/month across all 8 beds ($400/mo = $4,800/yr)
 - Same ancillary revenue (linked to plan)
 - Same expense structure (linked to plan)
 - No new debt (renovation funded from reserves/equity)
@@ -44,14 +44,14 @@ plan_data = {
     "planned_units": 1,
     "planned_beds": 8,
     "planned_sqft": 2000,
-    "hard_costs": 30000,
-    "soft_costs": 3000,
+    "hard_costs": 26500,
+    "soft_costs": 2850,
     "site_costs": 0,
     "financing_costs": 0,
-    "contingency_percent": 5.71,  # ~$2,000 contingency on $35,000
-    "estimated_construction_cost": 35000,
-    "projected_annual_revenue": 74220,  # post-reno projected
-    "projected_annual_noi": 36000,  # rough estimate
+    "contingency_percent": 6.37,  # ~$2,000 contingency on $31,350
+    "estimated_construction_cost": 31350,
+    "projected_annual_revenue": 69309,  # post-reno: $63,900 beds + $5,409 ancillary
+    "projected_annual_noi": 33544,  # post-reno NOI
     "development_start_date": "2025-06-01",
     "construction_duration_days": 30,
     "estimated_completion_date": "2025-07-01",
@@ -98,16 +98,16 @@ else:
 # ── STEP 3: Create Post-Renovation Beds with Updated Rents ──
 print("\n═══ STEP 3: Create Post-Renovation Beds ═══")
 
-# Post-renovation rents (~15% increase)
+# Post-renovation rents (+$50/bed/month from baseline)
 post_reno_beds = [
-    {"bed_label": "BR1-A", "monthly_rent": 850,  "bedroom_number": 1, "rent_type": "private_pay"},
-    {"bed_label": "BR2-A", "monthly_rent": 625,  "bedroom_number": 2, "rent_type": "shared_room"},
-    {"bed_label": "BR2-B", "monthly_rent": 625,  "bedroom_number": 2, "rent_type": "shared_room"},
-    {"bed_label": "BR3-A", "monthly_rent": 800,  "bedroom_number": 3, "rent_type": "private_pay"},
-    {"bed_label": "BR4-A", "monthly_rent": 750,  "bedroom_number": 4, "rent_type": "private_pay"},
-    {"bed_label": "BR5-A", "monthly_rent": 625,  "bedroom_number": 5, "rent_type": "shared_room"},
-    {"bed_label": "BR5-B", "monthly_rent": 625,  "bedroom_number": 5, "rent_type": "shared_room"},
-    {"bed_label": "BR6-A", "monthly_rent": 685,  "bedroom_number": 6, "rent_type": "private_pay"},
+    {"bed_label": "BR1-A", "monthly_rent": 800,  "bedroom_number": 1, "rent_type": "private_pay"},
+    {"bed_label": "BR2-A", "monthly_rent": 600,  "bedroom_number": 2, "rent_type": "shared_room"},
+    {"bed_label": "BR2-B", "monthly_rent": 600,  "bedroom_number": 2, "rent_type": "shared_room"},
+    {"bed_label": "BR3-A", "monthly_rent": 750,  "bedroom_number": 3, "rent_type": "private_pay"},
+    {"bed_label": "BR4-A", "monthly_rent": 700,  "bedroom_number": 4, "rent_type": "private_pay"},
+    {"bed_label": "BR5-A", "monthly_rent": 600,  "bedroom_number": 5, "rent_type": "shared_room"},
+    {"bed_label": "BR5-B", "monthly_rent": 600,  "bedroom_number": 5, "rent_type": "shared_room"},
+    {"bed_label": "BR6-A", "monthly_rent": 675,  "bedroom_number": 6, "rent_type": "private_pay"},
 ]
 
 # First delete auto-created beds for this unit
@@ -217,18 +217,18 @@ print(f"  DSCR Health:             {uw['dscr_health']}")
 
 # ── Manual Verification ──────────────────────────────────────
 print("\n═══ MANUAL VERIFICATION ═══")
-expected_monthly = 850 + 625 + 625 + 800 + 750 + 625 + 625 + 685
-expected_annual = expected_monthly * 12
+expected_monthly = 800 + 600 + 600 + 750 + 700 + 600 + 600 + 675  # $5,325/mo
+expected_annual = expected_monthly * 12  # $63,900
 expected_ancillary = 5409  # same as baseline
-expected_gpr = expected_annual + expected_ancillary
-expected_vacancy = expected_gpr * 0.05
-expected_egi = expected_gpr - expected_vacancy
-expected_fixed_exp = 3800 + 2400 + 12000 + 4000 + 2400 + 2400  # 27,000
-expected_mgmt = expected_egi * 0.08
-expected_total_exp = expected_fixed_exp + expected_mgmt
-expected_noi = expected_egi - expected_total_exp
-expected_ads = 25520.53
-expected_cf = expected_noi - expected_ads
+expected_gpr = expected_annual + expected_ancillary  # $69,309
+expected_vacancy = expected_gpr * 0.05  # $3,465
+expected_egi = expected_gpr - expected_vacancy  # $65,844
+expected_fixed_exp = 3800 + 2400 + 12000 + 4000 + 2400 + 2400  # $27,000
+expected_mgmt = expected_egi * 0.08  # ~$5,268
+expected_total_exp = expected_fixed_exp + expected_mgmt  # ~$32,268
+expected_noi = expected_egi - expected_total_exp  # ~$33,576
+expected_ads = 33600  # $465K mortgage @ 5.5%, 25yr am, semi-annual
+expected_cf = expected_noi - expected_ads  # ~breakeven
 
 print(f"  Expected Monthly Rent:  ${expected_monthly:,.2f}")
 print(f"  Expected Annual Rent:   ${expected_annual:,.2f}")
