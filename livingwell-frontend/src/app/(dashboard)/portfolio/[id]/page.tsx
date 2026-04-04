@@ -556,7 +556,6 @@ function FinancialAnalysisTab({
     </div>
   );
 }
-}
 
 // ── Property Photos Tab ─────────────────────────────────────────────
 
