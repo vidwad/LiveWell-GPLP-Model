@@ -1,6 +1,8 @@
 "use client";
 
 import React, { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { apiClient } from "@/lib/api";
 import { toast } from "sonner";
 import {
   Trash2,
@@ -70,8 +72,29 @@ export function ExitScenariosTab({ propertyId, canEdit, property, totalDebtOutst
   });
   const [expandedSale, setExpandedSale] = useState<number | null>(null);
 
+  // Fetch phase-aware underwriting summary for accurate NOI
+  const phasePlanId = (() => {
+    if (activePhase === "as_is" || !property?.development_plans) return null;
+    const plans = property.development_plans || [];
+    const sorted = [...plans].sort((a: any, b: any) => a.plan_id - b.plan_id);
+    if (activePhase === "post_renovation") return sorted[0]?.plan_id ?? null;
+    if (activePhase === "full_development") return sorted.length > 1 ? sorted[sorted.length - 1]?.plan_id : sorted[0]?.plan_id ?? null;
+    return null;
+  })();
+
+  const { data: uwSummary } = useQuery({
+    queryKey: ["underwriting-summary", propertyId, phasePlanId],
+    queryFn: () => {
+      const url = phasePlanId
+        ? `/api/portfolio/properties/${propertyId}/underwriting-summary?plan_id=${phasePlanId}`
+        : `/api/portfolio/properties/${propertyId}/underwriting-summary`;
+      return apiClient.get(url).then(r => r.data);
+    },
+    enabled: propertyId > 0,
+  });
+
   const computedEquity = (property?.purchase_price ?? 0) - totalDebtOutstanding;
-  const computedNOI = (property?.annual_revenue ?? 0) - (property?.annual_expenses ?? 0);
+  const computedNOI = uwSummary?.noi ?? ((property?.annual_revenue ?? 0) - (property?.annual_expenses ?? 0));
   const computedCashFlow = computedNOI - totalAnnualDebtService;
 
   const handleCreateRefi = async (e: React.FormEvent) => {

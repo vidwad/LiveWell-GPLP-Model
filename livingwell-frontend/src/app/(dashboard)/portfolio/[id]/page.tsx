@@ -45,6 +45,7 @@ import {
   useDeleteProperty,
   useDebtFacilities,
 } from "@/hooks/usePortfolio";
+import type { DebtFacility, DevelopmentPlan } from "@/types/portfolio";
 import { useAuth } from "@/providers/AuthProvider";
 import { Button } from "@/components/ui/button";
 import { LinkButton } from "@/components/ui/link-button";
@@ -124,28 +125,85 @@ export default function PropertyDetailPage({ params }: { params: { id: string } 
   const canEdit = user?.role === "DEVELOPER" || user?.role === "GP_ADMIN" || user?.role === "OPERATIONS_MANAGER";
   const [activePhase, setActivePhase] = useState<"as_is" | "post_renovation" | "full_development">("as_is");
 
-  /* ── Computed values ── */
-  const totalDebtCommitment = (debtFacilities ?? []).reduce(
-    (sum: number, d: { commitment_amount: number }) => sum + (d.commitment_amount ?? 0), 0
-  );
-  const totalDebtOutstanding = (debtFacilities ?? []).reduce(
-    (sum: number, d: { outstanding_balance: number }) => sum + (d.outstanding_balance ?? 0), 0
-  );
-  const activePlan = (plans ?? []).find((p: { status: string }) => p.status === "active") ?? (plans ?? [])[0];
+  /* ── Phase-aware debt filtering ── */
+  const activePlan = (plans ?? []).find((p: DevelopmentPlan) => p.status === "active") ?? (plans ?? [])[0];
 
-  const totalAnnualDebtService = (debtFacilities ?? []).reduce((sum: number, d: { outstanding_balance: number; interest_rate: number | null; amortization_months: number | null; io_period_months: number | null }) => {
+  // Map activePhase to the relevant plan_id
+  const phasePlanId = (() => {
+    if (activePhase === "as_is" || !plans || plans.length === 0) return null;
+    // For post_renovation: find the kitchen/renovation plan (smaller unit count or first plan)
+    // For full_development: find the full dev plan (larger unit count or last plan)
+    const sortedPlans = [...plans].sort((a: DevelopmentPlan, b: DevelopmentPlan) => a.plan_id - b.plan_id);
+    if (activePhase === "post_renovation") return sortedPlans[0]?.plan_id ?? null;
+    if (activePhase === "full_development") return sortedPlans.length > 1 ? sortedPlans[sortedPlans.length - 1]?.plan_id : sortedPlans[0]?.plan_id ?? null;
+    return null;
+  })();
+
+  // Filter debts based on active phase using development_plan_id and replaces_debt_id chain
+  const phaseFilteredDebts: DebtFacility[] = (() => {
+    const all = (debtFacilities ?? []) as DebtFacility[];
+    if (all.length === 0) return [];
+
+    if (activePhase === "as_is") {
+      // Show only baseline debts (no development_plan_id) that aren't replaced by other baseline debts
+      const baselineDebts = all.filter(d => !d.development_plan_id);
+      return baselineDebts;
+    }
+
+    if (!phasePlanId) return all.filter(d => !d.development_plan_id);
+
+    // For plan phases: show plan-specific debts, following the replacement chain
+    const planDebts = all.filter(d => d.development_plan_id === phasePlanId);
+    // Find which baseline debts are replaced by plan debts
+    const replacedIds = new Set<number>();
+    const collectReplaced = (debts: DebtFacility[]) => {
+      for (const d of debts) {
+        if (d.replaces_debt_id) replacedIds.add(d.replaces_debt_id);
+      }
+    };
+    collectReplaced(planDebts);
+    // Also check if plan debts replace each other (e.g., CMHC replaces construction loan)
+    // Show only the final debt in each replacement chain
+    const planDebtIds = new Set(planDebts.map(d => d.debt_id));
+    const finalPlanDebts = planDebts.filter(d => !planDebtIds.has(d.replaces_debt_id ?? -1) || !planDebts.some(other => other.replaces_debt_id === d.debt_id));
+    // Actually: show plan debts that are NOT replaced by another plan debt
+    const replacedByPlanDebt = new Set<number>();
+    for (const d of planDebts) {
+      if (d.replaces_debt_id && planDebts.some(other => other.debt_id === d.replaces_debt_id)) {
+        replacedByPlanDebt.add(d.replaces_debt_id);
+      }
+    }
+    const activePlanDebts = planDebts.filter(d => !replacedByPlanDebt.has(d.debt_id));
+    // Add baseline debts that aren't replaced
+    const baselineDebts = all.filter(d => !d.development_plan_id && !replacedIds.has(d.debt_id));
+    return [...activePlanDebts, ...baselineDebts];
+  })();
+
+  // Compute Canadian semi-annual compounding ADS
+  const computeADS = (d: DebtFacility): number => {
     const bal = d.outstanding_balance ?? 0;
     const rate = (d.interest_rate ?? 0) / 100;
     const amort = d.amortization_months ?? 0;
     const io = d.io_period_months ?? 0;
-    if (bal <= 0 || rate <= 0) return sum;
-    const monthlyRate = rate / 12;
+    if (bal <= 0 || rate <= 0) return 0;
+    const compounding = (d as any).compounding_method ?? "semi_annual";
+    let monthlyRate: number;
+    if (compounding === "semi_annual") {
+      // Canadian mortgage: semi-annual compounding, monthly payments
+      monthlyRate = Math.pow(1 + rate / 2, 1 / 6) - 1;
+    } else {
+      monthlyRate = rate / 12;
+    }
     if (amort > 0 && io <= 0) {
       const pmt = bal * (monthlyRate * Math.pow(1 + monthlyRate, amort)) / (Math.pow(1 + monthlyRate, amort) - 1);
-      return sum + pmt * 12;
+      return pmt * 12;
     }
-    return sum + bal * rate;
-  }, 0);
+    return bal * rate; // IO
+  };
+
+  const totalDebtCommitment = phaseFilteredDebts.reduce((s, d) => s + (d.commitment_amount ?? 0), 0);
+  const totalDebtOutstanding = phaseFilteredDebts.reduce((s, d) => s + (d.outstanding_balance ?? 0), 0);
+  const totalAnnualDebtService = phaseFilteredDebts.reduce((s, d) => s + computeADS(d), 0);
 
   /* ── Handlers ── */
   const handleDelete = async () => {
@@ -403,6 +461,8 @@ export default function PropertyDetailPage({ params }: { params: { id: string } 
             totalDebtOutstanding={totalDebtOutstanding}
             totalAnnualDebtService={totalAnnualDebtService}
             activePhase={activePhase}
+            phaseFilteredDebts={phaseFilteredDebts}
+            phasePlanId={phasePlanId}
           />
         </TabsContent>
 
@@ -412,6 +472,9 @@ export default function PropertyDetailPage({ params }: { params: { id: string } 
             propertyId={propertyId}
             totalAnnualDebtService={totalAnnualDebtService}
             activePhase={activePhase}
+            activePlan={activePlan}
+            phaseFilteredDebts={phaseFilteredDebts}
+            phasePlanId={phasePlanId}
           />
         </TabsContent>
 

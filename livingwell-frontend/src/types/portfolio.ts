@@ -266,6 +266,9 @@ export interface DebtFacility {
   dscr_covenant: number | null;
   notes: string | null;
   created_at: string | null;
+  // Plan linkage
+  development_plan_id: number | null;
+  replaces_debt_id: number | null;
   // CMHC / Insurance fields
   is_cmhc_insured: boolean;
   cmhc_insurance_premium_pct: number | null;
@@ -274,6 +277,7 @@ export interface DebtFacility {
   cmhc_program: string | null;
   compounding_method: string;
   lender_fee_pct: number | null;
+  lender_fee_amount: number | null;
   capitalized_fees: number | null;
 }
 

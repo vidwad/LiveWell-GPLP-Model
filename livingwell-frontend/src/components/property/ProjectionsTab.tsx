@@ -1,6 +1,8 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { apiClient } from "@/lib/api";
 import { toast } from "sonner";
 import { BarChart3, TrendingUp, DollarSign, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -24,9 +26,12 @@ interface ProjectionsTabProps {
   propertyId: number;
   totalAnnualDebtService: number;
   activePhase?: "as_is" | "post_renovation" | "full_development";
+  activePlan?: Record<string, any> | null;
+  phaseFilteredDebts?: any[];
+  phasePlanId?: number | null;
 }
 
-export function ProjectionsTab({ propertyId, totalAnnualDebtService, activePhase = "as_is" }: ProjectionsTabProps) {
+export function ProjectionsTab({ propertyId, totalAnnualDebtService, activePhase = "as_is", activePlan, phaseFilteredDebts, phasePlanId }: ProjectionsTabProps) {
   const { mutateAsync: runProjection, isPending: projPending } = useRunProjection(propertyId);
   const [projResults, setProjResults] = useState<ProjectionResult | null>(null);
   const [useCapRateCurve, setUseCapRateCurve] = useState(false);
@@ -50,6 +55,55 @@ export function ProjectionsTab({ propertyId, totalAnnualDebtService, activePhase
     turnover_fee_rate: "2", property_fmv_at_turnover: "",
     lp_profit_share: "70", gp_profit_share: "30",
   });
+
+  // Fetch underwriting summary for auto-population
+  const { data: uwSummary } = useQuery({
+    queryKey: ["underwriting-summary-proj", propertyId, phasePlanId],
+    queryFn: () => {
+      const url = phasePlanId
+        ? `/api/portfolio/properties/${propertyId}/underwriting-summary?plan_id=${phasePlanId}`
+        : `/api/portfolio/properties/${propertyId}/underwriting-summary`;
+      return apiClient.get(url).then(r => r.data);
+    },
+    enabled: propertyId > 0,
+  });
+
+  // Auto-populate form fields from plan and underwriting data when phase changes
+  useEffect(() => {
+    setProjForm(prev => {
+      const updates: Record<string, string> = {};
+
+      // Auto-fill from underwriting summary
+      if (uwSummary) {
+        if (!prev.planned_units && uwSummary.total_units) updates.planned_units = String(uwSummary.total_units);
+        if (!prev.annual_expense_ratio && uwSummary.expense_ratio) updates.annual_expense_ratio = String((uwSummary.expense_ratio * 100).toFixed(1));
+      }
+
+      // Auto-fill from active plan
+      if (activePlan) {
+        if (!prev.construction_budget && activePlan.estimated_construction_cost)
+          updates.construction_budget = String(Math.round(activePlan.estimated_construction_cost));
+        if (!prev.construction_months && activePlan.construction_duration_months)
+          updates.construction_months = String(activePlan.construction_duration_months);
+        if (!prev.lease_up_months && activePlan.lease_up_months)
+          updates.lease_up_months = String(activePlan.lease_up_months);
+      }
+
+      // Auto-fill ADS from phase-filtered debt
+      if (!prev.annual_debt_service && totalAnnualDebtService > 0) {
+        updates.annual_debt_service = String(Math.round(totalAnnualDebtService));
+      }
+
+      // Auto-fill debt balance at exit from phase-filtered debts
+      if (!prev.debt_balance_at_exit && phaseFilteredDebts && phaseFilteredDebts.length > 0) {
+        const totalOutstanding = phaseFilteredDebts.reduce((s: number, d: any) => s + (d.outstanding_balance ?? 0), 0);
+        if (totalOutstanding > 0) updates.debt_balance_at_exit = String(Math.round(totalOutstanding));
+      }
+
+      if (Object.keys(updates).length === 0) return prev;
+      return { ...prev, ...updates };
+    });
+  }, [uwSummary, activePlan, totalAnnualDebtService, phaseFilteredDebts]);
 
   const handleRunProjection = async (e: React.FormEvent) => {
     e.preventDefault();

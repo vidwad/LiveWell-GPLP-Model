@@ -45,6 +45,8 @@ import {
   useAmortizationSchedule,
 } from "@/hooks/usePortfolio";
 import type { DebtFacility } from "@/types/portfolio";
+import { useQuery } from "@tanstack/react-query";
+import { apiClient } from "@/lib/api";
 
 /* ── Amortization Panel ── */
 function AmortizationPanel({ propertyId, debtId }: { propertyId: number; debtId: number }) {
@@ -147,22 +149,25 @@ interface DebtFinancingTabProps {
   totalDebtOutstanding: number;
   totalAnnualDebtService: number;
   activePhase?: "as_is" | "post_renovation" | "full_development";
+  phaseFilteredDebts?: DebtFacility[];
+  phasePlanId?: number | null;
 }
 
-export function DebtFinancingTab({ propertyId, canEdit, property, totalDebtCommitment, totalDebtOutstanding, totalAnnualDebtService, activePhase }: DebtFinancingTabProps) {
+export function DebtFinancingTab({ propertyId, canEdit, property, totalDebtCommitment, totalDebtOutstanding, totalAnnualDebtService, activePhase, phaseFilteredDebts, phasePlanId }: DebtFinancingTabProps) {
   const { data: allDebtFacilities } = useDebtFacilities(propertyId);
 
-  // Phase-aware filtering: map debt types to lifecycle phases
-  const debtFacilities = (() => {
-    if (!allDebtFacilities || !activePhase) return allDebtFacilities;
-    const phaseDebtTypes: Record<string, string[]> = {
-      as_is: ["permanent_mortgage", "bridge_loan", "line_of_credit"],
-      post_renovation: ["permanent_mortgage", "bridge_loan", "line_of_credit", "mezzanine"],
-      full_development: ["construction_loan", "permanent_mortgage", "mezzanine"],
-    };
-    const allowedTypes = phaseDebtTypes[activePhase] || [];
-    return allDebtFacilities.filter((d: DebtFacility) => allowedTypes.includes(d.debt_type));
-  })();
+  // Use phase-filtered debts from parent (which uses development_plan_id + replaces_debt_id chain)
+  const debtFacilities = phaseFilteredDebts ?? allDebtFacilities;
+
+  // Fetch underwriting summary for the active phase to get accurate NOI
+  const { data: uwSummary } = useQuery({
+    queryKey: ["underwriting-summary-debt", propertyId, phasePlanId],
+    queryFn: () => {
+      const params: Record<string, string> = {};
+      if (phasePlanId) params.plan_id = String(phasePlanId);
+      return apiClient.get(`/api/portfolio/properties/${propertyId}/underwriting-summary`, { params }).then(r => r.data);
+    },
+  });
   const createDebt = useCreateDebtFacility(propertyId);
   const updateDebt = useUpdateDebtFacility(propertyId);
 
@@ -491,8 +496,8 @@ export function DebtFinancingTab({ propertyId, canEdit, property, totalDebtCommi
                 <TableBody>
                   {(() => {
                     const purchasePrice = Number(property.purchase_price ?? property.current_market_value ?? 0);
-                    const propExtras = property as unknown as Record<string, unknown>;
-                    const noi = propExtras.annual_revenue ? Number(propExtras.annual_revenue) - Number(propExtras.annual_expenses ?? 0) : 0;
+                    // Use underwriting summary NOI (phase-aware) instead of raw property fields
+                    const noi = uwSummary?.noi ?? 0;
                     const cashAfterDS = noi - totalAnnualDebtService;
                     const capRate = purchasePrice > 0 && noi > 0 ? (noi / purchasePrice) * 100 : 0;
                     const dscr = totalAnnualDebtService > 0 && noi > 0 ? noi / totalAnnualDebtService : 0;

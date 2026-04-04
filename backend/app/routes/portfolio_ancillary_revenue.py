@@ -71,6 +71,9 @@ def list_ancillary_revenue(
     )
     if plan_id is not None:
         q = q.filter(AncillaryRevenueStream.development_plan_id == plan_id)
+    else:
+        # When no plan_id is specified, return only baseline streams (no plan linkage)
+        q = q.filter(AncillaryRevenueStream.development_plan_id == None)  # noqa: E711
 
     streams = q.order_by(AncillaryRevenueStream.stream_type).all()
     return [_stream_to_out(s) for s in streams]
@@ -194,6 +197,9 @@ def ancillary_revenue_summary(
     )
     if plan_id is not None:
         q = q.filter(AncillaryRevenueStream.development_plan_id == plan_id)
+    else:
+        # When no plan_id is specified, return only baseline streams (no plan linkage)
+        q = q.filter(AncillaryRevenueStream.development_plan_id == None)  # noqa: E711
 
     streams = q.order_by(AncillaryRevenueStream.stream_type).all()
 
