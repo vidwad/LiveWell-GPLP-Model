@@ -15,9 +15,9 @@ from typing import Optional, List, Dict, Any
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
-from app.db.database import get_db
+from app.db.session import get_db
 from app.db import models as m
-from app.routes.auth import require_gp_or_ops
+from app.core.deps import require_gp_or_ops
 
 router = APIRouter()
 

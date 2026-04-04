@@ -307,8 +307,12 @@ class LifecycleProjectionEngine:
             if phase == "construction" and annual_construction_mgmt_fee > 0:
                 constr_mgmt = annual_construction_mgmt_fee
 
-            # Debt service
-            ds = round(self.annual_debt_service, 2)
+            # Debt service — $0 during construction (construction loan IO
+            # is already captured in carrying_cost_annual as an operating expense)
+            if phase == "construction":
+                ds = 0.0
+            else:
+                ds = round(self.annual_debt_service, 2)
 
             cash_flow = round(noi - ds - constr_mgmt, 2)
             cumulative_cf = round(cumulative_cf + cash_flow, 2)
@@ -353,12 +357,25 @@ class LifecycleProjectionEngine:
         if (lease_up_start is not None
                 and year >= lease_up_start
                 and year < stabilization_year):
-            # Linear ramp from 0% to (1 - vacancy_rate)
-            years_into_leaseup = year - lease_up_start + 1
-            total_leaseup_years = max(1, math.ceil(self.lease_up_months / 12))
-            ramp_pct = min(years_into_leaseup / total_leaseup_years, 1.0)
+            # Straight-line ramp from 0% to (1 - vacancy_rate)
+            # For sub-12-month lease-up within a single year, average occupancy
+            # is the midpoint of the ramp (0 to target) over 12 months
             target_occupancy = 1.0 - self.vacancy_rate
-            occupancy = ramp_pct * target_occupancy
+            total_leaseup_years = max(1, math.ceil(self.lease_up_months / 12))
+            years_into_leaseup = year - lease_up_start + 1
+
+            if total_leaseup_years == 1 and self.lease_up_months < 12:
+                # Partial year: lease-up occupies only lease_up_months of the year
+                # Average occupancy = (0 + target) / 2 * (lease_up_months / 12)
+                # Plus remaining months at target occupancy
+                ramp_months = self.lease_up_months
+                stable_months = 12 - ramp_months
+                avg_ramp_occ = target_occupancy / 2  # average during ramp
+                weighted_occ = (avg_ramp_occ * ramp_months + target_occupancy * stable_months) / 12
+                occupancy = weighted_occ
+            else:
+                ramp_pct = min(years_into_leaseup / total_leaseup_years, 1.0)
+                occupancy = ramp_pct * target_occupancy
 
             # Revenue = stabilized rent * occupancy (straight-line increase)
             gpr = round(self.stabilized_revenue * occupancy, 2)

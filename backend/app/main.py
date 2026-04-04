@@ -67,6 +67,9 @@ app.include_router(twilio_routes.router, prefix="/api/twilio", tags=["twilio"])
 app.include_router(developer_routes.router, prefix="/api/developer", tags=["developer"])
 app.include_router(portfolio_analytics_router, prefix="/api/investment", tags=["portfolio-analytics"])
 app.include_router(lp_property_bridge_router, prefix="/api", tags=["lp-property-bridge"])
+# NOTE: ancillary_revenue, operating_expenses, underwriting, proforma,
+# valuation, and construction routers are included via portfolio.py's
+# router.include_router() calls — no need to register them separately here.
 
 # Serve uploaded files statically
 _uploads_dir = Path(__file__).resolve().parent.parent / "uploads"

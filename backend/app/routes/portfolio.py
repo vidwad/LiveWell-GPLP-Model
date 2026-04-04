@@ -460,6 +460,11 @@ def create_debt_facility(
         data["outstanding_balance"] = round(commitment + cap_fees, 2)
         data["drawn_amount"] = round(commitment + cap_fees, 2)
 
+    # Convert date strings to Python date objects for SQLite compatibility
+    for date_field in ('origination_date', 'maturity_date'):
+        val = data.get(date_field)
+        if isinstance(val, str):
+            data[date_field] = datetime.date.fromisoformat(val)
     facility = DebtFacility(**data)
     db.add(facility)
     try:
@@ -468,9 +473,9 @@ def create_debt_facility(
     except IntegrityError:
         db.rollback()
         raise HTTPException(status_code=400, detail="Database integrity error (e.g., duplicate entry or missing foreign key)")
-    except Exception:
+    except Exception as e:
         db.rollback()
-        raise HTTPException(status_code=500, detail="Internal server error")
+        raise HTTPException(status_code=500, detail=f"Internal server error: {e}")
     return facility
 
 @router.get("/properties/{property_id}/debt", response_model=list[DebtFacilityOut])

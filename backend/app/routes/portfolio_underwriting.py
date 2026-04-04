@@ -7,13 +7,13 @@ needs to evaluate a multi-family property loan application.
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
-from app.db.database import get_db
+from app.db.session import get_db
 from app.db.models import (
     Property, Unit, Bed, DebtFacility, DebtStatus,
     DevelopmentPlan, RenovationPhase,
     AncillaryRevenueStream, OperatingExpenseLineItem,
 )
-from app.auth import require_investor_or_above
+from app.core.deps import require_investor_or_above
 from app.db.models import User
 
 router = APIRouter()
@@ -50,14 +50,42 @@ def get_underwriting_summary(
         raise HTTPException(404, "Property not found")
 
     # ── Revenue ──────────────────────────────────────────────────────
-    units = db.query(Unit).filter(
-        Unit.property_id == property_id,
-        Unit.renovation_phase != RenovationPhase.post_renovation,
-    ).all()
+    if plan_id is not None:
+        # Post-renovation / development plan: use units linked to this plan
+        units = db.query(Unit).filter(
+            Unit.property_id == property_id,
+            Unit.development_plan_id == plan_id,
+        ).all()
+        if not units:
+            # Fallback: if no plan-specific units, use baseline units
+            units = db.query(Unit).filter(
+                Unit.property_id == property_id,
+                Unit.renovation_phase != RenovationPhase.post_renovation,
+            ).all()
+    else:
+        # Baseline: exclude post-renovation units
+        units = db.query(Unit).filter(
+            Unit.property_id == property_id,
+            Unit.renovation_phase != RenovationPhase.post_renovation,
+        ).all()
 
     beds = []
     for u in units:
-        beds.extend(db.query(Bed).filter(Bed.unit_id == u.unit_id).all())
+        if plan_id is not None:
+            # For plan-specific underwriting, use post-reno beds if available
+            plan_beds = db.query(Bed).filter(
+                Bed.unit_id == u.unit_id,
+                Bed.is_post_renovation == True,
+            ).all()
+            if plan_beds:
+                beds.extend(plan_beds)
+            else:
+                beds.extend(db.query(Bed).filter(Bed.unit_id == u.unit_id).all())
+        else:
+            beds.extend(db.query(Bed).filter(
+                Bed.unit_id == u.unit_id,
+                Bed.is_post_renovation == False,
+            ).all())
 
     monthly_rent = sum(_f(b.monthly_rent) for b in beds)
     gpr = monthly_rent * 12
@@ -134,10 +162,32 @@ def get_underwriting_summary(
     # ── Debt ─────────────────────────────────────────────────────────
     from app.services.calculations import calculate_annual_debt_service
 
-    debts = db.query(DebtFacility).filter(
-        DebtFacility.property_id == property_id,
-        DebtFacility.status == DebtStatus.active,
-    ).all()
+    if plan_id is not None:
+        # Plan-specific: show debt linked to this plan
+        # Exclude debts that are replaced by other debts within the same plan
+        plan_debts = db.query(DebtFacility).filter(
+            DebtFacility.property_id == property_id,
+            DebtFacility.development_plan_id == plan_id,
+        ).all()
+        # Build set of all debt IDs that are replaced by another plan debt
+        all_replaced_ids = {d.replaces_debt_id for d in plan_debts if d.replaces_debt_id}
+        # Filter out plan debts that are replaced by other plan debts
+        active_plan_debts = [d for d in plan_debts if d.debt_id not in all_replaced_ids]
+        # Also check baseline debts not replaced
+        baseline_debts = db.query(DebtFacility).filter(
+            DebtFacility.property_id == property_id,
+            DebtFacility.development_plan_id == None,
+            DebtFacility.status == DebtStatus.active,
+        ).all()
+        # Include baseline debt that isn't replaced by any plan debt
+        debts = active_plan_debts + [d for d in baseline_debts if d.debt_id not in all_replaced_ids]
+    else:
+        # Baseline: only active debt with no plan link
+        debts = db.query(DebtFacility).filter(
+            DebtFacility.property_id == property_id,
+            DebtFacility.development_plan_id == None,
+            DebtFacility.status == DebtStatus.active,
+        ).all()
 
     total_ads = 0.0
     total_debt = 0.0

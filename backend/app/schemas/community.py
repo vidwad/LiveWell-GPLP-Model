@@ -119,12 +119,13 @@ class UnitWithBedsOut(UnitOut):
 # ---------------------------------------------------------------------------
 
 class BedCreate(BaseModel):
-    unit_id: int
+    unit_id: Optional[int] = None  # Optional: auto-set from URL path
     bed_label: str
     monthly_rent: Decimal
     rent_type: RentType = RentType.private_pay
     bedroom_number: Optional[int] = None
     is_post_renovation: bool = False
+    status: Optional[str] = None  # Optional: defaults to 'available' in model
 
 
 class BedOut(BaseModel):
