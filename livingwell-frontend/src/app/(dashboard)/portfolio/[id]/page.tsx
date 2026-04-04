@@ -381,21 +381,16 @@ export default function PropertyDetailPage({ params }: { params: { id: string } 
             <TabsTrigger value="overview"><Building2 className="h-4 w-4 sm:mr-1.5" /><span className="hidden sm:inline">Overview</span></TabsTrigger>
             <TabsTrigger value="photos"><ImageIcon className="h-4 w-4 sm:mr-1.5" /><span className="hidden sm:inline">Photos</span></TabsTrigger>
             <TabsTrigger value="area-research"><MapPin className="h-4 w-4 sm:mr-1.5" /><span className="hidden sm:inline">Area Research</span></TabsTrigger>
-            <TabsTrigger value="lifecycle"><Activity className="h-4 w-4 sm:mr-1.5" /><span className="hidden sm:inline">Lifecycle</span></TabsTrigger>
             <TabsTrigger value="units"><Ruler className="h-4 w-4 sm:mr-1.5" /><span className="hidden sm:inline">Units & Beds</span></TabsTrigger>
-            <TabsTrigger value="rentroll"><DollarSign className="h-4 w-4 sm:mr-1.5" /><span className="hidden sm:inline">Rent Roll</span></TabsTrigger>
-            <TabsTrigger value="plans"><Layers className="h-4 w-4 sm:mr-1.5" /><span className="hidden sm:inline">Dev Plans</span></TabsTrigger>
-            <TabsTrigger value="construction"><HardHat className="h-4 w-4 sm:mr-1.5" /><span className="hidden sm:inline">Construction</span></TabsTrigger>
+            <TabsTrigger value="revenue"><DollarSign className="h-4 w-4 sm:mr-1.5" /><span className="hidden sm:inline">Revenue</span></TabsTrigger>
+            <TabsTrigger value="development"><Layers className="h-4 w-4 sm:mr-1.5" /><span className="hidden sm:inline">Development</span></TabsTrigger>
             <TabsTrigger value="debt"><Landmark className="h-4 w-4 sm:mr-1.5" /><span className="hidden sm:inline">Debt & Financing</span></TabsTrigger>
-            <TabsTrigger value="projections"><BarChart3 className="h-4 w-4 sm:mr-1.5" /><span className="hidden sm:inline">Projections</span></TabsTrigger>
-            <TabsTrigger value="exit"><TrendingUp className="h-4 w-4 sm:mr-1.5" /><span className="hidden sm:inline">Exit Scenarios</span></TabsTrigger>
-            <TabsTrigger value="valuation"><Banknote className="h-4 w-4 sm:mr-1.5" /><span className="hidden sm:inline">Valuation</span></TabsTrigger>
-            <TabsTrigger value="proforma"><Calculator className="h-4 w-4 sm:mr-1.5" /><span className="hidden sm:inline">Pro Forma</span></TabsTrigger>
+            <TabsTrigger value="financial"><Calculator className="h-4 w-4 sm:mr-1.5" /><span className="hidden sm:inline">Financial Analysis</span></TabsTrigger>
             <TabsTrigger value="documents"><FolderOpen className="h-4 w-4 sm:mr-1.5" /><span className="hidden sm:inline">Documents</span></TabsTrigger>
           </TabsList>
         </div>
 
-        {/* ── Overview ── */}
+        {/* ── Overview (includes Lifecycle) ── */}
         <TabsContent value="overview" className="mt-6">
           <OverviewTab
             property={property}
@@ -406,6 +401,16 @@ export default function PropertyDetailPage({ params }: { params: { id: string } 
             onPropertyUpdated={() => refetchProperty()}
             activePhase={activePhase}
           />
+          {/* Lifecycle section at bottom of Overview */}
+          <div className="mt-6">
+            <LifecycleTab
+              propertyId={propertyId}
+              stage={stage}
+              canEdit={canEdit}
+              userRole={user?.role}
+              activePhase={activePhase}
+            />
+          </div>
         </TabsContent>
 
         {/* ── Area Research ── */}
@@ -420,35 +425,22 @@ export default function PropertyDetailPage({ params }: { params: { id: string } 
           />
         </TabsContent>
 
-        {/* ── Lifecycle ── */}
-        <TabsContent value="lifecycle" className="mt-6">
-          <LifecycleTab
-            propertyId={propertyId}
-            stage={stage}
-            canEdit={canEdit}
-            userRole={user?.role}
-            activePhase={activePhase}
-          />
-        </TabsContent>
-
         {/* ── Units & Beds ── */}
         <TabsContent value="units" className="mt-6">
           <UnitsBedsTab propertyId={propertyId} canEdit={canEdit} activePhase={activePhase} />
         </TabsContent>
 
-        {/* ── Rent Roll ── */}
-        <TabsContent value="rentroll" className="mt-6">
+        {/* ── Revenue (Rent Roll + Ancillary) ── */}
+        <TabsContent value="revenue" className="mt-6">
           <RentRollTab propertyId={propertyId} canEdit={canEdit} property={property} activePhase={activePhase} />
         </TabsContent>
 
-        {/* ── Development Plans ── */}
-        <TabsContent value="plans" className="mt-6">
+        {/* ── Development (Dev Plans + Construction Budget) ── */}
+        <TabsContent value="development" className="mt-6">
           <DevPlansTab propertyId={propertyId} canEdit={canEdit} activePhase={activePhase} />
-        </TabsContent>
-
-        {/* ── Construction Budget vs Actual ── */}
-        <TabsContent value="construction" className="mt-6">
-          <ConstructionBudgetTab propertyId={propertyId} canEdit={canEdit} activePhase={activePhase} />
+          <div className="mt-6 border-t pt-6">
+            <ConstructionBudgetTab propertyId={propertyId} canEdit={canEdit} activePhase={activePhase} />
+          </div>
         </TabsContent>
 
         {/* ── Debt & Financing ── */}
@@ -466,38 +458,19 @@ export default function PropertyDetailPage({ params }: { params: { id: string } 
           />
         </TabsContent>
 
-        {/* ── Projections ── */}
-        <TabsContent value="projections" className="mt-6">
-          <ProjectionsTab
-            propertyId={propertyId}
-            totalAnnualDebtService={totalAnnualDebtService}
-            activePhase={activePhase}
-            activePlan={activePlan}
-            phaseFilteredDebts={phaseFilteredDebts}
-            phasePlanId={phasePlanId}
-          />
-        </TabsContent>
-
-        {/* ── Exit Scenarios ── */}
-        <TabsContent value="exit" className="mt-6">
-          <ExitScenariosTab
+        {/* ── Financial Analysis (Pro Forma + Projections + Exit + Valuation) ── */}
+        <TabsContent value="financial" className="mt-6">
+          <FinancialAnalysisTab
             propertyId={propertyId}
             canEdit={canEdit}
             property={property}
             totalDebtOutstanding={totalDebtOutstanding}
             totalAnnualDebtService={totalAnnualDebtService}
             activePhase={activePhase}
+            activePlan={activePlan}
+            phaseFilteredDebts={phaseFilteredDebts}
+            phasePlanId={phasePlanId}
           />
-        </TabsContent>
-
-        {/* ── Valuation Tab ── */}
-        <TabsContent value="valuation" className="mt-6">
-          <ValuationTab propertyId={propertyId} canEdit={canEdit} activePhase={activePhase} />
-        </TabsContent>
-
-        {/* ── Pro Forma Tab ── */}
-        <TabsContent value="proforma" className="mt-4">
-          <ProFormaTab propertyId={propertyId} activePhase={activePhase} />
         </TabsContent>
 
         {/* ── Documents ── */}
@@ -513,6 +486,76 @@ export default function PropertyDetailPage({ params }: { params: { id: string } 
       </Tabs>
     </div>
   );
+}
+
+// ── Financial Analysis Tab (combines Pro Forma, Projections, Exit Scenarios, Valuation) ──
+
+function FinancialAnalysisTab({
+  propertyId, canEdit, property, totalDebtOutstanding, totalAnnualDebtService,
+  activePhase, activePlan, phaseFilteredDebts, phasePlanId,
+}: {
+  propertyId: number; canEdit: boolean; property: Record<string, any>;
+  totalDebtOutstanding: number; totalAnnualDebtService: number;
+  activePhase: "as_is" | "post_renovation" | "full_development";
+  activePlan: any; phaseFilteredDebts: any[]; phasePlanId: number | null;
+}) {
+  const [subTab, setSubTab] = React.useState<"proforma" | "projections" | "exit" | "valuation">("proforma");
+
+  return (
+    <div className="space-y-4">
+      {/* Sub-tab selector */}
+      <div className="flex items-center gap-1 p-1 bg-muted/50 rounded-lg w-fit">
+        {[
+          { key: "proforma" as const, label: "Pro Forma", icon: Calculator },
+          { key: "projections" as const, label: "Projections", icon: BarChart3 },
+          { key: "exit" as const, label: "Exit Scenarios", icon: TrendingUp },
+          { key: "valuation" as const, label: "Valuation", icon: Banknote },
+        ].map(({ key, label, icon: Icon }) => (
+          <button
+            key={key}
+            onClick={() => setSubTab(key)}
+            className={cn(
+              "flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-all",
+              subTab === key
+                ? "bg-white shadow-sm text-foreground"
+                : "text-muted-foreground hover:text-foreground hover:bg-white/50"
+            )}
+          >
+            <Icon className="h-3.5 w-3.5" />
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {subTab === "proforma" && (
+        <ProFormaTab propertyId={propertyId} activePhase={activePhase} />
+      )}
+      {subTab === "projections" && (
+        <ProjectionsTab
+          propertyId={propertyId}
+          totalAnnualDebtService={totalAnnualDebtService}
+          activePhase={activePhase}
+          activePlan={activePlan}
+          phaseFilteredDebts={phaseFilteredDebts}
+          phasePlanId={phasePlanId}
+        />
+      )}
+      {subTab === "exit" && (
+        <ExitScenariosTab
+          propertyId={propertyId}
+          canEdit={canEdit}
+          property={property}
+          totalDebtOutstanding={totalDebtOutstanding}
+          totalAnnualDebtService={totalAnnualDebtService}
+          activePhase={activePhase}
+        />
+      )}
+      {subTab === "valuation" && (
+        <ValuationTab propertyId={propertyId} canEdit={canEdit} activePhase={activePhase} />
+      )}
+    </div>
+  );
+}
 }
 
 // ── Property Photos Tab ─────────────────────────────────────────────
