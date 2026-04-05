@@ -38,6 +38,8 @@ import {
   useUpdatePlan,
   useDeletePlan,
 } from "@/hooks/usePortfolio";
+import { UnitConfigurator, unitConfigsToApiPayload, type UnitConfig } from "@/components/property/UnitConfigurator";
+import { apiClient } from "@/lib/api";
 import type { DevelopmentPlan, DevelopmentPlanCreate, EditPlanForm } from "@/types/portfolio";
 
 interface DevPlansTabProps {
@@ -185,41 +187,16 @@ export function DevPlansTab({ propertyId, canEdit, activePhase = "full_developme
                 <Plus className="mr-1.5 h-4 w-4" />
                 Add Plan
               </DialogTrigger>
-              <DialogContent>
+              <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
                 <DialogHeader>
                   <DialogTitle>Add Development Plan</DialogTitle>
                 </DialogHeader>
-                <form onSubmit={handleAddPlan} className="space-y-4">
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label>Planned Units</Label>
-                      <Input type="number" value={planForm.planned_units || ""} onChange={(e) => setPlanForm((f) => ({ ...f, planned_units: Number(e.target.value) }))} required />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Planned Beds</Label>
-                      <Input type="number" value={planForm.planned_beds || ""} onChange={(e) => setPlanForm((f) => ({ ...f, planned_beds: Number(e.target.value) }))} required />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Planned Sqft</Label>
-                      <Input type="number" value={planForm.planned_sqft || ""} onChange={(e) => setPlanForm((f) => ({ ...f, planned_sqft: Number(e.target.value) }))} required />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Est. Construction Cost</Label>
-                      <Input type="number" value={planForm.estimated_construction_cost || ""} onChange={(e) => setPlanForm((f) => ({ ...f, estimated_construction_cost: Number(e.target.value) }))} required />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Start Date</Label>
-                      <Input type="date" value={planForm.development_start_date} onChange={(e) => setPlanForm((f) => ({ ...f, development_start_date: e.target.value }))} required />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Duration (days)</Label>
-                      <Input type="number" value={planForm.construction_duration_days || ""} onChange={(e) => setPlanForm((f) => ({ ...f, construction_duration_days: Number(e.target.value) }))} required />
-                    </div>
-                  </div>
-                  <Button type="submit" disabled={planPending} className="w-full sm:w-auto">
-                    {planPending ? "Adding\u2026" : "Add Plan"}
-                  </Button>
-                </form>
+                <AddPlanForm
+                  propertyId={propertyId}
+                  onCreated={() => setPlanOpen(false)}
+                  createPlan={createPlan}
+                  isPending={planPending}
+                />
               </DialogContent>
             </Dialog>
           )}
@@ -296,78 +273,19 @@ export function DevPlansTab({ propertyId, canEdit, activePhase = "full_developme
 
             {/* Edit Plan Dialog */}
             <Dialog open={editingPlanId !== null} onOpenChange={(open) => { if (!open) setEditingPlanId(null); }}>
-              <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+              <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
                 <DialogHeader>
                   <DialogTitle>Edit Development Plan</DialogTitle>
                 </DialogHeader>
-                <div className="space-y-4">
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div className="space-y-2 sm:col-span-2">
-                      <Label>Plan Name</Label>
-                      <Input value={editPlanForm.plan_name} onChange={(e) => setEditPlanForm((f) => ({ ...f, plan_name: e.target.value }))} placeholder="e.g. 8-Plex Conversion" />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Status</Label>
-                      <Select value={String(editPlanForm.status)} onValueChange={(v) => setEditPlanForm((f) => ({ ...f, status: v ?? "" }))}>
-                        <SelectTrigger><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="draft">Draft</SelectItem>
-                          <SelectItem value="approved">Approved</SelectItem>
-                          <SelectItem value="active">Active</SelectItem>
-                          <SelectItem value="superseded">Superseded</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Pricing Mode</Label>
-                      <Select value={String(editPlanForm.rent_pricing_mode)} onValueChange={(v) => setEditPlanForm((f) => ({ ...f, rent_pricing_mode: v ?? "" }))}>
-                        <SelectTrigger><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="by_bed">By Bed</SelectItem>
-                          <SelectItem value="by_unit">By Unit</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="space-y-2"><Label>Planned Units</Label><Input type="number" value={editPlanForm.planned_units} onChange={(e) => setEditPlanForm((f) => ({ ...f, planned_units: Number(e.target.value) }))} /></div>
-                    <div className="space-y-2"><Label>Planned Beds</Label><Input type="number" value={editPlanForm.planned_beds} onChange={(e) => setEditPlanForm((f) => ({ ...f, planned_beds: Number(e.target.value) }))} /></div>
-                    <div className="space-y-2"><Label>Planned Sqft</Label><Input type="number" value={editPlanForm.planned_sqft} onChange={(e) => setEditPlanForm((f) => ({ ...f, planned_sqft: Number(e.target.value) }))} /></div>
-                    <div className="space-y-2"><Label>Est. Construction Cost</Label><Input type="number" value={editPlanForm.estimated_construction_cost} onChange={(e) => setEditPlanForm((f) => ({ ...f, estimated_construction_cost: Number(e.target.value) }))} /></div>
-                    <div className="space-y-2"><Label>Hard Costs</Label><Input type="number" value={editPlanForm.hard_costs} onChange={(e) => setEditPlanForm((f) => ({ ...f, hard_costs: Number(e.target.value) }))} /></div>
-                    <div className="space-y-2"><Label>Soft Costs</Label><Input type="number" value={editPlanForm.soft_costs} onChange={(e) => setEditPlanForm((f) => ({ ...f, soft_costs: Number(e.target.value) }))} /></div>
-                    <div className="space-y-2"><Label>Site Costs</Label><Input type="number" value={editPlanForm.site_costs} onChange={(e) => setEditPlanForm((f) => ({ ...f, site_costs: Number(e.target.value) }))} /></div>
-                    <div className="space-y-2"><Label>Financing Costs</Label><Input type="number" value={editPlanForm.financing_costs} onChange={(e) => setEditPlanForm((f) => ({ ...f, financing_costs: Number(e.target.value) }))} /></div>
-                    <div className="space-y-2"><Label>Contingency %</Label><Input type="number" value={editPlanForm.contingency_percent} onChange={(e) => setEditPlanForm((f) => ({ ...f, contingency_percent: Number(e.target.value) }))} /></div>
-                    <div className="space-y-2"><Label>Annual Rent Increase %</Label><Input type="number" value={editPlanForm.annual_rent_increase_pct} onChange={(e) => setEditPlanForm((f) => ({ ...f, annual_rent_increase_pct: Number(e.target.value) }))} /></div>
-                    <div className="space-y-2"><Label>Proj. Annual Revenue</Label><Input type="number" value={editPlanForm.projected_annual_revenue} onChange={(e) => setEditPlanForm((f) => ({ ...f, projected_annual_revenue: Number(e.target.value) }))} /></div>
-                    <div className="space-y-2"><Label>Proj. Annual NOI</Label><Input type="number" value={editPlanForm.projected_annual_noi} onChange={(e) => setEditPlanForm((f) => ({ ...f, projected_annual_noi: Number(e.target.value) }))} /></div>
-                    <div className="space-y-2"><Label>Start Date</Label><Input type="date" value={editPlanForm.development_start_date} onChange={(e) => setEditPlanForm((f) => ({ ...f, development_start_date: e.target.value }))} /></div>
-                    <div className="space-y-2"><Label>Duration (days)</Label><Input type="number" value={editPlanForm.construction_duration_days} onChange={(e) => setEditPlanForm((f) => ({ ...f, construction_duration_days: Number(e.target.value) }))} /></div>
-                    <div className="space-y-2"><Label>Est. Completion Date</Label><Input type="date" value={editPlanForm.estimated_completion_date} onChange={(e) => setEditPlanForm((f) => ({ ...f, estimated_completion_date: e.target.value }))} /></div>
-                    <div className="space-y-2"><Label>Est. Stabilization Date</Label><Input type="date" value={editPlanForm.estimated_stabilization_date} onChange={(e) => setEditPlanForm((f) => ({ ...f, estimated_stabilization_date: e.target.value }))} /></div>
-                  </div>
-                  {/* Exit Assumptions */}
-                  <div className="rounded-lg border border-green-200 bg-green-50/50 p-3 space-y-3">
-                    <p className="text-xs font-semibold text-green-700 flex items-center gap-1.5">
-                      <TrendingUp className="h-3.5 w-3.5" /> Exit Assumptions for This Strategy
-                    </p>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      <div className="space-y-2"><Label className="text-xs">Exit Sale Year</Label><Input type="number" value={(editPlanForm as any).exit_sale_year || ""} onChange={(e) => setEditPlanForm((f: any) => ({ ...f, exit_sale_year: Number(e.target.value) || 0 }))} placeholder="e.g. 2032" /></div>
-                      <div className="space-y-2"><Label className="text-xs">Exit Cap Rate (%)</Label><Input type="number" step="0.1" value={(editPlanForm as any).exit_cap_rate || ""} onChange={(e) => setEditPlanForm((f: any) => ({ ...f, exit_cap_rate: Number(e.target.value) || 0 }))} placeholder="e.g. 5.0" /></div>
-                      <div className="space-y-2"><Label className="text-xs">Exit NOI ($)</Label><Input type="number" value={(editPlanForm as any).exit_noi || ""} onChange={(e) => setEditPlanForm((f: any) => ({ ...f, exit_noi: Number(e.target.value) || 0 }))} placeholder="Stabilized NOI at sale" /></div>
-                      <div className="space-y-2"><Label className="text-xs">Selling Cost (%)</Label><Input type="number" step="0.1" value={(editPlanForm as any).exit_selling_cost_pct || ""} onChange={(e) => setEditPlanForm((f: any) => ({ ...f, exit_selling_cost_pct: Number(e.target.value) || 0 }))} placeholder="5.0" /></div>
-                      <div className="space-y-2"><Label className="text-xs">Gross Sale Price ($)</Label><Input type="number" value={(editPlanForm as any).exit_sale_price || ""} onChange={(e) => setEditPlanForm((f: any) => ({ ...f, exit_sale_price: Number(e.target.value) || 0 }))} placeholder="Auto: NOI / cap" /></div>
-                      <div className="space-y-2"><Label className="text-xs">Net Proceeds ($)</Label><Input type="number" value={(editPlanForm as any).exit_net_proceeds || ""} onChange={(e) => setEditPlanForm((f: any) => ({ ...f, exit_net_proceeds: Number(e.target.value) || 0 }))} /></div>
-                      <div className="space-y-2"><Label className="text-xs">Projected IRR (%)</Label><Input type="number" step="0.1" value={(editPlanForm as any).exit_irr || ""} onChange={(e) => setEditPlanForm((f: any) => ({ ...f, exit_irr: Number(e.target.value) || 0 }))} /></div>
-                      <div className="space-y-2"><Label className="text-xs">Projected Equity Multiple (x)</Label><Input type="number" step="0.01" value={(editPlanForm as any).exit_equity_multiple || ""} onChange={(e) => setEditPlanForm((f: any) => ({ ...f, exit_equity_multiple: Number(e.target.value) || 0 }))} /></div>
-                    </div>
-                  </div>
-                  <div className="flex gap-2 justify-end">
-                    <Button variant="outline" onClick={() => setEditingPlanId(null)}>Cancel</Button>
-                    <Button onClick={handleSavePlan} disabled={updatePlanPending}>
-                      {updatePlanPending ? "Saving\u2026" : "Save Changes"}
-                    </Button>
-                  </div>
-                </div>
+                <EditPlanForm
+                  propertyId={propertyId}
+                  planId={editingPlanId!}
+                  form={editPlanForm}
+                  setForm={setEditPlanForm}
+                  onSave={handleSavePlan}
+                  onCancel={() => setEditingPlanId(null)}
+                  isPending={updatePlanPending}
+                />
               </DialogContent>
             </Dialog>
           </React.Fragment>
@@ -448,6 +366,226 @@ export function DevPlansTab({ propertyId, canEdit, activePhase = "full_developme
         })()}
       </CardContent>
     </Card>
+    </div>
+  );
+}
+
+
+// ── Add Plan Form with UnitConfigurator ──
+
+function AddPlanForm({ propertyId, onCreated, createPlan, isPending }: {
+  propertyId: number;
+  onCreated: () => void;
+  createPlan: any;
+  isPending: boolean;
+}) {
+  const [name, setName] = useState("");
+  const [cost, setCost] = useState("");
+  const [startDate, setStartDate] = useState("");
+  const [durationDays, setDurationDays] = useState("180");
+  const [planUnits, setPlanUnits] = useState<UnitConfig[]>([
+    { unit_number: "Unit 101", unit_type: "2br", bedrooms: 2, bathrooms: 1, sqft: 750, floor: "Main",
+      bedroom_configs: [{ bedroom_number: 1, beds: 2, rent_per_bed: 800 }, { bedroom_number: 2, beds: 2, rent_per_bed: 800 }] },
+  ]);
+
+  const totalBeds = planUnits.reduce((s, u) => s + u.bedroom_configs.reduce((bs, br) => bs + br.beds, 0), 0);
+  const totalSqft = planUnits.reduce((s, u) => s + u.sqft, 0);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      const result = await createPlan({
+        plan_name: name || undefined,
+        planned_units: planUnits.length,
+        planned_beds: totalBeds,
+        planned_sqft: totalSqft,
+        estimated_construction_cost: Number(cost) || 0,
+        development_start_date: startDate || undefined,
+        construction_duration_days: Number(durationDays) || 180,
+      });
+      // Configure units for the new plan
+      const planId = result?.plan_id;
+      if (planId) {
+        const payload = unitConfigsToApiPayload(planUnits);
+        await apiClient.post(`/api/portfolio/properties/${propertyId}/configure-units`, {
+          plan_id: planId,
+          units: payload.units,
+          clear_existing: true,
+        });
+      }
+      toast.success("Development plan created with units");
+      onCreated();
+    } catch { toast.error("Failed to create plan"); }
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-4">
+      <div className="grid grid-cols-2 gap-4">
+        <div className="space-y-1 col-span-2"><Label>Plan Name</Label><Input value={name} onChange={e => setName(e.target.value)} placeholder="e.g. Kitchen Renovation, Full 6-Plex" /></div>
+        <div className="space-y-1"><Label>Est. Construction Cost ($)</Label><Input type="number" value={cost} onChange={e => setCost(e.target.value)} required /></div>
+        <div className="space-y-1"><Label>Start Date</Label><Input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} /></div>
+        <div className="space-y-1"><Label>Duration (days)</Label><Input type="number" value={durationDays} onChange={e => setDurationDays(e.target.value)} /></div>
+      </div>
+
+      <UnitConfigurator
+        units={planUnits}
+        onChange={setPlanUnits}
+        defaultRentPerBed={800}
+        label="Planned Unit & Bed Configuration"
+      />
+
+      <Button type="submit" disabled={isPending} className="w-full">
+        {isPending ? "Creating..." : "Create Plan"}
+      </Button>
+    </form>
+  );
+}
+
+
+// ── Edit Plan Form with UnitConfigurator ──
+
+function EditPlanForm({ propertyId, planId, form, setForm, onSave, onCancel, isPending }: {
+  propertyId: number;
+  planId: number;
+  form: any;
+  setForm: (fn: any) => void;
+  onSave: () => void;
+  onCancel: () => void;
+  isPending: boolean;
+}) {
+  const [editUnits, setEditUnits] = useState<UnitConfig[]>([]);
+  const [unitsLoaded, setUnitsLoaded] = useState(false);
+
+  // Load existing units for this plan
+  React.useEffect(() => {
+    if (!planId || unitsLoaded) return;
+    apiClient.get(`/api/portfolio/properties/${propertyId}/units?plan_id=${planId}`)
+      .then(r => {
+        const units = r.data || [];
+        if (units.length > 0) {
+          const configs: UnitConfig[] = units.map((u: any) => ({
+            unit_number: u.unit_number,
+            unit_type: u.unit_type || "shared",
+            bedrooms: u.bedroom_count || u.bed_count || 1,
+            bathrooms: 1,
+            sqft: Number(u.sqft) || 0,
+            floor: u.floor || "",
+            bedroom_configs: (u.beds || []).reduce((acc: any[], b: any) => {
+              const br = acc.find((x: any) => x.bedroom_number === (b.bedroom_number || 1));
+              if (br) { br.beds += 1; }
+              else { acc.push({ bedroom_number: b.bedroom_number || acc.length + 1, beds: 1, rent_per_bed: Number(b.monthly_rent) || 0 }); }
+              return acc;
+            }, [] as { bedroom_number: number; beds: number; rent_per_bed: number }[]),
+          }));
+          setEditUnits(configs);
+        } else {
+          setEditUnits([{
+            unit_number: "Unit 101", unit_type: "2br", bedrooms: 2, bathrooms: 1, sqft: 750, floor: "Main",
+            bedroom_configs: [{ bedroom_number: 1, beds: 1, rent_per_bed: 700 }, { bedroom_number: 2, beds: 1, rent_per_bed: 700 }],
+          }]);
+        }
+        setUnitsLoaded(true);
+      })
+      .catch(() => setUnitsLoaded(true));
+  }, [planId, propertyId, unitsLoaded]);
+
+  const totalBeds = editUnits.reduce((s, u) => s + u.bedroom_configs.reduce((bs, br) => bs + br.beds, 0), 0);
+  const totalSqft = editUnits.reduce((s, u) => s + u.sqft, 0);
+
+  const handleSaveWithUnits = async () => {
+    // Update plan totals from unit configs
+    setForm((f: any) => ({ ...f, planned_units: editUnits.length, planned_beds: totalBeds, planned_sqft: totalSqft }));
+
+    // Save plan metadata
+    await onSave();
+
+    // Then configure units
+    try {
+      const payload = unitConfigsToApiPayload(editUnits);
+      await apiClient.post(`/api/portfolio/properties/${propertyId}/configure-units`, {
+        plan_id: planId,
+        units: payload.units,
+        clear_existing: true,
+      });
+      toast.success("Units updated");
+    } catch { toast.error("Plan saved but unit update failed"); }
+  };
+
+  const sf = (key: string, val: any) => setForm((f: any) => ({ ...f, [key]: val }));
+
+  return (
+    <div className="space-y-4">
+      {/* Plan Details */}
+      <div className="grid grid-cols-2 gap-4">
+        <div className="space-y-1 col-span-2"><Label>Plan Name</Label><Input value={form.plan_name} onChange={e => sf("plan_name", e.target.value)} placeholder="e.g. 8-Plex Conversion" /></div>
+        <div className="space-y-1">
+          <Label>Status</Label>
+          <Select value={String(form.status)} onValueChange={v => sf("status", v)}>
+            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="draft">Draft</SelectItem>
+              <SelectItem value="approved">Approved</SelectItem>
+              <SelectItem value="active">Active</SelectItem>
+              <SelectItem value="superseded">Superseded</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="space-y-1"><Label>Est. Construction Cost ($)</Label><Input type="number" value={form.estimated_construction_cost} onChange={e => sf("estimated_construction_cost", Number(e.target.value))} /></div>
+      </div>
+
+      {/* Cost Breakdown */}
+      <div className="rounded-lg border bg-muted/30 p-3 space-y-3">
+        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Cost Breakdown</p>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <div className="space-y-1"><Label className="text-xs">Hard Costs</Label><Input type="number" value={form.hard_costs} onChange={e => sf("hard_costs", Number(e.target.value))} className="h-8 text-sm" /></div>
+          <div className="space-y-1"><Label className="text-xs">Soft Costs</Label><Input type="number" value={form.soft_costs} onChange={e => sf("soft_costs", Number(e.target.value))} className="h-8 text-sm" /></div>
+          <div className="space-y-1"><Label className="text-xs">Site Costs</Label><Input type="number" value={form.site_costs} onChange={e => sf("site_costs", Number(e.target.value))} className="h-8 text-sm" /></div>
+          <div className="space-y-1"><Label className="text-xs">Financing</Label><Input type="number" value={form.financing_costs} onChange={e => sf("financing_costs", Number(e.target.value))} className="h-8 text-sm" /></div>
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <div className="space-y-1"><Label className="text-xs">Contingency %</Label><Input type="number" value={form.contingency_percent} onChange={e => sf("contingency_percent", Number(e.target.value))} className="h-8 text-sm" /></div>
+          <div className="space-y-1"><Label className="text-xs">Annual Rent Increase %</Label><Input type="number" value={form.annual_rent_increase_pct} onChange={e => sf("annual_rent_increase_pct", Number(e.target.value))} className="h-8 text-sm" /></div>
+        </div>
+      </div>
+
+      {/* Timeline */}
+      <div className="rounded-lg border bg-muted/30 p-3 space-y-3">
+        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Timeline</p>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <div className="space-y-1"><Label className="text-xs">Start Date</Label><Input type="date" value={form.development_start_date} onChange={e => sf("development_start_date", e.target.value)} className="h-8 text-sm" /></div>
+          <div className="space-y-1"><Label className="text-xs">Duration (days)</Label><Input type="number" value={form.construction_duration_days} onChange={e => sf("construction_duration_days", Number(e.target.value))} className="h-8 text-sm" /></div>
+          <div className="space-y-1"><Label className="text-xs">Completion</Label><Input type="date" value={form.estimated_completion_date} onChange={e => sf("estimated_completion_date", e.target.value)} className="h-8 text-sm" /></div>
+          <div className="space-y-1"><Label className="text-xs">Stabilization</Label><Input type="date" value={form.estimated_stabilization_date} onChange={e => sf("estimated_stabilization_date", e.target.value)} className="h-8 text-sm" /></div>
+        </div>
+      </div>
+
+      {/* Unit & Bed Configuration */}
+      <UnitConfigurator
+        units={editUnits}
+        onChange={setEditUnits}
+        defaultRentPerBed={700}
+        label="Planned Unit & Bed Configuration"
+      />
+
+      {/* Exit Assumptions */}
+      <div className="rounded-lg border border-green-200 bg-green-50/50 p-3 space-y-3">
+        <p className="text-xs font-semibold text-green-700 flex items-center gap-1.5">
+          <TrendingUp className="h-3.5 w-3.5" /> Exit Assumptions
+        </p>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <div className="space-y-1"><Label className="text-xs">Exit Year</Label><Input type="number" value={form.exit_sale_year || ""} onChange={e => sf("exit_sale_year", Number(e.target.value) || 0)} className="h-8 text-sm" placeholder="2032" /></div>
+          <div className="space-y-1"><Label className="text-xs">Exit Cap (%)</Label><Input type="number" step="0.1" value={form.exit_cap_rate || ""} onChange={e => sf("exit_cap_rate", Number(e.target.value) || 0)} className="h-8 text-sm" placeholder="5.0" /></div>
+          <div className="space-y-1"><Label className="text-xs">Exit NOI ($)</Label><Input type="number" value={form.exit_noi || ""} onChange={e => sf("exit_noi", Number(e.target.value) || 0)} className="h-8 text-sm" /></div>
+          <div className="space-y-1"><Label className="text-xs">IRR (%)</Label><Input type="number" step="0.1" value={form.exit_irr || ""} onChange={e => sf("exit_irr", Number(e.target.value) || 0)} className="h-8 text-sm" /></div>
+        </div>
+      </div>
+
+      <div className="flex gap-2 justify-end">
+        <Button variant="outline" onClick={onCancel}>Cancel</Button>
+        <Button onClick={handleSaveWithUnits} disabled={isPending}>
+          {isPending ? "Saving..." : "Save Plan & Units"}
+        </Button>
+      </div>
     </div>
   );
 }

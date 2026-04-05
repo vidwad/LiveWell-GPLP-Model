@@ -1,771 +1,277 @@
 "use client";
 
-import { useState } from "react";
+import React, { useMemo } from "react";
+import Link from "next/link";
+import { useQuery } from "@tanstack/react-query";
+import { apiClient } from "@/lib/api";
 import {
-  GitBranch,
-  CheckCircle2,
-  Circle,
-  Clock,
-  ArrowRight,
-  Plus,
-  AlertTriangle,
-  ChevronDown,
-  ChevronUp,
+  Building2, AlertTriangle, Calendar, TrendingUp,
+  ChevronRight, ExternalLink,
 } from "lucide-react";
-import { useProperties } from "@/hooks/usePortfolio";
-import {
-  useStageTransitions,
-  useAllowedTransitions,
-  useMilestones,
-  useTransitionProperty,
-  useCreateMilestone,
-  useUpdateMilestone,
-} from "@/hooks/useLifecycle";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Button, buttonVariants } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { Textarea } from "@/components/ui/textarea";
-import { formatDate, cn } from "@/lib/utils";
-import { toast } from "sonner";
-import type { DevelopmentStage, MilestoneStatus } from "@/types/lifecycle";
+import { cn } from "@/lib/utils";
 
-const STAGES: DevelopmentStage[] = [
-  "prospect",
-  "acquisition",
-  "interim_operation",
-  "planning",
-  "permit",
-  "construction",
-  "lease_up",
-  "stabilized",
-  "exit",
-];
+const STAGE_LABELS: Record<string, string> = {
+  prospect: "Prospect", acquisition: "Acquisition", interim_operation: "Interim",
+  planning: "Planning", construction: "Construction", lease_up: "Lease-Up",
+  stabilized: "Stabilized", exit_planned: "Exit Planned", exit_marketed: "Marketed",
+  exit_under_contract: "Under Contract", exit_closed: "Sold", exit: "Exit",
+};
 
-const STAGE_COLORS: Record<DevelopmentStage, string> = {
-  prospect: "bg-gray-100 text-gray-700",
-  acquisition: "bg-blue-100 text-blue-700",
-  interim_operation: "bg-orange-100 text-orange-700",
+const STAGE_COLORS: Record<string, string> = {
+  prospect: "bg-slate-200 text-slate-700",
+  acquisition: "bg-purple-100 text-purple-700",
+  interim_operation: "bg-blue-100 text-blue-700",
   planning: "bg-indigo-100 text-indigo-700",
-  permit: "bg-violet-100 text-violet-700",
-  construction: "bg-amber-100 text-amber-700",
-  lease_up: "bg-purple-100 text-purple-700",
+  construction: "bg-orange-100 text-orange-700",
+  lease_up: "bg-yellow-100 text-yellow-700",
   stabilized: "bg-green-100 text-green-700",
+  exit_planned: "bg-emerald-100 text-emerald-700",
+  exit_marketed: "bg-cyan-100 text-cyan-700",
+  exit_under_contract: "bg-amber-100 text-amber-700",
+  exit_closed: "bg-red-100 text-red-700",
   exit: "bg-red-100 text-red-700",
 };
 
-const MILESTONE_ICONS: Record<MilestoneStatus, typeof CheckCircle2> = {
-  completed: CheckCircle2,
-  in_progress: Clock,
-  pending: Circle,
-  skipped: AlertTriangle,
-};
-
-const MILESTONE_COLORS: Record<MilestoneStatus, string> = {
-  completed: "text-green-600",
-  in_progress: "text-blue-600",
-  pending: "text-gray-400",
-  skipped: "text-yellow-600",
+const BAR_COLORS: Record<string, string> = {
+  interim: "bg-blue-400",
+  construction: "bg-orange-400",
+  lease_up: "bg-yellow-400",
+  stabilized: "bg-green-400",
 };
 
 export default function LifecyclePage() {
-  const { data: properties, isLoading } = useProperties();
-  const [selectedPropertyId, setSelectedPropertyId] = useState<number | null>(null);
-  const [expandedTransitions, setExpandedTransitions] = useState(false);
+  const { data, isLoading } = useQuery({
+    queryKey: ["portfolio-timeline"],
+    queryFn: () => apiClient.get("/api/portfolio/timeline").then(r => r.data),
+  });
 
-  const selectedProperty = properties?.find(
-    (p) => p.property_id === selectedPropertyId
-  );
+  // Compute timeline scale
+  const { startYear, endYear, totalYears } = useMemo(() => {
+    if (!data?.timeline_range) return { startYear: 2024, endYear: 2034, totalYears: 10 };
+    const s = new Date(data.timeline_range.start).getFullYear();
+    const e = new Date(data.timeline_range.end).getFullYear();
+    return { startYear: s, endYear: Math.max(e, s + 5), totalYears: Math.max(e - s, 5) };
+  }, [data]);
 
-  if (!selectedPropertyId && properties && properties.length > 0) {
-    setSelectedPropertyId(properties[0].property_id);
-  }
+  const yearToPercent = (dateStr: string) => {
+    const d = new Date(dateStr);
+    const yearFrac = d.getFullYear() + d.getMonth() / 12 + d.getDate() / 365;
+    return ((yearFrac - startYear) / totalYears) * 100;
+  };
 
   if (isLoading) {
     return (
       <div className="space-y-4">
-        <Skeleton className="h-8 w-48" />
-        <Skeleton className="h-64 w-full" />
+        <Skeleton className="h-8 w-64" />
+        <Skeleton className="h-96" />
       </div>
     );
   }
 
+  const properties = data?.properties || [];
+  const alerts = data?.alerts || [];
+  const summary = data?.summary || {};
+
   return (
-    <div className="max-w-6xl">
-      <div className="mb-6">
-        <h1 className="flex items-center gap-2 text-2xl font-bold">
-          <GitBranch className="h-6 w-6" />
-          Property Lifecycle
-        </h1>
-        <p className="text-muted-foreground">
-          Stage transitions, milestones, and property development workflow
-        </p>
+    <div className="space-y-6">
+      {/* Header */}
+      <div>
+        <h1 className="text-2xl font-bold">Property Lifecycle</h1>
+        <p className="text-muted-foreground">Timeline view of all properties from acquisition through exit</p>
       </div>
 
-      <Card className="mb-6">
-        <CardContent className="pt-6">
-          <div className="flex flex-wrap gap-2">
-            {properties?.map((p) => (
-              <button
-                key={p.property_id}
-                onClick={() => setSelectedPropertyId(p.property_id)}
-                className={`rounded-lg border px-4 py-2 text-sm font-medium transition-colors ${
-                  selectedPropertyId === p.property_id
-                    ? "border-primary bg-primary text-primary-foreground"
-                    : "border-border bg-card hover:bg-muted"
-                }`}
-              >
-                <div>{p.address}</div>
-                <div className="text-xs opacity-75">{p.city}</div>
-              </button>
-            ))}
+      {/* Summary Strip */}
+      <div className="flex flex-wrap gap-3">
+        {Object.entries(summary.by_stage || {}).map(([stage, count]) => (
+          <div key={stage} className={cn("inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium", STAGE_COLORS[stage] || "bg-gray-100 text-gray-700")}>
+            <span className="font-bold">{count as number}</span>
+            {STAGE_LABELS[stage] || stage}
           </div>
-        </CardContent>
-      </Card>
-
-      {selectedPropertyId && selectedProperty && (
-        <>
-          <StagePipeline
-            propertyId={selectedPropertyId}
-            currentStage={selectedProperty.development_stage as DevelopmentStage}
-          />
-          <TimelineVisualization
-            propertyId={selectedPropertyId}
-            currentStage={selectedProperty.development_stage as DevelopmentStage}
-          />
-          <MilestonesSection
-            propertyId={selectedPropertyId}
-            currentStage={selectedProperty.development_stage as DevelopmentStage}
-          />
-          <TransitionHistory
-            propertyId={selectedPropertyId}
-            expanded={expandedTransitions}
-            onToggle={() => setExpandedTransitions(!expandedTransitions)}
-          />
-        </>
-      )}
-    </div>
-  );
-}
-
-function StagePipeline({
-  propertyId,
-  currentStage,
-}: {
-  propertyId: number;
-  currentStage: DevelopmentStage;
-}) {
-  const { data: allowed } = useAllowedTransitions(propertyId);
-  const { mutateAsync: transition, isPending } = useTransitionProperty(propertyId);
-  const [transitionOpen, setTransitionOpen] = useState(false);
-  const [targetStage, setTargetStage] = useState<string>("");
-  const [notes, setNotes] = useState("");
-  const [force, setForce] = useState(false);
-
-  const currentIdx = STAGES.indexOf(currentStage);
-
-  const handleTransition = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!targetStage) return;
-    try {
-      await transition({
-        to_stage: targetStage as DevelopmentStage,
-        notes: notes || undefined,
-        force,
-      });
-      toast.success(`Transitioned to ${targetStage.replace(/_/g, " ")}`);
-      setTransitionOpen(false);
-      setTargetStage("");
-      setNotes("");
-      setForce(false);
-    } catch (err: any) {
-      const detail = err?.response?.data?.detail;
-      toast.error(typeof detail === "string" ? detail : "Transition failed");
-    }
-  };
-
-  return (
-    <Card className="mb-6">
-      <CardHeader className="flex flex-row items-center justify-between">
-        <CardTitle className="text-base">Development Pipeline</CardTitle>
-        {allowed && allowed.allowed_transitions && allowed.allowed_transitions.length > 0 && (
-          <Dialog open={transitionOpen} onOpenChange={setTransitionOpen}>
-            <DialogTrigger className={cn(buttonVariants({ size: "sm" }))}>
-              <ArrowRight className="mr-2 h-4 w-4" />
-              Advance Stage
-            </DialogTrigger>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Advance Property Stage</DialogTitle>
-              </DialogHeader>
-              <form onSubmit={handleTransition} className="space-y-4">
-                <div className="space-y-2">
-                  <Label>Current Stage</Label>
-                  <Badge className={STAGE_COLORS[currentStage]}>
-                    {currentStage.replace(/_/g, " ")}
-                  </Badge>
-                </div>
-                <div className="space-y-2">
-                  <Label>Target Stage</Label>
-                  <Select
-                    value={targetStage}
-                    onValueChange={(v) => setTargetStage(v ?? "")}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select target stage" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {allowed.allowed_transitions.map((s) => (
-                        <SelectItem key={s} value={s}>
-                          {s.replace(/_/g, " ")}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                {targetStage &&
-                  allowed.validation_requirements?.[targetStage] && (
-                    <div className="rounded-md bg-amber-50 p-3 text-sm">
-                      <p className="font-medium text-amber-800 mb-1">
-                        Validation Requirements:
-                      </p>
-                      <ul className="list-disc pl-4 text-amber-700">
-                        {allowed.validation_requirements?.[targetStage].map(
-                          (req: string, i: number) => (
-                            <li key={i}>{req}</li>
-                          )
-                        )}
-                      </ul>
-                    </div>
-                  )}
-                <div className="space-y-2">
-                  <Label>Notes</Label>
-                  <Textarea
-                    value={notes}
-                    onChange={(e) => setNotes(e.target.value)}
-                    placeholder="Reason for stage transition..."
-                  />
-                </div>
-                <div className="flex items-center gap-2">
-                  <input
-                    type="checkbox"
-                    id="force"
-                    checked={force}
-                    onChange={(e) => setForce(e.target.checked)}
-                    className="rounded border-gray-300"
-                  />
-                  <Label htmlFor="force" className="text-sm text-muted-foreground">
-                    Force transition (skip validation)
-                  </Label>
-                </div>
-                <Button type="submit" disabled={isPending || !targetStage}>
-                  {isPending ? "Transitioning..." : "Confirm Transition"}
-                </Button>
-              </form>
-            </DialogContent>
-          </Dialog>
-        )}
-      </CardHeader>
-      <CardContent>
-        <div className="flex items-center gap-1 flex-wrap">
-          {STAGES.map((stage, idx) => {
-            const isActive = stage === currentStage;
-            const isPast = idx < currentIdx;
-            return (
-              <div key={stage} className="flex items-center">
-                <div
-                  className={`rounded-full px-3 py-1.5 text-xs font-medium transition-all ${
-                    isActive
-                      ? STAGE_COLORS[stage] + " ring-2 ring-offset-1 ring-primary"
-                      : isPast
-                      ? "bg-green-50 text-green-600"
-                      : "bg-gray-50 text-gray-400"
-                  }`}
-                >
-                  {isPast && <CheckCircle2 className="mr-1 inline h-3 w-3" />}
-                  {stage.replace(/_/g, " ")}
-                </div>
-                {idx < STAGES.length - 1 && (
-                  <ArrowRight
-                    className={`mx-1 h-3 w-3 ${
-                      isPast ? "text-green-400" : "text-gray-300"
-                    }`}
-                  />
-                )}
-              </div>
-            );
-          })}
+        ))}
+        <div className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium bg-muted text-foreground">
+          <span className="font-bold">{summary.total || 0}</span> Total Properties
         </div>
-      </CardContent>
-    </Card>
-  );
-}
+      </div>
 
-function TimelineVisualization({
-  propertyId,
-  currentStage,
-}: {
-  propertyId: number;
-  currentStage: DevelopmentStage;
-}) {
-  const { data: milestones } = useMilestones(propertyId);
-  const { data: transitions } = useStageTransitions(propertyId);
-
-  if (!milestones?.length && !transitions?.length) return null;
-
-  // Build a unified timeline from milestones + stage transitions
-  type TimelineEvent = {
-    id: string;
-    label: string;
-    targetDate: string | null;
-    actualDate: string | null;
-    status: MilestoneStatus;
-    stage: DevelopmentStage | null;
-    type: "milestone" | "transition";
-  };
-
-  const events: TimelineEvent[] = [];
-
-  // Add milestones
-  (milestones ?? []).forEach((m: any) => {
-    events.push({
-      id: `m-${m.milestone_id}`,
-      label: m.title,
-      targetDate: m.target_date,
-      actualDate: m.actual_date,
-      status: m.status,
-      stage: m.stage,
-      type: "milestone",
-    });
-  });
-
-  // Add stage transitions as completed events
-  (transitions ?? []).forEach((t: any) => {
-    events.push({
-      id: `t-${t.transition_id}`,
-      label: `${(t.from_stage ?? "—").replace(/_/g, " ")} → ${(t.to_stage ?? "—").replace(/_/g, " ")}`,
-      targetDate: null,
-      actualDate: t.transitioned_at,
-      status: "completed" as MilestoneStatus,
-      stage: t.to_stage,
-      type: "transition",
-    });
-  });
-
-  // Sort by actual date, then target date
-  events.sort((a, b) => {
-    const da = a.actualDate || a.targetDate || "9999";
-    const db = b.actualDate || b.targetDate || "9999";
-    return da.localeCompare(db);
-  });
-
-  // Find date range for the Gantt bars
-  const allDates = events
-    .flatMap((e) => [e.targetDate, e.actualDate])
-    .filter(Boolean) as string[];
-  if (allDates.length === 0) return null;
-
-  const minDate = new Date(allDates.sort()[0]);
-  const maxDate = new Date(allDates.sort().reverse()[0]);
-  // Add buffer
-  minDate.setDate(minDate.getDate() - 14);
-  maxDate.setDate(maxDate.getDate() + 30);
-  const totalDays = Math.max((maxDate.getTime() - minDate.getTime()) / (1000 * 60 * 60 * 24), 30);
-
-  const getPosition = (dateStr: string | null): number => {
-    if (!dateStr) return 0;
-    const d = new Date(dateStr);
-    const days = (d.getTime() - minDate.getTime()) / (1000 * 60 * 60 * 24);
-    return Math.max(0, Math.min(100, (days / totalDays) * 100));
-  };
-
-  const today = new Date();
-  const todayPos = getPosition(today.toISOString().split("T")[0]);
-
-  const BAR_COLORS: Record<string, string> = {
-    completed: "bg-green-500",
-    in_progress: "bg-blue-500",
-    pending: "bg-gray-300",
-    at_risk: "bg-amber-500",
-    blocked: "bg-red-500",
-    skipped: "bg-yellow-400",
-  };
-
-  // Generate month markers
-  const monthMarkers: { label: string; pos: number }[] = [];
-  const cursor = new Date(minDate);
-  cursor.setDate(1);
-  cursor.setMonth(cursor.getMonth() + 1);
-  while (cursor <= maxDate) {
-    const pos = getPosition(cursor.toISOString().split("T")[0]);
-    if (pos > 0 && pos < 100) {
-      monthMarkers.push({
-        label: cursor.toLocaleDateString("en-CA", { month: "short", year: "2-digit" }),
-        pos,
-      });
-    }
-    cursor.setMonth(cursor.getMonth() + 1);
-  }
-
-  return (
-    <Card className="mb-6">
-      <CardHeader>
-        <CardTitle className="text-base flex items-center gap-2">
-          <Clock className="h-4 w-4" />
-          Timeline
-        </CardTitle>
-      </CardHeader>
-      <CardContent>
-        <div className="relative">
-          {/* Month axis */}
-          <div className="relative h-6 mb-2 border-b border-muted">
-            {monthMarkers.map((m) => (
-              <div
-                key={m.label}
-                className="absolute text-[10px] text-muted-foreground -translate-x-1/2"
-                style={{ left: `${m.pos}%` }}
-              >
-                {m.label}
-                <div className="w-px h-2 bg-muted mx-auto mt-0.5" />
-              </div>
-            ))}
-            {/* Today line */}
-            {todayPos > 0 && todayPos < 100 && (
-              <div
-                className="absolute top-0 bottom-0 w-px bg-red-400 z-10"
-                style={{ left: `${todayPos}%` }}
-              >
-                <span className="absolute -top-4 -translate-x-1/2 text-[9px] text-red-500 font-bold">
-                  Today
-                </span>
-              </div>
-            )}
-          </div>
-
-          {/* Event rows */}
-          <div className="space-y-1.5">
-            {events.map((evt) => {
-              const startPos = getPosition(evt.targetDate || evt.actualDate);
-              const endPos = evt.actualDate ? getPosition(evt.actualDate) : startPos;
-              const barLeft = Math.min(startPos, endPos);
-              const barWidth = Math.max(Math.abs(endPos - startPos), 1.5);
-
-              return (
-                <div key={evt.id} className="flex items-center gap-2 h-6">
-                  <div className="w-[180px] shrink-0 text-[11px] truncate text-right pr-2 text-muted-foreground">
-                    {evt.type === "transition" && (
-                      <ArrowRight className="inline h-3 w-3 mr-0.5 text-blue-500" />
-                    )}
-                    {evt.label}
-                  </div>
-                  <div className="relative flex-1 h-4 bg-muted/30 rounded-sm">
-                    {/* Target date marker */}
-                    {evt.targetDate && (
-                      <div
-                        className="absolute top-0 h-4 w-1 bg-gray-400/50 rounded-sm"
-                        style={{ left: `${getPosition(evt.targetDate)}%` }}
-                        title={`Target: ${evt.targetDate}`}
-                      />
-                    )}
-                    {/* Actual bar */}
-                    <div
-                      className={cn(
-                        "absolute top-0.5 h-3 rounded-sm min-w-[6px]",
-                        BAR_COLORS[evt.status] ?? "bg-gray-400"
-                      )}
-                      style={{
-                        left: `${barLeft}%`,
-                        width: `${barWidth}%`,
-                      }}
-                      title={`${evt.label} — ${evt.status}${evt.actualDate ? ` (${evt.actualDate})` : ""}`}
-                    />
-                  </div>
-                  <div className="w-[60px] shrink-0">
-                    <Badge
-                      className={cn(
-                        "text-[9px] px-1",
-                        STAGE_COLORS[evt.stage as DevelopmentStage] ?? "bg-gray-100 text-gray-600"
-                      )}
-                    >
-                      {evt.stage?.replace(/_/g, " ").slice(0, 10) ?? "—"}
-                    </Badge>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-
-          {/* Legend */}
-          <div className="flex flex-wrap gap-3 mt-4 pt-3 border-t text-[10px] text-muted-foreground">
-            <span className="flex items-center gap-1"><span className="h-2 w-4 bg-green-500 rounded-sm inline-block" /> Completed</span>
-            <span className="flex items-center gap-1"><span className="h-2 w-4 bg-blue-500 rounded-sm inline-block" /> In Progress</span>
-            <span className="flex items-center gap-1"><span className="h-2 w-4 bg-gray-300 rounded-sm inline-block" /> Pending</span>
-            <span className="flex items-center gap-1"><span className="h-2 w-4 bg-amber-500 rounded-sm inline-block" /> At Risk</span>
-            <span className="flex items-center gap-1"><span className="h-2 w-4 bg-red-500 rounded-sm inline-block" /> Blocked</span>
-            <span className="flex items-center gap-1"><span className="w-1 h-3 bg-gray-400/50 inline-block" /> Target Date</span>
-            <span className="flex items-center gap-1"><span className="w-px h-3 bg-red-400 inline-block" /> Today</span>
-          </div>
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
-
-function MilestonesSection({
-  propertyId,
-  currentStage,
-}: {
-  propertyId: number;
-  currentStage: DevelopmentStage;
-}) {
-  const { data: milestones, isLoading } = useMilestones(propertyId);
-  const { mutateAsync: createMilestone, isPending: creating } =
-    useCreateMilestone(propertyId);
-  const { mutateAsync: updateMilestone } = useUpdateMilestone(propertyId);
-  const [addOpen, setAddOpen] = useState(false);
-  const [newTitle, setNewTitle] = useState("");
-  const [newDate, setNewDate] = useState("");
-
-  const handleAdd = async (e: React.FormEvent) => {
-    e.preventDefault();
-    try {
-      await createMilestone({
-        title: newTitle,
-        target_date: newDate,
-        stage: currentStage,
-        sort_order: (milestones?.length ?? 0) + 1,
-      });
-      toast.success("Milestone added");
-      setAddOpen(false);
-      setNewTitle("");
-      setNewDate("");
-    } catch {
-      toast.error("Failed to add milestone");
-    }
-  };
-
-  const handleStatusChange = async (
-    milestoneId: number,
-    status: MilestoneStatus
-  ) => {
-    try {
-      const data: any = { status };
-      if (status === "completed") {
-        data.actual_date = new Date().toISOString().split("T")[0];
-      }
-      await updateMilestone({ milestoneId, data });
-      toast.success("Milestone updated");
-    } catch {
-      toast.error("Failed to update milestone");
-    }
-  };
-
-  if (isLoading) return <Skeleton className="h-48 w-full mb-6" />;
-
-  return (
-    <Card className="mb-6">
-      <CardHeader className="flex flex-row items-center justify-between">
-        <CardTitle className="text-base">Milestones</CardTitle>
-        <Dialog open={addOpen} onOpenChange={setAddOpen}>
-          <DialogTrigger className={cn(buttonVariants({ size: "sm", variant: "outline" }))}>
-            <Plus className="mr-2 h-4 w-4" />
-            Add Milestone
-          </DialogTrigger>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Add Milestone</DialogTitle>
-            </DialogHeader>
-            <form onSubmit={handleAdd} className="space-y-4">
-              <div className="space-y-2">
-                <Label>Title</Label>
-                <Input
-                  value={newTitle}
-                  onChange={(e) => setNewTitle(e.target.value)}
-                  placeholder="Milestone title"
-                  required
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Target Date</Label>
-                <Input
-                  type="date"
-                  value={newDate}
-                  onChange={(e) => setNewDate(e.target.value)}
-                  required
-                />
-              </div>
-              <Button type="submit" disabled={creating}>
-                {creating ? "Adding..." : "Add Milestone"}
-              </Button>
-            </form>
-          </DialogContent>
-        </Dialog>
-      </CardHeader>
-      <CardContent>
-        {!milestones || milestones.length === 0 ? (
-          <p className="text-sm text-muted-foreground">
-            No milestones for this property.
-          </p>
-        ) : (
-          <div className="space-y-3">
-            {milestones.map((m) => {
-              const Icon = MILESTONE_ICONS[m.status];
-              return (
-                <div
-                  key={m.milestone_id}
-                  className="flex items-start gap-3 rounded-lg border p-3"
-                >
-                  <Icon
-                    className={`mt-0.5 h-5 w-5 shrink-0 ${
-                      MILESTONE_COLORS[m.status]
-                    }`}
-                  />
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <span className="font-medium text-sm">{m.title}</span>
-                      <Badge variant="outline" className="text-xs">
-                        {m.stage.replace(/_/g, " ")}
-                      </Badge>
-                    </div>
-                    <div className="text-xs text-muted-foreground mt-1">
-                      Target: {formatDate(m.target_date)}
-                      {m.actual_date && (
-                        <span className="ml-2 text-green-600">
-                          Completed: {formatDate(m.actual_date)}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                  <Select
-                    value={m.status}
-                    onValueChange={(v) =>
-                      v && handleStatusChange(m.milestone_id, v as MilestoneStatus)
-                    }
-                  >
-                    <SelectTrigger className="w-32 h-8 text-xs">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="pending">Pending</SelectItem>
-                      <SelectItem value="in_progress">In Progress</SelectItem>
-                      <SelectItem value="completed">Completed</SelectItem>
-                      <SelectItem value="skipped">Skipped</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </CardContent>
-    </Card>
-  );
-}
-
-function TransitionHistory({
-  propertyId,
-  expanded,
-  onToggle,
-}: {
-  propertyId: number;
-  expanded: boolean;
-  onToggle: () => void;
-}) {
-  const { data: transitions, isLoading } = useStageTransitions(propertyId);
-
-  if (isLoading) return <Skeleton className="h-32 w-full" />;
-
-  return (
-    <Card>
-      <CardHeader
-        className="flex flex-row items-center justify-between cursor-pointer"
-        onClick={onToggle}
-      >
-        <CardTitle className="text-base">
-          Transition History ({transitions?.length ?? 0})
-        </CardTitle>
-        {expanded ? (
-          <ChevronUp className="h-4 w-4" />
-        ) : (
-          <ChevronDown className="h-4 w-4" />
-        )}
-      </CardHeader>
-      {expanded && (
-        <CardContent>
-          {!transitions || transitions.length === 0 ? (
-            <p className="text-sm text-muted-foreground">
-              No transitions recorded.
+      {/* Alerts */}
+      {alerts.length > 0 && (
+        <Card className="border-amber-200 bg-amber-50/30">
+          <CardContent className="py-3 px-4 space-y-1.5">
+            <p className="text-xs font-semibold text-amber-700 uppercase tracking-wider flex items-center gap-1.5">
+              <AlertTriangle className="h-3.5 w-3.5" /> Timeline Alerts
             </p>
-          ) : (
-            <div className="overflow-x-auto -mx-4 sm:mx-0">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>From</TableHead>
-                  <TableHead>To</TableHead>
-                  <TableHead>Date</TableHead>
-                  <TableHead>Validation</TableHead>
-                  <TableHead>Notes</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {transitions.map((t) => (
-                  <TableRow key={t.transition_id}>
-                    <TableCell>
-                      <Badge variant="outline" className="text-xs">
-                        {t.from_stage.replace(/_/g, " ")}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      <Badge className={`text-xs ${STAGE_COLORS[t.to_stage as DevelopmentStage] ?? ""}`}>
-                        {t.to_stage.replace(/_/g, " ")}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-sm">
-                      {formatDate(t.transitioned_at)}
-                    </TableCell>
-                    <TableCell>
-                      {t.validation_passed ? (
-                        <CheckCircle2 className="h-4 w-4 text-green-600" />
-                      ) : (
-                        <AlertTriangle className="h-4 w-4 text-amber-600" />
-                      )}
-                    </TableCell>
-                    <TableCell className="text-sm text-muted-foreground max-w-xs truncate">
-                      {t.notes ?? "\u2014"}
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+            {alerts.map((a: any, i: number) => (
+              <div key={i} className={cn("flex items-start gap-2 text-xs rounded px-2 py-1",
+                a.severity === "warning" ? "text-amber-700 bg-amber-50" : "text-blue-700 bg-blue-50"
+              )}>
+                <span className="shrink-0 mt-0.5">{a.severity === "warning" ? "▲" : "ℹ"}</span>
+                <span><span className="font-medium">{a.property}:</span> {a.message}</span>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Legend */}
+      <div className="flex items-center gap-4 text-xs text-muted-foreground">
+        <span className="font-medium text-foreground">Legend:</span>
+        {[
+          { label: "Interim", color: "bg-blue-400" },
+          { label: "Construction", color: "bg-orange-400" },
+          { label: "Lease-Up", color: "bg-yellow-400" },
+          { label: "Stabilized", color: "bg-green-400" },
+        ].map(l => (
+          <span key={l.label} className="flex items-center gap-1.5">
+            <span className={cn("h-2.5 w-6 rounded-full", l.color)} />
+            {l.label}
+          </span>
+        ))}
+        <span className="flex items-center gap-1.5">
+          <span className="h-3 w-0.5 bg-red-500 rounded" />
+          Exit
+        </span>
+      </div>
+
+      {/* Gantt Chart */}
+      <Card>
+        <CardContent className="p-0">
+          {/* Year headers */}
+          <div className="flex border-b sticky top-0 bg-card z-10">
+            <div className="w-56 shrink-0 px-4 py-2 text-xs font-medium text-muted-foreground border-r">
+              Property
             </div>
+            <div className="flex-1 relative">
+              <div className="flex">
+                {Array.from({ length: totalYears + 1 }, (_, i) => startYear + i).map(year => (
+                  <div
+                    key={year}
+                    className="text-center text-[10px] font-medium text-muted-foreground py-2 border-r border-dashed"
+                    style={{ width: `${100 / (totalYears + 1)}%` }}
+                  >
+                    {year}
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Property rows */}
+          {properties.length === 0 ? (
+            <div className="py-12 text-center text-muted-foreground">
+              <Building2 className="h-10 w-10 mx-auto mb-3 text-muted-foreground/30" />
+              <p className="text-sm">No properties found</p>
+            </div>
+          ) : (
+            properties.map((prop: any) => (
+              <div key={prop.property_id} className="flex border-b hover:bg-muted/30 transition-colors group">
+                {/* Property info */}
+                <div className="w-56 shrink-0 px-4 py-3 border-r">
+                  <Link href={`/portfolio/${prop.property_id}`} className="group/link">
+                    <p className="text-sm font-medium truncate group-hover/link:text-primary transition-colors flex items-center gap-1">
+                      {prop.address}
+                      <ExternalLink className="h-3 w-3 opacity-0 group-hover/link:opacity-100 transition-opacity" />
+                    </p>
+                  </Link>
+                  <div className="flex items-center gap-2 mt-1">
+                    <Badge variant="outline" className={cn("text-[10px] px-1.5 py-0", STAGE_COLORS[prop.stage])}>
+                      {STAGE_LABELS[prop.stage] || prop.stage}
+                    </Badge>
+                    {prop.exit_year && (
+                      <span className="text-[10px] text-muted-foreground">Exit {prop.exit_year}</span>
+                    )}
+                  </div>
+                </div>
+
+                {/* Timeline bars */}
+                <div className="flex-1 relative py-2 px-1">
+                  {/* Year grid lines */}
+                  {Array.from({ length: totalYears + 1 }, (_, i) => (
+                    <div
+                      key={i}
+                      className="absolute top-0 bottom-0 border-r border-dashed border-muted"
+                      style={{ left: `${(i / (totalYears + 1)) * 100}%` }}
+                    />
+                  ))}
+
+                  {/* Today marker */}
+                  {(() => {
+                    const todayPct = yearToPercent(new Date().toISOString().slice(0, 10));
+                    if (todayPct >= 0 && todayPct <= 100) {
+                      return (
+                        <div
+                          className="absolute top-0 bottom-0 w-px bg-red-400 z-10"
+                          style={{ left: `${todayPct}%` }}
+                        />
+                      );
+                    }
+                    return null;
+                  })()}
+
+                  {/* Bars */}
+                  <div className="relative h-7 flex items-center">
+                    {(prop.bars || []).map((bar: any, bi: number) => {
+                      const left = Math.max(0, yearToPercent(bar.start));
+                      const right = Math.min(100, yearToPercent(bar.end));
+                      const width = right - left;
+                      if (width <= 0) return null;
+                      return (
+                        <div
+                          key={bi}
+                          className={cn(
+                            "absolute h-5 rounded-full opacity-80 hover:opacity-100 transition-opacity cursor-default",
+                            BAR_COLORS[bar.type] || "bg-gray-300"
+                          )}
+                          style={{ left: `${left}%`, width: `${width}%` }}
+                          title={`${bar.label}: ${bar.start} → ${bar.end}`}
+                        >
+                          {width > 8 && (
+                            <span className="absolute inset-0 flex items-center justify-center text-[9px] font-medium text-white truncate px-1">
+                              {bar.label}
+                            </span>
+                          )}
+                        </div>
+                      );
+                    })}
+
+                    {/* Exit marker */}
+                    {prop.exit_year && (() => {
+                      const exitPct = yearToPercent(`${prop.exit_year}-06-30`);
+                      if (exitPct >= 0 && exitPct <= 100) {
+                        return (
+                          <div
+                            className="absolute h-7 w-1 bg-red-500 rounded-full z-10"
+                            style={{ left: `${exitPct}%` }}
+                            title={`Planned exit: ${prop.exit_year}`}
+                          />
+                        );
+                      }
+                      return null;
+                    })()}
+
+                    {/* Acquisition marker */}
+                    {prop.acquisition_date && (() => {
+                      const acqPct = yearToPercent(prop.acquisition_date);
+                      if (acqPct >= 0 && acqPct <= 100) {
+                        return (
+                          <div
+                            className="absolute h-3 w-3 rounded-full bg-purple-500 border-2 border-white z-10 -translate-x-1.5"
+                            style={{ left: `${acqPct}%`, top: "50%", transform: "translate(-50%, -50%)" }}
+                            title={`Acquired: ${prop.acquisition_date}`}
+                          />
+                        );
+                      }
+                      return null;
+                    })()}
+                  </div>
+                </div>
+              </div>
+            ))
           )}
         </CardContent>
-      )}
-    </Card>
+      </Card>
+    </div>
   );
 }

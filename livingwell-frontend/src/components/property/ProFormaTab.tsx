@@ -7,8 +7,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Loader2, Plus, Trash2, Calculator, ArrowLeftRight } from "lucide-react";
-import { OperatingExpensesSection } from "@/components/property/OperatingExpensesSection";
-import { LenderUnderwritingSection } from "@/components/property/LenderUnderwritingSection";
+// OperatingExpensesSection moved to Operations tab
+// LenderUnderwritingSection moved to Lender Financing tab
 
 interface ProFormaData {
   proforma_id?: number;
@@ -329,16 +329,6 @@ export function ProFormaTab({
           </CardContent>
         </Card>
       )}
-
-      {/* Lender Underwriting Summary */}
-      <LenderUnderwritingSection propertyId={propertyId} />
-
-      {/* Granular Operating Expenses */}
-      <OperatingExpensesSection
-        propertyId={propertyId}
-        planId={activePhase === "full_development" || activePhase === "post_renovation" ? undefined : null}
-        canEdit={true}
-      />
 
       {/* Saved Pro Formas */}
       {savedList && savedList.length > 0 && (

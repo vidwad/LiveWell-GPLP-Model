@@ -67,6 +67,9 @@ app.include_router(twilio_routes.router, prefix="/api/twilio", tags=["twilio"])
 app.include_router(developer_routes.router, prefix="/api/developer", tags=["developer"])
 app.include_router(portfolio_analytics_router, prefix="/api/investment", tags=["portfolio-analytics"])
 app.include_router(lp_property_bridge_router, prefix="/api", tags=["lp-property-bridge"])
+
+from app.routes.portfolio_timeline import router as timeline_router
+app.include_router(timeline_router, prefix="/api", tags=["timeline"])
 # NOTE: ancillary_revenue, operating_expenses, underwriting, proforma,
 # valuation, and construction routers are included via portfolio.py's
 # router.include_router() calls — no need to register them separately here.

@@ -5,6 +5,7 @@ import {
   Plus, Building2, Search, X, SlidersHorizontal, LayoutGrid, List, MapPin,
   ArrowUpDown, DollarSign, TrendingUp, Home, BedDouble, ChevronDown, ChevronUp,
 } from "lucide-react";
+import { AddPropertyWizard } from "@/components/property/AddPropertyWizard";
 import { useProperties } from "@/hooks/usePortfolio";
 import { useAuth } from "@/providers/AuthProvider";
 import { Button } from "@/components/ui/button";
@@ -228,10 +229,13 @@ export default function PortfolioPage() {
           </p>
         </div>
         {canCreate && (
-          <LinkButton href="/portfolio/new">
-            <Plus className="mr-2 h-4 w-4" />
-            Add Property
-          </LinkButton>
+          <div className="flex items-center gap-2">
+            <AddPropertyWizard />
+            <LinkButton href="/portfolio/new">
+              <Plus className="mr-2 h-4 w-4" />
+              Add Property
+            </LinkButton>
+          </div>
         )}
       </div>
 

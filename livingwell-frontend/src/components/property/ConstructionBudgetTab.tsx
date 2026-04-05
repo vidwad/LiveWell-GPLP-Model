@@ -2,6 +2,8 @@
 
 import React, { useState, useMemo } from "react";
 import { toast } from "sonner";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { apiClient } from "@/lib/api";
 import {
   Plus,
   Trash2,
@@ -15,6 +17,8 @@ import {
   CheckCircle2,
   Clock,
   X,
+  Sparkles,
+  Loader2,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -94,6 +98,7 @@ interface Props {
   propertyId: number;
   canEdit: boolean;
   activePhase?: "as_is" | "post_renovation" | "full_development";
+  planId?: number;  // If provided, locks to this plan (no dropdown)
 }
 
 const emptyExpenseForm = {
@@ -116,7 +121,7 @@ const emptyDrawForm = {
   notes: "",
 };
 
-export function ConstructionBudgetTab({ propertyId, canEdit, activePhase = "full_development" }: Props) {
+export function ConstructionBudgetTab({ propertyId, canEdit, activePhase = "full_development", planId: fixedPlanId }: Props) {
   const { data: plans, isLoading: plansLoading } = useDevelopmentPlans(propertyId);
   const { data: debtFacilities } = useDebtFacilities(propertyId);
 
@@ -127,11 +132,19 @@ export function ConstructionBudgetTab({ propertyId, canEdit, activePhase = "full
   }, [plans]);
 
   const [selectedPlanId, setSelectedPlanId] = useState<number | null>(null);
-  const effectivePlanId = selectedPlanId ?? activePlan?.plan_id ?? 0;
+  const effectivePlanId = fixedPlanId ?? selectedPlanId ?? activePlan?.plan_id ?? 0;
 
   const { data: summary, isLoading: summaryLoading } = useConstructionBudgetSummary(propertyId, effectivePlanId);
   const { data: expenses } = useConstructionExpenses(propertyId, effectivePlanId);
-  const { data: draws } = useConstructionDraws(propertyId);
+  // Get draws only for debt facilities linked to this plan
+  const planDebtId = useMemo(() => {
+    if (!debtFacilities) return undefined;
+    const planDebt = (debtFacilities as any[]).find(
+      (d: any) => d.development_plan_id === effectivePlanId && d.debt_type === "construction_loan"
+    );
+    return planDebt?.debt_id;
+  }, [debtFacilities, effectivePlanId]);
+  const { data: draws } = useConstructionDraws(propertyId, planDebtId);
 
   const createExpense = useCreateConstructionExpense(propertyId);
   const updateExpense = useUpdateConstructionExpense(propertyId);
@@ -139,6 +152,21 @@ export function ConstructionBudgetTab({ propertyId, canEdit, activePhase = "full
   const createDraw = useCreateConstructionDraw(propertyId);
   const updateDraw = useUpdateConstructionDraw(propertyId);
   const deleteDraw = useDeleteConstructionDraw(propertyId);
+
+  const qc = useQueryClient();
+  const aiEstimateMutation = useMutation({
+    mutationFn: () =>
+      apiClient.post(`/api/portfolio/properties/${propertyId}/ai-construction-budget`, {
+        plan_id: effectivePlanId,
+      }).then(r => r.data),
+    onSuccess: (data) => {
+      qc.invalidateQueries({ queryKey: ["construction-expenses", propertyId] });
+      qc.invalidateQueries({ queryKey: ["construction-budget-summary", propertyId] });
+      qc.invalidateQueries({ queryKey: ["development-plans", propertyId] });
+      toast.success(`AI generated ${data.created} expense items (${new Intl.NumberFormat("en-CA", { style: "currency", currency: "CAD", maximumFractionDigits: 0 }).format(data.total_budget)} total)`);
+    },
+    onError: (e: any) => toast.error(e?.response?.data?.detail || "AI estimation failed"),
+  });
 
   const [expenseOpen, setExpenseOpen] = useState(false);
   const [expenseForm, setExpenseForm] = useState(emptyExpenseForm);
@@ -153,9 +181,10 @@ export function ConstructionBudgetTab({ propertyId, canEdit, activePhase = "full
     [debtFacilities]
   );
 
-  // Budget from plan
-  const planBudget = activePlan
-    ? Number(activePlan.estimated_construction_cost ?? 0)
+  // Budget from the effective plan (not just the "active" one)
+  const effectivePlan = plans?.find((p: DevelopmentPlan) => p.plan_id === effectivePlanId) ?? activePlan;
+  const planBudget = effectivePlan
+    ? Number(effectivePlan.estimated_construction_cost ?? 0)
     : 0;
   const totalBudgeted = Number(summary?.total_budgeted ?? 0);
   const totalActual = Number(summary?.total_actual ?? 0);
@@ -329,8 +358,8 @@ export function ConstructionBudgetTab({ propertyId, canEdit, activePhase = "full
         </Card>
       )}
 
-      {/* Plan Selector */}
-      {plans.length > 1 && (
+      {/* Plan Selector — only if not locked to a specific plan */}
+      {!fixedPlanId && plans.length > 1 && (
         <div className="flex items-center gap-3">
           <Label className="text-sm font-medium">Development Plan:</Label>
           <Select
@@ -343,7 +372,7 @@ export function ConstructionBudgetTab({ propertyId, canEdit, activePhase = "full
             <SelectContent>
               {plans.map((p: DevelopmentPlan) => (
                 <SelectItem key={p.plan_id} value={String(p.plan_id)}>
-                  {p.plan_name || `Plan v${p.version}`} ({p.status})
+                  {p.plan_name || `Plan v${p.version}`}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -522,6 +551,20 @@ export function ConstructionBudgetTab({ propertyId, canEdit, activePhase = "full
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle className="text-base">Expense Line Items</CardTitle>
           {canEdit && (
+            <div className="flex items-center gap-2">
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={aiEstimateMutation.isPending || effectivePlanId === 0}
+              onClick={() => {
+                if (confirm("AI will generate construction budget line items based on the plan details. Existing items will NOT be removed. Continue?")) {
+                  aiEstimateMutation.mutate();
+                }
+              }}
+            >
+              {aiEstimateMutation.isPending ? <Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> : <Sparkles className="h-4 w-4 mr-1.5" />}
+              {aiEstimateMutation.isPending ? "Estimating..." : "AI Estimate"}
+            </Button>
             <Dialog open={expenseOpen} onOpenChange={(open) => { setExpenseOpen(open); if (!open) setExpenseForm(emptyExpenseForm); }}>
               {/* @ts-expect-error radix-ui asChild type */}
               <DialogTrigger asChild>
@@ -582,6 +625,7 @@ export function ConstructionBudgetTab({ propertyId, canEdit, activePhase = "full
                 </form>
               </DialogContent>
             </Dialog>
+            </div>
           )}
         </CardHeader>
         <CardContent>

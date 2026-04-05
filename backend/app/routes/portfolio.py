@@ -496,8 +496,17 @@ def update_debt_facility(
     facility = db.query(DebtFacility).filter(DebtFacility.debt_id == debt_id).first()
     if not facility:
         raise HTTPException(404, "Debt facility not found")
+    from datetime import date as _date
+    date_fields = {"origination_date", "maturity_date"}
     for k, v in payload.items():
         if hasattr(facility, k):
+            if k in date_fields and isinstance(v, str) and v:
+                try:
+                    v = _date.fromisoformat(v)
+                except ValueError:
+                    continue
+            elif k in date_fields and not v:
+                v = None
             setattr(facility, k, v)
     try:
         db.commit()
@@ -1603,6 +1612,9 @@ from app.routes.portfolio_ancillary_revenue import router as ancillary_revenue_r
 from app.routes.portfolio_operating_expenses import router as operating_expenses_router
 from app.routes.portfolio_underwriting import router as underwriting_router
 from app.routes.portfolio_lifecycle import router as lifecycle_router
+from app.routes.portfolio_setup import router as setup_router
+from app.routes.portfolio_lending import router as lending_router
+from app.routes.portfolio_ai_budget import router as ai_budget_router
 
 router.include_router(valuation_router)
 router.include_router(construction_router)
@@ -1611,6 +1623,9 @@ router.include_router(ancillary_revenue_router)
 router.include_router(operating_expenses_router)
 router.include_router(underwriting_router)
 router.include_router(lifecycle_router)
+router.include_router(setup_router)
+router.include_router(lending_router)
+router.include_router(ai_budget_router)
 
 # ===========================================================================
 # PROPERTY UNITS & BEDS
@@ -1625,18 +1640,71 @@ from app.db.models import BedStatus
 
 @router.get(
     "/properties/{property_id}/units",
-    response_model=list[UnitWithBedsOut],
 )
 def list_property_units(
     property_id: int,
+    plan_id: int | None = None,
     db: Session = Depends(get_db),
     _: User = Depends(get_current_user),
 ):
-    """List all units (with nested beds) for a property."""
+    """List units (with nested beds) for a property, optionally filtered by plan_id.
+
+    plan_id=None (omitted): returns ALL units
+    plan_id=0 or plan_id=null: returns baseline units (development_plan_id IS NULL)
+    plan_id=N: returns units for that specific plan
+    """
     prop = db.query(Property).filter(Property.property_id == property_id).first()
     if not prop:
         raise HTTPException(404, "Property not found")
-    return prop.units
+
+    from fastapi.encoders import jsonable_encoder
+    from sqlalchemy.orm import joinedload as _jl
+
+    query = db.query(Unit).filter(Unit.property_id == property_id).options(_jl(Unit.beds))
+
+    if plan_id is not None:
+        if plan_id == 0:
+            query = query.filter(Unit.development_plan_id.is_(None))
+        else:
+            query = query.filter(Unit.development_plan_id == plan_id)
+
+    units = query.all()
+
+    # Return with nested beds
+    result = []
+    for u in units:
+        unit_dict = {
+            "unit_id": u.unit_id,
+            "property_id": u.property_id,
+            "unit_number": u.unit_number,
+            "unit_type": u.unit_type.value if hasattr(u.unit_type, 'value') else u.unit_type,
+            "bed_count": u.bed_count,
+            "bedroom_count": u.bedroom_count,
+            "sqft": str(u.sqft) if u.sqft else "0",
+            "floor": u.floor,
+            "is_legal_suite": u.is_legal_suite,
+            "is_occupied": u.is_occupied,
+            "monthly_rent": str(u.monthly_rent) if u.monthly_rent else None,
+            "renovation_phase": u.renovation_phase.value if u.renovation_phase and hasattr(u.renovation_phase, 'value') else u.renovation_phase,
+            "development_plan_id": u.development_plan_id,
+            "notes": u.notes,
+            "beds": [
+                {
+                    "bed_id": b.bed_id,
+                    "unit_id": b.unit_id,
+                    "bed_label": b.bed_label,
+                    "monthly_rent": str(b.monthly_rent) if b.monthly_rent else "0",
+                    "rent_type": b.rent_type.value if hasattr(b.rent_type, 'value') else (b.rent_type or "private_pay"),
+                    "status": b.status.value if hasattr(b.status, 'value') else (b.status or "available"),
+                    "bedroom_number": b.bedroom_number,
+                    "is_post_renovation": b.is_post_renovation,
+                }
+                for b in (u.beds or [])
+            ],
+        }
+        result.append(unit_dict)
+
+    return result
 
 
 @router.post(

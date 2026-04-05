@@ -37,9 +37,10 @@ interface RentRollTabProps {
   canEdit: boolean;
   property: Record<string, any>;
   activePhase?: "as_is" | "post_renovation" | "full_development";
+  phasePlanId?: number | null;
 }
 
-export function RentRollTab({ propertyId, canEdit, property, activePhase }: RentRollTabProps) {
+export function RentRollTab({ propertyId, canEdit, property, activePhase, phasePlanId }: RentRollTabProps) {
   const { data: rentRollData } = useRentRoll(propertyId);
   const updatePricingMode = useUpdateRentPricingMode(propertyId);
   const updateAnnualRentIncrease = useUpdateAnnualRentIncrease(propertyId);
@@ -55,9 +56,9 @@ export function RentRollTab({ propertyId, canEdit, property, activePhase }: Rent
   const [newBedRent, setNewBedRent] = useState("1400");
   const [newBedRoom, setNewBedRoom] = useState<number>(1);
 
-  // Phase filtering: determine which sections to show
-  const showBaseline = !activePhase || activePhase === "as_is";
-  const showDevelopmentPlans = !activePhase || activePhase === "post_renovation" || activePhase === "full_development";
+  // Phase filtering: show only the active phase's data
+  const showBaseline = activePhase === "as_is" || phasePlanId == null;
+  const showDevelopmentPlans = phasePlanId != null;
 
   return (
     <div className="space-y-6">
@@ -298,7 +299,9 @@ export function RentRollTab({ propertyId, canEdit, property, activePhase }: Rent
 
       {/* DEVELOPMENT PLAN PHASES */}
       {showDevelopmentPlans && <>
-      {((rentRollData as RentRollResponse | undefined)?.plan_phases || []).map((plan: RentRollPlanPhase, planIdx: number) => {
+      {((rentRollData as RentRollResponse | undefined)?.plan_phases || [])
+        .filter((plan: RentRollPlanPhase) => phasePlanId == null || plan.plan_id === phasePlanId)
+        .map((plan: RentRollPlanPhase, planIdx: number) => {
         const pr = plan.rent_roll;
         const comp = plan.comparison_vs_previous;
         const esc = plan.escalation_projection;

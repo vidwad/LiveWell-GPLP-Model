@@ -89,8 +89,7 @@ const NAV_SECTIONS: NavSection[] = [
     roles: [DEV, GP, PM],
     items: [
       { href: "/portfolio", label: "Properties", icon: Building2, roles: [DEV, GP, PM] },
-      { href: "/area-research", label: "Area Research", icon: MapPin, roles: [DEV, GP] },
-      { href: "/lifecycle", label: "Lifecycle", icon: GitBranch, roles: [DEV, GP, PM] },
+      { href: "/lifecycle", label: "Property Lifecycle", icon: GitBranch, roles: [DEV, GP, PM] },
       { href: "/analytics", label: "Portfolio Analytics", icon: PieChart, roles: [DEV, GP] },
       { href: "/lp-comparison", label: "LP Comparison", icon: GitBranch, roles: [DEV, GP] },
       { href: "/trends", label: "Trends", icon: TrendingUp, roles: [DEV, GP] },

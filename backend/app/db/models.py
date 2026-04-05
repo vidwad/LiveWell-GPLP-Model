@@ -1377,6 +1377,7 @@ class DevelopmentPlan(Base):
     property_id = Column(Integer, ForeignKey("properties.property_id"), nullable=False, index=True)
     version = Column(Integer, nullable=False, default=1)
     plan_name = Column(String(256), nullable=True)  # human-readable label e.g. "8-Plex Conversion"
+    description = Column(Text, nullable=True)  # What this plan involves
     status = Column(
         _enum(DevelopmentPlanStatus), nullable=False, default=DevelopmentPlanStatus.draft
     )

@@ -149,9 +149,9 @@ export function ExitReturnsTab({ propertyId, canEdit, property, totalDebtOutstan
             key={key}
             onClick={() => setSubSection(key)}
             className={cn(
-              "px-3 py-1.5 rounded-md text-sm font-medium transition-all",
+              "relative px-3 py-1.5 rounded-md text-sm font-medium transition-all",
               subSection === key
-                ? "bg-white shadow-sm text-foreground"
+                ? "bg-white shadow-sm text-primary after:absolute after:inset-x-0 after:bottom-0 after:h-[3px] after:bg-primary after:rounded-full"
                 : "text-muted-foreground hover:text-foreground hover:bg-white/50"
             )}
           >

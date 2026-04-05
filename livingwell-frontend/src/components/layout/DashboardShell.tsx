@@ -41,7 +41,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
             <span className="text-sm font-medium">{user?.full_name || user?.email}</span>
           </Link>
         </header>
-        <main className="flex-1 overflow-y-auto p-4 pt-14 md:p-8 md:pt-6">{children}</main>
+        <main className="flex-1 overflow-y-auto overflow-x-hidden p-3 pt-14 md:px-5 md:py-5 md:pt-5">{children}</main>
       </div>
     </div>
   );

@@ -17,6 +17,10 @@ import { ExitScenariosTab } from "@/components/property/ExitScenariosTab";
 import { PropertyDocumentsTab } from "@/components/property/PropertyDocumentsTab";
 import { AcquisitionTab } from "@/components/property/AcquisitionTab";
 import { ExitReturnsTab } from "@/components/property/ExitReturnsTab";
+import { PropertyCashFlow } from "@/components/property/PropertyCashFlow";
+import { StrategyTab } from "@/components/property/StrategyTab";
+import { SetupGuidance } from "@/components/property/SetupGuidance";
+import { OperatingExpensesSection } from "@/components/property/OperatingExpensesSection";
 import { toast } from "sonner";
 import {
   ArrowLeft,
@@ -126,18 +130,21 @@ export default function PropertyDetailPage({ params }: { params: { id: string } 
 
   const canEdit = user?.role === "DEVELOPER" || user?.role === "GP_ADMIN" || user?.role === "OPERATIONS_MANAGER";
   const [activePhase, setActivePhase] = useState<"as_is" | "post_renovation" | "full_development">("as_is");
+  const [activeTab, setActiveTab] = useState("overview");
 
   /* ── Phase-aware debt filtering ── */
   const activePlan = (plans ?? []).find((p: DevelopmentPlan) => p.status === "active") ?? (plans ?? [])[0];
 
-  // Map activePhase to the relevant plan_id
+  // Map activePhase to the relevant plan_id — sorted by start date
   const phasePlanId = (() => {
     if (activePhase === "as_is" || !plans || plans.length === 0) return null;
-    // For post_renovation: find the kitchen/renovation plan (smaller unit count or first plan)
-    // For full_development: find the full dev plan (larger unit count or last plan)
-    const sortedPlans = [...plans].sort((a: DevelopmentPlan, b: DevelopmentPlan) => a.plan_id - b.plan_id);
-    if (activePhase === "post_renovation") return sortedPlans[0]?.plan_id ?? null;
-    if (activePhase === "full_development") return sortedPlans.length > 1 ? sortedPlans[sortedPlans.length - 1]?.plan_id : sortedPlans[0]?.plan_id ?? null;
+    const sorted = [...plans].sort((a: DevelopmentPlan, b: DevelopmentPlan) => {
+      const da = a.development_start_date || "9999";
+      const db2 = b.development_start_date || "9999";
+      return da < db2 ? -1 : da > db2 ? 1 : 0;
+    });
+    if (activePhase === "post_renovation") return sorted[0]?.plan_id ?? null;
+    if (activePhase === "full_development") return sorted.length > 1 ? sorted[sorted.length - 1]?.plan_id : sorted[0]?.plan_id ?? null;
     return null;
   })();
 
@@ -333,60 +340,86 @@ export default function PropertyDetailPage({ params }: { params: { id: string } 
       </div>
 
       {/* ════════════════════════════════════════════════════════════════════════
-          PHASE SELECTOR
+          PHASE SELECTOR — only shows phases that have plans
       ════════════════════════════════════════════════════════════════════════ */}
-      <div className="flex items-center gap-1 p-1 bg-muted/50 rounded-lg w-fit">
-        <button
-          onClick={() => setActivePhase("as_is")}
-          className={cn(
-            "flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-all",
-            activePhase === "as_is"
-              ? "bg-white shadow-sm text-foreground"
-              : "text-muted-foreground hover:text-foreground hover:bg-white/50"
-          )}
-        >
-          <Eye className="h-3.5 w-3.5" />
-          As-Is
-        </button>
-        <button
-          onClick={() => setActivePhase("post_renovation")}
-          className={cn(
-            "flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-all",
-            activePhase === "post_renovation"
-              ? "bg-white shadow-sm text-foreground"
-              : "text-muted-foreground hover:text-foreground hover:bg-white/50"
-          )}
-        >
-          <Wrench className="h-3.5 w-3.5" />
-          Post-Renovation
-        </button>
-        <button
-          onClick={() => setActivePhase("full_development")}
-          className={cn(
-            "flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-all",
-            activePhase === "full_development"
-              ? "bg-white shadow-sm text-foreground"
-              : "text-muted-foreground hover:text-foreground hover:bg-white/50"
-          )}
-        >
-          <HardHat className="h-3.5 w-3.5" />
-          Full Development
-        </button>
-      </div>
+      {(() => {
+        // Build available phases from actual plans, sorted by start date
+        const sortedPlans = [...(plans ?? [])].sort((a: DevelopmentPlan, b: DevelopmentPlan) => {
+          const da = a.development_start_date || "9999";
+          const db2 = b.development_start_date || "9999";
+          return da < db2 ? -1 : da > db2 ? 1 : 0;
+        });
+        const hasPlans = sortedPlans.length > 0;
+        const hasMultiplePlans = sortedPlans.length > 1;
+
+        type PhaseOption = { key: "as_is" | "post_renovation" | "full_development"; label: string; icon: React.ElementType; planName?: string };
+        const phases: PhaseOption[] = [
+          { key: "as_is", label: "As-Is", icon: Eye },
+        ];
+
+        if (hasPlans && !hasMultiplePlans) {
+          // Single plan — show as Post-Renovation or Full Development based on unit count
+          const plan = sortedPlans[0];
+          const isLargeDev = plan.planned_units >= 3;
+          phases.push({
+            key: isLargeDev ? "full_development" : "post_renovation",
+            label: plan.plan_name || (isLargeDev ? "Full Development" : "Post-Renovation"),
+            icon: isLargeDev ? HardHat : Wrench,
+            planName: plan.plan_name || undefined,
+          });
+        } else if (hasMultiplePlans) {
+          // Multiple plans — first = renovation, last = full development (sorted by start date)
+          phases.push({
+            key: "post_renovation",
+            label: sortedPlans[0].plan_name || "Post-Renovation",
+            icon: Wrench,
+            planName: sortedPlans[0].plan_name || undefined,
+          });
+          phases.push({
+            key: "full_development",
+            label: sortedPlans[sortedPlans.length - 1].plan_name || "Full Development",
+            icon: HardHat,
+            planName: sortedPlans[sortedPlans.length - 1].plan_name || undefined,
+          });
+        }
+
+        // Only show selector if there's more than just "As-Is"
+        if (phases.length <= 1) return null;
+
+        return (
+          <div className="flex items-center gap-1 p-1 bg-muted/50 rounded-lg w-fit">
+            {phases.map(({ key, label, icon: Icon }) => (
+              <button
+                key={key}
+                onClick={() => setActivePhase(key)}
+                className={cn(
+                  "flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-all",
+                  activePhase === key
+                    ? "bg-white shadow-sm text-primary"
+                    : "text-muted-foreground hover:text-foreground hover:bg-white/50"
+                )}
+              >
+                <Icon className="h-3.5 w-3.5" />
+                {label}
+              </button>
+            ))}
+          </div>
+        );
+      })()}
 
       {/* ════════════════════════════════════════════════════════════════════════
           TABS
       ════════════════════════════════════════════════════════════════════════ */}
-      <Tabs defaultValue="overview">
-        <div className="overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0">
-          <TabsList variant="line" className="w-full sm:w-auto">
+      <Tabs value={activeTab} onValueChange={setActiveTab}>
+        <div className="overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0 scrollbar-none">
+          <TabsList variant="line" className="w-max sm:w-full sm:flex-wrap">
             <TabsTrigger value="overview"><Building2 className="h-4 w-4 sm:mr-1.5" /><span className="hidden sm:inline">Overview</span></TabsTrigger>
             <TabsTrigger value="research"><MapPin className="h-4 w-4 sm:mr-1.5" /><span className="hidden sm:inline">Research</span></TabsTrigger>
             <TabsTrigger value="acquisition"><Landmark className="h-4 w-4 sm:mr-1.5" /><span className="hidden sm:inline">Acquisition</span></TabsTrigger>
+            <TabsTrigger value="strategy"><Layers className="h-4 w-4 sm:mr-1.5" /><span className="hidden sm:inline">Master Plan</span></TabsTrigger>
             <TabsTrigger value="operations"><DollarSign className="h-4 w-4 sm:mr-1.5" /><span className="hidden sm:inline">Operations</span></TabsTrigger>
-            <TabsTrigger value="strategy"><Layers className="h-4 w-4 sm:mr-1.5" /><span className="hidden sm:inline">Strategy</span></TabsTrigger>
-            <TabsTrigger value="financial"><Calculator className="h-4 w-4 sm:mr-1.5" /><span className="hidden sm:inline">Pro Forma</span></TabsTrigger>
-            <TabsTrigger value="debt"><Landmark className="h-4 w-4 sm:mr-1.5" /><span className="hidden sm:inline">Financing</span></TabsTrigger>
+            <TabsTrigger value="debt"><Landmark className="h-4 w-4 sm:mr-1.5" /><span className="hidden sm:inline">Lender Financing</span></TabsTrigger>
+            <TabsTrigger value="financial"><Calculator className="h-4 w-4 sm:mr-1.5" /><span className="hidden sm:inline">Financial Analysis</span></TabsTrigger>
             <TabsTrigger value="exit"><TrendingUp className="h-4 w-4 sm:mr-1.5" /><span className="hidden sm:inline">Exit & Returns</span></TabsTrigger>
             <TabsTrigger value="documents"><FolderOpen className="h-4 w-4 sm:mr-1.5" /><span className="hidden sm:inline">Documents</span></TabsTrigger>
           </TabsList>
@@ -403,15 +436,9 @@ export default function PropertyDetailPage({ params }: { params: { id: string } 
             onPropertyUpdated={() => refetchProperty()}
             activePhase={activePhase}
           />
-          {/* Lifecycle section at bottom of Overview */}
+          {/* Setup Guidance — what's missing / what's next */}
           <div className="mt-6">
-            <LifecycleTab
-              propertyId={propertyId}
-              stage={stage}
-              canEdit={canEdit}
-              userRole={user?.role}
-              activePhase={activePhase}
-            />
+            <SetupGuidance propertyId={propertyId} onNavigateTab={setActiveTab} />
           </div>
         </TabsContent>
 
@@ -435,40 +462,30 @@ export default function PropertyDetailPage({ params }: { params: { id: string } 
           <AcquisitionTab propertyId={propertyId} property={property} canEdit={canEdit} />
         </TabsContent>
 
-        {/* ── 4. Operations (Units & Beds + Revenue + Ancillary) ── */}
-        <TabsContent value="operations" className="mt-6">
-          <UnitsBedsTab propertyId={propertyId} canEdit={canEdit} activePhase={activePhase} />
-          <div className="mt-6 border-t pt-6">
-            <RentRollTab propertyId={propertyId} canEdit={canEdit} property={property} activePhase={activePhase} />
-          </div>
-        </TabsContent>
-
-        {/* ── 5. Strategy (Dev Plans + Construction Budget) ── */}
+        {/* ── 4. Strategy ── */}
         <TabsContent value="strategy" className="mt-6">
-          <DevPlansTab propertyId={propertyId} canEdit={canEdit} activePhase={activePhase} />
+          <StrategyTab propertyId={propertyId} canEdit={canEdit} property={property} />
+        </TabsContent>
+
+        {/* ── 5. Operations (Units & Beds + Revenue + Expenses) ── */}
+        <TabsContent value="operations" className="mt-6">
+          <UnitsBedsTab propertyId={propertyId} canEdit={canEdit} activePhase={activePhase} phasePlanId={phasePlanId} />
           <div className="mt-6 border-t pt-6">
-            <ConstructionBudgetTab propertyId={propertyId} canEdit={canEdit} activePhase={activePhase} />
+            <RentRollTab propertyId={propertyId} canEdit={canEdit} property={property} activePhase={activePhase} phasePlanId={phasePlanId} />
+          </div>
+          <div className="mt-6 border-t pt-6">
+            <OperatingExpensesSection
+              propertyId={propertyId}
+              planId={phasePlanId ?? null}
+              canEdit={canEdit}
+            />
           </div>
         </TabsContent>
 
-        {/* ── 6. Pro Forma (Pro Forma + Projections + Valuation) ── */}
-        <TabsContent value="financial" className="mt-6">
-          <FinancialAnalysisTab
-            propertyId={propertyId}
-            canEdit={canEdit}
-            property={property}
-            totalDebtOutstanding={totalDebtOutstanding}
-            totalAnnualDebtService={totalAnnualDebtService}
-            activePhase={activePhase}
-            activePlan={activePlan}
-            phaseFilteredDebts={phaseFilteredDebts}
-            phasePlanId={phasePlanId}
-          />
-        </TabsContent>
-
-        {/* ── 7. Financing (Debt Facilities) ── */}
+        {/* ── 6. Financing (Debt Facilities) ── */}
         <TabsContent value="debt" className="mt-6">
           <DebtFinancingTab
+            key={`debt-${activePhase}-${phasePlanId}`}
             propertyId={propertyId}
             canEdit={canEdit}
             property={property}
@@ -478,6 +495,18 @@ export default function PropertyDetailPage({ params }: { params: { id: string } 
             activePhase={activePhase}
             phaseFilteredDebts={phaseFilteredDebts}
             phasePlanId={phasePlanId}
+          />
+        </TabsContent>
+
+        {/* ── 7. Financial Analysis (Cash Flow + Sensitivity + Returns) ── */}
+        <TabsContent value="financial" className="mt-6">
+          <PropertyCashFlow
+            propertyId={propertyId}
+            activePhase={activePhase}
+            phasePlanId={phasePlanId}
+            totalAnnualDebtService={totalAnnualDebtService}
+            totalDebtOutstanding={totalDebtOutstanding}
+            property={property}
           />
         </TabsContent>
 
@@ -513,7 +542,7 @@ function FinancialAnalysisTab({
   activePhase: "as_is" | "post_renovation" | "full_development";
   activePlan: any; phaseFilteredDebts: any[]; phasePlanId: number | null;
 }) {
-  const [subTab, setSubTab] = React.useState<"proforma" | "projections" | "exit" | "valuation">("proforma");
+  const [subTab, setSubTab] = React.useState<"proforma" | "projections" | "valuation">("proforma");
 
   // Shared state: pro forma results flow into Projections and Exit Scenarios
   const [latestProForma, setLatestProForma] = React.useState<Record<string, any> | null>(null);
@@ -535,18 +564,17 @@ function FinancialAnalysisTab({
       {/* Sub-tab selector */}
       <div className="flex items-center gap-1 p-1 bg-muted/50 rounded-lg w-fit">
         {[
-          { key: "proforma" as const, label: "Pro Forma", icon: Calculator },
-          { key: "projections" as const, label: "Projections", icon: BarChart3 },
-          { key: "exit" as const, label: "Exit Scenarios", icon: TrendingUp },
+          { key: "proforma" as const, label: "Stabilized Analysis", icon: Calculator },
+          { key: "projections" as const, label: "10-Year Projection", icon: BarChart3 },
           { key: "valuation" as const, label: "Valuation", icon: Banknote },
         ].map(({ key, label, icon: Icon }) => (
           <button
             key={key}
             onClick={() => setSubTab(key)}
             className={cn(
-              "flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-all",
+              "relative flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-all",
               subTab === key
-                ? "bg-white shadow-sm text-foreground"
+                ? "bg-white shadow-sm text-primary [&_svg]:text-primary after:absolute after:inset-x-0 after:bottom-0 after:h-[3px] after:bg-primary after:rounded-full"
                 : "text-muted-foreground hover:text-foreground hover:bg-white/50"
             )}
           >
@@ -572,18 +600,6 @@ function FinancialAnalysisTab({
           activePlan={activePlan}
           phaseFilteredDebts={phaseFilteredDebts}
           phasePlanId={phasePlanId}
-          proFormaData={latestProForma}
-          financialSnapshot={financialSnapshot}
-        />
-      )}
-      {subTab === "exit" && (
-        <ExitScenariosTab
-          propertyId={propertyId}
-          canEdit={canEdit}
-          property={property}
-          totalDebtOutstanding={totalDebtOutstanding}
-          totalAnnualDebtService={totalAnnualDebtService}
-          activePhase={activePhase}
           proFormaData={latestProForma}
           financialSnapshot={financialSnapshot}
         />

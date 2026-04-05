@@ -2,6 +2,10 @@
 
 import React, { useState } from "react";
 import { toast } from "sonner";
+import { cn } from "@/lib/utils";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { apiClient } from "@/lib/api";
+import { UnitConfigurator, unitConfigsToApiPayload, type UnitConfig } from "@/components/property/UnitConfigurator";
 import {
   Plus,
   Trash2,
@@ -16,6 +20,8 @@ import {
   ArrowRight,
   Wrench,
   Upload,
+  Settings2,
+  Loader2,
   FileSpreadsheet,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -53,9 +59,10 @@ interface UnitsBedsTabProps {
   propertyId: number;
   canEdit: boolean;
   activePhase?: "as_is" | "post_renovation" | "full_development";
+  phasePlanId?: number | null;
 }
 
-export function UnitsBedsTab({ propertyId, canEdit, activePhase }: UnitsBedsTabProps) {
+export function UnitsBedsTab({ propertyId, canEdit, activePhase, phasePlanId }: UnitsBedsTabProps) {
   const { data: units } = usePropertyUnits(propertyId);
   const { data: unitSummary } = usePropertyUnitSummary(propertyId);
   const createUnit = useCreatePropertyUnit(propertyId);
@@ -72,11 +79,152 @@ export function UnitsBedsTab({ propertyId, canEdit, activePhase }: UnitsBedsTabP
   const [addingBedToUnit, setAddingBedToUnit] = useState<number | null>(null);
   const [newBed, setNewBed] = useState({ bed_label: "", monthly_rent: "", rent_type: "per_bed", status: "available" });
 
-  const baselineUnits = ((units ?? []) as PropertyUnit[]).filter((u) => !u.development_plan_id);
-  const redevUnits = ((units ?? []) as PropertyUnit[]).filter((u) => u.development_plan_id);
-  const bl = unitSummary?.baseline;
+  // Configure Units dialog
+  const [showConfigure, setShowConfigure] = useState(false);
+  const [configUnits, setConfigUnits] = useState<UnitConfig[]>([]);
+  const qc = useQueryClient();
+
+  const configureUnitsMutation = useMutation({
+    mutationFn: (data: { plan_id: number | null; units: any[] }) =>
+      apiClient.post(`/api/portfolio/properties/${propertyId}/configure-units`, {
+        plan_id: data.plan_id,
+        units: data.units,
+        clear_existing: true,
+      }).then(r => r.data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["property-units", propertyId] });
+      qc.invalidateQueries({ queryKey: ["property-unit-summary", propertyId] });
+      qc.invalidateQueries({ queryKey: ["rent-roll", propertyId] });
+      toast.success("Unit configuration saved");
+      setShowConfigure(false);
+    },
+    onError: () => toast.error("Failed to save unit configuration"),
+  });
+
+  // Build UnitConfig[] from current phaseUnits when opening the configurator
+  const openConfigurator = () => {
+    const configs: UnitConfig[] = phaseUnits.map((u: any) => {
+      // Group beds by bedroom_number
+      const brMap = new Map<number, { beds: number; rent_per_bed: number }>();
+      for (const b of (u.beds || [])) {
+        const br = b.bedroom_number || 1;
+        if (!brMap.has(br)) {
+          brMap.set(br, { beds: 0, rent_per_bed: Number(b.monthly_rent) || 0 });
+        }
+        const entry = brMap.get(br)!;
+        entry.beds += 1;
+        // Average the rent if multiple beds in same bedroom
+        entry.rent_per_bed = (entry.rent_per_bed * (entry.beds - 1) + (Number(b.monthly_rent) || 0)) / entry.beds;
+      }
+      // If no beds, create default bedrooms
+      if (brMap.size === 0) {
+        const brCount = u.bedroom_count || u.bed_count || 1;
+        for (let i = 1; i <= brCount; i++) {
+          brMap.set(i, { beds: 1, rent_per_bed: 700 });
+        }
+      }
+      return {
+        unit_number: u.unit_number,
+        unit_type: u.unit_type || "shared",
+        bedrooms: brMap.size,
+        bathrooms: 1,
+        sqft: Number(u.sqft) || 0,
+        floor: u.floor || "Main",
+        bedroom_configs: Array.from(brMap.entries())
+          .sort((a, b) => a[0] - b[0])
+          .map(([br, cfg]) => ({
+            bedroom_number: br,
+            beds: cfg.beds,
+            rent_per_bed: Math.round(cfg.rent_per_bed),
+          })),
+      };
+    });
+    // If no units exist yet, start with a default
+    if (configs.length === 0) {
+      configs.push({
+        unit_number: "House", unit_type: "house", bedrooms: 3, bathrooms: 1,
+        sqft: 1200, floor: "Main",
+        bedroom_configs: [
+          { bedroom_number: 1, beds: 1, rent_per_bed: 700 },
+          { bedroom_number: 2, beds: 1, rent_per_bed: 700 },
+          { bedroom_number: 3, beds: 1, rent_per_bed: 700 },
+        ],
+      });
+    }
+    setConfigUnits(configs);
+    setShowConfigure(true);
+  };
+
+  const handleSaveConfig = () => {
+    const payload = unitConfigsToApiPayload(configUnits);
+    configureUnitsMutation.mutate({
+      plan_id: phasePlanId ?? null,
+      units: payload.units,
+    });
+  };
+
+  // Filter units based on active phase
+  const allUnits = (units ?? []) as PropertyUnit[];
+  const phaseUnits = (() => {
+    if (activePhase === "as_is" || phasePlanId == null) {
+      return allUnits.filter((u) => !u.development_plan_id);
+    }
+    // Show plan-specific units for the selected phase
+    const planUnits = allUnits.filter((u) => u.development_plan_id === phasePlanId);
+    return planUnits.length > 0 ? planUnits : allUnits.filter((u) => !u.development_plan_id);
+  })();
+  const baselineUnits = allUnits.filter((u) => !u.development_plan_id);
+  const redevUnits = allUnits.filter((u) => u.development_plan_id);
   const redevPhases = unitSummary?.redevelopment_phases ?? [];
   const hasRedev = unitSummary?.has_redevelopment;
+
+  // Compute live summary from phaseUnits (always up to date)
+  const phaseSummary = (() => {
+    const pu = phaseUnits;
+    const totalUnits = pu.length;
+    const allBeds = pu.flatMap((u: any) => u.beds || []);
+    const totalBeds = allBeds.length;
+    const occupiedBeds = allBeds.filter((b: any) => b.status === "occupied").length;
+    const availableBeds = totalBeds - occupiedBeds;
+    const vacancyRate = totalBeds > 0 ? Math.round((availableBeds / totalBeds) * 100 * 10) / 10 : 0;
+    const totalSqft = pu.reduce((s: number, u: any) => s + (Number(u.sqft) || 0), 0);
+    const potentialMonthlyRent = allBeds.reduce((s: number, b: any) => s + (Number(b.monthly_rent) || 0), 0);
+    const actualMonthlyRent = allBeds.filter((b: any) => b.status === "occupied").reduce((s: number, b: any) => s + (Number(b.monthly_rent) || 0), 0);
+    const legalSuites = pu.filter((u: any) => u.is_legal_suite).length;
+
+    // Unit mix
+    const unitMix: Record<string, { count: number; beds: number; sqft: number }> = {};
+    for (const u of pu) {
+      const t = (u as any).unit_type || "shared";
+      if (!unitMix[t]) unitMix[t] = { count: 0, beds: 0, sqft: 0 };
+      unitMix[t].count += 1;
+      unitMix[t].beds += (u.beds?.length || u.bed_count || 0);
+      unitMix[t].sqft += Number(u.sqft) || 0;
+    }
+
+    // Floor breakdown
+    const floorBreakdown: Record<string, { units: number; beds: number }> = {};
+    for (const u of pu) {
+      const f = (u as any).floor || "Unknown";
+      if (!floorBreakdown[f]) floorBreakdown[f] = { units: 0, beds: 0 };
+      floorBreakdown[f].units += 1;
+      floorBreakdown[f].beds += (u.beds?.length || u.bed_count || 0);
+    }
+
+    return {
+      total_units: totalUnits,
+      total_beds: totalBeds,
+      occupied_beds: occupiedBeds,
+      available_beds: availableBeds,
+      vacancy_rate: vacancyRate,
+      total_sqft: totalSqft,
+      potential_monthly_rent: potentialMonthlyRent,
+      actual_monthly_rent: actualMonthlyRent,
+      legal_suites: legalSuites,
+      unit_mix: unitMix,
+      floor_breakdown: floorBreakdown,
+    };
+  })();
 
   /* ── Shared unit row renderer ── */
   const renderUnitRow = (unit: PropertyUnit, colorClass: string = "") => (
@@ -104,32 +252,65 @@ export function UnitsBedsTab({ propertyId, canEdit, activePhase }: UnitsBedsTabP
       </div>
       {expandedUnit === unit.unit_id && (
         <div className="border-t px-4 py-3 bg-muted/30 space-y-3">
-          {unit.beds && unit.beds.length > 0 && (
-            <table className="w-full text-sm">
-              <thead><tr className="text-left text-muted-foreground">
-                <th className="pb-2">Bed</th><th className="pb-2 text-right">Monthly Rent</th><th className="pb-2">Rent Type</th><th className="pb-2">Status</th>{canEdit && <th className="pb-2 w-8"></th>}
-              </tr></thead>
-              <tbody>
-                {unit.beds.map((bed: Bed) => (
-                  <tr key={bed.bed_id} className="border-t">
-                    <td className="py-2">{bed.bed_label}</td>
-                    <td className="py-2 text-right">${Number(bed.monthly_rent).toLocaleString()}</td>
-                    <td className="py-2 capitalize">{bed.rent_type.replace("_", " ")}</td>
-                    <td className="py-2">
-                      <Badge variant={bed.status === "occupied" ? "default" : bed.status === "available" ? "secondary" : "destructive"} className="capitalize">{bed.status}</Badge>
-                    </td>
-                    {canEdit && (
-                      <td className="py-2">
-                        <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={() => { if (confirm(`Delete bed "${bed.bed_label}"?`)) deleteBed.mutate(bed.bed_id, { onSuccess: () => toast.success("Bed deleted") }); }}>
-                          <Trash2 className="h-3.5 w-3.5 text-destructive" />
-                        </Button>
-                      </td>
-                    )}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
+          {/* Unit summary */}
+          <div className="flex items-center gap-4 text-xs text-muted-foreground">
+            <span>{unit.bedroom_count ?? unit.bed_count} bedroom{(unit.bedroom_count ?? unit.bed_count) !== 1 ? "s" : ""}</span>
+            <span>{unit.bed_count} bed{unit.bed_count !== 1 ? "s" : ""}</span>
+            <span>{parseFloat(unit.sqft).toLocaleString()} sqft</span>
+          </div>
+
+          {/* Beds grouped by bedroom */}
+          {unit.beds && unit.beds.length > 0 && (() => {
+            // Group beds by bedroom_number
+            const byBedroom = new Map<number, Bed[]>();
+            for (const bed of unit.beds) {
+              const br = bed.bedroom_number || 1;
+              if (!byBedroom.has(br)) byBedroom.set(br, []);
+              byBedroom.get(br)!.push(bed);
+            }
+            const bedrooms = Array.from(byBedroom.entries()).sort((a, b) => a[0] - b[0]);
+
+            return (
+              <div className="space-y-2">
+                {bedrooms.map(([brNum, beds]) => {
+                  const brRent = beds.reduce((s, b) => s + Number(b.monthly_rent || 0), 0);
+                  return (
+                    <div key={brNum} className="rounded-lg border bg-white p-3">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                          Bedroom {brNum}
+                        </span>
+                        <span className="text-xs font-medium tabular-nums">
+                          {beds.length} bed{beds.length !== 1 ? "s" : ""} &middot; ${brRent.toLocaleString()}/mo
+                        </span>
+                      </div>
+                      <table className="w-full text-sm">
+                        <tbody>
+                          {beds.map((bed: Bed) => (
+                            <tr key={bed.bed_id} className="border-t first:border-0">
+                              <td className="py-1.5 w-32">{bed.bed_label}</td>
+                              <td className="py-1.5 text-right font-medium tabular-nums">${Number(bed.monthly_rent).toLocaleString()}</td>
+                              <td className="py-1.5 text-right capitalize text-muted-foreground text-xs">{(bed.rent_type || "").replace("_", " ")}</td>
+                              <td className="py-1.5 text-right">
+                                <Badge variant={bed.status === "occupied" ? "default" : bed.status === "available" ? "secondary" : "destructive"} className="capitalize text-[10px]">{bed.status}</Badge>
+                              </td>
+                              {canEdit && (
+                                <td className="py-1.5 w-8 text-right">
+                                  <Button variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={() => { if (confirm(`Delete bed "${bed.bed_label}"?`)) deleteBed.mutate(bed.bed_id, { onSuccess: () => toast.success("Bed deleted") }); }}>
+                                    <Trash2 className="h-3 w-3 text-destructive" />
+                                  </Button>
+                                </td>
+                              )}
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  );
+                })}
+              </div>
+            );
+          })()}
           {unit.beds && unit.beds.length === 0 && (
             <p className="text-sm text-muted-foreground text-center py-2">No beds in this unit yet.</p>
           )}
@@ -138,6 +319,10 @@ export function UnitsBedsTab({ propertyId, canEdit, activePhase }: UnitsBedsTabP
             <>
               {addingBedToUnit === unit.unit_id ? (
                 <div className="flex items-end gap-2 pt-2 border-t">
+                  <div className="w-24 space-y-1">
+                    <label className="text-xs font-medium text-muted-foreground">Bedroom #</label>
+                    <Input type="number" min={1} value={newBed.rent_type} onChange={(e) => setNewBed(p => ({ ...p, rent_type: e.target.value }))} className="h-8 text-sm" />
+                  </div>
                   <div className="flex-1 space-y-1">
                     <label className="text-xs font-medium text-muted-foreground">Bed Label</label>
                     <Input value={newBed.bed_label} onChange={(e) => setNewBed(p => ({ ...p, bed_label: e.target.value }))} placeholder="e.g. Bed A" className="h-8 text-sm" />
@@ -159,8 +344,8 @@ export function UnitsBedsTab({ propertyId, canEdit, activePhase }: UnitsBedsTabP
                   </div>
                   <Button size="sm" className="h-8" disabled={createBed.isPending} onClick={() => {
                     if (!newBed.bed_label.trim()) { toast.error("Bed label is required"); return; }
-                    createBed.mutate({ unitId: unit.unit_id, data: { bed_label: newBed.bed_label, monthly_rent: Number(newBed.monthly_rent) || 0, rent_type: newBed.rent_type, status: newBed.status } }, {
-                      onSuccess: () => { toast.success("Bed added"); setNewBed({ bed_label: "", monthly_rent: "", rent_type: "per_bed", status: "available" }); setAddingBedToUnit(null); },
+                    createBed.mutate({ unitId: unit.unit_id, data: { bed_label: newBed.bed_label, monthly_rent: Number(newBed.monthly_rent) || 0, rent_type: "private_pay", status: newBed.status, bedroom_number: Number(newBed.rent_type) || 1 } }, {
+                      onSuccess: () => { toast.success("Bed added"); setNewBed({ bed_label: "", monthly_rent: "", rent_type: "1", status: "available" }); setAddingBedToUnit(null); },
                     });
                   }}>
                     {createBed.isPending ? "Adding..." : "Add"}
@@ -168,7 +353,7 @@ export function UnitsBedsTab({ propertyId, canEdit, activePhase }: UnitsBedsTabP
                   <Button variant="ghost" size="sm" className="h-8" onClick={() => setAddingBedToUnit(null)}>Cancel</Button>
                 </div>
               ) : (
-                <Button variant="outline" size="sm" className="w-full" onClick={() => { setAddingBedToUnit(unit.unit_id); setNewBed({ bed_label: `Bed ${(unit.beds?.length ?? 0) + 1}`, monthly_rent: "", rent_type: "per_bed", status: "available" }); }}>
+                <Button variant="outline" size="sm" className="w-full" onClick={() => { setAddingBedToUnit(unit.unit_id); setNewBed({ bed_label: `Bed ${(unit.beds?.length ?? 0) + 1}`, monthly_rent: "", rent_type: "1", status: "available" }); }}>
                   <Plus className="h-3.5 w-3.5 mr-1.5" /> Add Bed
                 </Button>
               )}
@@ -205,10 +390,10 @@ export function UnitsBedsTab({ propertyId, canEdit, activePhase }: UnitsBedsTabP
     </div>
   );
 
-  // Phase filtering: determine which sections to show
-  const showBaseline = !activePhase || activePhase === "as_is";
-  const showRedevelopment = !activePhase || activePhase === "post_renovation" || activePhase === "full_development";
-  const showNetImpact = !activePhase || activePhase === "post_renovation" || activePhase === "full_development";
+  // Phase filtering: show only the active phase's units
+  const showBaseline = activePhase === "as_is" || phasePlanId == null;
+  const showRedevelopment = activePhase === "post_renovation" || activePhase === "full_development";
+  const showNetImpact = false; // Removed — each phase shows its own units
 
   /* ---- Shared unit mix + floor breakdown renderer ---- */
   const renderMixAndFloor = (s: UnitSummaryBase) => (
@@ -257,29 +442,64 @@ export function UnitsBedsTab({ propertyId, canEdit, activePhase }: UnitsBedsTabP
 
   return (
     <div className="space-y-6">
-      {/* SECTION 1: CURRENT OPERATIONS (Baseline / As-Acquired Units) */}
-      {showBaseline && <div>
+      {/* UNITS FOR ACTIVE PHASE */}
+      <div>
         <div className="flex items-center gap-2 mb-4">
-          <div className="h-8 w-1 bg-blue-600 rounded" />
-          <Home className="h-5 w-5 text-blue-600" />
-          <h3 className="text-lg font-semibold">Current Operations</h3>
-          <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">
-            As-Acquired &middot; {baselineUnits.length} unit{baselineUnits.length !== 1 ? "s" : ""}
+          <div className={cn("h-8 w-1 rounded", activePhase === "as_is" ? "bg-blue-600" : activePhase === "post_renovation" ? "bg-amber-500" : "bg-green-600")} />
+          <Home className={cn("h-5 w-5", activePhase === "as_is" ? "text-blue-600" : activePhase === "post_renovation" ? "text-amber-500" : "text-green-600")} />
+          <h3 className="text-lg font-semibold">
+            {activePhase === "as_is" ? "Current Operations" : activePhase === "post_renovation" ? "Post-Renovation Configuration" : "Full Development Configuration"}
+          </h3>
+          <span className={cn("text-xs px-2 py-0.5 rounded-full",
+            activePhase === "as_is" ? "bg-blue-100 text-blue-700" : activePhase === "post_renovation" ? "bg-amber-100 text-amber-700" : "bg-green-100 text-green-700"
+          )}>
+            {phaseUnits.length} unit{phaseUnits.length !== 1 ? "s" : ""}
           </span>
         </div>
         <p className="text-sm text-muted-foreground mb-4">
-          Active units currently in operation. These drive vacancy tracking, community management, and operating costs.
+          {activePhase === "as_is"
+            ? "Active units currently in operation. These drive vacancy tracking and operating costs."
+            : activePhase === "post_renovation"
+            ? "Planned unit configuration after renovation. Configure bedrooms and beds for the renovated property."
+            : "Planned unit configuration for the fully developed property. Configure all units, bedrooms, and beds."
+          }
         </p>
 
-        {bl && renderSummaryCards(bl)}
-        {bl && <div className="mt-4">{renderMixAndFloor(bl)}</div>}
+        {renderSummaryCards(phaseSummary as any)}
+        <div className="mt-4">{renderMixAndFloor(phaseSummary as any)}</div>
 
         {/* Baseline Unit List */}
         <Card className="mt-4">
           <CardHeader className="flex flex-row items-center justify-between">
-            <CardTitle className="text-base">Baseline Units</CardTitle>
+            <CardTitle className="text-base">
+              {activePhase === "as_is" ? "Baseline Units" : activePhase === "post_renovation" ? "Post-Renovation Units" : "Development Units"}
+            </CardTitle>
             {canEdit && (
               <div className="flex items-center gap-2">
+              {/* Configure Units Dialog */}
+              <Dialog open={showConfigure} onOpenChange={setShowConfigure}>
+                <Button size="sm" variant="default" onClick={openConfigurator}>
+                  <Settings2 className="h-4 w-4 mr-1" />Configure Units
+                </Button>
+                <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+                  <DialogHeader>
+                    <DialogTitle>
+                      Configure {activePhase === "as_is" ? "Baseline" : activePhase === "post_renovation" ? "Post-Renovation" : "Development"} Units
+                    </DialogTitle>
+                  </DialogHeader>
+                  <UnitConfigurator
+                    units={configUnits}
+                    onChange={setConfigUnits}
+                    defaultRentPerBed={700}
+                  />
+                  <div className="flex gap-2 justify-end pt-4 border-t">
+                    <Button variant="outline" onClick={() => setShowConfigure(false)}>Cancel</Button>
+                    <Button onClick={handleSaveConfig} disabled={configureUnitsMutation.isPending}>
+                      {configureUnitsMutation.isPending ? <><Loader2 className="h-4 w-4 mr-1.5 animate-spin" />Saving...</> : "Save Configuration"}
+                    </Button>
+                  </div>
+                </DialogContent>
+              </Dialog>
               {/* CSV Import Dialog */}
               <Dialog open={showImport} onOpenChange={(open) => { setShowImport(open); if (!open) setImportResult(null); }}>
                 {/* @ts-expect-error radix-ui asChild type */}
@@ -389,19 +609,19 @@ export function UnitsBedsTab({ propertyId, canEdit, activePhase }: UnitsBedsTabP
             )}
           </CardHeader>
           <CardContent>
-            {baselineUnits.length === 0 ? (
+            {phaseUnits.length === 0 ? (
               <p className="text-sm text-muted-foreground py-4 text-center">No baseline units configured. Add units to define the current bedroom and bed configuration.</p>
             ) : (
               <div className="space-y-3">
-                {baselineUnits.map((unit) => renderUnitRow(unit))}
+                {phaseUnits.map((unit) => renderUnitRow(unit))}
               </div>
             )}
           </CardContent>
         </Card>
-      </div>}
+      </div>
 
-      {/* SECTION 2: REDEVELOPMENT PLAN (Planned Units) */}
-      {showRedevelopment && hasRedev && redevPhases.map((phase: RedevelopmentPhase) => (
+      {/* SECTION 2: REDEVELOPMENT PLAN — hidden, now shown inline via phase selector */}
+      {false && redevPhases.map((phase: RedevelopmentPhase) => (
         <div key={phase.plan_id}>
           <div className="flex items-center gap-2 mb-4 mt-2">
             <div className="h-8 w-1 bg-amber-500 rounded" />

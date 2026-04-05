@@ -38,6 +38,7 @@ import {
 } from "@/components/ui/table";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatCurrency, formatCurrencyCompact, formatDate, cn } from "@/lib/utils";
+import { LenderUnderwritingSection } from "@/components/property/LenderUnderwritingSection";
 import {
   useDebtFacilities,
   useCreateDebtFacility,
@@ -168,6 +169,17 @@ export function DebtFinancingTab({ propertyId, canEdit, property, totalDebtCommi
       return apiClient.get(`/api/portfolio/properties/${propertyId}/underwriting-summary`, { params }).then(r => r.data);
     },
   });
+
+  // Fetch lending metrics for all facilities
+  const { data: lendingMetrics } = useQuery({
+    queryKey: ["lending-metrics", propertyId],
+    queryFn: () => apiClient.get(`/api/portfolio/properties/${propertyId}/lending-metrics`).then(r => r.data),
+    enabled: propertyId > 0,
+  });
+
+  // Helper: get lending metrics for a specific debt facility
+  const getMetrics = (debtId: number) =>
+    lendingMetrics?.facilities?.find((f: any) => f.debt_id === debtId);
   const createDebt = useCreateDebtFacility(propertyId);
   const updateDebt = useUpdateDebtFacility(propertyId);
 
@@ -202,6 +214,8 @@ export function DebtFinancingTab({ propertyId, canEdit, property, totalDebtCommi
       const payload: Partial<DebtFacility> & { lender_name: string; debt_type: string; commitment_amount: number } = {
         lender_name: debtForm.lender_name, debt_type: debtForm.debt_type,
         commitment_amount: Number(debtForm.commitment_amount),
+        drawn_amount: debtForm.drawn_amount ? Number(debtForm.drawn_amount) : 0,
+        outstanding_balance: debtForm.outstanding_balance ? Number(debtForm.outstanding_balance) : Number(debtForm.commitment_amount),
         interest_rate: debtForm.interest_rate ? Number(debtForm.interest_rate) : undefined,
         rate_type: debtForm.rate_type,
         term_months: debtForm.term_months ? Number(debtForm.term_months) : undefined,
@@ -212,6 +226,8 @@ export function DebtFinancingTab({ propertyId, canEdit, property, totalDebtCommi
         ltv_covenant: debtForm.ltv_covenant ? Number(debtForm.ltv_covenant) : undefined,
         dscr_covenant: debtForm.dscr_covenant ? Number(debtForm.dscr_covenant) : undefined,
         notes: debtForm.notes || undefined,
+        // Link to active plan if not baseline
+        development_plan_id: phasePlanId || undefined,
         // CMHC fields
         is_cmhc_insured: debtForm.is_cmhc_insured,
         cmhc_insurance_premium_pct: debtForm.cmhc_insurance_premium_pct ? Number(debtForm.cmhc_insurance_premium_pct) : undefined,
@@ -258,7 +274,10 @@ export function DebtFinancingTab({ propertyId, canEdit, property, totalDebtCommi
       toast.success("Debt facility updated");
       setEditingDebtId(null);
       resetDebtForm();
-    } catch (e) { toast.error("Failed to update debt facility"); }
+    } catch (e: any) {
+      console.error("Debt update error:", e?.response?.data || e?.message || e);
+      toast.error(e?.response?.data?.detail || "Failed to update debt facility");
+    }
   };
 
   const startEditDebt = (debt: DebtFacility) => {
@@ -289,6 +308,20 @@ export function DebtFinancingTab({ propertyId, canEdit, property, totalDebtCommi
 
   return (
     <div className="space-y-6">
+      {/* Phase indicator */}
+      <div className="flex items-center gap-2">
+        <div className={`h-8 w-1 rounded ${activePhase === "as_is" ? "bg-blue-600" : activePhase === "post_renovation" ? "bg-amber-500" : "bg-green-600"}`} />
+        <h3 className="text-lg font-semibold">
+          {activePhase === "as_is" ? "Acquisition Financing" : activePhase === "post_renovation" ? "Renovation Financing" : "Development Financing"}
+        </h3>
+        <span className={`text-xs px-2 py-0.5 rounded-full ${activePhase === "as_is" ? "bg-blue-100 text-blue-700" : activePhase === "post_renovation" ? "bg-amber-100 text-amber-700" : "bg-green-100 text-green-700"}`}>
+          {(debtFacilities ?? []).length} facilit{(debtFacilities ?? []).length === 1 ? "y" : "ies"}
+        </span>
+      </div>
+
+      {/* Lender Underwriting Summary */}
+      <LenderUnderwritingSection propertyId={propertyId} />
+
       {/* Debt Summary KPIs */}
       {(debtFacilities ?? []).length > 0 && (
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -298,6 +331,127 @@ export function DebtFinancingTab({ propertyId, canEdit, property, totalDebtCommi
           <Card className="border-l-4 border-l-green-500"><CardContent className="pt-4 pb-3 px-4"><p className="text-xs text-muted-foreground font-medium">Wtd Avg Rate</p>{(() => { const active = (debtFacilities ?? []).filter((d: { outstanding_balance: number }) => d.outstanding_balance > 0); const totalBal = active.reduce((s: number, d: { outstanding_balance: number }) => s + d.outstanding_balance, 0); const wtdRate = totalBal > 0 ? active.reduce((s: number, d: { outstanding_balance: number; interest_rate: number | null }) => s + d.outstanding_balance * (d.interest_rate ?? 0), 0) / totalBal : 0; return (<><p className="text-lg font-bold">{wtdRate > 0 ? `${wtdRate.toFixed(2)}%` : "—"}</p><p className="text-xs text-muted-foreground">{active.length} active loan{active.length !== 1 ? "s" : ""}</p></>); })()}</CardContent></Card>
         </div>
       )}
+
+      {/* Debt Lifecycle Alerts */}
+      {(() => {
+        const alerts: { type: "error" | "warning" | "info"; message: string }[] = [];
+        const debts = (debtFacilities ?? []) as DebtFacility[];
+        const now = new Date();
+
+        for (const d of debts) {
+          // Maturity alerts
+          if (d.maturity_date) {
+            const mat = new Date(d.maturity_date);
+            const monthsToMaturity = (mat.getTime() - now.getTime()) / (1000 * 60 * 60 * 24 * 30);
+            if (monthsToMaturity < 0) {
+              alerts.push({ type: "error", message: `${d.lender_name}: Matured ${Math.abs(Math.round(monthsToMaturity))} months ago — needs refinancing or payoff` });
+            } else if (monthsToMaturity < 6) {
+              alerts.push({ type: "warning", message: `${d.lender_name}: Matures in ${Math.round(monthsToMaturity)} months — plan refinancing` });
+            } else if (monthsToMaturity < 12) {
+              alerts.push({ type: "info", message: `${d.lender_name}: Matures in ${Math.round(monthsToMaturity)} months` });
+            }
+          } else if (d.outstanding_balance > 0) {
+            alerts.push({ type: "warning", message: `${d.lender_name}: No maturity date set` });
+          }
+
+          // IO period ending
+          if (d.io_period_months > 0 && d.origination_date) {
+            const orig = new Date(d.origination_date);
+            const ioEnd = new Date(orig);
+            ioEnd.setMonth(ioEnd.getMonth() + d.io_period_months);
+            const monthsToIO = (ioEnd.getTime() - now.getTime()) / (1000 * 60 * 60 * 24 * 30);
+            if (monthsToIO > 0 && monthsToIO < 6) {
+              alerts.push({ type: "warning", message: `${d.lender_name}: IO period ends in ${Math.round(monthsToIO)} months — payments will increase` });
+            }
+          }
+
+          // Construction loan with no permanent takeout planned
+          if (d.debt_type === "construction_loan" && d.outstanding_balance > 0) {
+            const hasReplacement = debts.some(other => other.replaces_debt_id === d.debt_id);
+            if (!hasReplacement) {
+              alerts.push({ type: "warning", message: `${d.lender_name}: Construction loan has no permanent takeout facility configured` });
+            }
+          }
+
+          // DSCR covenant check
+          if (d.dscr_covenant && uwSummary?.dscr) {
+            if (uwSummary.dscr < d.dscr_covenant) {
+              alerts.push({ type: "error", message: `${d.lender_name}: DSCR ${uwSummary.dscr.toFixed(2)}x is below covenant of ${d.dscr_covenant}x` });
+            }
+          }
+
+          // LTV covenant check
+          if (d.ltv_covenant && uwSummary?.ltv) {
+            if (uwSummary.ltv > d.ltv_covenant) {
+              alerts.push({ type: "error", message: `${d.lender_name}: LTV ${uwSummary.ltv.toFixed(1)}% exceeds covenant of ${d.ltv_covenant}%` });
+            }
+          }
+        }
+
+        if (alerts.length === 0) return null;
+
+        return (
+          <Card className="border-amber-200 bg-amber-50/30">
+            <CardContent className="py-3 px-4 space-y-1.5">
+              <p className="text-xs font-semibold text-amber-700 uppercase tracking-wider mb-1">Debt Alerts</p>
+              {alerts.map((a, i) => (
+                <div key={i} className={cn("flex items-start gap-2 text-xs rounded px-2 py-1",
+                  a.type === "error" ? "text-red-700 bg-red-50" : a.type === "warning" ? "text-amber-700 bg-amber-50" : "text-blue-700 bg-blue-50"
+                )}>
+                  <span className="shrink-0 mt-0.5">{a.type === "error" ? "●" : a.type === "warning" ? "▲" : "ℹ"}</span>
+                  <span>{a.message}</span>
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+        );
+      })()}
+
+      {/* Debt Flow — shows replacement chain */}
+      {(() => {
+        const debts = (debtFacilities ?? []) as DebtFacility[];
+        const allDebts = (allDebtFacilities ?? []) as DebtFacility[];
+        if (allDebts.length <= 1) return null;
+
+        // Build the full chain for this property
+        const chainSteps: { debt: DebtFacility; isActive: boolean }[] = [];
+        // Find root debts (not replacing anything)
+        const roots = allDebts.filter(d => !d.replaces_debt_id);
+        for (const root of roots) {
+          let current: DebtFacility | undefined = root;
+          while (current) {
+            const isInPhase = debts.some(d => d.debt_id === current!.debt_id);
+            chainSteps.push({ debt: current, isActive: isInPhase });
+            current = allDebts.find(d => d.replaces_debt_id === current!.debt_id);
+          }
+        }
+
+        if (chainSteps.length <= 1) return null;
+
+        return (
+          <Card>
+            <CardContent className="py-3 px-4">
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Financing Flow</p>
+              <div className="flex items-center gap-1 flex-wrap">
+                {chainSteps.map((step, i) => (
+                  <React.Fragment key={step.debt.debt_id}>
+                    <div className={cn(
+                      "rounded-lg border px-3 py-2 text-xs",
+                      step.isActive
+                        ? "border-primary bg-primary/5 text-primary font-semibold"
+                        : "border-muted text-muted-foreground bg-muted/30 line-through"
+                    )}>
+                      <p className="font-medium">{step.debt.lender_name}</p>
+                      <p className="text-[10px]">{step.debt.debt_type.replace(/_/g, " ")} · {formatCurrencyCompact(step.debt.commitment_amount)}</p>
+                    </div>
+                    {i < chainSteps.length - 1 && <span className="text-muted-foreground text-xs">→</span>}
+                  </React.Fragment>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        );
+      })()}
 
       {/* Add Debt Facility Button */}
       {canEdit && (
@@ -465,6 +619,58 @@ export function DebtFinancingTab({ propertyId, canEdit, property, totalDebtCommi
                     <div className="bg-muted/50 rounded-lg p-2.5"><p className="text-[10px] text-muted-foreground font-medium uppercase tracking-wide">Est. Annual DS</p><p className="text-sm font-semibold">{(() => { const bal = debt.outstanding_balance ?? 0; const rate = (debt.interest_rate ?? 0) / 100; const amort = debt.amortization_months ?? 0; if (bal <= 0 || rate <= 0) return "—"; const mr = rate / 12; if (amort > 0 && (debt.io_period_months ?? 0) <= 0) { const pmt = bal * (mr * Math.pow(1 + mr, amort)) / (Math.pow(1 + mr, amort) - 1); return formatCurrency(pmt * 12); } return formatCurrency(bal * rate); })()}</p></div>
                   </div>
                 </div>
+                {/* Lending Metrics */}
+                {(() => {
+                  const m = getMetrics(debt.debt_id);
+                  if (!m) return null;
+                  return (
+                    <div className="px-6 pb-3">
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                        {m.ltv != null && (
+                          <div className={cn("rounded-lg p-2.5 border", m.ltv > 80 ? "bg-red-50 border-red-200" : m.ltv > 75 ? "bg-amber-50 border-amber-200" : "bg-green-50 border-green-200")}>
+                            <p className="text-[10px] text-muted-foreground font-medium uppercase tracking-wide">LTV</p>
+                            <p className={cn("text-sm font-bold", m.ltv > 80 ? "text-red-700" : m.ltv > 75 ? "text-amber-700" : "text-green-700")}>{m.ltv.toFixed(1)}%</p>
+                            <p className="text-[9px] text-muted-foreground">vs {m.ltv_basis}</p>
+                          </div>
+                        )}
+                        {m.ltc != null && (
+                          <div className={cn("rounded-lg p-2.5 border", m.ltc > 80 ? "bg-red-50 border-red-200" : m.ltc > 75 ? "bg-amber-50 border-amber-200" : "bg-green-50 border-green-200")}>
+                            <p className="text-[10px] text-muted-foreground font-medium uppercase tracking-wide">LTC</p>
+                            <p className={cn("text-sm font-bold", m.ltc > 80 ? "text-red-700" : m.ltc > 75 ? "text-amber-700" : "text-green-700")}>{m.ltc.toFixed(1)}%</p>
+                            <p className="text-[9px] text-muted-foreground">vs {m.ltc_basis}</p>
+                          </div>
+                        )}
+                        {m.dscr != null && (
+                          <div className={cn("rounded-lg p-2.5 border", m.dscr < 1.0 ? "bg-red-50 border-red-200" : m.dscr < 1.2 ? "bg-amber-50 border-amber-200" : "bg-green-50 border-green-200")}>
+                            <p className="text-[10px] text-muted-foreground font-medium uppercase tracking-wide">DSCR</p>
+                            <p className={cn("text-sm font-bold", m.dscr < 1.0 ? "text-red-700" : m.dscr < 1.2 ? "text-amber-700" : "text-green-700")}>{m.dscr.toFixed(2)}x</p>
+                            <p className="text-[9px] text-muted-foreground">NOI ${m.dscr_noi?.toLocaleString()}</p>
+                          </div>
+                        )}
+                        {m.debt_yield != null && (
+                          <div className={cn("rounded-lg p-2.5 border", m.debt_yield < 7 ? "bg-amber-50 border-amber-200" : "bg-green-50 border-green-200")}>
+                            <p className="text-[10px] text-muted-foreground font-medium uppercase tracking-wide">Debt Yield</p>
+                            <p className={cn("text-sm font-bold", m.debt_yield < 7 ? "text-amber-700" : "text-green-700")}>{m.debt_yield.toFixed(1)}%</p>
+                            <p className="text-[9px] text-muted-foreground">NOI / Balance</p>
+                          </div>
+                        )}
+                      </div>
+                      {/* Per-facility concerns */}
+                      {m.concerns && m.concerns.length > 0 && (
+                        <div className="mt-2 space-y-1">
+                          {m.concerns.map((c: any, ci: number) => (
+                            <div key={ci} className={cn("flex items-start gap-1.5 text-[11px] rounded px-2 py-1",
+                              c.severity === "high" ? "text-red-700 bg-red-50" : c.severity === "medium" ? "text-amber-700 bg-amber-50" : "text-blue-700 bg-blue-50"
+                            )}>
+                              <span className="shrink-0 mt-0.5">{c.severity === "high" ? "●" : c.severity === "medium" ? "▲" : "ℹ"}</span>
+                              <span>{c.message}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
                 {(debt.ltv_covenant || debt.dscr_covenant) && (
                   <div className="px-6 pb-3 flex flex-wrap gap-2">
                     {debt.ltv_covenant && (<span className="inline-flex items-center rounded-md bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-700 ring-1 ring-inset ring-amber-200"><Shield className="h-3 w-3 mr-1" />LTV Covenant: {debt.ltv_covenant}%</span>)}

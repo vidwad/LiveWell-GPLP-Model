@@ -243,6 +243,7 @@ class DevelopmentPlanOut(BaseModel):
     plan_id: int
     property_id: int
     plan_name: str | None = None
+    description: str | None = None
     version: int
     status: str
     planned_units: int
@@ -264,6 +265,19 @@ class DevelopmentPlanOut(BaseModel):
     estimated_stabilization_date: datetime.date | None
     rent_pricing_mode: str | None = None
     annual_rent_increase_pct: Decimal | None = None
+    # Exit assumptions
+    exit_sale_year: int | None = None
+    exit_noi: Decimal | None = None
+    exit_cap_rate: Decimal | None = None
+    exit_sale_price: Decimal | None = None
+    exit_selling_cost_pct: Decimal | None = None
+    exit_mortgage_prepayment_pct: Decimal | None = None
+    exit_net_proceeds: Decimal | None = None
+    exit_irr: Decimal | None = None
+    exit_equity_multiple: Decimal | None = None
+    hold_period_after_stabilization_months: int | None = None
+    lease_up_months: int | None = None
+    construction_duration_months: int | None = None
 
     model_config = {"from_attributes": True}
 

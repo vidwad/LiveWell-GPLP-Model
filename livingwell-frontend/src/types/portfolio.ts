@@ -150,6 +150,7 @@ export interface DevelopmentPlan {
   plan_id: number;
   property_id: number;
   plan_name: string | null;
+  description: string | null;
   version: number;
   status: DevelopmentPlanStatus;
   planned_units: number;
