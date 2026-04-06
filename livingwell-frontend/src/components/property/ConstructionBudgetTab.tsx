@@ -731,22 +731,8 @@ export function ConstructionBudgetTab({ propertyId, canEdit, activePhase = "full
                             <Input className="h-8" value={expenseForm.description} onChange={(e) => setExpenseForm((f) => ({ ...f, description: e.target.value }))} />
                           </TableCell>
                           <TableCell>
-                            <Input className="h-8" value={expenseForm.vendor} onChange={(e) => setExpenseForm((f) => ({ ...f, vendor: e.target.value }))} />
-                          </TableCell>
-                          <TableCell>
-                            <Input className="h-8" value={expenseForm.invoice_ref} onChange={(e) => setExpenseForm((f) => ({ ...f, invoice_ref: e.target.value }))} />
-                          </TableCell>
-                          <TableCell>
-                            <Input className="h-8" type="date" value={expenseForm.expense_date} onChange={(e) => setExpenseForm((f) => ({ ...f, expense_date: e.target.value }))} />
-                          </TableCell>
-                          <TableCell>
                             <Input className="h-8 w-24 text-right" type="number" step="0.01" value={expenseForm.budgeted_amount} onChange={(e) => setExpenseForm((f) => ({ ...f, budgeted_amount: e.target.value }))} />
                           </TableCell>
-                          <TableCell>
-                            <Input className="h-8 w-24 text-right" type="number" step="0.01" value={expenseForm.actual_amount} onChange={(e) => setExpenseForm((f) => ({ ...f, actual_amount: e.target.value }))} />
-                          </TableCell>
-                          <TableCell />
-                          <TableCell />
                           <TableCell className="text-right">
                             <div className="flex items-center justify-end gap-1">
                               <Button variant="ghost" size="icon" className="h-7 w-7 text-green-600" onClick={() => handleUpdateExpense(exp.expense_id)}>
@@ -757,6 +743,20 @@ export function ConstructionBudgetTab({ propertyId, canEdit, activePhase = "full
                               </Button>
                             </div>
                           </TableCell>
+                          <TableCell>
+                            <Input className="h-8" value={expenseForm.vendor} onChange={(e) => setExpenseForm((f) => ({ ...f, vendor: e.target.value }))} />
+                          </TableCell>
+                          <TableCell>
+                            <Input className="h-8" value={expenseForm.invoice_ref} onChange={(e) => setExpenseForm((f) => ({ ...f, invoice_ref: e.target.value }))} />
+                          </TableCell>
+                          <TableCell>
+                            <Input className="h-8" type="date" value={expenseForm.expense_date} onChange={(e) => setExpenseForm((f) => ({ ...f, expense_date: e.target.value }))} />
+                          </TableCell>
+                          <TableCell>
+                            <Input className="h-8 w-24 text-right" type="number" step="0.01" value={expenseForm.actual_amount} onChange={(e) => setExpenseForm((f) => ({ ...f, actual_amount: e.target.value }))} />
+                          </TableCell>
+                          <TableCell />
+                          <TableCell />
                         </TableRow>
                       );
                     }

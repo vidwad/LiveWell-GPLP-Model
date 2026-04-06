@@ -4,7 +4,7 @@ import React, { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api";
 import {
-  BarChart3, TrendingUp, DollarSign, Target, AlertTriangle, ExternalLink,
+  BarChart3, TrendingUp, DollarSign, Target, AlertTriangle, ExternalLink, ChevronRight, ChevronDown,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -45,9 +45,22 @@ export function ValuationPerformanceTab({ propertyId, canEdit, property, onNavig
     enabled: propertyId > 0,
   });
 
+  const [expandedRows, setExpandedRows] = useState<Set<number>>(new Set());
+
   if (isLoading || !data) return <div className="py-8 text-center text-muted-foreground">Loading...</div>;
 
   const { periods, assumptions, returns, disposition, actual_disposition } = data;
+
+  const toggleRow = (i: number) => {
+    setExpandedRows((prev) => {
+      const next = new Set(prev);
+      if (next.has(i)) next.delete(i);
+      else next.add(i);
+      return next;
+    });
+  };
+
+  const isExpandable = (row: any) => ["operating", "stabilized", "construction", "mixed"].includes(row.type);
 
   const SourceLink = ({ source, tab }: { source: string; tab?: string }) => (
     <button
@@ -172,17 +185,29 @@ export function ValuationPerformanceTab({ propertyId, canEdit, property, onNavig
                   <TableHead className="text-right">Expenses</TableHead>
                   <TableHead className="text-right">NOI</TableHead>
                   <TableHead className="text-right">Debt Service</TableHead>
+                  <TableHead className="text-right">Int. Reserve</TableHead>
                   <TableHead className="text-right">Construction</TableHead>
+                  <TableHead className="text-right">Loan Draw</TableHead>
                   <TableHead className="text-right">Net Cash Flow</TableHead>
                   <TableHead className="text-right">Cumulative</TableHead>
                   <TableHead className="text-right min-w-[100px]">Source</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {periods.map((row: any, i: number) => (
-                  <TableRow key={i} className={TYPE_BG[row.type] || ""}>
+                {periods.map((row: any, i: number) => {
+                  const expandable = isExpandable(row);
+                  const expanded = expandedRows.has(i);
+                  return (
+                <React.Fragment key={i}>
+                  <TableRow
+                    className={cn(TYPE_BG[row.type] || "", expandable && "cursor-pointer hover:bg-muted/40")}
+                    onClick={expandable ? () => toggleRow(i) : undefined}
+                  >
                     <TableCell className={cn("font-medium text-sm", TYPE_COLORS[row.type])}>
-                      {row.period}
+                      <span className="inline-flex items-center gap-1">
+                        {expandable ? (expanded ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />) : <span className="w-3.5" />}
+                        {row.period}
+                      </span>
                     </TableCell>
                     <TableCell className="text-right tabular-nums text-sm">
                       {row.revenue_budget ? fmt(row.revenue_budget) : "—"}
@@ -196,8 +221,14 @@ export function ValuationPerformanceTab({ propertyId, canEdit, property, onNavig
                     <TableCell className="text-right tabular-nums text-sm">
                       {row.debt_service_budget ? `(${fmt(row.debt_service_budget)})` : "—"}
                     </TableCell>
+                    <TableCell className="text-right tabular-nums text-sm text-blue-600" title="Interest reserve drawn from construction loan to fund interest during construction (non-cash to equity)">
+                      {row.interest_reserve_draw ? fmt(row.interest_reserve_draw) : "—"}
+                    </TableCell>
                     <TableCell className="text-right tabular-nums text-sm text-orange-600">
                       {row.construction_cost ? `(${fmt(row.construction_cost)})` : "—"}
+                    </TableCell>
+                    <TableCell className="text-right tabular-nums text-sm text-blue-600" title="Construction loan draw — funds construction cost, non-cash to equity sponsor">
+                      {row.construction_loan_draw ? fmt(row.construction_loan_draw) : "—"}
                     </TableCell>
                     <TableCell className={cn("text-right tabular-nums text-sm font-semibold",
                       row.net_cashflow_budget >= 0 ? "text-green-600" : "text-red-600"
@@ -216,7 +247,33 @@ export function ValuationPerformanceTab({ propertyId, canEdit, property, onNavig
                       />
                     </TableCell>
                   </TableRow>
-                ))}
+                  {expandable && expanded && (row.months || []).map((mr: any, m: number) => {
+                    const rev = mr.revenue_budget || 0;
+                    const exp = mr.expenses_budget || 0;
+                    const noi = mr.noi_budget || 0;
+                    const ds = mr.debt_service_budget || 0;
+                    const ir = mr.interest_reserve_draw || 0;
+                    const cc = mr.construction_cost || 0;
+                    const cl = mr.construction_loan_draw || 0;
+                    const ncf = mr.net_cashflow_budget || 0;
+                    return (
+                      <TableRow key={`${i}-m${m}`} className="bg-muted/10 text-xs">
+                        <TableCell className="pl-8 text-muted-foreground">{mr.month}</TableCell>
+                        <TableCell className="text-right tabular-nums">{rev ? fmt(rev) : "—"}</TableCell>
+                        <TableCell className="text-right tabular-nums text-orange-600/80">{exp ? `(${fmt(exp)})` : "—"}</TableCell>
+                        <TableCell className="text-right tabular-nums">{noi ? fmt(noi) : "—"}</TableCell>
+                        <TableCell className="text-right tabular-nums">{ds ? `(${fmt(ds)})` : "—"}</TableCell>
+                        <TableCell className="text-right tabular-nums text-blue-600/80">{ir ? fmt(ir) : "—"}</TableCell>
+                        <TableCell className="text-right tabular-nums text-orange-600/80">{cc ? `(${fmt(cc)})` : "—"}</TableCell>
+                        <TableCell className="text-right tabular-nums text-blue-600/80">{cl ? fmt(cl) : "—"}</TableCell>
+                        <TableCell className={cn("text-right tabular-nums", ncf >= 0 ? "text-green-600/80" : "text-red-600/80")}>{fmt(ncf)}</TableCell>
+                        <TableCell colSpan={2} className="text-[10px] text-muted-foreground italic">{mr.source || ""}</TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </React.Fragment>
+                  );
+                })}
               </TableBody>
             </Table>
           </div>
@@ -297,9 +354,9 @@ export function ValuationPerformanceTab({ propertyId, canEdit, property, onNavig
                   const net = val - costs - disposition.debt_payoff;
                   const opCF = returns.total_operating_cashflow || 0;
                   const totalRet = net + opCF;
-                  const em = assumptions.initial_equity > 0 ? (totalRet / assumptions.initial_equity + 1) : null;
-                  const roi = assumptions.initial_equity > 0 && data.hold_years > 0
-                    ? ((((totalRet + assumptions.initial_equity) / assumptions.initial_equity) ** (1 / data.hold_years)) - 1) * 100 : null;
+                  const em = assumptions.initial_equity > 0 ? (totalRet / assumptions.initial_equity) : null;
+                  const roi = assumptions.initial_equity > 0 && data.hold_years > 0 && em != null && em > 0
+                    ? ((em ** (1 / data.hold_years)) - 1) * 100 : null;
                   return (
                     <TableRow key={s.label} className={s.noiAdj === 0 ? "bg-muted/30" : ""}>
                       <TableCell className={cn("font-medium", s.color)}>{s.label}</TableCell>

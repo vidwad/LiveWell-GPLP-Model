@@ -918,6 +918,14 @@ class DebtFacility(Base):
     lender_fee_amount = Column(Numeric(15, 2))  # Computed lender fee
     capitalized_fees = Column(Numeric(15, 2), default=0)  # Total fees rolled into loan balance
 
+    # Interest reserve (construction loans): portion of commitment carved out to fund
+    # interest payments during construction. The lender draws from this account each
+    # period and capitalizes the same amount to principal — the borrower writes no
+    # cash check during construction. Net loan available for project costs =
+    # commitment_amount - interest_reserve_amount.
+    interest_reserve_amount = Column(Numeric(15, 2), default=0)
+    interest_reserve_drawn = Column(Numeric(15, 2), default=0)
+
     notes = Column(Text)
     created_at = Column(DateTime, default=func.now())
     updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
@@ -1462,6 +1470,7 @@ class DevelopmentPlan(Base):
     # ── Lease-up assumptions ──
     lease_up_months = Column(Integer, nullable=True)  # months to reach stabilized occupancy
     occupancy_during_construction = Column(Boolean, nullable=True, default=True)  # True=tenants stay, income continues; False=vacant during build
+    during_construction_revenue_pct = Column(Numeric(5, 2), nullable=True)  # % of pre-plan EGI captured during construction (e.g. 60 = 60% — partial occupancy due to units offline)
     construction_duration_months = Column(Integer, nullable=True)  # alternative to days
 
     property = relationship("Property", back_populates="development_plans")

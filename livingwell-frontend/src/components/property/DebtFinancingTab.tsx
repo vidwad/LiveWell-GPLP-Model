@@ -157,8 +157,21 @@ interface DebtFinancingTabProps {
 export function DebtFinancingTab({ propertyId, canEdit, property, totalDebtCommitment, totalDebtOutstanding, totalAnnualDebtService, activePhase, phaseFilteredDebts, phasePlanId }: DebtFinancingTabProps) {
   const { data: allDebtFacilities } = useDebtFacilities(propertyId);
 
-  // Use phase-filtered debts from parent (which uses development_plan_id + replaces_debt_id chain)
-  const debtFacilities = phaseFilteredDebts ?? allDebtFacilities;
+  // Show all debts relevant to this phase — both active and replaced in the chain
+  // Phase-filtered gives only the terminal (active) debt; we also need the full chain for editing
+  const debtFacilities = (() => {
+    if (!allDebtFacilities || !phaseFilteredDebts) return allDebtFacilities;
+    if (activePhase === "as_is") return phaseFilteredDebts;
+
+    // Get all debts for this plan
+    const planDebts = (allDebtFacilities as any[]).filter((d: any) => d.development_plan_id === phasePlanId);
+    // Get baseline debts replaced by plan debts
+    const replacedIds = new Set(planDebts.map((d: any) => d.replaces_debt_id).filter(Boolean));
+    const replacedBaseline = (allDebtFacilities as any[]).filter((d: any) => !d.development_plan_id && replacedIds.has(d.debt_id));
+    // Combine: replaced baseline + all plan debts (full chain for this phase)
+    const fullChain = [...replacedBaseline, ...planDebts];
+    return fullChain.length > 0 ? fullChain : phaseFilteredDebts;
+  })();
 
   // Fetch underwriting summary for the active phase to get accurate NOI
   const { data: uwSummary } = useQuery({
@@ -196,6 +209,7 @@ export function DebtFinancingTab({ propertyId, canEdit, property, totalDebtCommi
     is_cmhc_insured: false, cmhc_insurance_premium_pct: "",
     cmhc_application_fee: "", cmhc_program: "",
     compounding_method: "semi_annual", lender_fee_pct: "",
+    interest_reserve_amount: "",
   });
   const resetDebtForm = () => setDebtForm({
     lender_name: "", debt_type: "permanent_mortgage", commitment_amount: "",
@@ -206,7 +220,75 @@ export function DebtFinancingTab({ propertyId, canEdit, property, totalDebtCommi
     is_cmhc_insured: false, cmhc_insurance_premium_pct: "",
     cmhc_application_fee: "", cmhc_program: "",
     compounding_method: "semi_annual", lender_fee_pct: "",
+    interest_reserve_amount: "",
   });
+
+  // Auto-size a construction loan commitment from the construction budget +
+  // payoff of the loan being replaced + (circular) interest reserve.
+  // Solves: commitment = (project_costs + replaced_payoff) / (1 - rate × io/12 × 0.6)
+  const autoSizeCommitment = async () => {
+    try {
+      const planId = phasePlanId;
+      if (!planId) {
+        toast.error("Select a development plan first");
+        return;
+      }
+      // 1a. Sum construction expenses for the plan, excluding any "interest reserve" line
+      const exp = await apiClient.get(
+        `/api/portfolio/properties/${propertyId}/construction-expenses?plan_id=${planId}`
+      );
+      const budgetSum = (exp.data as any[])
+        .filter((e: any) => !(e.description || "").toLowerCase().includes("interest reserve"))
+        .reduce((sum: number, e: any) => sum + Number(e.budgeted_amount || 0), 0);
+
+      // 1b. Also fetch the plan-level estimated_construction_cost — the
+      // walker uses this number as the actual project cost, so the loan
+      // must cover the LARGER of the two so the model doesn't show an
+      // equity shortfall.
+      const plansResp = await apiClient.get(
+        `/api/portfolio/properties/${propertyId}/plans`
+      );
+      const thisPlan = (plansResp.data as any[]).find((p: any) => p.plan_id === planId);
+      const planCost = Number(thisPlan?.estimated_construction_cost || 0);
+
+      const projectCosts = Math.max(budgetSum, planCost);
+
+      // 2. Find the debt being replaced — pull its outstanding balance
+      let replacedPayoff = 0;
+      if (allDebtFacilities) {
+        // Heuristic: replaced debt is the baseline (no plan_id) permanent_mortgage
+        const baseline = (allDebtFacilities as any[]).find(
+          (d: any) => !d.development_plan_id && d.debt_type === "permanent_mortgage"
+        );
+        if (baseline) {
+          replacedPayoff = Number(baseline.outstanding_balance || baseline.commitment_amount || 0);
+        }
+      }
+
+      // 3. Solve the circular IR equation
+      const r = Number(debtForm.interest_rate) || 0;
+      const io = Number(debtForm.io_period_months) || 0;
+      const reserveFactor = (r / 100) * (io / 12) * 0.6;
+      const X = projectCosts + replacedPayoff;
+      if (1 - reserveFactor <= 0) {
+        toast.error("Rate × IO period too large to size loan");
+        return;
+      }
+      const commitment = X / (1 - reserveFactor);
+      const interestReserve = commitment - X;
+
+      setDebtForm((f) => ({
+        ...f,
+        commitment_amount: String(Math.round(commitment)),
+        interest_reserve_amount: String(Math.round(interestReserve)),
+      }));
+      toast.success(
+        `Sized: $${Math.round(projectCosts).toLocaleString()} costs + $${Math.round(replacedPayoff).toLocaleString()} payoff + $${Math.round(interestReserve).toLocaleString()} reserve`
+      );
+    } catch (err: any) {
+      toast.error(err?.response?.data?.detail || "Failed to auto-size commitment");
+    }
+  };
 
   const handleCreateDebt = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -235,6 +317,7 @@ export function DebtFinancingTab({ propertyId, canEdit, property, totalDebtCommi
         cmhc_program: debtForm.cmhc_program || undefined,
         compounding_method: debtForm.compounding_method || "semi_annual",
         lender_fee_pct: debtForm.lender_fee_pct ? Number(debtForm.lender_fee_pct) : undefined,
+        interest_reserve_amount: debtForm.interest_reserve_amount ? Number(debtForm.interest_reserve_amount) : 0,
       };
       await createDebt.mutateAsync(payload);
       toast.success("Debt facility added");
@@ -269,6 +352,7 @@ export function DebtFinancingTab({ propertyId, canEdit, property, totalDebtCommi
         cmhc_program: debtForm.cmhc_program || undefined,
         compounding_method: debtForm.compounding_method || "semi_annual",
         lender_fee_pct: debtForm.lender_fee_pct ? Number(debtForm.lender_fee_pct) : undefined,
+        interest_reserve_amount: debtForm.interest_reserve_amount ? Number(debtForm.interest_reserve_amount) : 0,
       };
       await updateDebt.mutateAsync(payload);
       toast.success("Debt facility updated");
@@ -302,6 +386,7 @@ export function DebtFinancingTab({ propertyId, canEdit, property, totalDebtCommi
       cmhc_program: (debt as any).cmhc_program ?? "",
       compounding_method: (debt as any).compounding_method ?? "semi_annual",
       lender_fee_pct: (debt as any).lender_fee_pct != null ? String((debt as any).lender_fee_pct) : "",
+      interest_reserve_amount: (debt as any).interest_reserve_amount != null ? String((debt as any).interest_reserve_amount) : "",
     });
     setEditingDebtId(debt.debt_id);
   };
@@ -501,7 +586,17 @@ export function DebtFinancingTab({ propertyId, canEdit, property, totalDebtCommi
                 <div className="border rounded-lg p-3 bg-blue-50/30 border-blue-200 space-y-3">
                   <p className="text-xs font-semibold text-blue-700 flex items-center gap-1.5"><DollarSign className="h-3.5 w-3.5" />Amounts</p>
                   <div className="grid grid-cols-2 gap-3">
-                    <div className="space-y-1"><Label className="text-xs">Commitment Amount ($) *</Label><Input type="number" step="0.01" value={debtForm.commitment_amount} onChange={(e) => setDebtForm(f => ({ ...f, commitment_amount: e.target.value }))} placeholder="2,400,000" required /></div>
+                    <div className="space-y-1">
+                      <Label className="text-xs flex items-center justify-between">
+                        <span>Commitment Amount ($) *</span>
+                        {debtForm.debt_type === "construction_loan" && (
+                          <button type="button" className="text-[10px] text-blue-600 hover:underline" onClick={autoSizeCommitment}>
+                            Auto-size from budget
+                          </button>
+                        )}
+                      </Label>
+                      <Input type="number" step="0.01" value={debtForm.commitment_amount} onChange={(e) => setDebtForm(f => ({ ...f, commitment_amount: e.target.value }))} placeholder="2,400,000" required />
+                    </div>
                     <div className="space-y-1"><Label className="text-xs">Interest Rate (%)</Label><Input type="number" step="0.01" value={debtForm.interest_rate} onChange={(e) => setDebtForm(f => ({ ...f, interest_rate: e.target.value }))} placeholder="5.25" /></div>
                   </div>
                 </div>
@@ -523,6 +618,48 @@ export function DebtFinancingTab({ propertyId, canEdit, property, totalDebtCommi
                     <div className="space-y-1"><Label className="text-xs">Amortization (months)</Label><Input type="number" value={debtForm.amortization_months} onChange={(e) => setDebtForm(f => ({ ...f, amortization_months: e.target.value }))} placeholder="300" /></div>
                     <div className="space-y-1"><Label className="text-xs">IO Period (months)</Label><Input type="number" value={debtForm.io_period_months} onChange={(e) => setDebtForm(f => ({ ...f, io_period_months: e.target.value }))} placeholder="0" /></div>
                   </div>
+                  {debtForm.debt_type === "construction_loan" && (
+                    <div className="grid grid-cols-2 gap-3 p-3 bg-blue-50/50 border border-blue-200 rounded">
+                      <div className="space-y-1">
+                        <Label className="text-xs flex items-center justify-between">
+                          <span>Interest Reserve ($)</span>
+                          <button
+                            type="button"
+                            className="text-[10px] text-blue-600 hover:underline"
+                            onClick={() => {
+                              // Industry rule of thumb: commitment × rate × (io_months/12) × 0.6
+                              // (the 0.6 reflects average outstanding balance over a linear draw)
+                              const c = Number(debtForm.commitment_amount) || 0;
+                              const r = Number(debtForm.interest_rate) || 0;
+                              const io = Number(debtForm.io_period_months) || 0;
+                              const calc = c * (r / 100) * (io / 12) * 0.6;
+                              setDebtForm(f => ({ ...f, interest_reserve_amount: calc > 0 ? String(Math.round(calc)) : "" }));
+                            }}
+                          >
+                            Auto-calculate
+                          </button>
+                        </Label>
+                        <Input
+                          type="number"
+                          value={debtForm.interest_reserve_amount}
+                          onChange={(e) => setDebtForm(f => ({ ...f, interest_reserve_amount: e.target.value }))}
+                          placeholder="0"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs">Net Loan for Costs</Label>
+                        <div className="h-9 px-3 py-2 text-sm rounded border bg-white tabular-nums">
+                          ${(
+                            (Number(debtForm.commitment_amount) || 0) -
+                            (Number(debtForm.interest_reserve_amount) || 0)
+                          ).toLocaleString()}
+                        </div>
+                      </div>
+                      <p className="col-span-2 text-[10px] text-muted-foreground">
+                        Interest reserve: lender carves out this amount from the commitment to fund interest during construction. Capitalized to principal — equity sponsor pays no cash interest until takeout.
+                      </p>
+                    </div>
+                  )}
                   <div className="grid grid-cols-2 gap-3">
                     <div className="space-y-1"><Label className="text-xs">Origination Date</Label><Input type="date" value={debtForm.origination_date} onChange={(e) => {
                       const orig = e.target.value;
@@ -603,7 +740,17 @@ export function DebtFinancingTab({ propertyId, canEdit, property, totalDebtCommi
                     <div className="space-y-1"><Label className="text-xs">Rate Type</Label><Select value={debtForm.rate_type} onValueChange={(v) => setDebtForm(f => ({ ...f, rate_type: v ?? "" }))}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="fixed">Fixed</SelectItem><SelectItem value="variable">Variable</SelectItem><SelectItem value="hybrid">Hybrid</SelectItem></SelectContent></Select></div>
                   </div>
                   <div className="grid grid-cols-3 gap-3">
-                    <div className="space-y-1"><Label className="text-xs">Commitment ($)</Label><Input type="number" step="0.01" value={debtForm.commitment_amount} onChange={(e) => setDebtForm(f => ({ ...f, commitment_amount: e.target.value }))} required /></div>
+                    <div className="space-y-1">
+                      <Label className="text-xs flex items-center justify-between">
+                        <span>Commitment ($)</span>
+                        {debtForm.debt_type === "construction_loan" && (
+                          <button type="button" className="text-[10px] text-blue-600 hover:underline" onClick={autoSizeCommitment}>
+                            Auto-size
+                          </button>
+                        )}
+                      </Label>
+                      <Input type="number" step="0.01" value={debtForm.commitment_amount} onChange={(e) => setDebtForm(f => ({ ...f, commitment_amount: e.target.value }))} required />
+                    </div>
                     <div className="space-y-1"><Label className="text-xs">Drawn ($)</Label><Input type="number" step="0.01" value={debtForm.drawn_amount} onChange={(e) => setDebtForm(f => ({ ...f, drawn_amount: e.target.value }))} /></div>
                     <div className="space-y-1"><Label className="text-xs">Outstanding ($)</Label><Input type="number" step="0.01" value={debtForm.outstanding_balance} onChange={(e) => setDebtForm(f => ({ ...f, outstanding_balance: e.target.value }))} /></div>
                   </div>
@@ -625,6 +772,46 @@ export function DebtFinancingTab({ propertyId, canEdit, property, totalDebtCommi
                     <div className="space-y-1"><Label className="text-xs">Amort (mo)</Label><Input type="number" value={debtForm.amortization_months} onChange={(e) => setDebtForm(f => ({ ...f, amortization_months: e.target.value }))} /></div>
                     <div className="space-y-1"><Label className="text-xs">IO (mo)</Label><Input type="number" value={debtForm.io_period_months} onChange={(e) => setDebtForm(f => ({ ...f, io_period_months: e.target.value }))} /></div>
                   </div>
+                  {debtForm.debt_type === "construction_loan" && (
+                    <div className="grid grid-cols-2 gap-3 p-3 bg-blue-50/50 border border-blue-200 rounded">
+                      <div className="space-y-1">
+                        <Label className="text-xs flex items-center justify-between">
+                          <span>Interest Reserve ($)</span>
+                          <button
+                            type="button"
+                            className="text-[10px] text-blue-600 hover:underline"
+                            onClick={() => {
+                              const c = Number(debtForm.commitment_amount) || 0;
+                              const r = Number(debtForm.interest_rate) || 0;
+                              const io = Number(debtForm.io_period_months) || 0;
+                              const calc = c * (r / 100) * (io / 12) * 0.6;
+                              setDebtForm(f => ({ ...f, interest_reserve_amount: calc > 0 ? String(Math.round(calc)) : "" }));
+                            }}
+                          >
+                            Auto-calculate
+                          </button>
+                        </Label>
+                        <Input
+                          type="number"
+                          value={debtForm.interest_reserve_amount}
+                          onChange={(e) => setDebtForm(f => ({ ...f, interest_reserve_amount: e.target.value }))}
+                          placeholder="0"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs">Net Loan for Costs</Label>
+                        <div className="h-9 px-3 py-2 text-sm rounded border bg-white tabular-nums">
+                          ${(
+                            (Number(debtForm.commitment_amount) || 0) -
+                            (Number(debtForm.interest_reserve_amount) || 0)
+                          ).toLocaleString()}
+                        </div>
+                      </div>
+                      <p className="col-span-2 text-[10px] text-muted-foreground">
+                        Lender carves out this amount from the commitment to fund interest during construction. Capitalized to principal — equity sponsor pays no cash interest until takeout.
+                      </p>
+                    </div>
+                  )}
                   <div className="grid grid-cols-2 gap-3">
                     <div className="space-y-1"><Label className="text-xs">Origination Date</Label><Input type="date" value={debtForm.origination_date} onChange={(e) => {
                       const orig = e.target.value;
@@ -692,6 +879,12 @@ export function DebtFinancingTab({ propertyId, canEdit, property, totalDebtCommi
                         <CardTitle className="text-base">{debt.lender_name}</CardTitle>
                         <Badge variant={debt.status === "active" ? "default" : "secondary"} className="text-xs capitalize">{debt.status.replace(/_/g, " ")}</Badge>
                         <Badge variant="outline" className="text-xs capitalize">{debt.debt_type.replace(/_/g, " ")}</Badge>
+                        {/* Show if this debt is replaced by another in the chain */}
+                        {(allDebtFacilities as any[])?.some((d: any) => d.replaces_debt_id === debt.debt_id) && (
+                          <Badge variant="secondary" className="text-[10px] bg-amber-100 text-amber-700 border-amber-200">
+                            Replaced
+                          </Badge>
+                        )}
                       </div>
                       <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground mt-1">
                         <span className="flex items-center gap-1"><Banknote className="h-3 w-3" />{debt.rate_type} {debt.interest_rate != null ? `@ ${Number(debt.interest_rate).toFixed(2)}%` : ""}</span>

@@ -178,15 +178,22 @@ def create_acquisition_baseline(
         for k, v in data.items():
             if k not in ("property_id", "baseline_id"):
                 setattr(existing, k, v)
-        db.commit()
-        db.refresh(existing)
-        return {"exists": True, **_baseline_out(existing)}
     else:
-        baseline = AcquisitionBaseline(**data)
-        db.add(baseline)
-        db.commit()
-        db.refresh(baseline)
-        return {"exists": True, **_baseline_out(baseline)}
+        existing = AcquisitionBaseline(**data)
+        db.add(existing)
+
+    # Mirror canonical acquisition fields back to the Property row so that
+    # other tabs/endpoints reading Property.purchase_price stay in sync.
+    if "purchase_price" in data:
+        prop.purchase_price = data["purchase_price"]
+    if "purchase_date" in data:
+        prop.purchase_date = data["purchase_date"]
+    if "closing_costs" in data and hasattr(prop, "closing_costs"):
+        prop.closing_costs = data["closing_costs"]
+
+    db.commit()
+    db.refresh(existing)
+    return {"exists": True, **_baseline_out(existing)}
 
 
 # ---------------------------------------------------------------------------

@@ -42,6 +42,11 @@ export function AcquisitionTab({ propertyId, property, canEdit }: AcquisitionTab
       apiClient.post(`/api/portfolio/properties/${propertyId}/acquisition-baseline`, data).then(r => r.data),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["acquisition-baseline", propertyId] });
+      qc.invalidateQueries({ queryKey: ["lifetime-cashflow", propertyId] });
+      qc.invalidateQueries({ queryKey: ["phase-cashflow", propertyId] });
+      qc.invalidateQueries({ queryKey: ["lending-metrics", propertyId] });
+      qc.invalidateQueries({ queryKey: ["property", propertyId] });
+      qc.invalidateQueries({ queryKey: ["exit-forecast", propertyId] });
       toast.success("Acquisition baseline saved");
     },
     onError: () => toast.error("Failed to save"),

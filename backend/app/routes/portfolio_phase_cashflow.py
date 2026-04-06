@@ -88,11 +88,23 @@ def get_phase_cashflow(
             raise HTTPException(404, "Plan not found")
 
         phase_name = plan.plan_name or f"Plan {plan.plan_id}"
-        phase_start = plan.development_start_date or purchase_date
+        construction_start = plan.development_start_date or purchase_date
         duration_days = plan.construction_duration_days or (plan.construction_duration_months * 30 if plan.construction_duration_months else 180)
-        construction_end = plan.estimated_completion_date or (phase_start + timedelta(days=duration_days))
-        lease_up_months = getattr(plan, 'lease_up_months', None) or 6
+        construction_end = plan.estimated_completion_date or (construction_start + timedelta(days=duration_days))
+        lease_up_months = getattr(plan, 'lease_up_months', None)
+        if lease_up_months is None:
+            lease_up_months = 6
         stabilization_date = plan.estimated_stabilization_date or (construction_end + relativedelta(months=lease_up_months))
+        # Stabilized Period Cash Flow starts AFTER construction completes and
+        # the lease-up period ends — not at construction kick-off. Until that
+        # date, the property is mid-renovation and not generating stabilized
+        # post-plan rents. Round to the next calendar-month boundary so monthly
+        # buckets align with their labels (a phase starting on the 31st would
+        # otherwise show "Jul" buckets that actually span Jul 31 → Aug 31).
+        if stabilization_date.day == 1:
+            phase_start = stabilization_date
+        else:
+            phase_start = (stabilization_date.replace(day=1) + relativedelta(months=1))
 
         # Find next plan start or exit date
         plan_index = next((i for i, p in enumerate(sorted_plans) if p.plan_id == plan_id), -1)
@@ -204,20 +216,37 @@ def get_phase_cashflow(
     cumulative = 0.0
     month_index = 0
 
+    # Iterate calendar months instead of phase-anniversary buckets so each row
+    # represents a clean "Apr 2026", "May 2026" etc. Rent is collected per-bed
+    # per-month at a FLAT rate regardless of how many days the lease covers
+    # within that month — no day-pro-ration.
+    current = date(current.year, current.month, 1)
     while current < phase_end:
-        month_end = min(current + relativedelta(months=1), phase_end)
-        days_in_month = (month_end - current).days
-        month_fraction = days_in_month / 30.44  # normalize to ~1.0 for full month
+        month_end = current + relativedelta(months=1)
 
-        # Apply growth
-        years_elapsed = (current - phase_start).days / 365.25
+        # Apply growth — rent steps up once per year on the lease anniversary
+        # of THIS phase. The rents shown for a plan are entered as expected
+        # rents at the plan's stabilization date, so growth is anchored to
+        # phase_start (= stabilization date), not the original purchase date.
+        # As-is phase: phase_start = purchase_date, so the anchor is the same.
+        rent_anchor = phase_start
+        years_elapsed = current.year - rent_anchor.year
+        if current.month < rent_anchor.month:
+            years_elapsed -= 1
+        years_elapsed = max(0, years_elapsed)
         growth_factor = (1 + rent_growth_annual) ** years_elapsed
         exp_growth_factor = (1 + expense_growth_annual) ** years_elapsed
 
-        m_egi = monthly_egi * growth_factor * month_fraction
-        m_exp = monthly_expenses * exp_growth_factor * month_fraction
+        # Always book one full month of rent (rent is paid per bed per month).
+        # Per-row Revenue = GROSS monthly collections (rent + ancillary), no
+        # vacancy applied. Vacancy is a budget assumption for projections,
+        # not a per-month deduction from actual rent collected. The annual
+        # summary card shows GPR vs EGI separately so the vacancy impact is
+        # visible at the rollup level.
+        m_egi = monthly_gross * growth_factor
+        m_exp = monthly_expenses * exp_growth_factor
         m_noi = m_egi - m_exp
-        m_ds = monthly_ds * month_fraction
+        m_ds = monthly_ds
         m_cf = m_noi - m_ds
         cumulative += m_cf
 
@@ -225,7 +254,7 @@ def get_phase_cashflow(
             "month": current.strftime("%b %Y"),
             "start": str(current),
             "end": str(month_end),
-            "days": days_in_month,
+            "days": (month_end - current).days,
             "revenue": round(m_egi, 0),
             "expenses": round(m_exp, 0),
             "noi": round(m_noi, 0),

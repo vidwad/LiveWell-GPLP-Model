@@ -170,17 +170,24 @@ def get_lending_metrics(
                 debt_yield = round(baseline_noi / balance * 100, 2)
 
         elif debt_type == "construction_loan":
-            # Construction loan — LTC vs total project cost
+            # Construction loan — LTC vs total project cost.
+            # Interest reserve is a *source* of funds, not a use, so it should
+            # be excluded from BOTH the loan numerator (net loan available for
+            # project costs) AND the cost denominator (since the reserve isn't
+            # paying for hard/soft costs).
+            interest_reserve = _f(getattr(d, "interest_reserve_amount", 0))
+            net_loan_for_costs = max(0.0, commitment - interest_reserve)
             if total_project_cost > 0:
-                ltc = round(commitment / total_project_cost * 100, 2)
-                ltc_basis = "Total Project Cost"
+                ltc = round(net_loan_for_costs / total_project_cost * 100, 2)
+                ltc_basis = "Total Project Cost (excl. interest reserve)"
                 ltc_basis_value = total_project_cost
-            # Also show LTV vs stabilized value
+            # LTV at construction-end uses the FULLY drawn balance (commitment),
+            # which by then includes the capitalized interest reserve.
             if stabilized_value > 0:
                 ltv = round(commitment / stabilized_value * 100, 2)
                 ltv_basis = "Stabilized Value"
                 ltv_basis_value = stabilized_value
-            # DSCR not applicable during construction (IO)
+            # DSCR not applicable during construction (IO + reserve)
 
         elif purpose == "refinancing" or (d.development_plan_id and debt_type == "permanent_mortgage"):
             # Permanent takeout / CMHC — LTV vs stabilized value
@@ -329,6 +336,24 @@ def get_lending_metrics(
                 "message": f"LTV {ltv:.1f}% violates covenant maximum of {float(d.ltv_covenant):.1f}%",
             })
 
+        # Interest reserve sanity checks for construction loans
+        if debt_type == "construction_loan":
+            ir = _f(getattr(d, "interest_reserve_amount", 0))
+            io = int(d.io_period_months or 0)
+            rate_dec = _f(d.interest_rate) / 100.0
+            # Expected reserve ≈ commitment × rate × (io/12) × 0.6 (linear-draw rule of thumb)
+            expected_ir = commitment * rate_dec * (io / 12.0) * 0.6 if io > 0 else 0
+            if ir == 0 and io > 0 and rate_dec > 0:
+                facility_concerns.append({
+                    "severity": "medium",
+                    "message": f"No interest reserve set. Expected ~${expected_ir:,.0f} for a {io}-month IO period — sponsor would need to fund interest in cash during construction.",
+                })
+            elif ir > 0 and expected_ir > 0 and ir < expected_ir * 0.7:
+                facility_concerns.append({
+                    "severity": "low",
+                    "message": f"Interest reserve ${ir:,.0f} appears under-sized; rule of thumb suggests ~${expected_ir:,.0f} for this loan and IO period.",
+                })
+
         # Construction loan without takeout
         if debt_type == "construction_loan" and balance > 0 and not is_replaced:
             facility_concerns.append({
@@ -375,6 +400,8 @@ def get_lending_metrics(
             # Amounts
             "commitment": round(commitment, 2),
             "balance": round(balance, 2),
+            "interest_reserve_amount": round(_f(getattr(d, "interest_reserve_amount", 0)), 2),
+            "interest_reserve_drawn": round(_f(getattr(d, "interest_reserve_drawn", 0)), 2),
             "rate": rate,
             "rate_type": d.rate_type,
             "annual_debt_service": round(ads, 2),

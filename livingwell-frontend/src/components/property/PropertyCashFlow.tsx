@@ -147,7 +147,7 @@ export function PropertyCashFlow({
         <CardHeader className="pb-3">
           <CardTitle className="text-base flex items-center gap-2">
             <DollarSign className="h-4 w-4 text-muted-foreground" />
-            Period Cash Flow
+            {activePhase === "as_is" ? "As-Is Period Cash Flow" : `Stabilized Period Cash Flow — Post ${phase_name || "Development"}`}
             <span className="text-xs text-muted-foreground font-normal ml-1">Click a year to see monthly detail</span>
           </CardTitle>
         </CardHeader>

@@ -647,6 +647,7 @@ function PlanCard({
         projected_annual_noi: Number(plan.projected_annual_noi) || 0,
         annual_rent_increase_pct: plan.annual_rent_increase_pct != null ? Number(plan.annual_rent_increase_pct) : 3,
         occupancy_during_construction: (plan as any).occupancy_during_construction !== false,
+        during_construction_revenue_pct: (plan as any).during_construction_revenue_pct ?? "",
       });
       setDirty(false);
       setUnitsLoaded(false);
@@ -746,6 +747,24 @@ function PlanCard({
                     : "Property will be vacated for construction. No rental income during the build period. All units will need to be leased up after completion."
                   }
                 </p>
+                {form.occupancy_during_construction !== false && form.occupancy_during_construction !== "false" && (
+                  <div className="pl-6 space-y-1">
+                    <Label className="text-[10px]">Revenue % during construction (partial occupancy)</Label>
+                    <div className="flex items-center gap-2">
+                      <Input
+                        type="number"
+                        min={0}
+                        max={100}
+                        step={5}
+                        placeholder="100"
+                        value={form.during_construction_revenue_pct ?? ""}
+                        onChange={e => sf("during_construction_revenue_pct", e.target.value)}
+                        className="h-7 text-xs w-24"
+                      />
+                      <span className="text-[10px] text-muted-foreground">% — e.g. 60 if only 60% of beds are online while units are offline</span>
+                    </div>
+                  </div>
+                )}
               </div>
 
               <Separator />

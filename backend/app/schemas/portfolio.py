@@ -313,6 +313,7 @@ class DevelopmentPlanUpdate(BaseModel):
     lease_up_months: int | None = None
     construction_duration_months: int | None = None
     occupancy_during_construction: bool | None = None
+    during_construction_revenue_pct: float | None = None
 
 
 class DevelopmentPlanOut(BaseModel):
@@ -355,6 +356,7 @@ class DevelopmentPlanOut(BaseModel):
     lease_up_months: int | None = None
     construction_duration_months: int | None = None
     occupancy_during_construction: bool | None = None
+    during_construction_revenue_pct: float | None = None
 
     model_config = {"from_attributes": True}
 
@@ -435,6 +437,7 @@ class DebtFacilityCreate(BaseModel):
     cmhc_program: str | None = None  # "MLI Select", "Standard", "Flex"
     compounding_method: str = "semi_annual"  # semi_annual (Canadian std), monthly, annual
     lender_fee_pct: float | None = None
+    interest_reserve_amount: float | None = 0
     notes: str | None = None
 
 class DebtFacilityOut(BaseModel):
@@ -468,6 +471,8 @@ class DebtFacilityOut(BaseModel):
     lender_fee_pct: float | None = None
     lender_fee_amount: float | None = None
     capitalized_fees: float | None = None
+    interest_reserve_amount: float | None = 0
+    interest_reserve_drawn: float | None = 0
     notes: str | None
     created_at: datetime.datetime | None
 
