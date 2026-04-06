@@ -431,22 +431,51 @@ export function DebtFinancingTab({ propertyId, canEdit, property, totalDebtCommi
         return (
           <Card>
             <CardContent className="py-3 px-4">
-              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Financing Flow</p>
-              <div className="flex items-center gap-1 flex-wrap">
-                {chainSteps.map((step, i) => (
-                  <React.Fragment key={step.debt.debt_id}>
-                    <div className={cn(
-                      "rounded-lg border px-3 py-2 text-xs",
-                      step.isActive
-                        ? "border-primary bg-primary/5 text-primary font-semibold"
-                        : "border-muted text-muted-foreground bg-muted/30 line-through"
-                    )}>
-                      <p className="font-medium">{step.debt.lender_name}</p>
-                      <p className="text-[10px]">{step.debt.debt_type.replace(/_/g, " ")} · {formatCurrencyCompact(step.debt.commitment_amount)}</p>
-                    </div>
-                    {i < chainSteps.length - 1 && <span className="text-muted-foreground text-xs">→</span>}
-                  </React.Fragment>
-                ))}
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Debt Transition Sequence</p>
+              <div className="space-y-2">
+                {chainSteps.map((step, i) => {
+                  const d = step.debt;
+                  const nextStep = i < chainSteps.length - 1 ? chainSteps[i + 1] : null;
+                  const purposeLabel = d.debt_purpose === "construction" ? "Construction" :
+                    d.debt_purpose === "refinancing" ? "Permanent Takeout" :
+                    d.debt_purpose === "acquisition" ? "Acquisition" : (d.debt_purpose || "");
+                  return (
+                    <React.Fragment key={d.debt_id}>
+                      <div className={cn(
+                        "rounded-lg border px-4 py-3 flex items-center justify-between",
+                        step.isActive
+                          ? "border-primary bg-primary/5"
+                          : "border-muted bg-muted/20 opacity-60"
+                      )}>
+                        <div className="flex items-center gap-3">
+                          <div className={cn("h-8 w-8 rounded-full flex items-center justify-center text-xs font-bold",
+                            step.isActive ? "bg-primary text-white" : "bg-muted text-muted-foreground"
+                          )}>{i + 1}</div>
+                          <div>
+                            <p className={cn("font-medium text-sm", !step.isActive && "line-through")}>{d.lender_name}</p>
+                            <p className="text-[10px] text-muted-foreground">
+                              {d.debt_type.replace(/_/g, " ")} · {purposeLabel}
+                              {d.origination_date && ` · ${formatDate(d.origination_date)}`}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <p className={cn("font-semibold text-sm tabular-nums", step.isActive ? "" : "text-muted-foreground")}>{formatCurrencyCompact(d.commitment_amount)}</p>
+                          <p className="text-[10px] text-muted-foreground">
+                            {d.interest_rate ? `${Number(d.interest_rate).toFixed(2)}% ${d.rate_type}` : ""}
+                            {d.term_months ? ` · ${d.term_months}mo` : ""}
+                          </p>
+                        </div>
+                      </div>
+                      {nextStep && (
+                        <div className="flex items-center gap-2 pl-6 text-[10px] text-muted-foreground">
+                          <div className="h-4 w-px bg-muted-foreground/30" />
+                          <span>Pays off {d.lender_name} → replaced by {nextStep.debt.lender_name}</span>
+                        </div>
+                      )}
+                    </React.Fragment>
+                  );
+                })}
               </div>
             </CardContent>
           </Card>
@@ -479,13 +508,47 @@ export function DebtFinancingTab({ propertyId, canEdit, property, totalDebtCommi
                 <div className="border rounded-lg p-3 bg-green-50/30 border-green-200 space-y-3">
                   <p className="text-xs font-semibold text-green-700 flex items-center gap-1.5"><Calendar className="h-3.5 w-3.5" />Loan Terms</p>
                   <div className="grid grid-cols-3 gap-3">
-                    <div className="space-y-1"><Label className="text-xs">Term (months)</Label><Input type="number" value={debtForm.term_months} onChange={(e) => setDebtForm(f => ({ ...f, term_months: e.target.value }))} placeholder="60" /></div>
+                    <div className="space-y-1"><Label className="text-xs">Term (months)</Label><Input type="number" value={debtForm.term_months} onChange={(e) => {
+                      const term = e.target.value;
+                      setDebtForm(f => {
+                        const updated = { ...f, term_months: term };
+                        if (f.origination_date && term) {
+                          const d = new Date(f.origination_date + "T00:00:00");
+                          d.setMonth(d.getMonth() + Number(term));
+                          updated.maturity_date = d.toISOString().slice(0, 10);
+                        }
+                        return updated;
+                      });
+                    }} placeholder="60" /></div>
                     <div className="space-y-1"><Label className="text-xs">Amortization (months)</Label><Input type="number" value={debtForm.amortization_months} onChange={(e) => setDebtForm(f => ({ ...f, amortization_months: e.target.value }))} placeholder="300" /></div>
                     <div className="space-y-1"><Label className="text-xs">IO Period (months)</Label><Input type="number" value={debtForm.io_period_months} onChange={(e) => setDebtForm(f => ({ ...f, io_period_months: e.target.value }))} placeholder="0" /></div>
                   </div>
                   <div className="grid grid-cols-2 gap-3">
-                    <div className="space-y-1"><Label className="text-xs">Origination Date</Label><Input type="date" value={debtForm.origination_date} onChange={(e) => setDebtForm(f => ({ ...f, origination_date: e.target.value }))} /></div>
-                    <div className="space-y-1"><Label className="text-xs">Maturity Date</Label><Input type="date" value={debtForm.maturity_date} onChange={(e) => setDebtForm(f => ({ ...f, maturity_date: e.target.value }))} /></div>
+                    <div className="space-y-1"><Label className="text-xs">Origination Date</Label><Input type="date" value={debtForm.origination_date} onChange={(e) => {
+                      const orig = e.target.value;
+                      setDebtForm(f => {
+                        const updated = { ...f, origination_date: orig };
+                        if (orig && f.term_months) {
+                          const d = new Date(orig + "T00:00:00");
+                          d.setMonth(d.getMonth() + Number(f.term_months));
+                          updated.maturity_date = d.toISOString().slice(0, 10);
+                        }
+                        return updated;
+                      });
+                    }} /></div>
+                    <div className="space-y-1"><Label className="text-xs">Maturity Date</Label><Input type="date" value={debtForm.maturity_date} onChange={(e) => {
+                      const mat = e.target.value;
+                      setDebtForm(f => {
+                        const updated = { ...f, maturity_date: mat };
+                        if (f.origination_date && mat) {
+                          const orig = new Date(f.origination_date + "T00:00:00");
+                          const matDate = new Date(mat + "T00:00:00");
+                          const months = (matDate.getFullYear() - orig.getFullYear()) * 12 + (matDate.getMonth() - orig.getMonth());
+                          if (months > 0) updated.term_months = String(months);
+                        }
+                        return updated;
+                      });
+                    }} /></div>
                   </div>
                 </div>
                 <div className="border rounded-lg p-3 bg-amber-50/30 border-amber-200 space-y-3">
@@ -546,13 +609,50 @@ export function DebtFinancingTab({ propertyId, canEdit, property, totalDebtCommi
                   </div>
                   <div className="grid grid-cols-4 gap-3">
                     <div className="space-y-1"><Label className="text-xs">Rate (%)</Label><Input type="number" step="0.01" value={debtForm.interest_rate} onChange={(e) => setDebtForm(f => ({ ...f, interest_rate: e.target.value }))} /></div>
-                    <div className="space-y-1"><Label className="text-xs">Term (mo)</Label><Input type="number" value={debtForm.term_months} onChange={(e) => setDebtForm(f => ({ ...f, term_months: e.target.value }))} /></div>
+                    <div className="space-y-1"><Label className="text-xs">Term (mo)</Label><Input type="number" value={debtForm.term_months} onChange={(e) => {
+                      const term = e.target.value;
+                      setDebtForm(f => {
+                        const updated = { ...f, term_months: term };
+                        // Auto-calc maturity from origination + term
+                        if (f.origination_date && term) {
+                          const orig = new Date(f.origination_date + "T00:00:00");
+                          orig.setMonth(orig.getMonth() + Number(term));
+                          updated.maturity_date = orig.toISOString().slice(0, 10);
+                        }
+                        return updated;
+                      });
+                    }} /></div>
                     <div className="space-y-1"><Label className="text-xs">Amort (mo)</Label><Input type="number" value={debtForm.amortization_months} onChange={(e) => setDebtForm(f => ({ ...f, amortization_months: e.target.value }))} /></div>
                     <div className="space-y-1"><Label className="text-xs">IO (mo)</Label><Input type="number" value={debtForm.io_period_months} onChange={(e) => setDebtForm(f => ({ ...f, io_period_months: e.target.value }))} /></div>
                   </div>
                   <div className="grid grid-cols-2 gap-3">
-                    <div className="space-y-1"><Label className="text-xs">Origination Date</Label><Input type="date" value={debtForm.origination_date} onChange={(e) => setDebtForm(f => ({ ...f, origination_date: e.target.value }))} /></div>
-                    <div className="space-y-1"><Label className="text-xs">Maturity Date</Label><Input type="date" value={debtForm.maturity_date} onChange={(e) => setDebtForm(f => ({ ...f, maturity_date: e.target.value }))} /></div>
+                    <div className="space-y-1"><Label className="text-xs">Origination Date</Label><Input type="date" value={debtForm.origination_date} onChange={(e) => {
+                      const orig = e.target.value;
+                      setDebtForm(f => {
+                        const updated = { ...f, origination_date: orig };
+                        // Auto-calc maturity from origination + term
+                        if (orig && f.term_months) {
+                          const d = new Date(orig + "T00:00:00");
+                          d.setMonth(d.getMonth() + Number(f.term_months));
+                          updated.maturity_date = d.toISOString().slice(0, 10);
+                        }
+                        return updated;
+                      });
+                    }} /></div>
+                    <div className="space-y-1"><Label className="text-xs">Maturity Date</Label><Input type="date" value={debtForm.maturity_date} onChange={(e) => {
+                      const mat = e.target.value;
+                      setDebtForm(f => {
+                        const updated = { ...f, maturity_date: mat };
+                        // Auto-calc term from origination to maturity
+                        if (f.origination_date && mat) {
+                          const orig = new Date(f.origination_date + "T00:00:00");
+                          const matDate = new Date(mat + "T00:00:00");
+                          const months = (matDate.getFullYear() - orig.getFullYear()) * 12 + (matDate.getMonth() - orig.getMonth());
+                          if (months > 0) updated.term_months = String(months);
+                        }
+                        return updated;
+                      });
+                    }} /></div>
                   </div>
                   <div className="grid grid-cols-2 gap-3">
                     <div className="space-y-1"><Label className="text-xs">Max LTV Covenant (%)</Label><Input type="number" step="0.01" value={debtForm.ltv_covenant} onChange={(e) => setDebtForm(f => ({ ...f, ltv_covenant: e.target.value }))} /></div>

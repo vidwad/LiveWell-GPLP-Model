@@ -336,6 +336,23 @@ def get_lending_metrics(
                 "message": "No permanent takeout facility configured — required before construction completion",
             })
 
+        # Construction loan must cover existing mortgage payout
+        if debt_type == "construction_loan" and d.replaces_debt_id:
+            replaced_debt = next((x for x in debts if x.debt_id == d.replaces_debt_id), None)
+            if replaced_debt:
+                payout_amount = _f(replaced_debt.outstanding_balance)
+                remaining_for_construction = commitment - payout_amount
+                if commitment > 0 and payout_amount > 0:
+                    facility_concerns.append({
+                        "severity": "info",
+                        "message": f"Includes ${payout_amount:,.0f} to pay off {replaced_debt.lender_name}. Remaining for construction: ${remaining_for_construction:,.0f}",
+                    })
+                if commitment < payout_amount:
+                    facility_concerns.append({
+                        "severity": "high",
+                        "message": f"Commitment ${commitment:,.0f} insufficient to pay off existing {replaced_debt.lender_name} (${payout_amount:,.0f})",
+                    })
+
         # Missing maturity date
         if not maturity_date and balance > 0:
             facility_concerns.append({

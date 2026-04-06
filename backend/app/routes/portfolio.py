@@ -307,6 +307,54 @@ def update_plan(
     update_data = payload.model_dump(exclude_unset=True)
     for key, value in update_data.items():
         setattr(plan, key, value)
+
+    # Check for overlapping plans
+    from datetime import timedelta
+    start = plan.development_start_date
+    if isinstance(start, str):
+        from datetime import date as _d2
+        try:
+            start = _d2.fromisoformat(start)
+        except ValueError:
+            start = None
+    if start:
+        dur = plan.construction_duration_days or (plan.construction_duration_months * 30 if plan.construction_duration_months else 0)
+        end = start + timedelta(days=dur) if dur > 0 else start
+        other_plans = db.query(DevelopmentPlan).filter(
+            DevelopmentPlan.property_id == plan.property_id,
+            DevelopmentPlan.plan_id != plan.plan_id,
+        ).all()
+        for other in other_plans:
+            o_start = other.development_start_date
+            if not o_start:
+                continue
+            o_dur = other.construction_duration_days or (other.construction_duration_months * 30 if other.construction_duration_months else 0)
+            o_end = o_start + timedelta(days=o_dur) if o_dur > 0 else o_start
+            # Check overlap: plan starts before other ends AND plan ends after other starts
+            if start < o_end and end > o_start:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Timeline overlaps with '{other.plan_name or 'Plan ' + str(other.plan_id)}' ({o_start} to {o_end}). Development plans cannot overlap.",
+                )
+
+    # Auto-calculate completion and stabilization dates from start + duration + lease-up
+    if plan.development_start_date:
+        start = plan.development_start_date
+        if isinstance(start, str):
+            from datetime import date as _d
+            try:
+                start = _d.fromisoformat(start)
+            except ValueError:
+                start = None
+        if start:
+            duration_days = plan.construction_duration_days or 0
+            if duration_days == 0 and plan.construction_duration_months:
+                duration_days = plan.construction_duration_months * 30
+            if duration_days > 0:
+                plan.estimated_completion_date = start + timedelta(days=duration_days)
+                lease_up = plan.lease_up_months or 0
+                plan.estimated_stabilization_date = plan.estimated_completion_date + timedelta(days=lease_up * 30)
+
     try:
         db.commit()
         db.refresh(plan)
@@ -483,6 +531,48 @@ def create_debt_facility(
     if cap_fees > 0 and float(data.get("outstanding_balance", 0)) == 0:
         data["outstanding_balance"] = round(commitment + cap_fees, 2)
         data["drawn_amount"] = round(commitment + cap_fees, 2)
+
+    # Auto-set debt_purpose based on debt_type if not explicitly set
+    if not data.get("debt_purpose") or data["debt_purpose"] == "acquisition":
+        debt_type = data.get("debt_type", "")
+        if debt_type == "construction_loan":
+            data["debt_purpose"] = "construction"
+        elif data.get("development_plan_id") and debt_type == "permanent_mortgage":
+            data["debt_purpose"] = "refinancing"
+
+    # Auto-detect replaces_debt_id if not set
+    if not data.get("replaces_debt_id") and data.get("property_id"):
+        prop_id = data["property_id"]
+        plan_id = data.get("development_plan_id")
+        debt_type = data.get("debt_type", "")
+
+        if debt_type == "construction_loan" and plan_id:
+            # Construction loan replaces the existing baseline mortgage
+            baseline_mortgage = db.query(DebtFacility).filter(
+                DebtFacility.property_id == prop_id,
+                DebtFacility.development_plan_id.is_(None),
+                DebtFacility.debt_type == "permanent_mortgage",
+            ).first()
+            if baseline_mortgage:
+                data["replaces_debt_id"] = baseline_mortgage.debt_id
+
+        elif debt_type == "permanent_mortgage" and plan_id:
+            # Permanent mortgage replaces the construction loan for same plan
+            construction_loan = db.query(DebtFacility).filter(
+                DebtFacility.property_id == prop_id,
+                DebtFacility.development_plan_id == plan_id,
+                DebtFacility.debt_type == "construction_loan",
+            ).first()
+            if construction_loan:
+                data["replaces_debt_id"] = construction_loan.debt_id
+
+    # Auto-calculate maturity from origination + term
+    if data.get("origination_date") and data.get("term_months") and not data.get("maturity_date"):
+        from dateutil.relativedelta import relativedelta as _rd
+        orig = data["origination_date"]
+        if isinstance(orig, str):
+            orig = datetime.date.fromisoformat(orig)
+        data["maturity_date"] = orig + _rd(months=int(data["term_months"]))
 
     # Convert date strings to Python date objects for SQLite compatibility
     for date_field in ('origination_date', 'maturity_date'):
@@ -2449,7 +2539,16 @@ def get_rent_roll(
             })
         return rows
 
-    baseline_projection = _build_projection(baseline_summary, baseline_annual_increase)
+    # Calculate baseline projection years (until first plan starts or exit)
+    from datetime import date as _date_type
+    purchase_date = prop.purchase_date or _date_type.today()
+    sorted_all_plans = sorted(all_plans, key=lambda p: p.development_start_date or _date_type(9999, 1, 1))
+    first_plan_start = sorted_all_plans[0].development_start_date if sorted_all_plans and sorted_all_plans[0].development_start_date else None
+    baseline_years = 10
+    if first_plan_start:
+        baseline_years = max(1, (first_plan_start - purchase_date).days // 365)
+
+    baseline_projection = _build_projection(baseline_summary, baseline_annual_increase, baseline_years)
 
     # Build plan phases
     plan_phases = []
@@ -2498,7 +2597,23 @@ def get_rent_roll(
                 "plan_beds": plan_summary["total_beds"] if plan_summary else 0,
             }
 
-        plan_projection = _build_projection(plan_summary, plan_increase) if plan_summary else None
+        # Calculate projection years for this plan (until next plan starts or exit)
+        plan_stab = plan.estimated_stabilization_date or plan.estimated_completion_date
+        plan_proj_years = 10
+        plan_idx = next((i for i, p in enumerate(sorted_all_plans) if p.plan_id == plan.plan_id), -1)
+        if plan_idx >= 0 and plan_idx < len(sorted_all_plans) - 1:
+            next_plan = sorted_all_plans[plan_idx + 1]
+            if next_plan.development_start_date and plan_stab:
+                plan_proj_years = max(1, (next_plan.development_start_date - plan_stab).days // 365)
+        elif plan_stab:
+            # Last plan — project until exit
+            from app.db.models import AcquisitionBaseline as _AcqBL
+            acq_bl = db.query(_AcqBL).filter(_AcqBL.property_id == property_id).first()
+            hold_years = int(acq_bl.target_hold_years) if acq_bl and acq_bl.target_hold_years else 7
+            exit_date = _date_type(purchase_date.year + hold_years, purchase_date.month, purchase_date.day)
+            plan_proj_years = max(1, (exit_date - plan_stab).days // 365)
+
+        plan_projection = _build_projection(plan_summary, plan_increase, plan_proj_years) if plan_summary else None
 
         plan_phases.append({
             "plan_id": plan.plan_id,

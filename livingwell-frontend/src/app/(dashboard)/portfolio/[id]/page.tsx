@@ -130,15 +130,20 @@ export default function PropertyDetailPage({ params }: { params: { id: string } 
   const { data: debtFacilities } = useDebtFacilities(propertyId);
 
   const canEdit = user?.role === "DEVELOPER" || user?.role === "GP_ADMIN" || user?.role === "OPERATIONS_MANAGER";
-  const [activePhase, setActivePhase] = useState<"as_is" | "post_renovation" | "full_development">("as_is");
+  const [activePhase, setActivePhase] = useState<string>("as_is");
   const [activeTab, setActiveTab] = useState("overview");
 
   /* ── Phase-aware debt filtering ── */
   const activePlan = (plans ?? []).find((p: DevelopmentPlan) => p.status === "active") ?? (plans ?? [])[0];
 
-  // Map activePhase to the relevant plan_id — sorted by start date
+  // Map activePhase to the relevant plan_id
   const phasePlanId = (() => {
     if (activePhase === "as_is" || !plans || plans.length === 0) return null;
+    // Extract plan_id from "plan_123" format
+    if (activePhase.startsWith("plan_")) {
+      return parseInt(activePhase.replace("plan_", ""), 10) || null;
+    }
+    // Legacy fallback
     const sorted = [...plans].sort((a: DevelopmentPlan, b: DevelopmentPlan) => {
       const da = a.development_start_date || "9999";
       const db2 = b.development_start_date || "9999";
@@ -147,6 +152,17 @@ export default function PropertyDetailPage({ params }: { params: { id: string } 
     if (activePhase === "post_renovation") return sorted[0]?.plan_id ?? null;
     if (activePhase === "full_development") return sorted.length > 1 ? sorted[sorted.length - 1]?.plan_id : sorted[0]?.plan_id ?? null;
     return null;
+  })();
+
+  // Backward-compatible phase type for child components
+  const activePhaseCompat: "as_is" | "post_renovation" | "full_development" = (() => {
+    if (activePhase === "as_is" || !phasePlanId || !plans) return "as_is";
+    const sorted = [...plans].sort((a: DevelopmentPlan, b: DevelopmentPlan) => {
+      const da = a.development_start_date || "9999";
+      const db2 = b.development_start_date || "9999";
+      return da < db2 ? -1 : da > db2 ? 1 : 0;
+    });
+    return phasePlanId === sorted[sorted.length - 1]?.plan_id ? "full_development" : "post_renovation";
   })();
 
   // Filter debts based on active phase using development_plan_id and replaces_debt_id chain
@@ -350,42 +366,25 @@ export default function PropertyDetailPage({ params }: { params: { id: string } 
           const db2 = b.development_start_date || "9999";
           return da < db2 ? -1 : da > db2 ? 1 : 0;
         });
-        const hasPlans = sortedPlans.length > 0;
-        const hasMultiplePlans = sortedPlans.length > 1;
 
-        type PhaseOption = { key: "as_is" | "post_renovation" | "full_development"; label: string; icon: React.ElementType; planName?: string };
+        if (sortedPlans.length === 0) return null;
+
+        type PhaseOption = { key: string; label: string; icon: React.ElementType; planId?: number };
         const phases: PhaseOption[] = [
           { key: "as_is", label: "As-Is", icon: Eye },
         ];
 
-        if (hasPlans && !hasMultiplePlans) {
-          // Single plan — show as Post-Renovation or Full Development based on unit count
-          const plan = sortedPlans[0];
+        // Add a tab for each plan
+        sortedPlans.forEach((plan, i) => {
           const isLargeDev = plan.planned_units >= 3;
+          // Use plan_id as the phase key so each plan has a unique tab
           phases.push({
-            key: isLargeDev ? "full_development" : "post_renovation",
-            label: plan.plan_name || (isLargeDev ? "Full Development" : "Post-Renovation"),
+            key: `plan_${plan.plan_id}`,
+            label: plan.plan_name || `Plan ${i + 1}`,
             icon: isLargeDev ? HardHat : Wrench,
-            planName: plan.plan_name || undefined,
+            planId: plan.plan_id,
           });
-        } else if (hasMultiplePlans) {
-          // Multiple plans — first = renovation, last = full development (sorted by start date)
-          phases.push({
-            key: "post_renovation",
-            label: sortedPlans[0].plan_name || "Post-Renovation",
-            icon: Wrench,
-            planName: sortedPlans[0].plan_name || undefined,
-          });
-          phases.push({
-            key: "full_development",
-            label: sortedPlans[sortedPlans.length - 1].plan_name || "Full Development",
-            icon: HardHat,
-            planName: sortedPlans[sortedPlans.length - 1].plan_name || undefined,
-          });
-        }
-
-        // Only show selector if there's more than just "As-Is"
-        if (phases.length <= 1) return null;
+        });
 
         return (
           <div className="flex items-center gap-1 p-1 bg-muted/50 rounded-lg w-fit">
@@ -435,7 +434,7 @@ export default function PropertyDetailPage({ params }: { params: { id: string } 
             totalDebtOutstanding={totalDebtOutstanding}
             debtFacilitiesCount={(debtFacilities ?? []).length}
             onPropertyUpdated={() => refetchProperty()}
-            activePhase={activePhase}
+            activePhase={activePhaseCompat}
           />
           {/* Setup Guidance — what's missing / what's next */}
           <div className="mt-6">
@@ -470,15 +469,16 @@ export default function PropertyDetailPage({ params }: { params: { id: string } 
 
         {/* ── 5. Operations (Units & Beds + Revenue + Expenses) ── */}
         <TabsContent value="operations" className="mt-6">
-          <UnitsBedsTab propertyId={propertyId} canEdit={canEdit} activePhase={activePhase} phasePlanId={phasePlanId} />
+          <UnitsBedsTab propertyId={propertyId} canEdit={canEdit} activePhase={activePhaseCompat} phasePlanId={phasePlanId} />
           <div className="mt-6 border-t pt-6">
-            <RentRollTab propertyId={propertyId} canEdit={canEdit} property={property} activePhase={activePhase} phasePlanId={phasePlanId} />
+            <RentRollTab propertyId={propertyId} canEdit={canEdit} property={property} activePhase={activePhaseCompat} phasePlanId={phasePlanId} />
           </div>
           <div className="mt-6 border-t pt-6">
             <OperatingExpensesSection
               propertyId={propertyId}
               planId={phasePlanId ?? null}
               canEdit={canEdit}
+              phaseName={activePhase === "as_is" ? "As-Is" : (plans ?? []).find((p: any) => p.plan_id === phasePlanId)?.plan_name || "Development"}
             />
           </div>
         </TabsContent>
@@ -493,7 +493,7 @@ export default function PropertyDetailPage({ params }: { params: { id: string } 
             totalDebtCommitment={totalDebtCommitment}
             totalDebtOutstanding={totalDebtOutstanding}
             totalAnnualDebtService={totalAnnualDebtService}
-            activePhase={activePhase}
+            activePhase={activePhaseCompat}
             phaseFilteredDebts={phaseFilteredDebts}
             phasePlanId={phasePlanId}
           />
@@ -503,7 +503,7 @@ export default function PropertyDetailPage({ params }: { params: { id: string } 
         <TabsContent value="financial" className="mt-6">
           <PropertyCashFlow
             propertyId={propertyId}
-            activePhase={activePhase}
+            activePhase={activePhaseCompat}
             phasePlanId={phasePlanId}
             totalAnnualDebtService={totalAnnualDebtService}
             totalDebtOutstanding={totalDebtOutstanding}
@@ -587,7 +587,7 @@ function FinancialAnalysisTab({
       {subTab === "proforma" && (
         <ProFormaTab
           propertyId={propertyId}
-          activePhase={activePhase}
+          activePhase={activePhaseCompat}
           financialSnapshot={financialSnapshot}
           onProFormaGenerated={setLatestProForma}
         />
@@ -596,7 +596,7 @@ function FinancialAnalysisTab({
         <ProjectionsTab
           propertyId={propertyId}
           totalAnnualDebtService={totalAnnualDebtService}
-          activePhase={activePhase}
+          activePhase={activePhaseCompat}
           activePlan={activePlan}
           phaseFilteredDebts={phaseFilteredDebts}
           phasePlanId={phasePlanId}
@@ -605,7 +605,7 @@ function FinancialAnalysisTab({
         />
       )}
       {subTab === "valuation" && (
-        <ValuationTab propertyId={propertyId} canEdit={canEdit} activePhase={activePhase} />
+        <ValuationTab propertyId={propertyId} canEdit={canEdit} activePhase={activePhaseCompat} />
       )}
     </div>
   );

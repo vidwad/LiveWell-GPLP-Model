@@ -125,7 +125,7 @@ export function StrategyTab({ propertyId, canEdit, property }: StrategyTabProps)
       </div>
 
       {/* ═══ STRATEGY TIMELINE (Gantt) ═══ */}
-      <Card>
+      <Card key={`timeline-${sortedPlans.map(p => `${p.plan_id}-${p.development_start_date}-${p.construction_duration_days}`).join("-")}-exit-${targetExitYear}`}>
         <CardHeader className="pb-2">
           <CardTitle className="text-sm text-muted-foreground">Strategy Timeline</CardTitle>
         </CardHeader>
@@ -449,7 +449,7 @@ function DraggablePlanBar({
 
   const durationDays = plan.construction_duration_days || (plan.construction_duration_months ? plan.construction_duration_months * 30 : 180);
   const endDate = new Date(new Date(startDate).getTime() + durationDays * 86400000);
-  const leaseUpMonths = (plan as any).lease_up_months || 6;
+  const leaseUpMonths = (plan as any).lease_up_months != null ? (plan as any).lease_up_months : 6;
   const leaseUpEnd = new Date(endDate.getTime() + leaseUpMonths * 30 * 86400000);
 
   const barLeft = dateToPercent(startDate);
@@ -636,7 +636,7 @@ function PlanCard({
         description: (plan as any).description || "",
         development_start_date: plan.development_start_date ? String(plan.development_start_date) : "",
         construction_duration_days: plan.construction_duration_days || (plan.construction_duration_months ? plan.construction_duration_months * 30 : 180),
-        lease_up_months: (plan as any).lease_up_months || 6,
+        lease_up_months: (plan as any).lease_up_months != null ? (plan as any).lease_up_months : 6,
         estimated_construction_cost: Number(plan.estimated_construction_cost) || 0,
         hard_costs: Number(plan.hard_costs) || 0,
         soft_costs: Number(plan.soft_costs) || 0,
@@ -645,7 +645,7 @@ function PlanCard({
         contingency_percent: Number(plan.contingency_percent) || 10,
         projected_annual_revenue: Number(plan.projected_annual_revenue) || 0,
         projected_annual_noi: Number(plan.projected_annual_noi) || 0,
-        annual_rent_increase_pct: Number(plan.annual_rent_increase_pct) || 3,
+        annual_rent_increase_pct: plan.annual_rent_increase_pct != null ? Number(plan.annual_rent_increase_pct) : 3,
         occupancy_during_construction: (plan as any).occupancy_during_construction !== false,
       });
       setDirty(false);
@@ -727,7 +727,7 @@ function PlanCard({
                 </div>
                 <div className="space-y-1"><Label className="text-xs">Start Date</Label><input type="date" value={form.development_start_date || ""} onChange={e => sf("development_start_date", e.target.value)} className="h-8 text-sm w-full rounded-md border px-3" /></div>
                 <div className="space-y-1"><Label className="text-xs">Duration (days)</Label><Input type="number" value={form.construction_duration_days || ""} onChange={e => sf("construction_duration_days", e.target.value)} className="h-8 text-sm" /></div>
-                <div className="space-y-1"><Label className="text-xs">Lease-Up (months)</Label><Input type="number" value={form.lease_up_months || ""} onChange={e => sf("lease_up_months", e.target.value)} className="h-8 text-sm" /><p className="text-[9px] text-muted-foreground">0 = beds occupied immediately after completion</p></div>
+                <div className="space-y-1"><Label className="text-xs">Lease-Up (months)</Label><Input type="number" value={form.lease_up_months != null ? form.lease_up_months : ""} onChange={e => sf("lease_up_months", e.target.value)} className="h-8 text-sm" /><p className="text-[9px] text-muted-foreground">0 = beds occupied immediately after completion</p></div>
                 <div className="space-y-1"><Label className="text-xs">Rent Increase %/yr</Label><Input type="number" step="0.1" value={form.annual_rent_increase_pct || ""} onChange={e => sf("annual_rent_increase_pct", e.target.value)} className="h-8 text-sm" /></div>
               </div>
               <div className="rounded-lg border bg-muted/30 p-3 space-y-2">

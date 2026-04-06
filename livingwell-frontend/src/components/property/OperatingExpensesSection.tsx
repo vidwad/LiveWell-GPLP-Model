@@ -73,12 +73,14 @@ interface OperatingExpensesSectionProps {
   propertyId: number;
   planId?: number | null;
   canEdit: boolean;
+  phaseName?: string;
 }
 
 export function OperatingExpensesSection({
   propertyId,
   planId = null,
   canEdit,
+  phaseName,
 }: OperatingExpensesSectionProps) {
   const { data: expenses } = useOperatingExpenses(propertyId, planId);
   const { data: summary } = useOperatingExpenseSummary(propertyId, planId);
@@ -172,7 +174,7 @@ export function OperatingExpensesSection({
         <div className="flex items-center justify-between">
           <CardTitle className="text-base flex items-center gap-2">
             <ListChecks className="h-4 w-4 text-red-600" />
-            Operating Expenses {planId ? "(Post-Development)" : "(Baseline)"}
+            Annual Operating Expenses — Post {phaseName || (planId ? "Development" : "As-Is")}
           </CardTitle>
           <div className="flex items-center gap-2">
             {canEdit && items.length === 0 && (
