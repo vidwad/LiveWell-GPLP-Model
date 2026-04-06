@@ -14,6 +14,7 @@ import { useState, useEffect } from "react";
 import { ArrowLeft, ChevronDown, ChevronRight, Link as LinkIcon, Loader2, Sparkles } from "lucide-react";
 import { api, apiClient } from "@/lib/api";
 import { PropertyLookup } from "@/components/property/PropertyLookup";
+import { PropertyImporter } from "@/components/property/PropertyImporter";
 
 export default function NewPropertyPage() {
   const router = useRouter();
@@ -99,7 +100,7 @@ export default function NewPropertyPage() {
   };
 
   return (
-    <div className="max-w-2xl">
+    <div className="max-w-3xl">
       <div className="mb-6">
         <LinkButton variant="ghost" size="sm" href="/portfolio" className="mb-4">
           <ArrowLeft className="mr-2 h-4 w-4" />
@@ -108,40 +109,47 @@ export default function NewPropertyPage() {
         <h1 className="text-2xl font-bold">Add Property</h1>
       </div>
 
-      {/* URL Import Card */}
-      <ListingImportCard onImport={(data) => {
-        setForm((f) => ({
-          ...f,
-          address: data.address || f.address,
-          city: data.city || f.city,
-          province: data.province || f.province,
-          list_price: data.list_price || f.list_price,
-          purchase_price: data.list_price || f.purchase_price,
-          assessed_value: data.assessed_value || f.assessed_value,
-          bedrooms: data.bedrooms || f.bedrooms,
-          bathrooms: data.bathrooms || f.bathrooms,
-          building_sqft: data.building_sqft || f.building_sqft,
-          lot_size: data.lot_size || f.lot_size,
-          year_built: data.year_built || f.year_built,
-          property_type: data.property_type || f.property_type,
-          property_style: data.property_style || f.property_style,
-          garage: data.garage || f.garage,
-          neighbourhood: data.neighbourhood || f.neighbourhood,
-          zoning: data.zoning || f.zoning,
-          mls_number: data.mls_number || f.mls_number,
-          tax_amount: data.tax_amount || f.tax_amount,
-          tax_year: data.tax_year || f.tax_year,
-          latitude: data.latitude || f.latitude,
-          longitude: data.longitude || f.longitude,
-          last_sold_price: data.last_sold_price || f.last_sold_price,
-        }));
-        setShowBuildingDetails(true);
-        setShowLocationDetails(true);
-        setShowMarketDetails(true);
-        if (data._source_url) setListingUrl(data._source_url);
-        if (data.image_urls && Array.isArray(data.image_urls)) setListingPhotoUrls(data.image_urls);
-        toast.success(`Imported ${Object.keys(data).filter(k => data[k] != null && !k.startsWith("_")).length} fields from listing`);
-      }} />
+      {/* Import from URL or PDF */}
+      <div className="mb-6">
+        <PropertyImporter onImport={(data) => {
+          setForm((f) => {
+            const updated = { ...f };
+            // Map all matching fields
+            const fieldMap: Record<string, string> = {
+              address: "address", city: "city", province: "province",
+              list_price: "list_price", bedrooms: "bedrooms", bathrooms: "bathrooms",
+              building_sqft: "building_sqft", lot_size: "lot_size", year_built: "year_built",
+              property_type: "property_type", property_style: "property_style", garage: "garage",
+              neighbourhood: "neighbourhood", zoning: "zoning", mls_number: "mls_number",
+              tax_amount: "tax_amount", tax_year: "tax_year", latitude: "latitude",
+              longitude: "longitude", last_sold_price: "last_sold_price",
+              assessed_value: "assessed_value", postal_code: "postal_code",
+              storeys: "storeys", building_type: "building_type",
+              total_finished_area: "total_finished_area", foundation_type: "foundation_type",
+              construction_material: "construction_material", exterior_finish: "exterior_finish",
+              basement_type: "basement_type", heating_type: "heating_type",
+              cooling_type: "cooling_type", flooring_types: "flooring_types",
+              title_type: "title_type", parking_type: "parking_type",
+              parking_spaces: "parking_spaces", frontage_m: "frontage_m",
+              land_depth_m: "land_depth_m", walk_score: "walk_score",
+              transit_score: "transit_score", listing_description: "listing_description",
+              appliances: "appliances", structures: "structures",
+              has_fencing: "has_fencing", room_dimensions: "room_dimensions",
+            };
+            for (const [src, dst] of Object.entries(fieldMap)) {
+              if (data[src] != null) (updated as any)[dst] = data[src];
+            }
+            // Use list_price as purchase_price if not set
+            if (data.list_price && !f.purchase_price) (updated as any).purchase_price = data.list_price;
+            return updated;
+          });
+          setShowBuildingDetails(true);
+          setShowLocationDetails(true);
+          setShowMarketDetails(true);
+          if (data._source_url) setListingUrl(data._source_url);
+          if (data.image_urls && Array.isArray(data.image_urls)) setListingPhotoUrls(data.image_urls);
+        }} />
+      </div>
 
       <Card>
         <CardHeader>
@@ -377,6 +385,10 @@ export default function NewPropertyPage() {
                     <Input type="number" value={form.building_sqft || ""} onChange={(e) => set("building_sqft", e.target.value)} placeholder="1800" />
                   </div>
                   <div className="space-y-2">
+                    <Label>Total Finished sqft</Label>
+                    <Input type="number" value={(form as any).total_finished_area || ""} onChange={(e) => set("total_finished_area" as any, e.target.value)} placeholder="Incl. basement" />
+                  </div>
+                  <div className="space-y-2">
                     <Label>Bedrooms</Label>
                     <Input type="number" value={form.bedrooms || ""} onChange={(e) => set("bedrooms", e.target.value)} placeholder="4" />
                   </div>
@@ -384,9 +396,69 @@ export default function NewPropertyPage() {
                     <Label>Bathrooms</Label>
                     <Input type="number" value={form.bathrooms || ""} onChange={(e) => set("bathrooms", e.target.value)} placeholder="2" />
                   </div>
+                </div>
+                <div className="grid grid-cols-4 gap-4">
+                  <div className="space-y-2">
+                    <Label>Storeys</Label>
+                    <Input type="number" value={(form as any).storeys || ""} onChange={(e) => set("storeys" as any, e.target.value)} placeholder="1" />
+                  </div>
                   <div className="space-y-2">
                     <Label>Garage</Label>
                     <Input value={form.garage || ""} onChange={(e) => set("garage", e.target.value)} placeholder="Double Attached" />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Parking Spaces</Label>
+                    <Input type="number" value={(form as any).parking_spaces || ""} onChange={(e) => set("parking_spaces" as any, e.target.value)} placeholder="2" />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Parking Type</Label>
+                    <Input value={(form as any).parking_type || ""} onChange={(e) => set("parking_type" as any, e.target.value)} placeholder="Parking Pad" />
+                  </div>
+                </div>
+                <div className="grid grid-cols-4 gap-4">
+                  <div className="space-y-2">
+                    <Label>Basement Type</Label>
+                    <Input value={(form as any).basement_type || ""} onChange={(e) => set("basement_type" as any, e.target.value)} placeholder="Full Finished" />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Foundation</Label>
+                    <Input value={(form as any).foundation_type || ""} onChange={(e) => set("foundation_type" as any, e.target.value)} placeholder="Poured Concrete" />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Construction</Label>
+                    <Input value={(form as any).construction_material || ""} onChange={(e) => set("construction_material" as any, e.target.value)} placeholder="Wood frame" />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Exterior</Label>
+                    <Input value={(form as any).exterior_finish || ""} onChange={(e) => set("exterior_finish" as any, e.target.value)} placeholder="Vinyl siding" />
+                  </div>
+                </div>
+                <div className="grid grid-cols-4 gap-4">
+                  <div className="space-y-2">
+                    <Label>Heating</Label>
+                    <Input value={(form as any).heating_type || ""} onChange={(e) => set("heating_type" as any, e.target.value)} placeholder="Forced air, Natural gas" />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Cooling</Label>
+                    <Input value={(form as any).cooling_type || ""} onChange={(e) => set("cooling_type" as any, e.target.value)} placeholder="Central air" />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Title Type</Label>
+                    <Input value={(form as any).title_type || ""} onChange={(e) => set("title_type" as any, e.target.value)} placeholder="Freehold" />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Postal Code</Label>
+                    <Input value={(form as any).postal_code || ""} onChange={(e) => set("postal_code" as any, e.target.value)} placeholder="T3B0H5" />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Frontage (m)</Label>
+                    <Input type="number" step="0.01" value={(form as any).frontage_m || ""} onChange={(e) => set("frontage_m" as any, e.target.value)} placeholder="15.24" />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Depth (m)</Label>
+                    <Input type="number" step="0.01" value={(form as any).land_depth_m || ""} onChange={(e) => set("land_depth_m" as any, e.target.value)} placeholder="36.57" />
                   </div>
                 </div>
               </div>

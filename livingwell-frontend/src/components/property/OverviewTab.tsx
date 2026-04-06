@@ -2,7 +2,7 @@
 
 import React, { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { MapPin, DollarSign, Calendar, Building2, Landmark, TrendingUp, Pencil, Loader2, Sparkles, RefreshCw, AlertTriangle, Target } from "lucide-react";
+import { MapPin, DollarSign, Calendar, Building2, Landmark, TrendingUp, Pencil, Loader2, Sparkles, RefreshCw, AlertTriangle, Target, ChevronRight } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -11,6 +11,7 @@ import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { PropertyLookup } from "@/components/property/PropertyLookup";
+import { PropertyImporter } from "@/components/property/PropertyImporter";
 import { formatCurrencyCompact, formatDate } from "@/lib/utils";
 import { apiClient } from "@/lib/api";
 import { toast } from "sonner";
@@ -225,6 +226,26 @@ export function OverviewTab({
       {/* Investment Summary — Key Returns Snapshot */}
       <InvestmentSummaryCard propertyId={property.property_id} />
 
+      {/* Import from URL or PDF */}
+      <PropertyImporter compact onImport={async (data) => {
+        try {
+          const payload: Record<string, unknown> = {};
+          for (const [k, v] of Object.entries(data)) {
+            if (v != null && !k.startsWith("_") && k !== "image_urls" && k !== "room_dimensions") {
+              payload[k] = typeof v === "number" || typeof v === "boolean" ? v : String(v);
+            }
+          }
+          if (data.room_dimensions && typeof data.room_dimensions === "string") {
+            payload.room_dimensions = data.room_dimensions;
+          }
+          await apiClient.patch(`/api/portfolio/properties/${property.property_id}`, payload);
+          onPropertyUpdated?.();
+          toast.success("Property updated from import");
+        } catch {
+          toast.error("Failed to update property");
+        }
+      }} />
+
       {/* AI Preliminary Property Assessment */}
       <AIPropertyAssessment propertyId={property.property_id} />
 
@@ -312,6 +333,12 @@ export function OverviewTab({
                 <dd className="font-medium text-right">{property.purchase_date ? formatDate(property.purchase_date) : "—"}</dd>
               </div>
             </dl>
+            {property.listing_description && (
+              <div className="mt-4 pt-3 border-t">
+                <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">Listing Description</p>
+                <p className="text-xs text-muted-foreground leading-relaxed whitespace-pre-line">{property.listing_description}</p>
+              </div>
+            )}
           </CardContent>
         </Card>
 
@@ -572,6 +599,222 @@ export function OverviewTab({
             </Card>
           )}
         </div>
+      )}
+
+      {/* Extended Property Details (expandable) */}
+      {(property.basement_type || property.foundation_type || property.heating_type ||
+        property.parking_type || property.title_type || property.frontage_m ||
+        property.walk_score || property.listing_description || property.room_dimensions ||
+        property.total_finished_area || property.storeys || property.exterior_finish) && (
+        <details className="group">
+          <summary className="flex items-center gap-2 cursor-pointer select-none text-sm font-medium text-muted-foreground hover:text-foreground py-2">
+            <ChevronRight className="h-4 w-4 transition-transform group-open:rotate-90" />
+            Extended Property Details
+            <span className="text-[10px] bg-muted px-1.5 py-0.5 rounded">
+              {[property.basement_type, property.foundation_type, property.heating_type,
+                property.parking_type, property.title_type, property.listing_description,
+                property.walk_score, property.room_dimensions, property.total_finished_area,
+                property.exterior_finish, property.construction_material, property.cooling_type,
+                property.flooring_types, property.appliances, property.structures,
+                property.postal_code, property.frontage_m, property.storeys,
+              ].filter(Boolean).length} fields
+            </span>
+          </summary>
+          <div className="grid gap-6 lg:grid-cols-3 mt-4">
+            {/* Construction & Structure */}
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-sm">Construction & Structure</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <dl className="space-y-0 text-sm">
+                  {property.total_finished_area && (
+                    <div className="flex justify-between gap-2 py-1.5 border-b border-dashed">
+                      <dt className="text-muted-foreground text-xs">Total Finished Area</dt>
+                      <dd className="font-medium text-right text-xs">{Number(property.total_finished_area).toLocaleString()} sqft</dd>
+                    </div>
+                  )}
+                  {property.storeys && (
+                    <div className="flex justify-between gap-2 py-1.5 border-b border-dashed">
+                      <dt className="text-muted-foreground text-xs">Storeys</dt>
+                      <dd className="font-medium text-right text-xs">{property.storeys}</dd>
+                    </div>
+                  )}
+                  {property.basement_type && (
+                    <div className="flex justify-between gap-2 py-1.5 border-b border-dashed">
+                      <dt className="text-muted-foreground text-xs">Basement</dt>
+                      <dd className="font-medium text-right text-xs">{property.basement_type}</dd>
+                    </div>
+                  )}
+                  {property.foundation_type && (
+                    <div className="flex justify-between gap-2 py-1.5 border-b border-dashed">
+                      <dt className="text-muted-foreground text-xs">Foundation</dt>
+                      <dd className="font-medium text-right text-xs">{property.foundation_type}</dd>
+                    </div>
+                  )}
+                  {property.construction_material && (
+                    <div className="flex justify-between gap-2 py-1.5 border-b border-dashed">
+                      <dt className="text-muted-foreground text-xs">Construction</dt>
+                      <dd className="font-medium text-right text-xs">{property.construction_material}</dd>
+                    </div>
+                  )}
+                  {property.exterior_finish && (
+                    <div className="flex justify-between gap-2 py-1.5 border-b border-dashed">
+                      <dt className="text-muted-foreground text-xs">Exterior</dt>
+                      <dd className="font-medium text-right text-xs">{property.exterior_finish}</dd>
+                    </div>
+                  )}
+                  {property.flooring_types && (
+                    <div className="flex justify-between gap-2 py-1.5 border-b border-dashed">
+                      <dt className="text-muted-foreground text-xs">Flooring</dt>
+                      <dd className="font-medium text-right text-xs">{property.flooring_types}</dd>
+                    </div>
+                  )}
+                  {property.title_type && (
+                    <div className="flex justify-between gap-2 py-1.5">
+                      <dt className="text-muted-foreground text-xs">Title</dt>
+                      <dd className="font-medium text-right text-xs">{property.title_type}</dd>
+                    </div>
+                  )}
+                </dl>
+              </CardContent>
+            </Card>
+
+            {/* Systems & Parking */}
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-sm">Systems & Parking</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <dl className="space-y-0 text-sm">
+                  {property.heating_type && (
+                    <div className="flex justify-between gap-2 py-1.5 border-b border-dashed">
+                      <dt className="text-muted-foreground text-xs">Heating</dt>
+                      <dd className="font-medium text-right text-xs">{property.heating_type}</dd>
+                    </div>
+                  )}
+                  {property.cooling_type && (
+                    <div className="flex justify-between gap-2 py-1.5 border-b border-dashed">
+                      <dt className="text-muted-foreground text-xs">Cooling</dt>
+                      <dd className="font-medium text-right text-xs">{property.cooling_type}</dd>
+                    </div>
+                  )}
+                  {property.parking_type && (
+                    <div className="flex justify-between gap-2 py-1.5 border-b border-dashed">
+                      <dt className="text-muted-foreground text-xs">Parking Type</dt>
+                      <dd className="font-medium text-right text-xs">{property.parking_type}</dd>
+                    </div>
+                  )}
+                  {property.parking_spaces && (
+                    <div className="flex justify-between gap-2 py-1.5 border-b border-dashed">
+                      <dt className="text-muted-foreground text-xs">Parking Spaces</dt>
+                      <dd className="font-medium text-right text-xs">{property.parking_spaces}</dd>
+                    </div>
+                  )}
+                  {property.frontage_m && (
+                    <div className="flex justify-between gap-2 py-1.5 border-b border-dashed">
+                      <dt className="text-muted-foreground text-xs">Frontage</dt>
+                      <dd className="font-medium text-right text-xs">{Number(property.frontage_m).toFixed(1)}m ({(Number(property.frontage_m) * 3.281).toFixed(0)}&apos;)</dd>
+                    </div>
+                  )}
+                  {property.land_depth_m && (
+                    <div className="flex justify-between gap-2 py-1.5 border-b border-dashed">
+                      <dt className="text-muted-foreground text-xs">Depth</dt>
+                      <dd className="font-medium text-right text-xs">{Number(property.land_depth_m).toFixed(1)}m ({(Number(property.land_depth_m) * 3.281).toFixed(0)}&apos;)</dd>
+                    </div>
+                  )}
+                  {property.appliances && (
+                    <div className="flex justify-between gap-2 py-1.5 border-b border-dashed">
+                      <dt className="text-muted-foreground text-xs">Appliances</dt>
+                      <dd className="font-medium text-right text-xs max-w-[160px] truncate" title={property.appliances}>{property.appliances}</dd>
+                    </div>
+                  )}
+                  {property.structures && (
+                    <div className="flex justify-between gap-2 py-1.5">
+                      <dt className="text-muted-foreground text-xs">Structures</dt>
+                      <dd className="font-medium text-right text-xs">{property.structures}</dd>
+                    </div>
+                  )}
+                </dl>
+              </CardContent>
+            </Card>
+
+            {/* Scores & Listing */}
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-sm">Scores & Listing</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <dl className="space-y-0 text-sm">
+                  {property.postal_code && (
+                    <div className="flex justify-between gap-2 py-1.5 border-b border-dashed">
+                      <dt className="text-muted-foreground text-xs">Postal Code</dt>
+                      <dd className="font-medium text-right text-xs">{property.postal_code}</dd>
+                    </div>
+                  )}
+                  {property.walk_score && (
+                    <div className="flex justify-between gap-2 py-1.5 border-b border-dashed">
+                      <dt className="text-muted-foreground text-xs">Walk Score</dt>
+                      <dd className="font-medium text-right text-xs">{property.walk_score}/100</dd>
+                    </div>
+                  )}
+                  {property.transit_score && (
+                    <div className="flex justify-between gap-2 py-1.5 border-b border-dashed">
+                      <dt className="text-muted-foreground text-xs">Transit Score</dt>
+                      <dd className="font-medium text-right text-xs">{property.transit_score}/100</dd>
+                    </div>
+                  )}
+                  {property.bike_score && (
+                    <div className="flex justify-between gap-2 py-1.5 border-b border-dashed">
+                      <dt className="text-muted-foreground text-xs">Bike Score</dt>
+                      <dd className="font-medium text-right text-xs">{property.bike_score}/100</dd>
+                    </div>
+                  )}
+                  {property.has_fencing && (
+                    <div className="flex justify-between gap-2 py-1.5 border-b border-dashed">
+                      <dt className="text-muted-foreground text-xs">Fencing</dt>
+                      <dd className="font-medium text-right text-xs">Yes</dd>
+                    </div>
+                  )}
+                </dl>
+                {/* Listing description moved to Property Details card */}
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Room Dimensions */}
+          {property.room_dimensions && (() => {
+            try {
+              const rooms = typeof property.room_dimensions === "string" ? JSON.parse(property.room_dimensions) : property.room_dimensions;
+              if (!Array.isArray(rooms) || rooms.length === 0) return null;
+              const levels = [...new Set(rooms.map((r: any) => r.level))];
+              return (
+                <Card className="mt-4">
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-sm">Room Dimensions</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      {levels.map((level: string) => (
+                        <div key={level}>
+                          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">{level}</p>
+                          <dl className="space-y-0 text-sm">
+                            {rooms.filter((r: any) => r.level === level).map((r: any, i: number) => (
+                              <div key={i} className="flex justify-between gap-2 py-1 border-b border-dashed last:border-0">
+                                <dt className="text-xs">{r.room}</dt>
+                                <dd className="text-xs text-muted-foreground tabular-nums">{r.width_ft} x {r.length_ft} ft</dd>
+                              </div>
+                            ))}
+                          </dl>
+                        </div>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+              );
+            } catch { return null; }
+          })()}
+        </details>
       )}
 
       {/* Development Plan Summary (if exists) */}

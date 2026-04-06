@@ -73,6 +73,30 @@ def _property_to_out(prop: Property) -> PropertyOut:
         bathrooms=prop.bathrooms,
         property_style=prop.property_style,
         garage=prop.garage,
+        storeys=prop.storeys,
+        building_type=prop.building_type,
+        total_finished_area=prop.total_finished_area,
+        foundation_type=prop.foundation_type,
+        construction_material=prop.construction_material,
+        exterior_finish=prop.exterior_finish,
+        basement_type=prop.basement_type,
+        heating_type=prop.heating_type,
+        cooling_type=prop.cooling_type,
+        flooring_types=prop.flooring_types,
+        title_type=prop.title_type,
+        postal_code=prop.postal_code,
+        parking_type=prop.parking_type,
+        parking_spaces=prop.parking_spaces,
+        frontage_m=prop.frontage_m,
+        land_depth_m=prop.land_depth_m,
+        walk_score=prop.walk_score,
+        transit_score=prop.transit_score,
+        bike_score=prop.bike_score,
+        listing_description=prop.listing_description,
+        appliances=prop.appliances,
+        structures=prop.structures,
+        has_fencing=prop.has_fencing,
+        room_dimensions=prop.room_dimensions,
         neighbourhood=prop.neighbourhood,
         ward=prop.ward,
         legal_description=prop.legal_description,
@@ -1285,18 +1309,43 @@ def extract_listing_data(
         f"URL: {payload.url}\n\n"
         f"Return ONLY a JSON object with these fields (use null for unavailable data):\n"
         f'{{"address": "full street address", "city": "city name", "province": "province/state code (e.g. AB, BC, ON)", '
+        f'"postal_code": "postal code", '
         f'"list_price": number, "bedrooms": number, "bathrooms": number, "building_sqft": number, '
-        f'"lot_size": number (in sqft), "year_built": number, "property_type": "string (e.g. Single Family, Condo, Duplex, Multiplex)", '
-        f'"property_style": "string (e.g. 2 Storey, Bungalow, Split Level)", "garage": "string (e.g. Double Attached, Single Detached, None)", '
+        f'"total_finished_area": number (total livable sqft including basement), '
+        f'"lot_size": number (in sqft), "year_built": number, '
+        f'"property_type": "string (e.g. Single Family, Condo, Duplex, Multiplex)", '
+        f'"building_type": "string (e.g. House, Townhouse, Apartment)", '
+        f'"property_style": "string (e.g. 2 Storey, Bungalow, Split Level)", '
+        f'"storeys": number, '
+        f'"garage": "string (e.g. Double Attached, Single Detached, None)", '
         f'"neighbourhood": "neighbourhood name", "zoning": "zoning code if available", '
         f'"mls_number": "MLS number if shown", "tax_amount": number (annual property tax), "tax_year": number, '
         f'"assessed_value": number (assessed/appraised value), '
+        f'"title_type": "string (e.g. Freehold, Condominium)", '
+        f'"foundation_type": "string (e.g. Poured Concrete, Block)", '
+        f'"construction_material": "string (e.g. Wood frame, Concrete)", '
+        f'"exterior_finish": "string (e.g. Vinyl siding, Stucco, Brick)", '
+        f'"basement_type": "string (e.g. Full Finished, Full Unfinished, Crawl Space, None)", '
+        f'"heating_type": "string (e.g. Forced air Natural gas, Boiler)", '
+        f'"cooling_type": "string (e.g. Central air, Wall unit, None)", '
+        f'"flooring_types": "string (e.g. Carpeted, Laminate, Hardwood)", '
+        f'"parking_type": "string (e.g. Double Attached Garage, Parking Pad)", '
+        f'"parking_spaces": number, '
+        f'"frontage_m": number (lot frontage in metres), '
+        f'"land_depth_m": number (lot depth in metres), '
+        f'"appliances": "comma-separated list of included appliances", '
+        f'"structures": "string (e.g. Shed, Deck, Fence)", '
+        f'"has_fencing": boolean, '
+        f'"walk_score": number (0-100 if available), '
+        f'"transit_score": number (0-100 if available), '
         f'"latitude": number, "longitude": number, '
-        f'"description": "brief property description from the listing", '
+        f'"listing_description": "full property description from the listing", '
+        f'"room_dimensions": [{{"level":"Main","room":"Living Room","width_ft":11.42,"length_ft":10.75}}], '
         f'"image_urls": ["array of any property photo URLs found"]}}\n\n'
         f"Extract as much data as possible from the listing page. "
         f"For Canadian properties, province should be the 2-letter code (AB, BC, ON, etc.). "
-        f"Include any property photo/image URLs you can find from the listing."
+        f"Include any property photo/image URLs you can find from the listing. "
+        f"For room_dimensions, extract every room with its level, name, and dimensions in feet."
     )
 
     import json, re
@@ -1615,6 +1664,10 @@ from app.routes.portfolio_lifecycle import router as lifecycle_router
 from app.routes.portfolio_setup import router as setup_router
 from app.routes.portfolio_lending import router as lending_router
 from app.routes.portfolio_ai_budget import router as ai_budget_router
+from app.routes.portfolio_import import router as import_router
+from app.routes.portfolio_performance import router as performance_router
+from app.routes.portfolio_phase_cashflow import router as phase_cashflow_router
+from app.routes.portfolio_budget_import import router as budget_import_router
 
 router.include_router(valuation_router)
 router.include_router(construction_router)
@@ -1626,6 +1679,10 @@ router.include_router(lifecycle_router)
 router.include_router(setup_router)
 router.include_router(lending_router)
 router.include_router(ai_budget_router)
+router.include_router(import_router)
+router.include_router(performance_router)
+router.include_router(phase_cashflow_router)
+router.include_router(budget_import_router)
 
 # ===========================================================================
 # PROPERTY UNITS & BEDS

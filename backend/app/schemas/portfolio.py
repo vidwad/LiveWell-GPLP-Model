@@ -68,6 +68,30 @@ class PropertyCreate(BaseModel):
     bathrooms: int | None = None
     property_style: str | None = None
     garage: str | None = None
+    storeys: int | None = None
+    building_type: str | None = None
+    total_finished_area: Decimal | None = None
+    foundation_type: str | None = None
+    construction_material: str | None = None
+    exterior_finish: str | None = None
+    basement_type: str | None = None
+    heating_type: str | None = None
+    cooling_type: str | None = None
+    flooring_types: str | None = None
+    title_type: str | None = None
+    postal_code: str | None = None
+    parking_type: str | None = None
+    parking_spaces: int | None = None
+    frontage_m: Decimal | None = None
+    land_depth_m: Decimal | None = None
+    walk_score: int | None = None
+    transit_score: int | None = None
+    bike_score: int | None = None
+    listing_description: str | None = None
+    appliances: str | None = None
+    structures: str | None = None
+    has_fencing: bool | None = None
+    room_dimensions: str | None = None
     # Location & municipal
     neighbourhood: str | None = None
     ward: str | None = None
@@ -115,6 +139,30 @@ class PropertyUpdate(BaseModel):
     bathrooms: int | None = None
     property_style: str | None = None
     garage: str | None = None
+    storeys: int | None = None
+    building_type: str | None = None
+    total_finished_area: Decimal | None = None
+    foundation_type: str | None = None
+    construction_material: str | None = None
+    exterior_finish: str | None = None
+    basement_type: str | None = None
+    heating_type: str | None = None
+    cooling_type: str | None = None
+    flooring_types: str | None = None
+    title_type: str | None = None
+    postal_code: str | None = None
+    parking_type: str | None = None
+    parking_spaces: int | None = None
+    frontage_m: Decimal | None = None
+    land_depth_m: Decimal | None = None
+    walk_score: int | None = None
+    transit_score: int | None = None
+    bike_score: int | None = None
+    listing_description: str | None = None
+    appliances: str | None = None
+    structures: str | None = None
+    has_fencing: bool | None = None
+    room_dimensions: str | None = None
     neighbourhood: str | None = None
     ward: str | None = None
     legal_description: str | None = None
@@ -164,6 +212,30 @@ class PropertyOut(BaseModel):
     bathrooms: int | None = None
     property_style: str | None = None
     garage: str | None = None
+    storeys: int | None = None
+    building_type: str | None = None
+    total_finished_area: Decimal | None = None
+    foundation_type: str | None = None
+    construction_material: str | None = None
+    exterior_finish: str | None = None
+    basement_type: str | None = None
+    heating_type: str | None = None
+    cooling_type: str | None = None
+    flooring_types: str | None = None
+    title_type: str | None = None
+    postal_code: str | None = None
+    parking_type: str | None = None
+    parking_spaces: int | None = None
+    frontage_m: Decimal | None = None
+    land_depth_m: Decimal | None = None
+    walk_score: int | None = None
+    transit_score: int | None = None
+    bike_score: int | None = None
+    listing_description: str | None = None
+    appliances: str | None = None
+    structures: str | None = None
+    has_fencing: bool | None = None
+    room_dimensions: str | None = None
     # Location & municipal
     neighbourhood: str | None = None
     ward: str | None = None
@@ -216,6 +288,7 @@ class DevelopmentPlanCreate(BaseModel):
 class DevelopmentPlanUpdate(BaseModel):
     """All fields optional — only supplied fields are updated."""
     plan_name: str | None = None
+    description: str | None = None
     version: int | None = None
     status: str | None = None
     planned_units: int | None = None
@@ -237,6 +310,9 @@ class DevelopmentPlanUpdate(BaseModel):
     estimated_stabilization_date: datetime.date | None = None
     rent_pricing_mode: str | None = None
     annual_rent_increase_pct: Decimal | None = None
+    lease_up_months: int | None = None
+    construction_duration_months: int | None = None
+    occupancy_during_construction: bool | None = None
 
 
 class DevelopmentPlanOut(BaseModel):
@@ -278,6 +354,7 @@ class DevelopmentPlanOut(BaseModel):
     hold_period_after_stabilization_months: int | None = None
     lease_up_months: int | None = None
     construction_duration_months: int | None = None
+    occupancy_during_construction: bool | None = None
 
     model_config = {"from_attributes": True}
 

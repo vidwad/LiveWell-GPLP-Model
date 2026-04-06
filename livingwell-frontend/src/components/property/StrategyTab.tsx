@@ -1,12 +1,12 @@
 "use client";
 
 import React, { useState, useRef, useCallback } from "react";
-import { useQueryClient, useMutation } from "@tanstack/react-query";
+import { useQueryClient, useMutation, useQuery } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api";
 import { toast } from "sonner";
 import {
   Plus, ChevronDown, ChevronRight, Layers, Calendar,
-  DollarSign, Trash2, GripHorizontal, Save,
+  DollarSign, Trash2, GripHorizontal, Save, Target, ExternalLink,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -40,6 +40,18 @@ export function StrategyTab({ propertyId, canEdit, property }: StrategyTabProps)
 
   const [expandedPlanId, setExpandedPlanId] = useState<number | null>(null);
 
+  // Fetch exit data for timeline
+  const { data: exitForecast } = useQuery({
+    queryKey: ["exit-forecast", propertyId],
+    queryFn: () => apiClient.get(`/api/portfolio/properties/${propertyId}/exit-forecast`).then(r => r.data),
+    enabled: propertyId > 0,
+  });
+  const { data: acqBaseline } = useQuery({
+    queryKey: ["acquisition-baseline", propertyId],
+    queryFn: () => apiClient.get(`/api/portfolio/properties/${propertyId}/acquisition-baseline`).then(r => r.data),
+    enabled: propertyId > 0,
+  });
+
   const sortedPlans = [...(plans ?? [])].sort((a: DevelopmentPlan, b: DevelopmentPlan) => {
     const da = a.development_start_date || "9999";
     const db2 = b.development_start_date || "9999";
@@ -48,10 +60,8 @@ export function StrategyTab({ propertyId, canEdit, property }: StrategyTabProps)
 
   // Timeline bounds
   const purchaseDate = property?.purchase_date ? new Date(property.purchase_date) : new Date();
-  const exitYear = (() => {
-    // Try to get from plans or default to purchase + 7
-    return purchaseDate.getFullYear() + 10;
-  })();
+  const targetExitYear = exitForecast?.forecast_sale_year || acqBaseline?.target_sale_year || null;
+  const exitYear = targetExitYear || purchaseDate.getFullYear() + 10;
   const timelineStart = new Date(purchaseDate.getFullYear(), 0, 1);
   const timelineEnd = new Date(exitYear + 1, 0, 1);
   const totalMs = timelineEnd.getTime() - timelineStart.getTime();
@@ -182,6 +192,25 @@ export function StrategyTab({ propertyId, canEdit, property }: StrategyTabProps)
                 />
               ))}
 
+              {/* Exit marker */}
+              {targetExitYear && (() => {
+                const exitPct = dateToPercent(new Date(targetExitYear, 5, 30));
+                if (exitPct >= 0 && exitPct <= 100) {
+                  return (
+                    <div
+                      className="absolute top-0 bottom-0 z-20 flex flex-col items-center"
+                      style={{ left: `${exitPct}%` }}
+                    >
+                      <div className="w-[3px] h-full bg-red-500 rounded" />
+                      <span className="absolute -top-4 text-[9px] font-bold text-red-600 whitespace-nowrap">
+                        Exit {targetExitYear}
+                      </span>
+                    </div>
+                  );
+                }
+                return null;
+              })()}
+
               {/* Spacer for vertical height */}
               <div style={{ height: `${Math.max(60, (sortedPlans.length + 1) * 28 + 10)}px` }} />
             </div>
@@ -193,6 +222,7 @@ export function StrategyTab({ propertyId, canEdit, property }: StrategyTabProps)
               <span className="flex items-center gap-1"><span className="h-2 w-4 bg-yellow-400 rounded-full" /> Lease-Up</span>
               <span className="flex items-center gap-1"><span className="h-0.5 w-4 bg-red-400" /> Today</span>
               <span className="flex items-center gap-1"><span className="h-3 w-0.5 bg-purple-500 rounded" /> Purchase</span>
+              <span className="flex items-center gap-1"><span className="h-3 w-0.5 bg-red-500 rounded" /> Exit</span>
               {canEdit && <span className="ml-auto italic">Drag bars to adjust timing</span>}
             </div>
           </div>
@@ -222,7 +252,173 @@ export function StrategyTab({ propertyId, canEdit, property }: StrategyTabProps)
           />
         ))
       )}
+
+      {/* ═══ EXIT STAGE (permanent, not deletable) ═══ */}
+      <ExitStageCard
+        propertyId={propertyId}
+        canEdit={canEdit}
+        property={property}
+        onNavigateTab={(tab: string) => {/* handled at page level */}}
+      />
     </div>
+  );
+}
+
+
+// ═══════════════════════════════════════════════════════════════════════
+// Exit Stage Card
+// ═══════════════════════════════════════════════════════════════════════
+
+function ExitStageCard({ propertyId, canEdit, property, onNavigateTab }: {
+  propertyId: number; canEdit: boolean; property: Record<string, any>; onNavigateTab: (tab: string) => void;
+}) {
+  const qc = useQueryClient();
+  const [expanded, setExpanded] = useState(false);
+
+  const { data: forecast } = useQuery({
+    queryKey: ["exit-forecast", propertyId],
+    queryFn: () => apiClient.get(`/api/portfolio/properties/${propertyId}/exit-forecast`).then(r => r.data),
+    enabled: propertyId > 0,
+  });
+
+  const { data: baseline } = useQuery({
+    queryKey: ["acquisition-baseline", propertyId],
+    queryFn: () => apiClient.get(`/api/portfolio/properties/${propertyId}/acquisition-baseline`).then(r => r.data),
+    enabled: propertyId > 0,
+  });
+
+  const [form, setForm] = useState<Record<string, string>>({});
+  const [dirty, setDirty] = useState(false);
+
+  React.useEffect(() => {
+    if (expanded) {
+      setForm({
+        forecast_sale_year: String(forecast?.forecast_sale_year || baseline?.target_sale_year || ""),
+        forecast_exit_cap_rate: String(forecast?.forecast_exit_cap_rate || baseline?.original_exit_cap_rate || ""),
+        forecast_selling_cost_pct: String(forecast?.forecast_selling_cost_pct || baseline?.original_selling_cost_pct || "5"),
+        planned_disposition_type: forecast?.planned_disposition_type || baseline?.intended_disposition_type || "stabilized_sale",
+        planned_sale_condition: forecast?.planned_sale_condition || "",
+        notes: forecast?.notes || "",
+      });
+      setDirty(false);
+    }
+  }, [expanded, forecast, baseline]);
+
+  const sf = (key: string, val: string) => { setForm(f => ({ ...f, [key]: val })); setDirty(true); };
+
+  const saveForecast = useMutation({
+    mutationFn: (data: Record<string, any>) =>
+      apiClient.put(`/api/portfolio/properties/${propertyId}/exit-forecast`, data).then(r => r.data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["exit-forecast", propertyId] });
+      toast.success("Exit forecast updated");
+      setDirty(false);
+    },
+    onError: () => toast.error("Failed to save"),
+  });
+
+  const handleSave = () => {
+    const payload: Record<string, any> = {};
+    const numFields = ["forecast_exit_cap_rate", "forecast_selling_cost_pct"];
+    const intFields = ["forecast_sale_year"];
+    const strFields = ["planned_disposition_type", "planned_sale_condition", "notes"];
+    for (const k of numFields) { if (form[k]) payload[k] = Number(form[k]); }
+    for (const k of intFields) { if (form[k]) payload[k] = parseInt(form[k], 10); }
+    for (const k of strFields) { if (form[k]) payload[k] = form[k]; }
+    saveForecast.mutate(payload);
+  };
+
+  const saleYear = forecast?.forecast_sale_year || baseline?.target_sale_year;
+  const exitCap = Number(form.forecast_exit_cap_rate || forecast?.forecast_exit_cap_rate || baseline?.original_exit_cap_rate) || 0;
+
+  return (
+    <Card className={cn("border-red-200 transition-all", expanded && "ring-2 ring-red-200")}>
+      {/* Header */}
+      <div
+        className="flex items-center justify-between px-4 py-3 cursor-pointer hover:bg-red-50/30 transition-colors"
+        onClick={() => setExpanded(!expanded)}
+      >
+        <div className="flex items-center gap-3 min-w-0">
+          {expanded ? <ChevronDown className="h-4 w-4 text-red-500 shrink-0" /> : <ChevronRight className="h-4 w-4 text-red-500 shrink-0" />}
+          <div className="min-w-0">
+            <p className="font-semibold text-sm flex items-center gap-2">
+              <Target className="h-4 w-4 text-red-500" />
+              Exit / Disposition
+            </p>
+            <div className="flex items-center gap-3 text-xs text-muted-foreground mt-0.5">
+              {saleYear && <span>Target Year: {saleYear}</span>}
+              {exitCap > 0 && <span>Exit Cap: {exitCap}%</span>}
+              {form.planned_disposition_type && <span className="capitalize">{(form.planned_disposition_type || "").replace(/_/g, " ")}</span>}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Expanded */}
+      {expanded && (
+        <div className="border-t px-4 py-4 space-y-4">
+          {/* Original underwritten — read only reference */}
+          {baseline?.exists && (
+            <div className="rounded-lg border border-amber-200 bg-amber-50/30 p-3">
+              <p className="text-[10px] font-semibold text-amber-700 uppercase tracking-wider mb-2">
+                Original Underwritten (from Acquisition Baseline)
+              </p>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
+                <div><span className="text-muted-foreground">Target Sale Year</span><br /><span className="font-medium">{baseline.target_sale_year || "—"}</span></div>
+                <div><span className="text-muted-foreground">Exit Cap Rate</span><br /><span className="font-medium">{baseline.original_exit_cap_rate ? `${baseline.original_exit_cap_rate}%` : "—"}</span></div>
+                <div><span className="text-muted-foreground">Target IRR</span><br /><span className="font-medium">{baseline.target_irr ? `${baseline.target_irr}%` : "—"}</span></div>
+                <div><span className="text-muted-foreground">Target Equity Multiple</span><br /><span className="font-medium">{baseline.target_equity_multiple ? `${baseline.target_equity_multiple}x` : "—"}</span></div>
+              </div>
+            </div>
+          )}
+
+          {/* Current exit assumptions — editable */}
+          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Current Exit Assumptions</p>
+          <p className="text-[11px] text-muted-foreground">
+            Set the expected exit timing, cap rate, and selling costs. NOI, property value, net proceeds, and returns
+            will be calculated in the Financial Analysis and Valuation & Returns tabs.
+          </p>
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+            <div className="space-y-1">
+              <Label className="text-xs">Target Sale Year</Label>
+              <Input type="number" value={form.forecast_sale_year} onChange={e => sf("forecast_sale_year", e.target.value)} className="h-8 text-sm" placeholder="2032" />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">Exit Cap Rate (%)</Label>
+              <Input type="number" step="0.1" value={form.forecast_exit_cap_rate} onChange={e => sf("forecast_exit_cap_rate", e.target.value)} className="h-8 text-sm" placeholder="5.0" />
+              <p className="text-[9px] text-muted-foreground">Reflects post-development property quality and expected market conditions at time of sale</p>
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">Estimated Selling Costs (%)</Label>
+              <Input type="number" step="0.1" value={form.forecast_selling_cost_pct} onChange={e => sf("forecast_selling_cost_pct", e.target.value)} className="h-8 text-sm" placeholder="5.0" />
+              <p className="text-[9px] text-muted-foreground">Brokerage, legal, closing costs as % of sale price</p>
+            </div>
+          </div>
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+            <div className="space-y-1">
+              <Label className="text-xs">Disposition Type</Label>
+              <select value={form.planned_disposition_type} onChange={e => sf("planned_disposition_type", e.target.value)} className="h-8 w-full rounded-md border px-2 text-xs">
+                <option value="stabilized_sale">Stabilized Sale</option>
+                <option value="redevelopment_sale">Redevelopment Sale</option>
+                <option value="partial_lease_up_sale">Partial Lease-Up Sale</option>
+                <option value="as_is_sale">As-Is Sale</option>
+                <option value="portfolio_sale">Portfolio Sale</option>
+              </select>
+            </div>
+            <div className="col-span-2 space-y-1">
+              <Label className="text-xs">Sale Condition / Notes</Label>
+              <Input value={form.planned_sale_condition} onChange={e => sf("planned_sale_condition", e.target.value)} className="h-8 text-sm" placeholder="e.g. Stabilized at 95% occupancy for 12+ months" />
+            </div>
+          </div>
+
+          {dirty && canEdit && (
+            <Button onClick={handleSave} size="sm" className="w-full" disabled={saveForecast.isPending}>
+              <Save className="h-3.5 w-3.5 mr-1.5" /> {saveForecast.isPending ? "Saving..." : "Save Exit Assumptions"}
+            </Button>
+          )}
+        </div>
+      )}
+    </Card>
   );
 }
 
@@ -434,12 +630,12 @@ function PlanCard({
 
   // Initialize form when expanded
   React.useEffect(() => {
-    if (expanded) {
+    if (expanded && plan) {
       setForm({
         plan_name: plan.plan_name || "",
         description: (plan as any).description || "",
-        development_start_date: plan.development_start_date || "",
-        construction_duration_days: plan.construction_duration_days || 180,
+        development_start_date: plan.development_start_date ? String(plan.development_start_date) : "",
+        construction_duration_days: plan.construction_duration_days || (plan.construction_duration_months ? plan.construction_duration_months * 30 : 180),
         lease_up_months: (plan as any).lease_up_months || 6,
         estimated_construction_cost: Number(plan.estimated_construction_cost) || 0,
         hard_costs: Number(plan.hard_costs) || 0,
@@ -450,15 +646,13 @@ function PlanCard({
         projected_annual_revenue: Number(plan.projected_annual_revenue) || 0,
         projected_annual_noi: Number(plan.projected_annual_noi) || 0,
         annual_rent_increase_pct: Number(plan.annual_rent_increase_pct) || 3,
-        exit_sale_year: (plan as any).exit_sale_year || "",
-        exit_cap_rate: Number((plan as any).exit_cap_rate) || "",
-        exit_noi: Number((plan as any).exit_noi) || "",
-        exit_irr: Number((plan as any).exit_irr) || "",
-        exit_equity_multiple: Number((plan as any).exit_equity_multiple) || "",
+        occupancy_during_construction: (plan as any).occupancy_during_construction !== false,
       });
       setDirty(false);
+      setUnitsLoaded(false);
     }
-  }, [expanded, plan]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [expanded, JSON.stringify(plan)]);
 
   const sf = (key: string, val: any) => {
     setForm(f => ({ ...f, [key]: val }));
@@ -498,7 +692,7 @@ function PlanCard({
             <div className="flex items-center gap-3 text-xs text-muted-foreground mt-0.5">
               {plan.development_start_date && <span className="flex items-center gap-1"><Calendar className="h-3 w-3" />{plan.development_start_date}</span>}
               {durationMonths > 0 && <span>{durationMonths} months</span>}
-              <span>{plan.planned_units} units &middot; {plan.planned_beds} beds</span>
+              <span>{plan.planned_units} unit{plan.planned_units !== 1 ? "s" : ""} &middot; {plan.planned_beds} bed{plan.planned_beds !== 1 ? "s" : ""}</span>
             </div>
           </div>
         </div>
@@ -514,14 +708,14 @@ function PlanCard({
 
       {/* Expanded content — two columns */}
       {expanded && (
-        <div className="border-t px-4 py-4">
+        <div className="border-t px-4 py-4" key={`plan-form-${plan.plan_id}-${plan.development_start_date}`}>
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {/* LEFT COLUMN: Plan Details */}
             <div className="space-y-4">
               <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Plan Details</p>
 
               <div className="grid grid-cols-2 gap-3">
-                <div className="col-span-2 space-y-1"><Label className="text-xs">Plan Name</Label><Input value={form.plan_name} onChange={e => sf("plan_name", e.target.value)} className="h-8 text-sm" /></div>
+                <div className="col-span-2 space-y-1"><Label className="text-xs">Plan Name</Label><Input value={form.plan_name || ""} onChange={e => sf("plan_name", e.target.value)} className="h-8 text-sm" /></div>
                 <div className="col-span-2 space-y-1">
                   <Label className="text-xs">Description</Label>
                   <textarea
@@ -531,10 +725,27 @@ function PlanCard({
                     placeholder="Describe what this plan involves — e.g., full kitchen renovation with new cabinets, countertops, appliances, and flooring..."
                   />
                 </div>
-                <div className="space-y-1"><Label className="text-xs">Start Date</Label><Input type="date" value={form.development_start_date} onChange={e => sf("development_start_date", e.target.value)} className="h-8 text-sm" /></div>
-                <div className="space-y-1"><Label className="text-xs">Duration (days)</Label><Input type="number" value={form.construction_duration_days} onChange={e => sf("construction_duration_days", Number(e.target.value))} className="h-8 text-sm" /></div>
-                <div className="space-y-1"><Label className="text-xs">Lease-Up (months)</Label><Input type="number" value={form.lease_up_months} onChange={e => sf("lease_up_months", Number(e.target.value))} className="h-8 text-sm" /></div>
-                <div className="space-y-1"><Label className="text-xs">Rent Increase %/yr</Label><Input type="number" step="0.1" value={form.annual_rent_increase_pct} onChange={e => sf("annual_rent_increase_pct", Number(e.target.value))} className="h-8 text-sm" /></div>
+                <div className="space-y-1"><Label className="text-xs">Start Date</Label><input type="date" value={form.development_start_date || ""} onChange={e => sf("development_start_date", e.target.value)} className="h-8 text-sm w-full rounded-md border px-3" /></div>
+                <div className="space-y-1"><Label className="text-xs">Duration (days)</Label><Input type="number" value={form.construction_duration_days || ""} onChange={e => sf("construction_duration_days", e.target.value)} className="h-8 text-sm" /></div>
+                <div className="space-y-1"><Label className="text-xs">Lease-Up (months)</Label><Input type="number" value={form.lease_up_months || ""} onChange={e => sf("lease_up_months", e.target.value)} className="h-8 text-sm" /><p className="text-[9px] text-muted-foreground">0 = beds occupied immediately after completion</p></div>
+                <div className="space-y-1"><Label className="text-xs">Rent Increase %/yr</Label><Input type="number" step="0.1" value={form.annual_rent_increase_pct || ""} onChange={e => sf("annual_rent_increase_pct", e.target.value)} className="h-8 text-sm" /></div>
+              </div>
+              <div className="rounded-lg border bg-muted/30 p-3 space-y-2">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={form.occupancy_during_construction !== false && form.occupancy_during_construction !== "false"}
+                    onChange={e => sf("occupancy_during_construction", e.target.checked)}
+                    className="rounded"
+                  />
+                  <span className="text-xs font-medium">Maintain occupancy during construction</span>
+                </label>
+                <p className="text-[10px] text-muted-foreground leading-relaxed pl-6">
+                  {form.occupancy_during_construction !== false && form.occupancy_during_construction !== "false"
+                    ? "Existing tenants remain in place. Rental income continues during the renovation period. New rooms/beds come online after completion."
+                    : "Property will be vacated for construction. No rental income during the build period. All units will need to be leased up after completion."
+                  }
+                </p>
               </div>
 
               <Separator />
@@ -547,15 +758,6 @@ function PlanCard({
               <Button onClick={handleSaveUnits} size="sm" variant="outline" className="w-full">
                 <Save className="h-3.5 w-3.5 mr-1.5" /> Save Unit Configuration
               </Button>
-
-              <Separator />
-              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Exit Assumptions</p>
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1"><Label className="text-xs">Exit Year</Label><Input type="number" value={form.exit_sale_year} onChange={e => sf("exit_sale_year", Number(e.target.value))} className="h-8 text-sm" placeholder="2032" /></div>
-                <div className="space-y-1"><Label className="text-xs">Exit Cap (%)</Label><Input type="number" step="0.1" value={form.exit_cap_rate} onChange={e => sf("exit_cap_rate", Number(e.target.value))} className="h-8 text-sm" placeholder="5.0" /></div>
-                <div className="space-y-1"><Label className="text-xs">Exit NOI ($)</Label><Input type="number" value={form.exit_noi} onChange={e => sf("exit_noi", Number(e.target.value))} className="h-8 text-sm" /></div>
-                <div className="space-y-1"><Label className="text-xs">Target IRR (%)</Label><Input type="number" step="0.1" value={form.exit_irr} onChange={e => sf("exit_irr", Number(e.target.value))} className="h-8 text-sm" /></div>
-              </div>
 
               {dirty && canEdit && (
                 <Button onClick={handleSave} size="sm" className="w-full">

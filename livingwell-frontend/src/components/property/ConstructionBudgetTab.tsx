@@ -19,6 +19,7 @@ import {
   X,
   Sparkles,
   Loader2,
+  FileText,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -166,6 +167,42 @@ export function ConstructionBudgetTab({ propertyId, canEdit, activePhase = "full
       toast.success(`AI generated ${data.created} expense items (${new Intl.NumberFormat("en-CA", { style: "currency", currency: "CAD", maximumFractionDigits: 0 }).format(data.total_budget)} total)`);
     },
     onError: (e: any) => toast.error(e?.response?.data?.detail || "AI estimation failed"),
+  });
+
+  // PDF Budget Import
+  const pdfRef = React.useRef<HTMLInputElement>(null);
+  const [importedItems, setImportedItems] = useState<any[] | null>(null);
+  const [importMeta, setImportMeta] = useState<{ total: number; filename: string; by_category: Record<string, number> } | null>(null);
+
+  const pdfImportMutation = useMutation({
+    mutationFn: (file: File) => {
+      const formData = new FormData();
+      formData.append("file", file);
+      return apiClient.post(`/api/portfolio/properties/${propertyId}/import-budget-pdf?plan_id=${effectivePlanId}`, formData, {
+        headers: { "Content-Type": "multipart/form-data" },
+      }).then(r => r.data);
+    },
+    onSuccess: (data) => {
+      setImportedItems(data.items);
+      setImportMeta({ total: data.total, filename: data.filename, by_category: data.by_category });
+    },
+    onError: (e: any) => toast.error(e?.response?.data?.detail || "Failed to extract budget from PDF"),
+  });
+
+  const confirmImportMutation = useMutation({
+    mutationFn: (items: any[]) =>
+      apiClient.post(`/api/portfolio/properties/${propertyId}/confirm-budget-import`, {
+        plan_id: effectivePlanId,
+        items,
+      }).then(r => r.data),
+    onSuccess: (data) => {
+      qc.invalidateQueries({ queryKey: ["construction-expenses", propertyId] });
+      qc.invalidateQueries({ queryKey: ["construction-budget-summary", propertyId] });
+      toast.success(`Added ${data.created} expense items from PDF`);
+      setImportedItems(null);
+      setImportMeta(null);
+    },
+    onError: () => toast.error("Failed to save imported items"),
   });
 
   const [expenseOpen, setExpenseOpen] = useState(false);
@@ -565,6 +602,20 @@ export function ConstructionBudgetTab({ propertyId, canEdit, activePhase = "full
               {aiEstimateMutation.isPending ? <Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> : <Sparkles className="h-4 w-4 mr-1.5" />}
               {aiEstimateMutation.isPending ? "Estimating..." : "AI Estimate"}
             </Button>
+            <input ref={pdfRef} type="file" accept=".pdf" className="hidden" onChange={e => {
+              const file = e.target.files?.[0];
+              if (file) pdfImportMutation.mutate(file);
+              e.target.value = "";
+            }} />
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={pdfImportMutation.isPending || effectivePlanId === 0}
+              onClick={() => pdfRef.current?.click()}
+            >
+              {pdfImportMutation.isPending ? <Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> : <FileText className="h-4 w-4 mr-1.5" />}
+              {pdfImportMutation.isPending ? "Extracting..." : "Import PDF"}
+            </Button>
             <Dialog open={expenseOpen} onOpenChange={(open) => { setExpenseOpen(open); if (!open) setExpenseForm(emptyExpenseForm); }}>
               {/* @ts-expect-error radix-ui asChild type */}
               <DialogTrigger asChild>
@@ -646,14 +697,14 @@ export function ConstructionBudgetTab({ propertyId, canEdit, activePhase = "full
                   <TableRow className="bg-muted/50">
                     <TableHead>Category</TableHead>
                     <TableHead>Description</TableHead>
+                    <TableHead className="text-right">Budgeted</TableHead>
+                    {canEdit && <TableHead className="text-right">Actions</TableHead>}
                     <TableHead>Vendor</TableHead>
                     <TableHead>Invoice</TableHead>
                     <TableHead>Date</TableHead>
-                    <TableHead className="text-right">Budgeted</TableHead>
                     <TableHead className="text-right">Actual</TableHead>
-                    <TableHead className="text-right">Variance</TableHead>
                     <TableHead className="text-right">% of Budget</TableHead>
-                    {canEdit && <TableHead className="text-right">Actions</TableHead>}
+                    <TableHead className="text-right">Variance</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -719,17 +770,7 @@ export function ConstructionBudgetTab({ propertyId, canEdit, activePhase = "full
                           </div>
                         </TableCell>
                         <TableCell className="text-sm">{exp.description || "—"}</TableCell>
-                        <TableCell className="text-sm text-muted-foreground">{exp.vendor || "—"}</TableCell>
-                        <TableCell className="text-sm text-muted-foreground">{exp.invoice_ref || "—"}</TableCell>
-                        <TableCell className="text-sm text-muted-foreground">{exp.expense_date || "—"}</TableCell>
                         <TableCell className="text-right tabular-nums">{formatCurrency(budgeted)}</TableCell>
-                        <TableCell className="text-right tabular-nums">{formatCurrency(actual)}</TableCell>
-                        <TableCell className={cn("text-right tabular-nums font-medium", variance >= 0 ? "text-green-600" : "text-red-600")}>
-                          {variance >= 0 ? "" : "-"}{formatCurrency(Math.abs(variance))}
-                        </TableCell>
-                        <TableCell className="text-right tabular-nums text-muted-foreground">
-                          {totalBudgeted > 0 ? `${((budgeted / totalBudgeted) * 100).toFixed(1)}%` : "—"}
-                        </TableCell>
                         {canEdit && (
                           <TableCell className="text-right">
                             <div className="flex items-center justify-end gap-1">
@@ -742,9 +783,41 @@ export function ConstructionBudgetTab({ propertyId, canEdit, activePhase = "full
                             </div>
                           </TableCell>
                         )}
+                        <TableCell className="text-sm text-muted-foreground">{exp.vendor || "—"}</TableCell>
+                        <TableCell className="text-sm text-muted-foreground">{exp.invoice_ref || "—"}</TableCell>
+                        <TableCell className="text-sm text-muted-foreground">{exp.expense_date || "—"}</TableCell>
+                        <TableCell className="text-right tabular-nums">{formatCurrency(actual)}</TableCell>
+                        <TableCell className="text-right tabular-nums text-muted-foreground">
+                          {totalBudgeted > 0 ? `${((budgeted / totalBudgeted) * 100).toFixed(1)}%` : "—"}
+                        </TableCell>
+                        <TableCell className={cn("text-right tabular-nums font-medium", variance >= 0 ? "text-green-600" : "text-red-600")}>
+                          {variance >= 0 ? "" : "-"}{formatCurrency(Math.abs(variance))}
+                        </TableCell>
                       </TableRow>
                     );
                   })}
+                  {/* Totals row */}
+                  {expenses.length > 0 && (() => {
+                    const totalBudgetedAll = expenses.reduce((s: number, e: ConstructionExpense) => s + Number(e.budgeted_amount), 0);
+                    const totalActualAll = expenses.reduce((s: number, e: ConstructionExpense) => s + Number(e.actual_amount), 0);
+                    const totalVarianceAll = totalBudgetedAll - totalActualAll;
+                    return (
+                      <TableRow className="border-t-2 bg-muted/30 font-semibold">
+                        <TableCell>Total</TableCell>
+                        <TableCell />
+                        <TableCell className="text-right tabular-nums">{formatCurrency(totalBudgetedAll)}</TableCell>
+                        {canEdit && <TableCell />}
+                        <TableCell />
+                        <TableCell />
+                        <TableCell />
+                        <TableCell className="text-right tabular-nums">{formatCurrency(totalActualAll)}</TableCell>
+                        <TableCell className="text-right tabular-nums">100%</TableCell>
+                        <TableCell className={cn("text-right tabular-nums font-bold", totalVarianceAll >= 0 ? "text-green-600" : "text-red-600")}>
+                          {totalVarianceAll >= 0 ? "" : "-"}{formatCurrency(Math.abs(totalVarianceAll))}
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })()}
                 </TableBody>
               </Table>
             </div>
@@ -914,6 +987,75 @@ export function ConstructionBudgetTab({ propertyId, canEdit, activePhase = "full
           )}
         </CardContent>
       </Card>
+      {/* ── PDF Import Review Dialog ── */}
+      <Dialog open={importedItems !== null} onOpenChange={(open) => { if (!open) { setImportedItems(null); setImportMeta(null); } }}>
+        <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <FileText className="h-5 w-5" />
+              Review Extracted Budget Items
+              {importMeta && <span className="text-sm font-normal text-muted-foreground ml-2">from {importMeta.filename}</span>}
+            </DialogTitle>
+          </DialogHeader>
+          {importedItems && importMeta && (
+            <div className="space-y-4">
+              {/* Summary */}
+              <div className="flex items-center gap-4 text-sm bg-muted/50 rounded-lg px-4 py-2">
+                <span><strong>{importedItems.length}</strong> items</span>
+                <span>Total: <strong>${importMeta.total.toLocaleString()}</strong></span>
+                {Object.entries(importMeta.by_category).map(([cat, amt]) => (
+                  <span key={cat} className="text-xs text-muted-foreground">{cat.replace(/_/g, " ")}: ${(amt as number).toLocaleString()}</span>
+                ))}
+              </div>
+
+              {/* Items table */}
+              <div className="overflow-x-auto rounded-lg border">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b bg-muted/50">
+                      <th className="text-left py-2 px-3 font-medium">Category</th>
+                      <th className="text-left py-2 px-3 font-medium">Description</th>
+                      <th className="text-right py-2 px-3 font-medium">Amount</th>
+                      <th className="text-left py-2 px-3 font-medium">Vendor</th>
+                      <th className="text-left py-2 px-3 font-medium">Notes</th>
+                      <th className="py-2 px-3 w-8"></th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y">
+                    {importedItems.map((item, i) => (
+                      <tr key={i}>
+                        <td className="py-1.5 px-3 text-xs capitalize">{(item.category || "").replace(/_/g, " ")}</td>
+                        <td className="py-1.5 px-3 text-xs">{item.description}</td>
+                        <td className="py-1.5 px-3 text-right tabular-nums text-xs font-medium">${(item.budgeted_amount || 0).toLocaleString()}</td>
+                        <td className="py-1.5 px-3 text-xs text-muted-foreground">{item.vendor || "—"}</td>
+                        <td className="py-1.5 px-3 text-xs text-muted-foreground">{item.notes || "—"}</td>
+                        <td className="py-1.5 px-3">
+                          <button onClick={() => setImportedItems(prev => prev ? prev.filter((_, idx) => idx !== i) : null)} className="text-red-400 hover:text-red-600 text-xs">✕</button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              <p className="text-[10px] text-muted-foreground">
+                Review the items above. Remove any that are incorrect by clicking ✕. Click "Add All" to save to the construction budget.
+              </p>
+
+              <div className="flex gap-2 justify-end">
+                <Button variant="outline" onClick={() => { setImportedItems(null); setImportMeta(null); }}>Cancel</Button>
+                <Button
+                  onClick={() => importedItems && confirmImportMutation.mutate(importedItems)}
+                  disabled={confirmImportMutation.isPending || !importedItems?.length}
+                >
+                  {confirmImportMutation.isPending ? <Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> : <Plus className="h-4 w-4 mr-1.5" />}
+                  {confirmImportMutation.isPending ? "Saving..." : `Add All ${importedItems?.length || 0} Items`}
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

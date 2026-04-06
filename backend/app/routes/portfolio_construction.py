@@ -150,10 +150,10 @@ def get_construction_budget_summary(
     prop = db.query(Property).filter(Property.property_id == property_id).first()
     plan = db.query(DevelopmentPlan).filter(DevelopmentPlan.plan_id == plan_id).first()
 
-    # Use plan's target units/beds if available, else baseline property counts
-    total_units = int(plan.target_units or 0) if plan and plan.target_units else int(prop.bedrooms or 0) if prop else 0
-    building_sqft = float(plan.target_sqft or 0) if plan and hasattr(plan, 'target_sqft') and plan.target_sqft else float(prop.building_sqft or 0) if prop else 0
-    total_beds = int(plan.target_beds or 0) if plan and hasattr(plan, 'target_beds') and plan.target_beds else total_units
+    # Use plan's planned units/beds if available, else baseline property counts
+    total_units = int(plan.planned_units or 0) if plan and plan.planned_units else int(prop.bedrooms or 0) if prop else 0
+    building_sqft = float(plan.planned_sqft or 0) if plan and plan.planned_sqft else float(prop.building_sqft or 0) if prop else 0
+    total_beds = int(plan.planned_beds or 0) if plan and plan.planned_beds else total_units
 
     budget_f = float(total_budgeted)
     cost_per_unit = round(budget_f / total_units, 2) if total_units > 0 else None

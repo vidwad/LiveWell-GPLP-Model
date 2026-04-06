@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { UnitConfigurator, unitConfigsToApiPayload, type UnitConfig, type BedroomConfig } from "@/components/property/UnitConfigurator";
+import { PropertyImporter } from "@/components/property/PropertyImporter";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
@@ -325,41 +326,23 @@ export function AddPropertyWizard({ lpOptions }: { lpOptions?: { lp_id: number; 
         {/* Step 1: Property Basics */}
         {step === 1 && (
           <div className="space-y-4">
-            {/* Listing URL Import */}
-            <div className="rounded-lg border-2 border-dashed border-primary/30 bg-primary/5 p-4 space-y-3">
-              <div className="flex items-center gap-2 text-sm font-medium text-primary">
-                <Link2 className="h-4 w-4" />
-                Import from Listing URL
-              </div>
-              <p className="text-xs text-muted-foreground">
-                Paste a Realtor.ca, Zillow, or other listing URL to auto-fill property details using AI.
-              </p>
-              <div className="flex gap-2">
-                <Input
-                  value={listingUrl}
-                  onChange={e => setListingUrl(e.target.value)}
-                  placeholder="https://www.realtor.ca/real-estate/..."
-                  className="flex-1"
-                />
-                <Button
-                  variant="default"
-                  size="sm"
-                  disabled={!listingUrl.trim() || extractMutation.isPending}
-                  onClick={() => extractMutation.mutate(listingUrl.trim())}
-                >
-                  {extractMutation.isPending ? (
-                    <><Loader2 className="h-4 w-4 mr-1.5 animate-spin" />Extracting...</>
-                  ) : (
-                    <><Sparkles className="h-4 w-4 mr-1.5" />Fetch</>
-                  )}
-                </Button>
-              </div>
-              {extractMutation.isSuccess && (
-                <p className="text-xs text-green-600 flex items-center gap-1">
-                  <CheckCircle2 className="h-3 w-3" /> Listing data imported — review fields below
-                </p>
-              )}
-            </div>
+            {/* Import from URL or PDF */}
+            <PropertyImporter compact onImport={(data) => {
+              setForm(prev => ({
+                ...prev,
+                address: data.address || prev.address,
+                city: data.city || prev.city,
+                province: data.province || prev.province,
+                purchase_price: data.list_price ? String(data.list_price) : prev.purchase_price,
+                bedrooms: data.bedrooms ? String(data.bedrooms) : prev.bedrooms,
+                bathrooms: data.bathrooms ? String(data.bathrooms) : prev.bathrooms,
+                building_sqft: data.building_sqft ? String(data.building_sqft) : prev.building_sqft,
+                year_built: data.year_built ? String(data.year_built) : prev.year_built,
+                zoning: data.zoning || prev.zoning,
+                property_type: data.property_type || prev.property_type,
+                listing_url: data._source_url || prev.listing_url,
+              }));
+            }} />
 
             <div className="grid grid-cols-1 gap-4">
               <div className="space-y-1">
@@ -457,7 +440,7 @@ export function AddPropertyWizard({ lpOptions }: { lpOptions?: { lp_id: number; 
               {lpOptions && lpOptions.length > 0 && (
                 <div className="space-y-1 col-span-2">
                   <Label>LP Entity</Label>
-                  <Select value={form.lp_id} onValueChange={v => sf("lp_id", v)}>
+                  <Select value={form.lp_id || ""} onValueChange={v => sf("lp_id", v)}>
                     <SelectTrigger><SelectValue placeholder="Select LP..." /></SelectTrigger>
                     <SelectContent>
                       {lpOptions.map(lp => (

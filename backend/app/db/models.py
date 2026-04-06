@@ -1130,6 +1130,44 @@ class Property(Base):
     bathrooms = Column(Integer, nullable=True)
     property_style = Column(String(128), nullable=True)       # e.g. "Bungalow", "2-Storey"
     garage = Column(String(64), nullable=True)                 # e.g. "Double Attached"
+    storeys = Column(Integer, nullable=True)                   # number of storeys
+    building_type = Column(String(64), nullable=True)          # e.g. "House", "Townhouse"
+    total_finished_area = Column(Numeric(14, 2), nullable=True)  # total livable sqft including basement
+
+    # ── Construction & structure ──
+    foundation_type = Column(String(64), nullable=True)        # e.g. "Poured Concrete", "Block"
+    construction_material = Column(String(64), nullable=True)  # e.g. "Wood frame", "Concrete"
+    exterior_finish = Column(String(64), nullable=True)        # e.g. "Vinyl siding", "Stucco"
+    basement_type = Column(String(64), nullable=True)          # e.g. "Full (Finished)", "Crawl Space", "None"
+    heating_type = Column(String(128), nullable=True)          # e.g. "Forced air (Natural gas)"
+    cooling_type = Column(String(64), nullable=True)           # e.g. "Central air", "Wall unit"
+    flooring_types = Column(String(256), nullable=True)        # e.g. "Carpeted, Laminate, Hardwood"
+
+    # ── Title & ownership ──
+    title_type = Column(String(64), nullable=True)             # e.g. "Freehold", "Condominium"
+    postal_code = Column(String(16), nullable=True)
+
+    # ── Parking ──
+    parking_type = Column(String(64), nullable=True)           # e.g. "Double Attached Garage", "Parking Pad"
+    parking_spaces = Column(Integer, nullable=True)
+
+    # ── Land dimensions ──
+    frontage_m = Column(Numeric(8, 2), nullable=True)          # frontage in metres
+    land_depth_m = Column(Numeric(8, 2), nullable=True)        # depth in metres
+
+    # ── Scores & amenities ──
+    walk_score = Column(Integer, nullable=True)
+    transit_score = Column(Integer, nullable=True)
+    bike_score = Column(Integer, nullable=True)
+
+    # ── Listing detail ──
+    listing_description = Column(Text, nullable=True)          # full MLS listing description
+    appliances = Column(Text, nullable=True)                   # JSON or comma-separated
+    structures = Column(String(256), nullable=True)            # e.g. "Shed, Deck"
+    has_fencing = Column(Boolean, nullable=True, default=False)
+
+    # ── Room dimensions (JSON) ──
+    room_dimensions = Column(Text, nullable=True)              # JSON: [{"level":"Main","room":"Living","w":11.42,"l":10.75}]
 
     # ── Location & municipal references ──
     neighbourhood = Column(String(256), nullable=True)
@@ -1423,6 +1461,7 @@ class DevelopmentPlan(Base):
 
     # ── Lease-up assumptions ──
     lease_up_months = Column(Integer, nullable=True)  # months to reach stabilized occupancy
+    occupancy_during_construction = Column(Boolean, nullable=True, default=True)  # True=tenants stay, income continues; False=vacant during build
     construction_duration_months = Column(Integer, nullable=True)  # alternative to days
 
     property = relationship("Property", back_populates="development_plans")

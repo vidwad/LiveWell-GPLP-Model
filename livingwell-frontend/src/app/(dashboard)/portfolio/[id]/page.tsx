@@ -17,6 +17,7 @@ import { ExitScenariosTab } from "@/components/property/ExitScenariosTab";
 import { PropertyDocumentsTab } from "@/components/property/PropertyDocumentsTab";
 import { AcquisitionTab } from "@/components/property/AcquisitionTab";
 import { ExitReturnsTab } from "@/components/property/ExitReturnsTab";
+import { ValuationPerformanceTab } from "@/components/property/ValuationPerformanceTab";
 import { PropertyCashFlow } from "@/components/property/PropertyCashFlow";
 import { StrategyTab } from "@/components/property/StrategyTab";
 import { SetupGuidance } from "@/components/property/SetupGuidance";
@@ -420,7 +421,7 @@ export default function PropertyDetailPage({ params }: { params: { id: string } 
             <TabsTrigger value="operations"><DollarSign className="h-4 w-4 sm:mr-1.5" /><span className="hidden sm:inline">Operations</span></TabsTrigger>
             <TabsTrigger value="debt"><Landmark className="h-4 w-4 sm:mr-1.5" /><span className="hidden sm:inline">Lender Financing</span></TabsTrigger>
             <TabsTrigger value="financial"><Calculator className="h-4 w-4 sm:mr-1.5" /><span className="hidden sm:inline">Financial Analysis</span></TabsTrigger>
-            <TabsTrigger value="exit"><TrendingUp className="h-4 w-4 sm:mr-1.5" /><span className="hidden sm:inline">Exit & Returns</span></TabsTrigger>
+            <TabsTrigger value="performance"><TrendingUp className="h-4 w-4 sm:mr-1.5" /><span className="hidden sm:inline">Valuation & Returns</span></TabsTrigger>
             <TabsTrigger value="documents"><FolderOpen className="h-4 w-4 sm:mr-1.5" /><span className="hidden sm:inline">Documents</span></TabsTrigger>
           </TabsList>
         </div>
@@ -510,14 +511,13 @@ export default function PropertyDetailPage({ params }: { params: { id: string } 
           />
         </TabsContent>
 
-        {/* ── 8. Exit & Returns ── */}
-        <TabsContent value="exit" className="mt-6">
-          <ExitReturnsTab
+        {/* ── 8. Valuation & Performance ── */}
+        <TabsContent value="performance" className="mt-6">
+          <ValuationPerformanceTab
             propertyId={propertyId}
             canEdit={canEdit}
             property={property}
-            totalDebtOutstanding={totalDebtOutstanding}
-            totalAnnualDebtService={totalAnnualDebtService}
+            onNavigateTab={setActiveTab}
           />
         </TabsContent>
 
