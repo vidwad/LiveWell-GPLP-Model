@@ -1758,6 +1758,7 @@ from app.routes.portfolio_import import router as import_router
 from app.routes.portfolio_performance import router as performance_router
 from app.routes.portfolio_phase_cashflow import router as phase_cashflow_router
 from app.routes.portfolio_budget_import import router as budget_import_router
+from app.routes.valuation_reports import router as valuation_reports_router
 
 router.include_router(valuation_router)
 router.include_router(construction_router)
@@ -1773,6 +1774,7 @@ router.include_router(import_router)
 router.include_router(performance_router)
 router.include_router(phase_cashflow_router)
 router.include_router(budget_import_router)
+router.include_router(valuation_reports_router)
 
 # ===========================================================================
 # PROPERTY UNITS & BEDS

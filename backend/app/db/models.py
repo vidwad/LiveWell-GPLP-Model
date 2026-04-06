@@ -2874,3 +2874,47 @@ class OperatingExpenseLineItem(Base):
 
     property = relationship("Property", backref="operating_expense_items")
     development_plan = relationship("DevelopmentPlan", backref="operating_expense_items")
+
+
+class ValuationReportJob(Base):
+    """AI-assisted Management Appraisal Report job (two-pass: public research + private synthesis)."""
+    __tablename__ = "valuation_report_jobs"
+
+    id = Column(Integer, primary_key=True, index=True)
+    property_id = Column(Integer, ForeignKey("properties.property_id", ondelete="CASCADE"), nullable=False, index=True)
+
+    status = Column(String(32), nullable=False, default="pending")  # pending, building_subject, syncing_files, researching, synthesizing, rendering, emailing, completed, failed
+    error = Column(Text, nullable=True)
+
+    effective_date = Column(Date, nullable=True)
+    draft_version = Column(Integer, nullable=False, default=1)
+
+    # OpenAI Responses API tracking
+    public_research_response_id = Column(String(128), nullable=True)
+    synthesis_response_id = Column(String(128), nullable=True)
+    property_vector_store_id = Column(String(128), nullable=True)
+
+    # Artifact paths (filesystem)
+    subject_package_path = Column(String(512), nullable=True)
+    research_artifact_path = Column(String(512), nullable=True)
+    synthesis_markdown_path = Column(String(512), nullable=True)
+    report_artifact_path = Column(String(512), nullable=True)  # PDF
+    source_log_path = Column(String(512), nullable=True)
+
+    # Reviewer workflow
+    reviewer_status = Column(String(32), nullable=False, default="draft")  # draft, in_review, approved, issued
+    reviewer_notes = Column(Text, nullable=True)
+    issued_at = Column(DateTime, nullable=True)
+
+    # Delivery
+    deliver_to_email = Column(String(256), nullable=True)
+    delivered_at = Column(DateTime, nullable=True)
+
+    created_by = Column(Integer, ForeignKey("users.user_id"), nullable=True)
+    reviewed_by = Column(Integer, ForeignKey("users.user_id"), nullable=True)
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    updated_at = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    property = relationship("Property", backref="valuation_report_jobs")
+    creator = relationship("User", foreign_keys=[created_by])
+    reviewer = relationship("User", foreign_keys=[reviewed_by])

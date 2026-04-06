@@ -9,6 +9,7 @@ from decimal import Decimal
 from datetime import date
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import Response
 from sqlalchemy.orm import Session
 
 from app.db.session import get_db
@@ -399,6 +400,49 @@ def get_lifetime_cashflow(
             "post_ads": post_ads,
         })
 
+    # ── Refinance / capital-event pre-computation ───────────────────────────
+    # When a debt has replaces_debt_id set AND it's a permanent takeout of a
+    # construction loan, the new loan funds are wired in full at origination,
+    # used to pay off the construction loan balance, and any excess flows to
+    # the equity sponsor as a refinance distribution. This is a real cash
+    # event that affects equity returns and IRR — institutional models always
+    # surface it as a discrete "capital event" row, separated from operating
+    # cash flow so analysts can distinguish refi-driven returns from operating-
+    # driven returns.
+    refi_events: list[dict] = []
+    for d in all_debts:
+        if not d.replaces_debt_id or not d.origination_date:
+            continue
+        replaced = next((x for x in all_debts if x.debt_id == d.replaces_debt_id), None)
+        if not replaced:
+            continue
+        new_type = d.debt_type.value if hasattr(d.debt_type, "value") else str(d.debt_type or "")
+        old_type = replaced.debt_type.value if hasattr(replaced.debt_type, "value") else str(replaced.debt_type or "")
+        # Only book a discrete cash distribution event for permanent takeouts
+        # of construction loans. Construction loans replacing baseline mortgages
+        # are not fully funded at origination — only the payoff portion is, and
+        # the rest is drawn over time (already handled by the cl_draw column).
+        if not (new_type == "permanent_mortgage" and old_type == "construction_loan"):
+            continue
+        new_commitment = _f(d.commitment_amount)
+        # Construction loan payoff at takeout = the loan's commitment amount.
+        # By takeout, the construction loan is fully drawn (all project cost
+        # draws + capitalized interest from the reserve account).
+        old_payoff = _f(replaced.commitment_amount)
+        net_distribution = new_commitment - old_payoff
+        refi_events.append({
+            "date": d.origination_date,
+            "new_debt": d,
+            "old_debt": replaced,
+            "new_lender": d.lender_name,
+            "old_lender": replaced.lender_name,
+            "new_commitment": new_commitment,
+            "old_payoff": old_payoff,
+            "net_distribution": net_distribution,
+            "processed": False,
+        })
+    refi_events.sort(key=lambda e: e["date"])
+
     def _phase_for_month(d: date):
         """Return (kind, plan_window_or_None) for a given calendar month start."""
         for w in plan_windows:
@@ -426,6 +470,7 @@ def get_lifetime_cashflow(
     applied_plans = set()
     while cursor < exit_dt:
         year_counter += 1
+        year_start = cursor  # captured for refi event detection at end of year
         year_label_parts = []
         rev_year = 0.0
         exp_year = 0.0
@@ -531,6 +576,7 @@ def get_lifetime_cashflow(
                 "interest_reserve_draw": round(m_ir, 0),
                 "construction_cost": round(m_cc, 0),
                 "construction_loan_draw": round(m_cl, 0),
+                "refinance_proceeds": 0,
                 "net_cashflow_budget": round(m_cf, 0),
                 "source": m_source,
             })
@@ -579,6 +625,7 @@ def get_lifetime_cashflow(
             "interest_reserve_draw": round(ir_draw_year, 0),
             "construction_cost": round(cc_year, 0),
             "construction_loan_draw": round(cl_draw_year, 0),
+            "refinance_proceeds": 0,
             "net_cashflow_budget": round(cf_year, 0),
             "cumulative_budget": round(cumulative_budget, 0),
             "source": primary_source,
@@ -586,7 +633,58 @@ def get_lifetime_cashflow(
         })
 
         operating_years_elapsed += 1
-        cursor = date(cursor.year + 1, cursor.month, min(cursor.day, 28))
+        next_cursor = date(cursor.year + 1, cursor.month, min(cursor.day, 28))
+
+        # ── Emit any refinance events that fell within this year ──────────
+        # Synthetic period rows are inserted immediately after the operating
+        # year row that contains them, so the cumulative cash flow flows
+        # naturally and the capital event is clearly separated from operating
+        # cash flow (institutional convention).
+        for ev in refi_events:
+            if ev["processed"]:
+                continue
+            if year_start <= ev["date"] < next_cursor:
+                cumulative_budget += ev["net_distribution"]
+                ev_label = (
+                    f"Refinance — {ev['new_lender']} takes out {ev['old_lender']}"
+                )
+                ev_source = (
+                    f"Capital event: ${ev['new_commitment']:,.0f} new commitment "
+                    f"− ${ev['old_payoff']:,.0f} payoff"
+                )
+                periods.append({
+                    "period": ev_label,
+                    "type": "refinance",
+                    "year": year_counter,
+                    "revenue_budget": 0,
+                    "expenses_budget": 0,
+                    "noi_budget": 0,
+                    "debt_service_budget": 0,
+                    "interest_reserve_draw": 0,
+                    "construction_cost": 0,
+                    "construction_loan_draw": 0,
+                    "refinance_proceeds": round(ev["net_distribution"], 0),
+                    "net_cashflow_budget": round(ev["net_distribution"], 0),
+                    "cumulative_budget": round(cumulative_budget, 0),
+                    "source": ev_source,
+                    "months": [{
+                        "month": ev["date"].strftime("%b %Y"),
+                        "month_start": str(ev["date"]),
+                        "revenue_budget": 0,
+                        "expenses_budget": 0,
+                        "noi_budget": 0,
+                        "debt_service_budget": 0,
+                        "interest_reserve_draw": 0,
+                        "construction_cost": 0,
+                        "construction_loan_draw": 0,
+                        "refinance_proceeds": round(ev["net_distribution"], 0),
+                        "net_cashflow_budget": round(ev["net_distribution"], 0),
+                        "source": ev_source,
+                    }],
+                })
+                ev["processed"] = True
+
+        cursor = next_cursor
 
     # Skip the legacy plan loop below — it's superseded by the month-aware
     # walker above. Mark all plans as already processed so the old loop
@@ -750,15 +848,121 @@ def get_lifetime_cashflow(
         else:
             annualized_roi = round(-100.0, 1)
 
-    # Avg cash-on-cash uses STABILIZED operating CF only, divided by stabilized
-    # year count, against PEAK equity invested (more meaningful than spreading
-    # over hold years and against initial_equity).
-    stabilized_years = sum(1 for p in periods if p["type"] == "stabilized")
-    avg_coc = (
-        round((total_operating_cf / max(stabilized_years, 1)) / equity_in * 100, 1)
-        if equity_in > 0 and stabilized_years > 0
-        else None
-    )
+    # ── Five canonical return metrics, each with a breakdown payload so the
+    # frontend can show the formula and inputs on click. ────────────────────
+
+    # Operating-year cash flow series (years only — excludes acquisition,
+    # refinance, and disposition rows). Each entry is the annual NCF.
+    operating_year_rows = [
+        p for p in periods
+        if p["type"] in ("operating", "stabilized", "construction", "mixed")
+    ]
+    stabilized_year_rows = [p for p in periods if p["type"] == "stabilized"]
+
+    # 1. Initial Year Cash-on-Cash — first operating year's NCF / equity
+    initial_year_coc = None
+    initial_year_breakdown = None
+    if operating_year_rows and equity_in > 0:
+        first_year = operating_year_rows[0]
+        first_cf = first_year["net_cashflow_budget"]
+        initial_year_coc = round(first_cf / equity_in * 100, 1)
+        initial_year_breakdown = {
+            "label": "Initial Year Cash-on-Cash",
+            "formula": "Year 1 Cash Flow ÷ Initial Equity",
+            "inputs": [
+                {"name": f"{first_year['period']} cash flow", "value": first_cf, "format": "currency"},
+                {"name": "Initial equity (sum of capital contributions)", "value": equity_in, "format": "currency"},
+            ],
+            "calculation": f"${first_cf:,.0f} ÷ ${equity_in:,.0f} = {initial_year_coc}%",
+            "result": f"{initial_year_coc}%",
+            "interpretation": "Operating yield in the first full year of ownership, before stabilization. Useful for showing investors the project's day-one cash return.",
+        }
+
+    # 2. Average Stabilized Cash-on-Cash — avg of stabilized years / equity
+    stabilized_avg_coc = None
+    stabilized_breakdown = None
+    if stabilized_year_rows and equity_in > 0:
+        sums = [p["net_cashflow_budget"] for p in stabilized_year_rows]
+        avg_stab = sum(sums) / len(sums)
+        stabilized_avg_coc = round(avg_stab / equity_in * 100, 1)
+        first_stab = stabilized_year_rows[0]["year"]
+        last_stab = stabilized_year_rows[-1]["year"]
+        stabilized_breakdown = {
+            "label": f"Average Stabilized Cash-on-Cash (Years {first_stab}–{last_stab})",
+            "formula": "Average of stabilized-year cash flows ÷ Initial Equity",
+            "inputs": [
+                {"name": f"Year {p['year']} cash flow", "value": p["net_cashflow_budget"], "format": "currency"}
+                for p in stabilized_year_rows
+            ] + [
+                {"name": "Sum of stabilized cash flows", "value": sum(sums), "format": "currency"},
+                {"name": f"Number of stabilized years", "value": len(sums), "format": "number"},
+                {"name": "Average stabilized cash flow", "value": round(avg_stab, 0), "format": "currency"},
+                {"name": "Initial equity", "value": equity_in, "format": "currency"},
+            ],
+            "calculation": f"${avg_stab:,.0f} ÷ ${equity_in:,.0f} = {stabilized_avg_coc}%",
+            "result": f"{stabilized_avg_coc}%",
+            "interpretation": "Operating yield once the property is fully leased and operating at full capacity. The most useful single number for steady-state operating returns. Excludes construction-period years where cash flow is depressed.",
+        }
+
+    # 3. Average Hold-Period Cash-on-Cash — total operating CF over ALL hold
+    # years (including negative years) ÷ hold years ÷ equity. The most honest
+    # full-hold operating yield.
+    hold_period_avg_coc = None
+    hold_period_breakdown = None
+    if operating_year_rows and equity_in > 0 and hold_years > 0:
+        total_op_cf_full = sum(p["net_cashflow_budget"] for p in operating_year_rows)
+        avg_hold = total_op_cf_full / hold_years
+        hold_period_avg_coc = round(avg_hold / equity_in * 100, 1)
+        hold_period_breakdown = {
+            "label": f"Average Hold-Period Cash-on-Cash (Years 1–{hold_years})",
+            "formula": "Sum of all operating-year cash flows ÷ Hold years ÷ Initial Equity",
+            "inputs": [
+                {"name": f"Year {p['year']} cash flow", "value": p["net_cashflow_budget"], "format": "currency"}
+                for p in operating_year_rows
+            ] + [
+                {"name": "Total operating cash flow", "value": round(total_op_cf_full, 0), "format": "currency"},
+                {"name": "Hold years", "value": hold_years, "format": "number"},
+                {"name": "Average annual cash flow", "value": round(avg_hold, 0), "format": "currency"},
+                {"name": "Initial equity", "value": equity_in, "format": "currency"},
+            ],
+            "calculation": f"${total_op_cf_full:,.0f} ÷ {hold_years} ÷ ${equity_in:,.0f} = {hold_period_avg_coc}%",
+            "result": f"{hold_period_avg_coc}%",
+            "interpretation": "The most honest full-hold operating yield because it includes negative-cash construction years. Conservative — does not include disposition or refi proceeds.",
+        }
+
+    # 4. Equity Multiple — total cash returned / equity invested
+    equity_multiple_breakdown = None
+    if equity_multiple is not None and equity_in > 0:
+        equity_multiple_breakdown = {
+            "label": "Equity Multiple",
+            "formula": "Total Cash Returned to Equity ÷ Initial Equity",
+            "inputs": [
+                {"name": "Total cash returned (operating + refi + disposition)", "value": round(equity_out, 0), "format": "currency"},
+                {"name": "Initial equity (sum of capital contributions)", "value": equity_in, "format": "currency"},
+                {"name": "Net profit (return − equity)", "value": round(equity_out - equity_in, 0), "format": "currency"},
+            ],
+            "calculation": f"${equity_out:,.0f} ÷ ${equity_in:,.0f} = {equity_multiple}x",
+            "result": f"{equity_multiple}x",
+            "interpretation": "How many dollars come back for every dollar invested. Captures the entire investment outcome — operating cash flow, refinance distributions, and sale proceeds.",
+        }
+
+    # 5. Annualized ROI — (EM)^(1/n) − 1, expressed as %
+    annualized_roi_breakdown = None
+    if annualized_roi is not None and equity_multiple is not None and hold_years > 0:
+        annualized_roi_breakdown = {
+            "label": "Annualized Return / Average Annual ROI",
+            "formula": "(Equity Multiple)^(1 / Hold Years) − 1",
+            "inputs": [
+                {"name": "Equity multiple", "value": equity_multiple, "format": "multiple"},
+                {"name": "Hold years", "value": hold_years, "format": "number"},
+            ],
+            "calculation": f"({equity_multiple})^(1/{hold_years}) − 1 = {annualized_roi}%",
+            "result": f"{annualized_roi}%",
+            "interpretation": "Equivalent constant annual return that produces the same equity multiple over the hold period. NOT a true IRR (it doesn't weight cash flows by their timing) — for an IRR, dated month-by-month cash flows would be needed. Acceptable as an approximation when the cash flow shape is reasonably even.",
+        }
+
+    # Legacy: keep avg_coc field for backward compatibility (used by sensitivity table etc.)
+    avg_coc = stabilized_avg_coc
 
     # Actual disposition data
     actual_disposition = None
@@ -798,7 +1002,20 @@ def get_lifetime_cashflow(
             "total_return": round(total_return, 0),
             "equity_multiple": equity_multiple,
             "annualized_roi": annualized_roi,
+            # Five canonical CoC variants
+            "initial_year_coc": initial_year_coc,
+            "stabilized_avg_coc": stabilized_avg_coc,
+            "hold_period_avg_coc": hold_period_avg_coc,
+            # Legacy alias kept for backward-compat with the sensitivity table
             "avg_cash_on_cash": avg_coc,
+            # Per-metric breakdowns for click-to-explain UI
+            "breakdowns": {
+                "initial_year_coc": initial_year_breakdown,
+                "stabilized_avg_coc": stabilized_breakdown,
+                "hold_period_avg_coc": hold_period_breakdown,
+                "equity_multiple": equity_multiple_breakdown,
+                "annualized_roi": annualized_roi_breakdown,
+            },
         },
         "disposition": {
             "exit_price": round(exit_price, 0),
@@ -809,3 +1026,119 @@ def get_lifetime_cashflow(
         },
         "actual_disposition": actual_disposition,
     }
+
+
+@router.get("/properties/{property_id}/lifetime-cashflow.csv")
+def export_lifetime_cashflow_csv(
+    property_id: int,
+    include_monthly: bool = Query(True, description="Include per-month detail rows"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_investor_or_above),
+):
+    """Export the Lifetime Cash Flow as a CSV that opens cleanly in Excel/Google Sheets.
+
+    Includes the period-level rows and (optionally) every per-month detail row,
+    plus a returns summary block at the bottom.
+    """
+    import csv
+    import io
+
+    data = get_lifetime_cashflow(property_id=property_id, db=db, current_user=current_user)
+
+    buf = io.StringIO()
+    w = csv.writer(buf)
+
+    # Header block
+    prop = db.query(Property).filter(Property.property_id == property_id).first()
+    w.writerow(["Lifetime Cash Flow Export"])
+    w.writerow(["Property", prop.address if prop else f"Property {property_id}"])
+    w.writerow(["Property ID", property_id])
+    w.writerow(["Hold Years", data.get("hold_years")])
+    w.writerow(["Generated", date.today().isoformat()])
+    w.writerow([])
+
+    # Column headers
+    cols = [
+        "Period", "Type", "Year", "Month",
+        "Revenue", "Expenses", "NOI",
+        "Debt Service", "Interest Reserve Draw",
+        "Construction Cost", "Construction Loan Draw",
+        "Refinance Distribution",
+        "Net Cash Flow", "Cumulative Cash Flow", "Source",
+    ]
+    w.writerow(cols)
+
+    def _fmt(v):
+        if v is None:
+            return ""
+        return v
+
+    for p in data.get("periods", []):
+        # Year-level row
+        w.writerow([
+            p.get("period", ""),
+            p.get("type", ""),
+            p.get("year", ""),
+            "",  # month column blank for year row
+            _fmt(p.get("revenue_budget")),
+            _fmt(p.get("expenses_budget")),
+            _fmt(p.get("noi_budget")),
+            _fmt(p.get("debt_service_budget")),
+            _fmt(p.get("interest_reserve_draw")),
+            _fmt(p.get("construction_cost")),
+            _fmt(p.get("construction_loan_draw")),
+            _fmt(p.get("refinance_proceeds")),
+            _fmt(p.get("net_cashflow_budget")),
+            _fmt(p.get("cumulative_budget")),
+            p.get("source", ""),
+        ])
+
+        if include_monthly:
+            for mr in p.get("months", []) or []:
+                w.writerow([
+                    "",  # blank period to indicate monthly child
+                    p.get("type", ""),
+                    p.get("year", ""),
+                    mr.get("month", ""),
+                    _fmt(mr.get("revenue_budget")),
+                    _fmt(mr.get("expenses_budget")),
+                    _fmt(mr.get("noi_budget")),
+                    _fmt(mr.get("debt_service_budget")),
+                    _fmt(mr.get("interest_reserve_draw")),
+                    _fmt(mr.get("construction_cost")),
+                    _fmt(mr.get("construction_loan_draw")),
+                    _fmt(mr.get("refinance_proceeds")),
+                    _fmt(mr.get("net_cashflow_budget")),
+                    "",  # cumulative tracked at year level only
+                    mr.get("source", ""),
+                ])
+
+    # Returns summary
+    w.writerow([])
+    w.writerow(["Return Metrics"])
+    returns = data.get("returns", {}) or {}
+    for k in ("total_equity_invested", "total_operating_cashflow", "net_sale_proceeds",
+              "total_return", "equity_multiple", "annualized_roi", "avg_cash_on_cash"):
+        if k in returns:
+            w.writerow([k.replace("_", " ").title(), returns[k]])
+
+    # Disposition block
+    disp = data.get("disposition", {}) or {}
+    if disp:
+        w.writerow([])
+        w.writerow(["Disposition"])
+        for k in ("exit_noi", "exit_price", "selling_costs", "debt_payoff", "net_proceeds"):
+            if k in disp:
+                w.writerow([k.replace("_", " ").title(), disp[k]])
+
+    csv_text = buf.getvalue()
+    buf.close()
+
+    filename = f"lifetime_cashflow_property_{property_id}_{date.today().isoformat()}.csv"
+    return Response(
+        content=csv_text,
+        media_type="text/csv; charset=utf-8",
+        headers={
+            "Content-Disposition": f'attachment; filename="{filename}"',
+        },
+    )

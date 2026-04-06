@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { ManagementAppraisalCard } from "./ManagementAppraisalCard";
 import { Badge } from "@/components/ui/badge";
 import {
   Dialog,
@@ -406,6 +407,9 @@ export function DebtFinancingTab({ propertyId, canEdit, property, totalDebtCommi
 
       {/* Lender Underwriting Summary */}
       <LenderUnderwritingSection propertyId={propertyId} />
+
+      {/* AI-assisted Management Appraisal Report */}
+      <ManagementAppraisalCard propertyId={propertyId} />
 
       {/* Debt Summary KPIs */}
       {(debtFacilities ?? []).length > 0 && (
