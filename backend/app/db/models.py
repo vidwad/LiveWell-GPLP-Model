@@ -2918,3 +2918,37 @@ class ValuationReportJob(Base):
     property = relationship("Property", backref="valuation_report_jobs")
     creator = relationship("User", foreign_keys=[created_by])
     reviewer = relationship("User", foreign_keys=[reviewed_by])
+
+
+class TrancheProjectionSnapshot(Base):
+    """Frozen point-in-time projection snapshots captured at each tranche close.
+
+    Used to preserve the exact projection an investor saw on the day they
+    subscribed. Each snapshot captures the FULL computed payload (lifetime
+    cash flow + assumptions + waterfall + headline KPIs) so that historical
+    decks can be reproduced verbatim years later, even if the underlying
+    model has evolved.
+
+    Append-only by design — never updated. Re-capture creates a new row.
+    """
+    __tablename__ = "tranche_projection_snapshots"
+
+    snapshot_id = Column(Integer, primary_key=True, index=True)
+    lp_id = Column(Integer, ForeignKey("lp_entities.lp_id", ondelete="CASCADE"), nullable=False, index=True)
+    tranche_id = Column(Integer, ForeignKey("lp_tranches.tranche_id", ondelete="CASCADE"), nullable=False, index=True)
+
+    captured_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    captured_by = Column(Integer, ForeignKey("users.user_id"), nullable=True)
+    capture_trigger = Column(String(32), nullable=False, default="manual")
+
+    projection_type = Column(String(8), nullable=False)  # 'lp' or 'gp'
+
+    label = Column(String(256), nullable=True)
+    notes = Column(Text, nullable=True)
+
+    headline_kpis = Column(Text, nullable=True)
+    snapshot_payload = Column(Text, nullable=False)
+
+    lp = relationship("LPEntity")
+    tranche = relationship("LPTranche")
+    captor = relationship("User")

@@ -120,8 +120,13 @@ function LPFundTable({ funds }: { funds: LPFundRow[] }) {
         </thead>
         <tbody className="divide-y">
           {funds.map((f) => (
-            <tr key={f.lp_id} className="hover:bg-muted/30">
-              <td className="px-4 py-3 font-medium">{f.name}</td>
+            <tr
+              key={f.lp_id}
+              className="hover:bg-muted/30 cursor-pointer"
+              onClick={() => { window.location.href = `/analytics/${f.lp_id}`; }}
+              title="View LP performance detail"
+            >
+              <td className="px-4 py-3 font-medium text-primary hover:underline">{f.name}</td>
               <td className="px-4 py-3">
                 <span
                   className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${

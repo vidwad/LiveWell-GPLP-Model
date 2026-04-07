@@ -1142,3 +1142,962 @@ def export_lifetime_cashflow_csv(
             "Content-Disposition": f'attachment; filename="{filename}"',
         },
     )
+
+
+# ════════════════════════════════════════════════════════════════════════════
+# LP-LEVEL PORTFOLIO CASH FLOW ROLLUP
+# ════════════════════════════════════════════════════════════════════════════
+# Stitches every property in an LP into a single calendar timeline keyed by
+# month_start, sums every cash flow column across properties, then rolls up to
+# calendar-year rows. Pre-fee, pre-promote.
+
+@router.get("/lp/{lp_id}/portfolio-cashflow")
+def get_lp_portfolio_cashflow(
+    lp_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_investor_or_above),
+):
+    from datetime import date as _date
+    from collections import defaultdict
+    from app.db.models import LPEntity
+
+    lp = db.query(LPEntity).filter(LPEntity.lp_id == lp_id).first()
+    if not lp:
+        raise HTTPException(404, "LP not found")
+
+    properties = db.query(Property).filter(Property.lp_id == lp_id).all()
+    if not properties:
+        return {
+            "lp_id": lp_id, "lp_name": lp.name, "property_count": 0,
+            "periods": [], "by_property": [], "errors": [],
+            "returns": {}, "horizon": {"start": None, "end": None, "years": 0},
+        }
+
+    per_property = []
+    errors = []
+    for prop in properties:
+        try:
+            res = get_lifetime_cashflow(property_id=prop.property_id, db=db, current_user=current_user)
+            per_property.append({"property": prop, "data": res})
+        except Exception as e:
+            errors.append({
+                "property_id": prop.property_id,
+                "address": prop.address,
+                "error": f"{type(e).__name__}: {str(e)[:200]}",
+            })
+
+    if not per_property:
+        return {
+            "lp_id": lp_id, "lp_name": lp.name, "property_count": len(properties),
+            "periods": [], "by_property": [], "errors": errors,
+            "returns": {}, "horizon": {"start": None, "end": None, "years": 0},
+        }
+
+    COLS = (
+        "revenue_budget", "expenses_budget", "noi_budget",
+        "debt_service_budget", "interest_reserve_draw",
+        "construction_cost", "construction_loan_draw",
+        "refinance_proceeds", "net_cashflow_budget",
+    )
+
+    monthly: dict[str, dict] = defaultdict(lambda: {c: 0.0 for c in COLS})
+
+    # Acquisition outflow per property (book to purchase month)
+    for entry in per_property:
+        prop = entry["property"]
+        data = entry["data"]
+        acq_row = next((p for p in data["periods"] if p.get("type") == "acquisition"), None)
+        if acq_row and prop.purchase_date:
+            key = prop.purchase_date.strftime("%Y-%m")
+            monthly[key]["net_cashflow_budget"] += acq_row["net_cashflow_budget"]
+            monthly[key]["expenses_budget"] += acq_row.get("expenses_budget", 0)
+
+    # Operating + construction + refinance: stitch monthly rows
+    for entry in per_property:
+        data = entry["data"]
+        for period in data["periods"]:
+            if period.get("type") in ("acquisition", "disposition"):
+                continue
+            for mr in period.get("months") or []:
+                key = mr["month_start"][:7]
+                bucket = monthly[key]
+                for col in COLS:
+                    bucket[col] += mr.get(col, 0) or 0
+
+    # Disposition events
+    disposition_events = []
+    for entry in per_property:
+        prop = entry["property"]
+        data = entry["data"]
+        disp = next((p for p in data["periods"] if p.get("type") == "disposition"), None)
+        if not disp:
+            continue
+        hold = data.get("hold_years") or 7
+        purchase_dt = prop.purchase_date or _date.today()
+        try:
+            exit_dt = _date(purchase_dt.year + hold, purchase_dt.month, min(purchase_dt.day, 28))
+        except ValueError:
+            exit_dt = _date(purchase_dt.year + hold, purchase_dt.month, 1)
+        key = exit_dt.strftime("%Y-%m")
+        monthly[key]["net_cashflow_budget"] += disp["net_cashflow_budget"]
+        monthly[key]["revenue_budget"] += disp.get("revenue_budget", 0)
+        monthly[key]["expenses_budget"] += disp.get("expenses_budget", 0)
+        disposition_events.append({
+            "property_id": prop.property_id,
+            "address": prop.address,
+            "exit_month": key,
+            "net_proceeds": disp["net_cashflow_budget"],
+        })
+
+    sorted_months = sorted(monthly.items())
+    if not sorted_months:
+        return {
+            "lp_id": lp_id, "lp_name": lp.name, "property_count": len(properties),
+            "periods": [], "by_property": [], "errors": errors,
+            "returns": {}, "horizon": {"start": None, "end": None, "years": 0},
+        }
+
+    horizon_start = sorted_months[0][0]
+    horizon_end = sorted_months[-1][0]
+
+    years_grouped: dict[int, list] = defaultdict(list)
+    for ym, vals in sorted_months:
+        years_grouped[int(ym[:4])].append((ym, vals))
+
+    periods = []
+    cumulative = 0.0
+    year_counter = 0
+    horizon_year_start = int(horizon_start[:4])
+
+    for cal_year in sorted(years_grouped.keys()):
+        year_counter += 1
+        year_months = years_grouped[cal_year]
+        year_totals = {col: 0.0 for col in COLS}
+        month_rows = []
+        for ym, vals in year_months:
+            vals_noi = vals["revenue_budget"] - vals["expenses_budget"]
+            for col in COLS:
+                year_totals[col] += vals[col]
+            month_rows.append({
+                "month": _date(int(ym[:4]), int(ym[5:7]), 1).strftime("%b %Y"),
+                "month_start": ym + "-01",
+                "revenue_budget": round(vals["revenue_budget"], 0),
+                "expenses_budget": round(vals["expenses_budget"], 0),
+                "noi_budget": round(vals_noi, 0),
+                "debt_service_budget": round(vals["debt_service_budget"], 0),
+                "interest_reserve_draw": round(vals["interest_reserve_draw"], 0),
+                "construction_cost": round(vals["construction_cost"], 0),
+                "construction_loan_draw": round(vals["construction_loan_draw"], 0),
+                "refinance_proceeds": round(vals["refinance_proceeds"], 0),
+                "net_cashflow_budget": round(vals["net_cashflow_budget"], 0),
+                "source": "Portfolio aggregate",
+            })
+
+        year_totals["noi_budget"] = year_totals["revenue_budget"] - year_totals["expenses_budget"]
+        cumulative += year_totals["net_cashflow_budget"]
+
+        has_construction = year_totals["construction_cost"] > 0
+        has_revenue = year_totals["revenue_budget"] > 0
+        has_disposition_event = any(d["exit_month"][:4] == str(cal_year) for d in disposition_events)
+        if has_disposition_event and not has_construction and year_counter == len(years_grouped):
+            row_type = "disposition"
+            label = f"{cal_year} (Disposition year)"
+        elif has_construction and has_revenue:
+            row_type = "mixed"
+            label = f"{cal_year} (Mixed)"
+        elif has_construction:
+            row_type = "construction"
+            label = f"{cal_year} (Construction)"
+        elif has_revenue:
+            row_type = "stabilized" if cal_year > horizon_year_start else "operating"
+            label = f"{cal_year} (Operating)"
+        else:
+            row_type = "operating"
+            label = f"{cal_year}"
+
+        periods.append({
+            "period": label,
+            "type": row_type,
+            "year": year_counter,
+            "calendar_year": cal_year,
+            "revenue_budget": round(year_totals["revenue_budget"], 0),
+            "expenses_budget": round(year_totals["expenses_budget"], 0),
+            "noi_budget": round(year_totals["noi_budget"], 0),
+            "debt_service_budget": round(year_totals["debt_service_budget"], 0),
+            "interest_reserve_draw": round(year_totals["interest_reserve_draw"], 0),
+            "construction_cost": round(year_totals["construction_cost"], 0),
+            "construction_loan_draw": round(year_totals["construction_loan_draw"], 0),
+            "refinance_proceeds": round(year_totals["refinance_proceeds"], 0),
+            "net_cashflow_budget": round(year_totals["net_cashflow_budget"], 0),
+            "cumulative_budget": round(cumulative, 0),
+            "source": "Portfolio aggregate",
+            "months": month_rows,
+        })
+
+    equity_in = sum(-p["net_cashflow_budget"] for p in periods if p["net_cashflow_budget"] < 0)
+    equity_out = sum(p["net_cashflow_budget"] for p in periods if p["net_cashflow_budget"] > 0)
+    profit = equity_out - equity_in
+
+    operating_year_rows = [p for p in periods if p["type"] in ("operating", "stabilized", "construction", "mixed")]
+    stabilized_year_rows = [p for p in periods if p["type"] == "stabilized"]
+
+    hold_years = max(1, len(operating_year_rows))
+    em = round(equity_out / equity_in, 2) if equity_in > 0 else None
+    annualized_roi = None
+    if equity_in > 0 and hold_years > 0 and equity_out > 0:
+        annualized_roi = round(((equity_out / equity_in) ** (1 / hold_years) - 1) * 100, 1)
+
+    initial_year_coc = None
+    initial_year_breakdown = None
+    if operating_year_rows and equity_in > 0:
+        first = operating_year_rows[0]
+        initial_year_coc = round(first["net_cashflow_budget"] / equity_in * 100, 1)
+        initial_year_breakdown = {
+            "label": "Initial Year Cash-on-Cash (Portfolio)",
+            "formula": "Year 1 Net Cash Flow ÷ Total Equity Invested",
+            "inputs": [
+                {"name": f"{first['period']} cash flow", "value": first["net_cashflow_budget"], "format": "currency"},
+                {"name": "Total equity invested", "value": equity_in, "format": "currency"},
+            ],
+            "calculation": f"${first['net_cashflow_budget']:,.0f} / ${equity_in:,.0f} = {initial_year_coc}%",
+            "result": f"{initial_year_coc}%",
+            "interpretation": "Portfolio operating yield in the first calendar year. Often negative for funds in active acquisition.",
+        }
+
+    stabilized_avg_coc = None
+    stabilized_breakdown = None
+    if stabilized_year_rows and equity_in > 0:
+        sums = [p["net_cashflow_budget"] for p in stabilized_year_rows]
+        avg_stab = sum(sums) / len(sums)
+        stabilized_avg_coc = round(avg_stab / equity_in * 100, 1)
+        stabilized_breakdown = {
+            "label": f"Average Stabilized CoC ({len(sums)} years)",
+            "formula": "Avg of stabilized-year cash flows / Total Equity Invested",
+            "inputs": [{"name": p["period"], "value": p["net_cashflow_budget"], "format": "currency"} for p in stabilized_year_rows] + [
+                {"name": "Sum of stabilized cash flows", "value": sum(sums), "format": "currency"},
+                {"name": "Number of stabilized years", "value": len(sums), "format": "number"},
+                {"name": "Average stabilized cash flow", "value": round(avg_stab, 0), "format": "currency"},
+                {"name": "Total equity invested", "value": equity_in, "format": "currency"},
+            ],
+            "calculation": f"${avg_stab:,.0f} / ${equity_in:,.0f} = {stabilized_avg_coc}%",
+            "result": f"{stabilized_avg_coc}%",
+            "interpretation": "Portfolio operating yield once all properties are fully stabilized.",
+        }
+
+    hold_period_avg_coc = None
+    hold_period_breakdown = None
+    if operating_year_rows and equity_in > 0 and hold_years > 0:
+        total_op_cf = sum(p["net_cashflow_budget"] for p in operating_year_rows)
+        avg_hold = total_op_cf / hold_years
+        hold_period_avg_coc = round(avg_hold / equity_in * 100, 1)
+        hold_period_breakdown = {
+            "label": f"Average Hold-Period CoC ({hold_years} years)",
+            "formula": "Sum of operating-year cash flows / Hold years / Total Equity Invested",
+            "inputs": [{"name": p["period"], "value": p["net_cashflow_budget"], "format": "currency"} for p in operating_year_rows] + [
+                {"name": "Total operating cash flow", "value": round(total_op_cf, 0), "format": "currency"},
+                {"name": "Hold years (calendar)", "value": hold_years, "format": "number"},
+                {"name": "Total equity invested", "value": equity_in, "format": "currency"},
+            ],
+            "calculation": f"${total_op_cf:,.0f} / {hold_years} / ${equity_in:,.0f} = {hold_period_avg_coc}%",
+            "result": f"{hold_period_avg_coc}%",
+            "interpretation": "Portfolio-wide hold-period yield including negative construction years.",
+        }
+
+    em_breakdown = None
+    if em is not None and equity_in > 0:
+        em_breakdown = {
+            "label": "Portfolio Equity Multiple",
+            "formula": "Total Cash Returned / Total Equity Invested",
+            "inputs": [
+                {"name": "Total cash returned", "value": round(equity_out, 0), "format": "currency"},
+                {"name": "Total equity invested", "value": equity_in, "format": "currency"},
+                {"name": "Net profit", "value": round(profit, 0), "format": "currency"},
+            ],
+            "calculation": f"${equity_out:,.0f} / ${equity_in:,.0f} = {em}x",
+            "result": f"{em}x",
+            "interpretation": "Combined dollars-out per dollar-in across the LP portfolio. Pre-fee, pre-promote.",
+        }
+
+    roi_breakdown = None
+    if annualized_roi is not None and em is not None:
+        roi_breakdown = {
+            "label": "Portfolio Annualized Return",
+            "formula": "(Equity Multiple)^(1 / Calendar Hold Years) - 1",
+            "inputs": [
+                {"name": "Equity multiple", "value": em, "format": "multiple"},
+                {"name": "Calendar hold years", "value": hold_years, "format": "number"},
+            ],
+            "calculation": f"({em})^(1/{hold_years}) - 1 = {annualized_roi}%",
+            "result": f"{annualized_roi}%",
+            "interpretation": "Equivalent constant annual return at the portfolio level. Pre-fee, pre-promote.",
+        }
+
+    by_property = []
+    for entry in per_property:
+        prop = entry["property"]
+        data = entry["data"]
+        r = data.get("returns") or {}
+        by_property.append({
+            "property_id": prop.property_id,
+            "address": prop.address,
+            "city": prop.city,
+            "stage": prop.development_stage.value if hasattr(prop.development_stage, "value") else str(prop.development_stage or ""),
+            "purchase_date": str(prop.purchase_date) if prop.purchase_date else None,
+            "hold_years": data.get("hold_years"),
+            "equity_invested": r.get("total_equity_invested"),
+            "total_return": r.get("total_return"),
+            "equity_multiple": r.get("equity_multiple"),
+            "annualized_roi": r.get("annualized_roi"),
+            "initial_year_coc": r.get("initial_year_coc"),
+            "stabilized_avg_coc": r.get("stabilized_avg_coc"),
+            "hold_period_avg_coc": r.get("hold_period_avg_coc"),
+            "exit_price": (data.get("disposition") or {}).get("exit_price"),
+            "net_sale_proceeds": (data.get("disposition") or {}).get("net_proceeds"),
+        })
+
+    return {
+        "lp_id": lp_id,
+        "lp_name": lp.name,
+        "property_count": len(properties),
+        "horizon": {
+            "start": horizon_start,
+            "end": horizon_end,
+            "years": hold_years,
+        },
+        "periods": periods,
+        "returns": {
+            "total_equity_invested": round(equity_in, 0),
+            "total_return": round(profit, 0),
+            "total_cash_returned": round(equity_out, 0),
+            "equity_multiple": em,
+            "annualized_roi": annualized_roi,
+            "initial_year_coc": initial_year_coc,
+            "stabilized_avg_coc": stabilized_avg_coc,
+            "hold_period_avg_coc": hold_period_avg_coc,
+            "breakdowns": {
+                "initial_year_coc": initial_year_breakdown,
+                "stabilized_avg_coc": stabilized_breakdown,
+                "hold_period_avg_coc": hold_period_breakdown,
+                "equity_multiple": em_breakdown,
+                "annualized_roi": roi_breakdown,
+            },
+        },
+        "by_property": by_property,
+        "errors": errors,
+    }
+
+
+@router.get("/lp/{lp_id}/portfolio-cashflow.csv")
+def export_lp_portfolio_cashflow_csv(
+    lp_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_investor_or_above),
+):
+    """CSV export of the LP-level aggregated lifetime cash flow."""
+    import csv
+    import io
+    data = get_lp_portfolio_cashflow(lp_id=lp_id, db=db, current_user=current_user)
+
+    buf = io.StringIO()
+    w = csv.writer(buf)
+    w.writerow(["LP Portfolio Cash Flow Export"])
+    w.writerow(["LP", data.get("lp_name") or f"LP {lp_id}"])
+    w.writerow(["LP ID", lp_id])
+    w.writerow(["Properties", data.get("property_count")])
+    horizon = data.get("horizon") or {}
+    w.writerow(["Horizon", f"{horizon.get('start')} - {horizon.get('end')}"])
+    w.writerow(["Generated", date.today().isoformat()])
+    w.writerow([])
+    w.writerow([
+        "Period", "Type", "Year", "Month",
+        "Revenue", "Expenses", "NOI",
+        "Debt Service", "Interest Reserve Draw",
+        "Construction Cost", "Construction Loan Draw",
+        "Refinance Distribution",
+        "Net Cash Flow", "Cumulative Cash Flow",
+    ])
+    for p in data.get("periods", []):
+        w.writerow([
+            p.get("period", ""), p.get("type", ""), p.get("year", ""), "",
+            p.get("revenue_budget"), p.get("expenses_budget"), p.get("noi_budget"),
+            p.get("debt_service_budget"), p.get("interest_reserve_draw"),
+            p.get("construction_cost"), p.get("construction_loan_draw"),
+            p.get("refinance_proceeds"),
+            p.get("net_cashflow_budget"), p.get("cumulative_budget"),
+        ])
+        for mr in p.get("months") or []:
+            w.writerow([
+                "", p.get("type", ""), p.get("year", ""), mr.get("month", ""),
+                mr.get("revenue_budget"), mr.get("expenses_budget"), mr.get("noi_budget"),
+                mr.get("debt_service_budget"), mr.get("interest_reserve_draw"),
+                mr.get("construction_cost"), mr.get("construction_loan_draw"),
+                mr.get("refinance_proceeds"),
+                mr.get("net_cashflow_budget"), "",
+            ])
+
+    w.writerow([])
+    w.writerow(["Portfolio Returns (pre-fee, pre-promote)"])
+    r = data.get("returns") or {}
+    for k in ("total_equity_invested", "total_cash_returned", "total_return",
+              "equity_multiple", "annualized_roi",
+              "initial_year_coc", "stabilized_avg_coc", "hold_period_avg_coc"):
+        if k in r:
+            w.writerow([k.replace("_", " ").title(), r[k]])
+
+    w.writerow([])
+    w.writerow(["By Property"])
+    w.writerow(["Property ID", "Address", "Stage", "Hold Years", "Equity Invested",
+                "Total Return", "Equity Multiple", "Annualized ROI",
+                "Initial CoC", "Stabilized CoC", "Hold-Period CoC"])
+    for bp in data.get("by_property", []):
+        w.writerow([
+            bp.get("property_id"), bp.get("address"), bp.get("stage"),
+            bp.get("hold_years"), bp.get("equity_invested"),
+            bp.get("total_return"), bp.get("equity_multiple"), bp.get("annualized_roi"),
+            bp.get("initial_year_coc"), bp.get("stabilized_avg_coc"), bp.get("hold_period_avg_coc"),
+        ])
+
+    csv_text = buf.getvalue()
+    buf.close()
+    filename = f"lp_{lp_id}_portfolio_cashflow_{date.today().isoformat()}.csv"
+    return Response(
+        content=csv_text,
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+# ════════════════════════════════════════════════════════════════════════════
+# LP INVESTOR PRO FORMA — institutional investor return projection
+# ════════════════════════════════════════════════════════════════════════════
+# Year-by-year LP return view modeled after the standard private-syndicator
+# pro forma spreadsheet. Mirrors:
+#   1. Capital Stack & Equity Build  (acquisition + fees + refi distributions)
+#   2. Property Value Build & LP Equity Position (asset growth)
+#   3. Operating Pro Forma (revenue, expenses, NOI, debt service, net CF)
+#   4. Anticipated Return Summary (CoC + principal paydown + cap gain)
+#   5. $100,000 Investor Reference (normalized scale view)
+#
+# Two waterfall modes are supported via query param:
+#   - simple_split (default): straight LP/GP split per
+#     lp_profit_share_percent and gp_profit_share_percent
+#   - european: 4-tier ROC → Pref → Catch-up → Carry waterfall
+
+@router.get("/lp/{lp_id}/investor-proforma")
+def get_lp_investor_proforma(
+    lp_id: int,
+    waterfall_mode: str = Query("simple_split", pattern="^(simple_split|european)$"),
+    investor_reference_amount: float = Query(100000, ge=1000),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_investor_or_above),
+):
+    from app.db.models import LPEntity
+
+    lp = db.query(LPEntity).filter(LPEntity.lp_id == lp_id).first()
+    if not lp:
+        raise HTTPException(404, "LP not found")
+
+    # Pull the underlying portfolio cash flow (already stitched + per-year)
+    portfolio = get_lp_portfolio_cashflow(lp_id=lp_id, db=db, current_user=current_user)
+    raw_periods = portfolio.get("periods") or []
+
+    # Skip the synthetic acquisition + refinance + disposition rows when
+    # walking the operating year stream — those are events, not years.
+    operating_years = [
+        p for p in raw_periods
+        if p.get("type") in ("operating", "stabilized", "construction", "mixed")
+    ]
+    if not operating_years:
+        return {
+            "lp_id": lp_id,
+            "lp_name": lp.name,
+            "hold_years": 0,
+            "years": [],
+            "summary": {},
+            "investor_reference": {},
+            "waterfall_mode": waterfall_mode,
+            "fee_assumptions": {},
+            "errors": ["No operating years to project"],
+        }
+
+    # ── LP fee + waterfall config ──────────────────────────────────────────
+    acq_fee_pct = _f(lp.acquisition_fee_percent) / 100.0
+    selling_comm_pct = _f(lp.selling_commission_percent) / 100.0
+    asset_mgmt_fee_pct = _f(lp.asset_management_fee_percent) / 100.0
+    annual_mgmt_fee_pct = _f(lp.management_fee_percent) / 100.0
+    lp_appreciation_share_pct = _f(lp.lp_profit_share_percent or 70) / 100.0
+    gp_appreciation_share_pct = _f(lp.gp_profit_share_percent or 30) / 100.0
+    pref_rate = _f(lp.preferred_return_rate or 8) / 100.0
+    gp_promote = _f(lp.gp_promote_percent or 20) / 100.0
+
+    # Liquidation cost — use the same default the lifetime CF uses (3% if not set)
+    liquidation_cost_pct = 0.03
+
+    # ── Initial equity / acquisition costs ─────────────────────────────────
+    # Total LP equity = ALL negative cash flows the sponsor must fund. This is
+    # the same number as the existing portfolio_cashflow returns block's
+    # `total_equity_invested`. Use it directly so the proforma matches.
+    portfolio_returns = portfolio.get("returns") or {}
+    total_lp_equity_from_negatives = portfolio_returns.get("total_equity_invested") or 0.0
+
+    # The acquisition row is the FIRST capital contribution event
+    acq_row = next((p for p in raw_periods if p.get("type") == "acquisition"), None)
+    initial_property_equity = abs(acq_row.get("net_cashflow_budget", 0)) if acq_row else 0.0
+
+    # GP fees taken out of the initial equity raise
+    acq_fees_to_gp = initial_property_equity * acq_fee_pct
+    selling_commission = initial_property_equity * selling_comm_pct
+    # Total initial LP equity = property equity + fees stacked on top of the raise
+    total_initial_lp_equity = initial_property_equity + acq_fees_to_gp + selling_commission
+
+    # The denominator for return % calcs is the LARGEST capital base the LP
+    # is exposed to over the hold (gives the most conservative CoC %).
+    return_denominator = max(total_initial_lp_equity, total_lp_equity_from_negatives)
+    if return_denominator <= 0:
+        return_denominator = 1.0  # avoid division by zero in early-stage models
+
+    # ── Disposition row + refi events ──────────────────────────────────────
+    disp_row = next((p for p in raw_periods if p.get("type") == "disposition"), None)
+    refi_rows = [p for p in raw_periods if p.get("type") == "refinance"]
+
+    # ── Year-by-year stream ────────────────────────────────────────────────
+    years_out = []
+    cumulative_lp_equity_invested = 0.0
+    cumulative_principal_paid = 0.0
+
+    # We need a mortgage balance trajectory across years — derive from period
+    # construction-loan-draw rows + amortization implied by debt service.
+    # For the proforma we use a simple: starting balance = sum of initial debt,
+    # ending balance per year = balance - principal portion of DS.
+    # Initial mortgage estimate: any baseline debt
+    starting_mortgage = 0.0
+    try:
+        from app.db.models import DebtFacility as _DF
+        baseline_debts = db.query(_DF).filter(
+            _DF.property_id.in_([prop_id for prop_id in [
+                p["property_id"] for p in (
+                    db.query(Property.property_id).filter(Property.lp_id == lp_id).all()
+                )
+            ]])
+        ).all()
+        starting_mortgage = sum(_f(d.outstanding_balance) or _f(d.commitment_amount) for d in baseline_debts)
+    except Exception:
+        starting_mortgage = 0.0
+
+    current_mortgage_balance = starting_mortgage
+
+    for idx, py in enumerate(operating_years, start=1):
+        cal_year = py.get("calendar_year") or py.get("year") or idx
+        revenue = py.get("revenue_budget", 0) or 0
+        expenses_total = py.get("expenses_budget", 0) or 0
+        debt_service = py.get("debt_service_budget", 0) or 0
+        construction_cost = py.get("construction_cost", 0) or 0
+        construction_loan_draw = py.get("construction_loan_draw", 0) or 0
+        refi_proceeds = py.get("refinance_proceeds", 0) or 0
+        net_cf_from_period = py.get("net_cashflow_budget", 0) or 0
+        noi = revenue - expenses_total
+
+        # Annual GP management fee (% of EGI / revenue) — added to expense load
+        gp_annual_mgmt_fee = revenue * annual_mgmt_fee_pct
+        # Asset management fee (% of asset value) — applied as a flat $ if rate set
+        asset_mgmt_fee = 0.0  # placeholder; could compute against rolling NAV
+
+        # Total LP equity contribution for this year:
+        #   Year 1: initial_property_equity + acq_fees_to_gp + selling_commission
+        #   Other years: any new construction shortfall (already inside net_cf negative)
+        lp_equity_this_year = 0.0
+        if idx == 1:
+            lp_equity_this_year = total_initial_lp_equity
+        # If a year is net negative AND not the first acquisition year, treat it
+        # as additional capital required from LPs
+        if idx > 1 and net_cf_from_period < 0:
+            lp_equity_this_year += abs(net_cf_from_period)
+
+        # Refi distribution INTO LP this year (negative outflow into capital stack
+        # = positive cash back to LP)
+        refi_distribution_this_year = refi_proceeds  # already positive in walker
+
+        cumulative_lp_equity_invested += lp_equity_this_year - refi_distribution_this_year
+
+        # Mortgage balance trajectory — naive implementation:
+        # subtract principal portion of debt service. Assume ~30% of DS is principal
+        # in early years (most loans are interest-heavy at start). Refine later.
+        principal_paid = debt_service * 0.30 if debt_service > 0 else 0.0
+        # Construction loan draws ADD to mortgage; takeout via refi NETS the
+        # mortgage to the takeout loan (the existing walker handles this).
+        current_mortgage_balance += construction_loan_draw - principal_paid
+        if current_mortgage_balance < 0:
+            current_mortgage_balance = 0
+        cumulative_principal_paid += principal_paid
+
+        # Property value: market value if known, else cost basis grown by
+        # implied cap rate. We use the disposition exit price as the terminal
+        # anchor and grow back from there at a constant 3% baseline.
+        # Simpler approach: use the year's cumulative equity contribution +
+        # mortgage balance as a proxy. Better still: pull from LCF directly if
+        # the lifetime cash flow exposed it. For now, compute from terminal:
+        terminal_value = (disp_row.get("revenue_budget") or 0) if disp_row else 0
+        years_to_exit = len(operating_years) - idx + 1
+        # Linear approximation backward from terminal
+        property_value_this_year = terminal_value / max(1, ((1 + 0.03) ** years_to_exit))
+
+        # LP equity investment value at the end of year =
+        #   property value − mortgage balance − cumulative LP equity invested
+        lp_equity_value = property_value_this_year - current_mortgage_balance
+
+        # Cash flow to LP this year = year's NCF + any refi distribution
+        # (refi already included in net_cf_from_period via portfolio cashflow walker)
+        net_cf_to_lp = net_cf_from_period
+
+        # CoC return % = net CF to LP / total committed LP equity
+        coc_pct = (net_cf_to_lp / return_denominator * 100)
+        # Equity from principal paydown % = principal paid this year / committed LP equity
+        principal_pct = (principal_paid / return_denominator * 100)
+
+        years_out.append({
+            "year_number": idx,
+            "calendar_year": cal_year,
+            "label": py.get("period", f"Year {idx}"),
+            # Capital stack
+            "property_portfolio_price": round(property_value_this_year, 0),
+            "lp_equity_invested_this_year": round(lp_equity_this_year, 0),
+            "refi_distribution_to_lp": round(refi_distribution_this_year, 0),
+            "cumulative_lp_equity_invested": round(cumulative_lp_equity_invested, 0),
+            # Property value build
+            "mortgage_balance_eoy": round(current_mortgage_balance, 0),
+            "lp_equity_value_eoy": round(lp_equity_value, 0),
+            # Operating
+            "gross_rents": round(revenue, 0),
+            "expenses_total": round(expenses_total, 0),
+            "noi": round(noi, 0),
+            "debt_service": round(debt_service, 0),
+            "construction_cost": round(construction_cost, 0),
+            "construction_loan_draw": round(construction_loan_draw, 0),
+            "net_cashflow_to_lp": round(net_cf_to_lp, 0),
+            # Returns
+            "coc_pct": round(coc_pct, 2),
+            "principal_paydown_pct": round(principal_pct, 2),
+            "cap_gain_return_pct": 0.0,  # only realized at disposition year
+            "total_return_pct": round(coc_pct + principal_pct, 2),
+        })
+
+    # ── Disposition year — overlay capital appreciation gain ───────────────
+    if disp_row and years_out:
+        last_year = years_out[-1]
+        sale_price = disp_row.get("revenue_budget", 0) or 0
+        # Selling costs separately (the disposition row already nets debt payoff
+        # into expenses, so back it out to get pure selling costs)
+        debt_payoff = disp_row.get("debt_service_budget", 0) or 0  # not stored here; use disposition expense
+        # Walk: net proceeds (in disposition row's NCF) − cumulative_lp_equity_invested = LP profit before split
+        net_proceeds_at_exit = disp_row.get("net_cashflow_budget", 0) or 0
+
+        total_lp_capital_invested = cumulative_lp_equity_invested
+        total_appreciation_pool = net_proceeds_at_exit - total_lp_capital_invested
+        if total_appreciation_pool < 0:
+            total_appreciation_pool = 0
+
+        if waterfall_mode == "european":
+            # Use the european waterfall split
+            from app.services.projection_snapshot import _split_lp_gp
+            split = _split_lp_gp(portfolio, lp)
+            lp_take = split.get("lp_results", {}).get("total_distributions", 0) or 0
+            gp_take = split.get("gp_results", {}).get("total_distributions", 0) or 0
+            lp_appreciation_share = max(0, lp_take - total_lp_capital_invested)
+            gp_appreciation_share = gp_take
+        else:
+            # Simple split of the appreciation pool
+            lp_appreciation_share = total_appreciation_pool * lp_appreciation_share_pct
+            gp_appreciation_share = total_appreciation_pool * gp_appreciation_share_pct
+
+        # Override the last year's cap gain return %
+        cap_gain_pct = (lp_appreciation_share / return_denominator * 100)
+        last_year["cap_gain_return_pct"] = round(cap_gain_pct, 2)
+        last_year["total_return_pct"] = round(
+            last_year["coc_pct"] + last_year["principal_paydown_pct"] + cap_gain_pct, 2
+        )
+        last_year["lp_capital_appreciation"] = round(lp_appreciation_share, 0)
+        last_year["gp_capital_appreciation"] = round(gp_appreciation_share, 0)
+        last_year["sale_price"] = round(sale_price, 0)
+        last_year["net_sale_proceeds"] = round(net_proceeds_at_exit, 0)
+
+    # ── Summary metrics across the hold ────────────────────────────────────
+    n = len(years_out)
+    avg_coc = sum(y["coc_pct"] for y in years_out) / n if n > 0 else 0
+    avg_principal = sum(y["principal_paydown_pct"] for y in years_out) / n if n > 0 else 0
+    avg_total = sum(y["total_return_pct"] for y in years_out) / n if n > 0 else 0
+    cumulative_total = sum(y["net_cashflow_to_lp"] for y in years_out)
+
+    summary = {
+        "hold_years": n,
+        "total_initial_lp_equity": round(return_denominator, 0),
+        "initial_property_equity": round(initial_property_equity, 0),
+        "acquisition_fees_to_gp": round(acq_fees_to_gp, 0),
+        "selling_commission": round(selling_commission, 0),
+        "cumulative_net_cf_to_lp": round(cumulative_total, 0),
+        "avg_coc_pct": round(avg_coc, 2),
+        "avg_principal_paydown_pct": round(avg_principal, 2),
+        "cap_gain_return_pct": round(years_out[-1].get("cap_gain_return_pct", 0), 2) if years_out else 0,
+        "avg_annual_roi_pct": round(avg_total, 2),
+        "lp_appreciation_share": round(years_out[-1].get("lp_capital_appreciation", 0), 0) if years_out else 0,
+        "gp_appreciation_share": round(years_out[-1].get("gp_capital_appreciation", 0), 0) if years_out else 0,
+    }
+
+    # ── $100K investor reference ───────────────────────────────────────────
+    ref = investor_reference_amount
+    scale = ref / return_denominator if return_denominator > 0 else 0
+    investor_reference = {
+        "investment_amount": ref,
+        "years": [
+            {
+                "year_number": y["year_number"],
+                "calendar_year": y["calendar_year"],
+                "net_cashflow": round(y["net_cashflow_to_lp"] * scale, 0),
+                "principal_paydown": round((y["principal_paydown_pct"] / 100) * ref, 0),
+                "capital_gain": round((y.get("cap_gain_return_pct", 0) / 100) * ref, 0),
+                "total_cash_back": round(
+                    (y["net_cashflow_to_lp"] * scale)
+                    + ((y["principal_paydown_pct"] / 100) * ref)
+                    + ((y.get("cap_gain_return_pct", 0) / 100) * ref),
+                    0,
+                ),
+            }
+            for y in years_out
+        ],
+        "total_cash_returned": round(
+            sum(
+                (y["net_cashflow_to_lp"] * scale)
+                + ((y["principal_paydown_pct"] / 100) * ref)
+                + ((y.get("cap_gain_return_pct", 0) / 100) * ref)
+                for y in years_out
+            ),
+            0,
+        ),
+    }
+
+    # ════════════════════════════════════════════════════════════════════════
+    # GP COMPENSATION BUILD-UP
+    # ════════════════════════════════════════════════════════════════════════
+    # Walk the GP's revenue streams year-by-year. Six discrete buckets:
+    #   1. Acquisition fee (one-time, Y1)
+    #   2. Selling/finder commission (one-time, Y1, paid by LP, often credited back)
+    #   3. Annual management fee (recurring, % of revenue or paid-in)
+    #   4. Refinance fee (one-time at any refi event)
+    #   5. Disposition / brokerage fee (one-time, exit year)
+    #   6. Promote / carried interest (variable, end of fund)
+    construction_mgmt_fee_pct = _f(lp.construction_management_fee_percent or 0) / 100.0
+    refi_fee_pct = _f(lp.refinancing_fee_percent or 0) / 100.0
+
+    # Acquisition fee — one-time, Y1
+    acq_fee_y1 = initial_property_equity * acq_fee_pct
+
+    # Construction management fee — applied to construction cost as it's spent
+    # (year-by-year)
+    # Promote pool — split the total profit pool per the selected waterfall mode
+    base_profit_pool_for_promote = portfolio_returns.get("total_return") or 0
+    if waterfall_mode == "european":
+        from app.services.projection_snapshot import _split_lp_gp
+        waterfall = _split_lp_gp(portfolio, lp)
+        gp_promote_total = (waterfall.get("gp_results") or {}).get("total_distributions") or 0
+    else:
+        # Simple split: GP gets gp_appreciation_share_pct of the profit pool
+        gp_promote_total = base_profit_pool_for_promote * gp_appreciation_share_pct
+
+    # Build per-year GP comp rows
+    gp_year_rows = []
+    cumulative_gp_take = 0.0
+    for idx, py in enumerate(years_out, start=1):
+        is_first_year = idx == 1
+        is_last_year = idx == n
+        revenue = py.get("gross_rents") or 0
+        construction_cost = py.get("construction_cost") or 0
+        refi_proceeds = py.get("refi_distribution_to_lp") or 0
+
+        acq_fee = acq_fee_y1 if is_first_year else 0.0
+        annual_mgmt_fee = revenue * annual_mgmt_fee_pct
+        constr_mgmt_fee = construction_cost * construction_mgmt_fee_pct
+        refi_fee = (refi_proceeds * refi_fee_pct) if refi_proceeds > 0 else 0.0
+        disposition_fee = 0.0
+        promote = 0.0
+        if is_last_year:
+            disp_revenue = (disp_row.get("revenue_budget") or 0) if disp_row else 0
+            disposition_fee = disp_revenue * selling_comm_pct
+            promote = gp_promote_total
+
+        total_year_take = acq_fee + annual_mgmt_fee + constr_mgmt_fee + refi_fee + disposition_fee + promote
+        cumulative_gp_take += total_year_take
+
+        gp_year_rows.append({
+            "year_number": idx,
+            "calendar_year": py.get("calendar_year"),
+            "acquisition_fee": round(acq_fee, 0),
+            "annual_management_fee": round(annual_mgmt_fee, 0),
+            "construction_management_fee": round(constr_mgmt_fee, 0),
+            "refinance_fee": round(refi_fee, 0),
+            "disposition_fee": round(disposition_fee, 0),
+            "promote": round(promote, 0),
+            "total_gp_take": round(total_year_take, 0),
+            "cumulative_gp_take": round(cumulative_gp_take, 0),
+            # Recurring vs variable split
+            "fee_income_subtotal": round(acq_fee + annual_mgmt_fee + constr_mgmt_fee + refi_fee + disposition_fee, 0),
+            "performance_take_subtotal": round(promote, 0),
+        })
+
+    total_gp_acq_fee = sum(r["acquisition_fee"] for r in gp_year_rows)
+    total_gp_annual_mgmt = sum(r["annual_management_fee"] for r in gp_year_rows)
+    total_gp_constr_mgmt = sum(r["construction_management_fee"] for r in gp_year_rows)
+    total_gp_refi = sum(r["refinance_fee"] for r in gp_year_rows)
+    total_gp_disposition = sum(r["disposition_fee"] for r in gp_year_rows)
+    total_gp_promote = sum(r["promote"] for r in gp_year_rows)
+    total_gp_take = sum(r["total_gp_take"] for r in gp_year_rows)
+    total_gp_fee_income = total_gp_acq_fee + total_gp_annual_mgmt + total_gp_constr_mgmt + total_gp_refi + total_gp_disposition
+
+    # Total profit pool = LP profit + GP take. Profit pool excludes return of
+    # capital — it's the value that gets split.
+    total_profit_pool = ((portfolio_returns.get("total_return") or 0)) + total_gp_take
+    gp_pct_of_profit = (total_gp_take / total_profit_pool * 100) if total_profit_pool > 0 else None
+    gp_per_dollar_lp = (total_gp_take / return_denominator) if return_denominator > 0 else None
+
+    # Effective annualized GP yield on LP equity
+    gp_annual_yield_pct = (total_gp_take / return_denominator / max(1, n) * 100) if return_denominator > 0 else None
+
+    gp_compensation = {
+        "year_rows": gp_year_rows,
+        "totals": {
+            "acquisition_fee": round(total_gp_acq_fee, 0),
+            "annual_management_fee": round(total_gp_annual_mgmt, 0),
+            "construction_management_fee": round(total_gp_constr_mgmt, 0),
+            "refinance_fee": round(total_gp_refi, 0),
+            "disposition_fee": round(total_gp_disposition, 0),
+            "promote": round(total_gp_promote, 0),
+            "total_fee_income": round(total_gp_fee_income, 0),
+            "total_gp_take": round(total_gp_take, 0),
+        },
+        "composition": {
+            "total_profit_pool": round(total_profit_pool, 0),
+            "lp_share": round(portfolio_returns.get("total_return") or 0, 0),
+            "gp_share": round(total_gp_take, 0),
+            "gp_pct_of_profit": round(gp_pct_of_profit, 1) if gp_pct_of_profit is not None else None,
+            "gp_per_dollar_lp": round(gp_per_dollar_lp, 3) if gp_per_dollar_lp is not None else None,
+            "gp_annual_yield_pct": round(gp_annual_yield_pct, 2) if gp_annual_yield_pct is not None else None,
+            "fee_income_pct_of_gp_take": round(total_gp_fee_income / total_gp_take * 100, 1) if total_gp_take > 0 else None,
+            "promote_pct_of_gp_take": round(total_gp_promote / total_gp_take * 100, 1) if total_gp_take > 0 else None,
+        },
+    }
+
+    # ════════════════════════════════════════════════════════════════════════
+    # GP PROMOTE SENSITIVITY
+    # ════════════════════════════════════════════════════════════════════════
+    # Recompute the waterfall against ±10% / ±20% NOI variance scenarios so the
+    # GP can see at what point the promote crushes to zero.
+    sale_price_base = (disp_row.get("revenue_budget") or 0) if disp_row else 0
+    # The disposition row's expenses_budget is selling costs + debt payoff combined.
+    # We can derive debt payoff from: revenue - net_cashflow - selling_costs.
+    # Simpler: net sale proceeds = disposition row's net_cashflow_budget directly,
+    # so we don't need to recompute selling costs and debt payoff individually.
+    selling_costs_pct = liquidation_cost_pct
+    base_disp_net_cf = (disp_row.get("net_cashflow_budget") or 0) if disp_row else 0
+    # Implied debt payoff = sale_price - selling_costs - base_disp_net_cf
+    debt_payoff_at_exit = max(0, sale_price_base - (sale_price_base * selling_costs_pct) - base_disp_net_cf)
+
+    sensitivity_scenarios = []
+    paid_in = return_denominator
+
+    # Base case from the actual computed returns block — source of truth
+    base_profit_pool = portfolio_returns.get("total_return") or 0
+    base_total_returned = portfolio_returns.get("total_cash_returned") or 0
+    # The disposition row's net_cashflow_budget IS the net sale proceeds line
+    base_net_proceeds = (disp_row.get("net_cashflow_budget") or 0) if disp_row else 0
+
+    for label, noi_adj, color in [
+        ("Downside (-20% NOI)", -0.20, "red"),
+        ("Conservative (-10% NOI)", -0.10, "amber"),
+        ("Base Case", 0.0, "slate"),
+        ("Optimistic (+10% NOI)", 0.10, "blue"),
+        ("Upside (+20% NOI)", 0.20, "green"),
+    ]:
+        # NOI bump translates 1:1 to value at constant cap rate
+        adj_sale_price = sale_price_base * (1 + noi_adj)
+        adj_selling_costs = adj_sale_price * selling_costs_pct
+        adj_net_proceeds = max(0, adj_sale_price - adj_selling_costs - debt_payoff_at_exit)
+
+        # Adjust the profit pool by the disposition delta (most of the profit
+        # in a value-add deal comes from disposition appreciation, so we
+        # propagate the NOI shift through the sale value)
+        delta_proceeds = adj_net_proceeds - base_net_proceeds
+        adj_profit_pool = max(0, base_profit_pool + delta_proceeds)
+        adj_total_returned = max(0, base_total_returned + delta_proceeds)
+
+        # LP must get back paid-in capital + (under European mode) preferred
+        # return before GP promote kicks in
+        hurdle_met = adj_total_returned >= paid_in
+        if waterfall_mode == "european":
+            pref_due = paid_in * pref_rate * n
+            hurdle_met = adj_total_returned >= (paid_in + pref_due * 0.999)
+
+        if not hurdle_met:
+            gp_promote_scenario = 0.0
+        elif waterfall_mode == "european":
+            # Full 4-tier walk
+            t1 = min(paid_in, adj_total_returned)
+            rem = adj_total_returned - t1
+            pref_due = paid_in * pref_rate * n
+            t2 = min(pref_due, rem)
+            rem -= t2
+            gp_catchup_pct_local = float(lp.gp_catchup_percent or 100) / 100.0
+            catchup_pool = 0.0
+            gp_target = gp_promote * (t1 + t2)
+            if gp_catchup_pct_local > 0 and rem > 0:
+                catchup_pool = min(rem, gp_target / gp_catchup_pct_local)
+            t3_gp = catchup_pool * gp_catchup_pct_local
+            rem -= catchup_pool
+            t4_gp = rem * (1 - lp_appreciation_share_pct)
+            gp_promote_scenario = t3_gp + t4_gp
+        else:
+            # Simple split: gp_appreciation_share_pct of the profit pool
+            gp_promote_scenario = adj_profit_pool * gp_appreciation_share_pct
+
+        # GP fees are contractual — unchanged across scenarios
+        gp_total_take_scenario = total_gp_fee_income + gp_promote_scenario
+        lp_distributions_scenario = adj_total_returned - gp_promote_scenario
+
+        sensitivity_scenarios.append({
+            "label": label,
+            "noi_variance_pct": round(noi_adj * 100, 0),
+            "color": color,
+            "sale_price": round(adj_sale_price, 0),
+            "net_proceeds": round(adj_net_proceeds, 0),
+            "profit_pool": round(adj_profit_pool, 0),
+            "lp_hurdle_met": hurdle_met,
+            "lp_distributions": round(max(0, lp_distributions_scenario), 0),
+            "gp_promote": round(gp_promote_scenario, 0),
+            "gp_total_take": round(gp_total_take_scenario, 0),
+        })
+
+    return {
+        "lp_id": lp_id,
+        "lp_name": lp.name,
+        "waterfall_mode": waterfall_mode,
+        "hold_years": n,
+        "years": years_out,
+        "summary": summary,
+        "investor_reference": investor_reference,
+        "gp_compensation": gp_compensation,
+        "gp_sensitivity": sensitivity_scenarios,
+        "fee_assumptions": {
+            "acquisition_fee_pct": round(acq_fee_pct * 100, 2),
+            "selling_commission_pct": round(selling_comm_pct * 100, 2),
+            "asset_management_fee_pct": round(asset_mgmt_fee_pct * 100, 2),
+            "annual_management_fee_pct": round(annual_mgmt_fee_pct * 100, 2),
+            "construction_management_fee_pct": round(construction_mgmt_fee_pct * 100, 2),
+            "refinancing_fee_pct": round(refi_fee_pct * 100, 2),
+            "lp_profit_share_pct": round(lp_appreciation_share_pct * 100, 2),
+            "gp_profit_share_pct": round(gp_appreciation_share_pct * 100, 2),
+            "preferred_return_rate_pct": round(pref_rate * 100, 2),
+            "gp_promote_pct": round(gp_promote * 100, 2),
+            "liquidation_cost_pct": round(liquidation_cost_pct * 100, 2),
+        },
+        "data_source": {
+            "type": "live_model",
+            "computed_at": str(date.today()),
+        },
+    }

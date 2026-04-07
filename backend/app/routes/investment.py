@@ -460,6 +460,12 @@ def update_tranche(
         current = tranche.status.value if tranche.status else "draft"
         validate_tranche_status_transition(current, data["status"], bypass=is_dev)
 
+    # Detect a status flip to "closed" so we can auto-capture a projection
+    # snapshot after the commit. This is the institutional standard: every
+    # tranche closing freezes the marketing projection of record.
+    was_closed_before = (tranche.status.value if tranche.status else "draft") == "closed"
+    will_close = bool("status" in data and data.get("status") == "closed")
+
     for key, val in data.items():
         if key == "status" and val:
             val = TrancheStatus(val)
@@ -473,6 +479,25 @@ def update_tranche(
     except Exception:
         db.rollback()
         raise HTTPException(status_code=500, detail="Internal server error")
+
+    # Auto-capture a projection snapshot when a tranche transitions to closed.
+    # Best-effort: a snapshot failure must not break the tranche update itself.
+    if will_close and not was_closed_before:
+        try:
+            from app.services.projection_snapshot import capture_tranche_snapshot
+            capture_tranche_snapshot(
+                db=db,
+                lp_id=tranche.lp_id,
+                tranche_id=tranche.tranche_id,
+                captured_by=current_user,
+                trigger="auto_status_change",
+                label=f"Auto-captured at close — Tranche {tranche.tranche_number}",
+            )
+        except Exception as e:
+            import logging
+            logging.getLogger(__name__).warning(
+                "Auto-snapshot failed for tranche %s: %s", tranche.tranche_id, e
+            )
     subs = tranche.subscriptions or []
     return LPTrancheOut(
         tranche_id=tranche.tranche_id,
@@ -515,6 +540,159 @@ def delete_tranche(
     db.delete(tranche)
     db.commit()
     return {"status": "deleted", "tranche_id": tranche_id}
+
+
+# ===========================================================================
+# Tranche Projection Snapshots — frozen point-in-time projections
+# ===========================================================================
+# Each tranche close (manual or automatic) freezes the LP-side and GP-side
+# projections so the GP can prove what investors saw on Day 1, even years
+# later. Snapshots are append-only.
+
+@router.post("/lp/{lp_id}/tranches/{tranche_id}/snapshot")
+def capture_tranche_projection_snapshot(
+    lp_id: int,
+    tranche_id: int,
+    label: Optional[str] = None,
+    notes: Optional[str] = None,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_gp_admin),
+):
+    """Manually capture a paired LP+GP projection snapshot for a tranche."""
+    from app.services.projection_snapshot import capture_tranche_snapshot
+    try:
+        snapshots = capture_tranche_snapshot(
+            db=db,
+            lp_id=lp_id,
+            tranche_id=tranche_id,
+            captured_by=current_user,
+            trigger="manual",
+            label=label,
+            notes=notes,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        import traceback
+        raise HTTPException(status_code=500, detail=f"Snapshot capture failed: {type(e).__name__}: {e}")
+
+    return {
+        "captured": len(snapshots),
+        "snapshots": [
+            {
+                "snapshot_id": s.snapshot_id,
+                "projection_type": s.projection_type,
+                "captured_at": s.captured_at.isoformat(),
+                "trigger": s.capture_trigger,
+                "label": s.label,
+            }
+            for s in snapshots
+        ],
+    }
+
+
+@router.get("/lp/{lp_id}/snapshots")
+def list_lp_snapshots(
+    lp_id: int,
+    projection_type: Optional[str] = Query(None, pattern="^(lp|gp)$"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_investor_or_above),
+):
+    """List ALL projection snapshots for an LP, optionally filtered by type.
+
+    Returns the headline KPI block for each so the snapshot selector dropdown
+    can render quickly without unpacking the full payload.
+    """
+    from app.db.models import TrancheProjectionSnapshot
+    import json as _json
+
+    q = db.query(TrancheProjectionSnapshot).filter(TrancheProjectionSnapshot.lp_id == lp_id)
+    if projection_type:
+        q = q.filter(TrancheProjectionSnapshot.projection_type == projection_type)
+    rows = q.order_by(TrancheProjectionSnapshot.captured_at.desc()).all()
+
+    result = []
+    for s in rows:
+        try:
+            kpis = _json.loads(s.headline_kpis) if s.headline_kpis else {}
+        except Exception:
+            kpis = {}
+        result.append({
+            "snapshot_id": s.snapshot_id,
+            "lp_id": s.lp_id,
+            "tranche_id": s.tranche_id,
+            "projection_type": s.projection_type,
+            "captured_at": s.captured_at.isoformat() if s.captured_at else None,
+            "capture_trigger": s.capture_trigger,
+            "label": s.label,
+            "notes": s.notes,
+            "headline_kpis": kpis,
+        })
+    return result
+
+
+@router.delete("/snapshots/{snapshot_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_snapshot(
+    snapshot_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_gp_admin),
+):
+    """Delete a single projection snapshot. Developer/GP admin only.
+
+    Note: snapshots are intended to be append-only as an audit trail. Use
+    delete sparingly — typically only to remove a misfired auto-capture.
+    The deletion only removes THIS row; the paired LP/GP snapshot from the
+    same capture event remains unless deleted separately.
+    """
+    from app.db.models import TrancheProjectionSnapshot
+    s = db.query(TrancheProjectionSnapshot).filter(
+        TrancheProjectionSnapshot.snapshot_id == snapshot_id
+    ).first()
+    if not s:
+        raise HTTPException(status_code=404, detail="Snapshot not found")
+    db.delete(s)
+    db.commit()
+    return None
+
+
+@router.get("/snapshots/{snapshot_id}")
+def get_snapshot(
+    snapshot_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_investor_or_above),
+):
+    """Fetch a single snapshot's full frozen payload — used to render the
+    historical projection view exactly as it was at capture time."""
+    from app.db.models import TrancheProjectionSnapshot
+    import json as _json
+
+    s = db.query(TrancheProjectionSnapshot).filter(
+        TrancheProjectionSnapshot.snapshot_id == snapshot_id
+    ).first()
+    if not s:
+        raise HTTPException(status_code=404, detail="Snapshot not found")
+
+    try:
+        payload = _json.loads(s.snapshot_payload) if s.snapshot_payload else {}
+    except Exception:
+        payload = {"_parse_error": True}
+    try:
+        kpis = _json.loads(s.headline_kpis) if s.headline_kpis else {}
+    except Exception:
+        kpis = {}
+
+    return {
+        "snapshot_id": s.snapshot_id,
+        "lp_id": s.lp_id,
+        "tranche_id": s.tranche_id,
+        "projection_type": s.projection_type,
+        "captured_at": s.captured_at.isoformat() if s.captured_at else None,
+        "capture_trigger": s.capture_trigger,
+        "label": s.label,
+        "notes": s.notes,
+        "headline_kpis": kpis,
+        "payload": payload,
+    }
 
 
 # ===========================================================================
@@ -1365,6 +1543,171 @@ def get_lp_nav(
     if "error" in result:
         raise HTTPException(status_code=404, detail=result["error"])
     return result
+
+
+# ===========================================================================
+# LP Realized KPIs — performance to date (DPI / TVPI / approximated IRR)
+# ===========================================================================
+# These are the BACKWARD-LOOKING metrics that drive the /analytics detail page.
+# Where actual capital-call dates and distribution-paid dates exist, we
+# compute proper time-aware metrics. Where they don't, we report null and
+# flag the data gap so the UI can show "—" with a "no actuals yet" hint
+# rather than fabricating numbers.
+
+@router.get("/lp/{lp_id}/realized-kpis")
+def get_lp_realized_kpis(
+    lp_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_investor_or_above),
+):
+    """Performance-to-date KPIs for an LP fund.
+
+    Returns a structured payload with:
+    - capital activity (committed/funded/deployed/distributions)
+    - DPI (distributions ÷ paid-in)
+    - TVPI (current NAV + distributions ÷ paid-in)
+    - RVPI (residual value ÷ paid-in)
+    - Approximate annualized return (where inception date and current NAV are known)
+    - Data sufficiency flags so the UI can render "—" gracefully
+    """
+    from datetime import date as _date
+    if current_user.role not in (UserRole.DEVELOPER, UserRole.GP_ADMIN, UserRole.OPERATIONS_MANAGER):
+        if not check_entity_access(current_user, db, ScopeEntityType.lp, lp_id):
+            raise HTTPException(status_code=403, detail="Access denied")
+
+    lp = db.query(LPEntity).filter(LPEntity.lp_id == lp_id).first()
+    if not lp:
+        raise HTTPException(status_code=404, detail="LP entity not found")
+
+    # Pull rollup (committed/funded/deployed/NAV)
+    rollup = compute_portfolio_rollup(db, lp_id)
+
+    total_committed = float(rollup.get("total_committed") or 0)
+    total_funded = float(rollup.get("total_funded") or 0)
+    total_deployed = float(rollup.get("total_capital_deployed") or rollup.get("total_deployed") or 0)
+    current_nav = float(rollup.get("nav") or rollup.get("total_nav") or 0)
+
+    # Distributions paid to date
+    from app.db.models import DistributionEvent
+    dist_rows = (
+        db.query(DistributionEvent)
+        .filter(DistributionEvent.lp_id == lp_id)
+        .all()
+    )
+    total_distributed = 0.0
+    earliest_distribution = None
+    latest_distribution = None
+    for d in dist_rows:
+        amt = float(getattr(d, "total_amount", 0) or getattr(d, "amount", 0) or 0)
+        total_distributed += amt
+        d_date = getattr(d, "distribution_date", None) or getattr(d, "event_date", None) or getattr(d, "created_at", None)
+        if d_date:
+            try:
+                dd = d_date if isinstance(d_date, _date) else d_date.date()
+                if not earliest_distribution or dd < earliest_distribution:
+                    earliest_distribution = dd
+                if not latest_distribution or dd > latest_distribution:
+                    latest_distribution = dd
+            except Exception:
+                pass
+
+    # Inception date — earliest of: LP offering_date, earliest subscription, earliest contribution
+    inception_date = lp.offering_date
+    try:
+        first_sub = (
+            db.query(Subscription)
+            .filter(Subscription.lp_id == lp_id)
+            .order_by(Subscription.created_at)
+            .first()
+        )
+        if first_sub:
+            sub_dt = getattr(first_sub, "subscription_date", None) or getattr(first_sub, "created_at", None)
+            if sub_dt:
+                try:
+                    sub_dd = sub_dt if isinstance(sub_dt, _date) else sub_dt.date()
+                    if not inception_date or sub_dd < inception_date:
+                        inception_date = sub_dd
+                except Exception:
+                    pass
+    except Exception:
+        pass
+
+    # ── Compute fund-style multiples ───────────────────────────────────────
+    paid_in = total_funded if total_funded > 0 else total_committed
+    dpi = round(total_distributed / paid_in, 3) if paid_in > 0 else None
+    rvpi = round(current_nav / paid_in, 3) if paid_in > 0 else None
+    tvpi = None
+    if paid_in > 0:
+        tvpi = round((current_nav + total_distributed) / paid_in, 3)
+
+    # Approximate annualized return — only meaningful if we have inception
+    # date AND a current NAV. This is NOT a true IRR (no dated cash flows),
+    # but it's a defensible "money-weighted approximation" for early-stage
+    # LPs that haven't paid distributions yet.
+    annualized_return_approx = None
+    years_since_inception = None
+    if inception_date and paid_in > 0 and tvpi is not None and tvpi > 0:
+        days = (_date.today() - inception_date).days
+        years_since_inception = round(days / 365.25, 2)
+        if years_since_inception >= 0.5:
+            try:
+                annualized_return_approx = round((tvpi ** (1 / years_since_inception) - 1) * 100, 1)
+            except Exception:
+                annualized_return_approx = None
+
+    # ── Data sufficiency flags ─────────────────────────────────────────────
+    has_distributions = total_distributed > 0
+    has_nav = current_nav > 0
+    has_inception_date = inception_date is not None
+    has_funded_capital = total_funded > 0
+
+    return {
+        "lp_id": lp_id,
+        "lp_name": lp.name,
+        "inception_date": str(inception_date) if inception_date else None,
+        "as_of": str(_date.today()),
+        "years_since_inception": years_since_inception,
+        "capital": {
+            "total_committed": round(total_committed, 0),
+            "total_funded": round(total_funded, 0),
+            "total_deployed": round(total_deployed, 0),
+            "undeployed_capital": round(max(0.0, total_funded - total_deployed), 0),
+            "deployment_pct": round(total_deployed / total_funded * 100, 1) if total_funded > 0 else None,
+            "funding_pct": round(total_funded / total_committed * 100, 1) if total_committed > 0 else None,
+        },
+        "distributions": {
+            "total_paid_to_date": round(total_distributed, 0),
+            "earliest_distribution": str(earliest_distribution) if earliest_distribution else None,
+            "latest_distribution": str(latest_distribution) if latest_distribution else None,
+            "distribution_count": len(dist_rows),
+        },
+        "valuation": {
+            "current_nav": round(current_nav, 0),
+            "paid_in_capital": round(paid_in, 0),
+            "residual_value": round(current_nav, 0),
+        },
+        "metrics": {
+            "dpi": dpi,
+            "rvpi": rvpi,
+            "tvpi": tvpi,
+            "annualized_return_approx_pct": annualized_return_approx,
+        },
+        "data_sufficiency": {
+            "has_funded_capital": has_funded_capital,
+            "has_nav": has_nav,
+            "has_distributions": has_distributions,
+            "has_inception_date": has_inception_date,
+            "is_complete": all([has_funded_capital, has_nav, has_inception_date]),
+            "missing": [
+                k for k, v in {
+                    "funded capital": has_funded_capital,
+                    "current NAV": has_nav,
+                    "inception date": has_inception_date,
+                    "any realized distributions": has_distributions,
+                }.items() if not v
+            ],
+        },
+    }
 
 
 # ===========================================================================

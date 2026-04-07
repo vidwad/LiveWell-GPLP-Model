@@ -106,7 +106,6 @@ const NAV_SECTIONS: NavSection[] = [
       { href: "/operator/turnovers", label: "Unit Turnovers", icon: RefreshCw, roles: [DEV, GP, OP, PM] },
       { href: "/operations", label: "Operations P&L", icon: Activity, roles: [DEV, GP, OP, PM] },
       { href: "/staffing", label: "Staffing", icon: Users, roles: [DEV, GP, OP, PM] },
-      { href: "/variance-alerts", label: "Variance Alerts", icon: AlertTriangle, roles: [DEV, GP, OP] },
       { href: "/funding", label: "Grants & Funding", icon: HandCoins, roles: [DEV, GP, OP] },
     ],
   },

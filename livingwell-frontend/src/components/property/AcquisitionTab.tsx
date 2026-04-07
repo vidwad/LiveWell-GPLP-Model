@@ -37,6 +37,15 @@ export function AcquisitionTab({ propertyId, property, canEdit }: AcquisitionTab
     enabled: propertyId > 0,
   });
 
+  // LPs available for assignment (used by the LP Fund dropdown)
+  const { data: lps } = useQuery({
+    queryKey: ["lps-for-property-assignment"],
+    queryFn: () => apiClient.get("/api/investment/lp").then(r => {
+      const raw = r.data;
+      return Array.isArray(raw) ? raw : (raw?.items || raw?.data || []);
+    }),
+  });
+
   const saveMutation = useMutation({
     mutationFn: (data: Record<string, any>) =>
       apiClient.post(`/api/portfolio/properties/${propertyId}/acquisition-baseline`, data).then(r => r.data),
@@ -47,9 +56,21 @@ export function AcquisitionTab({ propertyId, property, canEdit }: AcquisitionTab
       qc.invalidateQueries({ queryKey: ["lending-metrics", propertyId] });
       qc.invalidateQueries({ queryKey: ["property", propertyId] });
       qc.invalidateQueries({ queryKey: ["exit-forecast", propertyId] });
-      toast.success("Acquisition baseline saved");
     },
     onError: () => toast.error("Failed to save"),
+  });
+
+  // Property-level fields (e.g. lp_id) live on the Property model, not on the
+  // AcquisitionBaseline. We PATCH them in parallel with the baseline save.
+  const savePropertyMutation = useMutation({
+    mutationFn: (data: Record<string, any>) =>
+      apiClient.patch(`/api/portfolio/properties/${propertyId}`, data).then(r => r.data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["property", propertyId] });
+      qc.invalidateQueries({ queryKey: ["lp-portfolio-cashflow"] });
+      qc.invalidateQueries({ queryKey: ["properties-by-lp"] });
+    },
+    onError: () => toast.error("Failed to save LP assignment"),
   });
 
   const [form, setForm] = useState<Record<string, string>>({});
@@ -72,8 +93,10 @@ export function AcquisitionTab({ propertyId, property, canEdit }: AcquisitionTab
     for (const k of fields) {
       f[k] = baseline[k] != null ? String(baseline[k]) : "";
     }
+    // lp_id lives on Property, not on the baseline — pull from property prop
+    f.lp_id = property?.lp_id != null ? String(property.lp_id) : "";
     setForm(f);
-  }, [baseline]);
+  }, [baseline, property?.lp_id]);
 
   const sf = (key: string, val: string) => setForm(prev => ({ ...prev, [key]: val }));
 
@@ -99,7 +122,19 @@ export function AcquisitionTab({ propertyId, property, canEdit }: AcquisitionTab
       if (form[k]) payload[k] = form[k];
     }
 
-    saveMutation.mutate(payload);
+    // Save baseline + property in parallel; show one toast on success
+    Promise.allSettled([
+      saveMutation.mutateAsync(payload),
+      // lp_id only PATCHed if it actually changed
+      (form.lp_id !== "" || property?.lp_id != null) && form.lp_id !== String(property?.lp_id ?? "")
+        ? savePropertyMutation.mutateAsync({
+            lp_id: form.lp_id ? Number(form.lp_id) : null,
+          })
+        : Promise.resolve(),
+    ]).then((results) => {
+      const hadError = results.some((r) => r.status === "rejected");
+      if (!hadError) toast.success("Acquisition baseline saved");
+    });
     setEditing(false);
   };
 
@@ -145,6 +180,43 @@ export function AcquisitionTab({ propertyId, property, canEdit }: AcquisitionTab
           </CardTitle>
         </CardHeader>
         <CardContent>
+          {/* LP Fund assignment — affects which LP this property rolls up into */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+            <div className="space-y-1">
+              <Label className="text-xs flex items-center gap-1 text-muted-foreground">
+                LP Fund
+                <span className="text-[10px] italic">(determines portfolio rollup)</span>
+              </Label>
+              {readOnly ? (
+                <div className="text-sm font-medium py-2">
+                  {(() => {
+                    const lpId = form.lp_id ? Number(form.lp_id) : null;
+                    if (!lpId) return <span className="text-muted-foreground italic">Unassigned</span>;
+                    const lp = (lps as any[] | undefined)?.find((l: any) => l.lp_id === lpId);
+                    return lp?.name || `LP #${lpId}`;
+                  })()}
+                </div>
+              ) : (
+                <Select
+                  value={form.lp_id || "__none__"}
+                  onValueChange={(v) => sf("lp_id", v === "__none__" ? "" : v)}
+                >
+                  <SelectTrigger className="h-9">
+                    <SelectValue placeholder="Select LP fund…" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">— Unassigned —</SelectItem>
+                    {((lps as any[] | undefined) || []).map((lp: any) => (
+                      <SelectItem key={lp.lp_id} value={String(lp.lp_id)}>
+                        {lp.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+            </div>
+          </div>
+          <Separator className="mb-4" />
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <Field label="Purchase Price ($)" value={form.purchase_price} onChange={v => sf("purchase_price", v)} readOnly={readOnly} type="number" />
             <Field label="Purchase Date" value={form.purchase_date} onChange={v => sf("purchase_date", v)} readOnly={readOnly} type="date" />

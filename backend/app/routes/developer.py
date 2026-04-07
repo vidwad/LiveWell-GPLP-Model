@@ -37,6 +37,8 @@ DEFAULT_SCREENS = [
     ("Operations", "/arrears-aging", "Arrears & Aging", ["DEVELOPER", "GP_ADMIN", "OPERATIONS_MANAGER"]),
     ("Operations", "/variance-alerts", "Variance Alerts", ["DEVELOPER", "GP_ADMIN", "OPERATIONS_MANAGER"]),
     ("Operations", "/staffing", "Staffing", ["DEVELOPER", "GP_ADMIN", "OPERATIONS_MANAGER"]),
+    ("Operations", "/operator/turnovers", "Unit Turnovers", ["DEVELOPER", "GP_ADMIN", "OPERATIONS_MANAGER", "PROPERTY_MANAGER"]),
+    ("Operations", "/operations", "Operations P&L", ["DEVELOPER", "GP_ADMIN", "OPERATIONS_MANAGER", "PROPERTY_MANAGER"]),
     ("Finance", "/funding", "Funding & Debt", ["DEVELOPER", "GP_ADMIN"]),
     ("Finance", "/cash-flow", "Cash Flow", ["DEVELOPER", "GP_ADMIN"]),
     ("Finance", "/distributions", "Distributions", ["DEVELOPER", "GP_ADMIN", "INVESTOR"]),
@@ -48,6 +50,8 @@ DEFAULT_SCREENS = [
     ("AI", "/ai", "AI Assistant", ["DEVELOPER", "GP_ADMIN", "OPERATIONS_MANAGER", "PROPERTY_MANAGER", "INVESTOR"]),
     ("Admin", "/user-management", "User Management", ["DEVELOPER", "GP_ADMIN"]),
     ("Admin", "/property-managers", "Property Managers", ["DEVELOPER", "GP_ADMIN"]),
+    ("Admin", "/operator", "Operators", ["DEVELOPER", "GP_ADMIN"]),
+    ("Admin", "/documents", "Documents", ["DEVELOPER", "GP_ADMIN"]),
     ("Admin", "/settings", "Settings", ["DEVELOPER", "GP_ADMIN"]),
     ("Admin", "/profile", "Profile", ["DEVELOPER", "GP_ADMIN", "OPERATIONS_MANAGER", "PROPERTY_MANAGER", "INVESTOR"]),
     ("Developer", "/developer/screen-access", "Screen Access Control", ["DEVELOPER"]),
@@ -57,26 +61,38 @@ ALL_ROLES = ["DEVELOPER", "GP_ADMIN", "OPERATIONS_MANAGER", "PROPERTY_MANAGER", 
 
 
 def _ensure_defaults(db: Session):
-    """Seed default screen permissions if not yet populated."""
-    existing_count = db.query(ScreenPermission).count()
-    if existing_count > 0:
-        return
+    """Seed default screen permissions for any screens not yet present.
 
+    Idempotent and additive: walks every entry in DEFAULT_SCREENS, checks
+    whether each (screen_key, role) combo exists, and inserts only the
+    missing ones. Safe to call on every request — newly added screens get
+    backfilled automatically without wiping existing user customizations.
+    """
+    # Build a set of existing (screen_key, role) tuples for fast lookup
+    existing: set[tuple[str, str]] = set()
+    for p in db.query(ScreenPermission.screen_key, ScreenPermission.role).all():
+        role_val = p.role.value if hasattr(p.role, "value") else str(p.role)
+        existing.add((p.screen_key, role_val))
+
+    added = 0
     for section, key, label, default_roles in DEFAULT_SCREENS:
         for role_str in ALL_ROLES:
+            if (key, role_str) in existing:
+                continue
             try:
                 role = UserRole(role_str)
             except ValueError:
                 continue
-            perm = ScreenPermission(
+            db.add(ScreenPermission(
                 screen_key=key,
                 screen_label=label,
                 section=section,
                 role=role,
                 is_enabled=role_str in default_roles,
-            )
-            db.add(perm)
-    db.commit()
+            ))
+            added += 1
+    if added:
+        db.commit()
 
 
 # ── Endpoints ─────────────────────────────────────────────────────────────

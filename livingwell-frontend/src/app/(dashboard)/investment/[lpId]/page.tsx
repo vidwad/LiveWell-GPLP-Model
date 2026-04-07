@@ -4,8 +4,8 @@ import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import React, { useState, useCallback, useEffect } from "react";
 import { TrendChart } from "@/components/charts/TrendChart";
-import { PortfolioAnalyticsTab } from "@/components/investment/PortfolioAnalyticsTab";
-import PropertyIncomeIntegrationTab from "@/components/investment/PropertyIncomeIntegrationTab";
+import { PortfolioCashFlowTab } from "@/components/investment/PortfolioCashFlowTab";
+import { ProjectedReturnsView } from "@/components/investment/ProjectedReturnsView";
 import {
   ArrowLeft,
   Landmark,
@@ -25,6 +25,8 @@ import {
   Pencil,
   Trash2,
   ArrowRightLeft,
+  LayoutGrid,
+  List as ListIcon,
 } from "lucide-react";
 import {
   useLP,
@@ -50,7 +52,7 @@ import {
   useComputeWaterfall,
 } from "@/hooks/useInvestment";
 import { usePropertiesByLp } from "@/hooks/usePortfolio";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api";
 import type { WaterfallResult } from "@/types/investment";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -559,13 +561,11 @@ export default function LPDetailPage() {
             <TabsTrigger value="overview" className="text-xs sm:text-sm">Overview</TabsTrigger>
             <TabsTrigger value="tranches" className="text-xs sm:text-sm">Tranches</TabsTrigger>
             <TabsTrigger value="subscriptions" className="text-xs sm:text-sm">Subscriptions</TabsTrigger>
-            <TabsTrigger value="holdings" className="text-xs sm:text-sm">Holdings</TabsTrigger>
-            <TabsTrigger value="pipeline" className="text-xs sm:text-sm">Pipeline</TabsTrigger>
-            <TabsTrigger value="projections" className="text-xs sm:text-sm">Projections</TabsTrigger>
-            <TabsTrigger value="pnl" className="text-xs sm:text-sm">P&L</TabsTrigger>
-            <TabsTrigger value="nav" className="text-xs sm:text-sm">NAV</TabsTrigger>
-            <TabsTrigger value="portfolio-analytics" className="text-xs sm:text-sm">Portfolio Analytics</TabsTrigger>
-            <TabsTrigger value="income-integration" className="text-xs sm:text-sm">Income Integration</TabsTrigger>
+            <TabsTrigger value="holdings" className="text-xs sm:text-sm">Investor Holdings</TabsTrigger>
+            <TabsTrigger value="pipeline" className="text-xs sm:text-sm">Property Holdings</TabsTrigger>
+            <TabsTrigger value="portfolio-cashflow" className="text-xs sm:text-sm">Portfolio Cash Flow</TabsTrigger>
+            <TabsTrigger value="projections-lp" className="text-xs sm:text-sm">Projected LP Returns</TabsTrigger>
+            <TabsTrigger value="projections-gp" className="text-xs sm:text-sm">Projected GP Returns</TabsTrigger>
           </TabsList>
         </div>
 
@@ -843,6 +843,7 @@ export default function LPDetailPage() {
                         <div><p className="text-xs text-muted-foreground">Funded</p><p className="text-sm font-semibold tabular-nums">{t.total_funded ? formatCurrencyCompact(t.total_funded) : "$0"}</p></div>
                         <div><p className="text-xs text-muted-foreground">Units</p><p className="text-sm font-semibold tabular-nums">{t.total_units ? fmtNum(t.total_units) : "0"}</p></div>
                       </div>
+                      <TrancheSnapshotControls lpId={lpId} trancheId={t.tranche_id} canEdit={canEdit} />
                     </CardContent>
                   </Card>
                 );
@@ -1102,344 +1103,21 @@ export default function LPDetailPage() {
           )}
         </TabsContent>
 
-        {/* ── Projections Tab ───────────────────────────────────── */}
-        <TabsContent value="projections" className="mt-4">
-          {!rollup ? (
-            <Card><CardContent className="pt-6"><p className="text-sm text-muted-foreground">No projection data available.</p></CardContent></Card>
-          ) : (
-            <div className="grid gap-4 md:grid-cols-2">
-              <Card>
-                <CardHeader className="pb-2"><CardTitle className="text-sm flex items-center gap-2"><Target className="h-4 w-4" /> Projected Target Portfolio <Badge variant="outline" className="text-[10px] ml-1">ESTIMATED</Badge></CardTitle></CardHeader>
-                <CardContent className="space-y-0">
-                  <DRow label="Pipeline Properties" value={rollup.target_property_count} />
-                  <DRow label="Total Est. Acquisition Cost" value={formatCurrency(rollup.total_target_acquisition_cost)} />
-                  <DRow label="Total Est. Construction Budget" value={formatCurrency(rollup.total_target_construction_budget)} />
-                  <DRow label="Total Est. All-in Cost" value={formatCurrency(rollup.total_target_all_in_cost)} />
-                  <DRow label="Planned Units" value={rollup.total_planned_units} />
-                  <DRow label="Planned Beds" value={rollup.total_planned_beds} />
-                </CardContent>
-              </Card>
-              <Card>
-                <CardHeader className="pb-2"><CardTitle className="text-sm flex items-center gap-2"><BarChart3 className="h-4 w-4" /> Projected Returns <Badge variant="outline" className="text-[10px] ml-1">ESTIMATED</Badge></CardTitle></CardHeader>
-                <CardContent className="space-y-0">
-                  <DRow label="Projected Stabilized NOI" value={rollup.total_target_stabilized_noi ? formatCurrency(rollup.total_target_stabilized_noi) : "—"} />
-                  <DRow label="Projected Stabilized Value" value={rollup.total_target_stabilized_value ? formatCurrency(rollup.total_target_stabilized_value) : "—"} />
-                  <DRow label="Projected Total Debt" value={rollup.total_target_debt ? formatCurrency(rollup.total_target_debt) : "—"} />
-                  <DRow label="Projected Equity Required" value={rollup.total_target_equity_required ? formatCurrency(rollup.total_target_equity_required) : "—"} />
-                  <DRow label="Projected LP Equity Value" value={rollup.projected_lp_equity_value ? formatCurrency(rollup.projected_lp_equity_value) : "—"} />
-                  <DRow label="Projected Equity Multiple" value={rollup.projected_equity_multiple ? `${Number(rollup.projected_equity_multiple).toFixed(2)}x` : "—"} />
-                  <DRow label="Projected Cash-on-Cash" value={rollup.projected_cash_on_cash ? `${Number(rollup.projected_cash_on_cash).toFixed(1)}%` : "—"} />
-                </CardContent>
-              </Card>
-              <Card>
-                <CardHeader className="pb-2"><CardTitle className="text-sm flex items-center gap-2"><Building2 className="h-4 w-4" /> Actual Portfolio <Badge variant="default" className="text-[10px] ml-1">ACTUAL</Badge></CardTitle></CardHeader>
-                <CardContent>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div><p className="text-xs text-muted-foreground">Properties Owned</p><p className="text-lg font-bold">{rollup.actual_property_count}</p></div>
-                    <div><p className="text-xs text-muted-foreground">Total Purchase Price</p><p className="text-lg font-bold tabular-nums">{rollup.total_actual_purchase_price ? formatCurrencyCompact(rollup.total_actual_purchase_price) : "$0"}</p></div>
-                    <div><p className="text-xs text-muted-foreground">Current Market Value</p><p className="text-lg font-bold tabular-nums">{rollup.total_actual_market_value ? formatCurrencyCompact(rollup.total_actual_market_value) : "$0"}</p></div>
-                    <div><p className="text-xs text-muted-foreground">Projected Portfolio Value</p><p className="text-lg font-bold tabular-nums">{rollup.projected_portfolio_value ? formatCurrencyCompact(rollup.projected_portfolio_value) : "—"}</p></div>
-                  </div>
-                </CardContent>
-              </Card>
-              <Card>
-                <CardHeader className="pb-2"><CardTitle className="text-sm flex items-center gap-2"><Layers className="h-4 w-4" /> Combined Expected Portfolio <Badge variant="outline" className="text-[10px] ml-1">BLENDED</Badge></CardTitle></CardHeader>
-                <CardContent>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div><p className="text-xs text-muted-foreground">Total Properties (Actual + Pipeline)</p><p className="text-lg font-bold">{rollup.actual_property_count + rollup.target_property_count}</p></div>
-                    <div><p className="text-xs text-muted-foreground">Total Planned Units</p><p className="text-lg font-bold">{rollup.total_planned_units}</p></div>
-                    <div>
-                      <p className="text-xs text-muted-foreground">Combined Portfolio Value</p>
-                      <p className="text-lg font-bold tabular-nums">
-                        {formatCurrencyCompact(String(Number(rollup.total_actual_market_value || 0) + Number(rollup.total_target_stabilized_value || 0)))}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-muted-foreground">Combined Annual NOI</p>
-                      <p className="text-lg font-bold tabular-nums">
-                        {rollup.total_target_stabilized_noi ? formatCurrencyCompact(rollup.total_target_stabilized_noi) : "—"}
-                      </p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-              {/* Waterfall Simulator */}
-              <Card className="md:col-span-2">
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-sm flex items-center gap-2">
-                    <DollarSign className="h-4 w-4" /> Distribution Waterfall Simulator
-                    <Badge variant="outline" className="text-[10px] ml-1">EUROPEAN STYLE</Badge>
-                  </CardTitle>
-                  <p className="text-xs text-muted-foreground">Enter a hypothetical distributable amount to see how it flows through the 4-tier waterfall: Return of Capital → Preferred Return → GP Catch-up → Carried Interest.</p>
-                </CardHeader>
-                <CardContent>
-                  <div className="flex items-end gap-3 mb-4">
-                    <div className="flex-1 max-w-xs">
-                      <Label className="text-xs mb-1">Distributable Amount ($)</Label>
-                      <Input
-                        type="number"
-                        min={0}
-                        step="0.01"
-                        placeholder="e.g. 500000"
-                        value={waterfallAmount}
-                        onChange={(e) => setWaterfallAmount(e.target.value)}
-                      />
-                    </div>
-                    <Button onClick={handleRunWaterfall} disabled={computeWaterfall.isPending || !waterfallAmount}>
-                      {computeWaterfall.isPending ? "Computing..." : "Run Waterfall"}
-                    </Button>
-                  </div>
-
-                  {waterfallResult && (() => {
-                    const da = waterfallResult.distributable_amount;
-                    const tierData = [
-                      { key: 1, label: "Return of Capital", amount: waterfallResult.tier1_total },
-                      { key: 2, label: "Preferred Return", amount: waterfallResult.tier2_total },
-                      { key: 3, label: "GP Catch-up", amount: waterfallResult.tier3_total },
-                      { key: 4, label: "Carried Interest", amount: waterfallResult.tier4_total },
-                    ];
-                    const totalUnitsAll = waterfallResult.allocations.reduce((s, a) => s + a.units_held, 0);
-                    return (
-                    <div className="space-y-4">
-                      {/* Tier Summary */}
-                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                        {tierData.map((tier) => (
-                          <div key={tier.key} className="rounded-lg border p-3">
-                            <p className="text-xs text-muted-foreground">{tier.label}</p>
-                            <p className="text-lg font-bold tabular-nums">{formatCurrencyCompact(String(tier.amount))}</p>
-                            <p className="text-xs text-muted-foreground">{da > 0 ? (tier.amount / da * 100).toFixed(1) : "0.0"}% of total</p>
-                          </div>
-                        ))}
-                      </div>
-
-                      {/* Per-Holding Allocations */}
-                      {waterfallResult.allocations.length > 0 && (
-                        <div className="overflow-x-auto">
-                          <Table>
-                            <TableHeader>
-                              <TableRow>
-                                <TableHead>Investor</TableHead>
-                                <TableHead className="text-right">Units</TableHead>
-                                <TableHead className="text-right">Ownership</TableHead>
-                                <TableHead className="text-right">Return of Capital</TableHead>
-                                <TableHead className="text-right">Preferred Return</TableHead>
-                                <TableHead className="text-right">GP Catch-up</TableHead>
-                                <TableHead className="text-right">Carry Split</TableHead>
-                                <TableHead className="text-right font-semibold">Total</TableHead>
-                              </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                              {waterfallResult.allocations.map((a) => (
-                                <TableRow key={a.holding_id}>
-                                  <TableCell className="text-sm font-medium">{a.investor_name}</TableCell>
-                                  <TableCell className="text-right tabular-nums text-sm">{fmtNum(a.units_held)}</TableCell>
-                                  <TableCell className="text-right tabular-nums text-sm">{totalUnitsAll > 0 ? ((a.units_held / totalUnitsAll) * 100).toFixed(1) : "0.0"}%</TableCell>
-                                  <TableCell className="text-right tabular-nums text-sm">{formatCurrency(String(a.tier1_roc))}</TableCell>
-                                  <TableCell className="text-right tabular-nums text-sm">{formatCurrency(String(a.tier2_preferred))}</TableCell>
-                                  <TableCell className="text-right tabular-nums text-sm">{formatCurrency(String(a.tier3_catchup))}</TableCell>
-                                  <TableCell className="text-right tabular-nums text-sm">{formatCurrency(String(a.tier4_carry))}</TableCell>
-                                  <TableCell className="text-right tabular-nums text-sm font-semibold">{formatCurrency(String(a.total))}</TableCell>
-                                </TableRow>
-                              ))}
-                            </TableBody>
-                          </Table>
-                        </div>
-                      )}
-
-                      <p className="text-xs text-muted-foreground italic">
-                        Waterfall: European style (whole-fund). LPs receive all capital back + {lp?.preferred_return_rate ?? "8"}% preferred return before GP carry of {lp?.gp_promote_percent ?? "20"}%.
-                      </p>
-                    </div>
-                  );
-                  })()}
-                </CardContent>
-              </Card>
-            </div>
-          )}
+        {/* ── Portfolio Cash Flow Tab ───────────────────────────── */}
+        <TabsContent value="portfolio-cashflow" className="mt-4">
+          <PortfolioCashFlowTab lpId={lpId} />
         </TabsContent>
 
-        {/* ── P&L Tab ──────────────────────────────────────────── */}
-        <TabsContent value="pnl" className="mt-4">
-          <div className="flex items-center gap-3 mb-4">
-            <Label className="text-sm">Year:</Label>
-            <select
-              className="h-8 rounded-lg border border-input bg-transparent px-2.5 text-sm"
-              value={pnlYear}
-              onChange={(e) => setPnlYear(Number(e.target.value))}
-            >
-              {[2024, 2025, 2026, 2027, 2028].map(y => <option key={y} value={y}>{y}</option>)}
-            </select>
-          </div>
-          {pnlLoading ? (
-            <div className="space-y-3"><Skeleton className="h-32 w-full" /><Skeleton className="h-32 w-full" /></div>
-          ) : !pnlData ? (
-            <Card><CardContent className="pt-6"><p className="text-sm text-muted-foreground">No P&L data available.</p></CardContent></Card>
-          ) : (
-            <div className="grid gap-4 md:grid-cols-2">
-              <Card>
-                <CardHeader className="pb-2"><CardTitle className="text-sm flex items-center gap-2"><TrendingUp className="h-4 w-4" /> Revenue Summary</CardTitle></CardHeader>
-                <CardContent className="space-y-0">
-                  <DRow label="Total Billed" value={formatCurrency(pnlData.revenue?.total_billed)} />
-                  <DRow label="Collected" value={formatCurrency(pnlData.revenue?.collected)} />
-                </CardContent>
-              </Card>
-              <Card>
-                <CardHeader className="pb-2"><CardTitle className="text-sm flex items-center gap-2"><DollarSign className="h-4 w-4" /> Expense Summary</CardTitle></CardHeader>
-                <CardContent className="space-y-0">
-                  <DRow label="Total Expenses" value={formatCurrency(pnlData.expenses?.total_expenses)} />
-                  <DRow label="Expense Ratio" value={pnlData.summary?.expense_ratio ? `${Number(pnlData.summary.expense_ratio).toFixed(1)}%` : "—"} />
-                </CardContent>
-              </Card>
-              <Card>
-                <CardHeader className="pb-2"><CardTitle className="text-sm flex items-center gap-2"><Landmark className="h-4 w-4" /> Debt Service & Fees</CardTitle></CardHeader>
-                <CardContent className="space-y-0">
-                  <DRow label="Annual Debt Service" value={formatCurrency(pnlData.debt_service?.annual_debt_service)} />
-                  <DRow label="Annual Mgmt Fee" value={formatCurrency(pnlData.management_fees?.annual_fee)} />
-                  <DRow label="Mgmt Fee Rate" value={pnlData.management_fees?.fee_percent ? `${Number(pnlData.management_fees.fee_percent).toFixed(1)}%` : "—"} />
-                </CardContent>
-              </Card>
-              <Card>
-                <CardHeader className="pb-2"><CardTitle className="text-sm flex items-center gap-2"><BarChart3 className="h-4 w-4" /> Bottom Line</CardTitle></CardHeader>
-                <CardContent className="space-y-0">
-                  <DRow label="NOI" value={formatCurrency(pnlData.summary?.noi)} />
-                  <DRow label="Cash Flow After Debt" value={formatCurrency(pnlData.summary?.cash_flow_after_debt)} />
-                  <DRow label="Cash Flow After Fees" value={formatCurrency(pnlData.summary?.cash_flow_after_fees)} />
-                </CardContent>
-              </Card>
-              {pnlData.communities?.length > 0 && (
-                <Card className="md:col-span-2">
-                  <CardHeader className="pb-2"><CardTitle className="text-sm">Community Breakdown</CardTitle></CardHeader>
-                  <CardContent>
-                    <div className="overflow-x-auto">
-                      <Table>
-                        <TableHeader>
-                          <TableRow>
-                            <TableHead>Community</TableHead>
-                            <TableHead className="text-right">LP Properties</TableHead>
-                            <TableHead className="text-right">LP Share</TableHead>
-                            <TableHead className="text-right">Revenue</TableHead>
-                            <TableHead className="text-right">Expenses</TableHead>
-                            <TableHead className="text-right">NOI</TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {pnlData.communities.map((c: any) => (
-                            <TableRow key={c.community_id}>
-                              <TableCell className="text-sm font-medium">{c.community_name}</TableCell>
-                              <TableCell className="text-right text-sm">{c.lp_property_count}/{c.total_property_count}</TableCell>
-                              <TableCell className="text-right text-sm">{Number(c.lp_share_percent).toFixed(0)}%</TableCell>
-                              <TableCell className="text-right tabular-nums text-sm">{formatCurrency(c.revenue_collected)}</TableCell>
-                              <TableCell className="text-right tabular-nums text-sm">{formatCurrency(c.expenses)}</TableCell>
-                              <TableCell className="text-right tabular-nums text-sm font-medium">{formatCurrency(c.noi)}</TableCell>
-                            </TableRow>
-                          ))}
-                        </TableBody>
-                      </Table>
-                    </div>
-                  </CardContent>
-                </Card>
-              )}
-            </div>
-          )}
+        {/* Projected LP Returns Tab */}
+        <TabsContent value="projections-lp" className="mt-4">
+          <ProjectedReturnsView lpId={lpId} projectionType="lp" />
         </TabsContent>
 
-        {/* ── NAV Tab ──────────────────────────────────────────── */}
-        <TabsContent value="nav" className="mt-4">
-          {navLoading ? (
-            <div className="space-y-3"><Skeleton className="h-32 w-full" /><Skeleton className="h-32 w-full" /></div>
-          ) : !navData ? (
-            <Card><CardContent className="pt-6"><p className="text-sm text-muted-foreground">No NAV data available.</p></CardContent></Card>
-          ) : (
-            <div className="grid gap-4 md:grid-cols-2">
-              <Card className="md:col-span-2">
-                <CardHeader className="pb-2"><CardTitle className="text-sm flex items-center gap-2"><Landmark className="h-4 w-4" /> Net Asset Value</CardTitle></CardHeader>
-                <CardContent>
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-                    <div>
-                      <p className="text-xs text-muted-foreground">Fund NAV</p>
-                      <p className="text-2xl font-bold tabular-nums">{formatCurrencyCompact(navData.nav)}</p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-muted-foreground">NAV per Unit</p>
-                      <p className="text-2xl font-bold tabular-nums">{formatCurrency(navData.nav_per_unit)}</p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-muted-foreground">Original Unit Price</p>
-                      <p className="text-2xl font-bold tabular-nums">{formatCurrency(navData.original_unit_price)}</p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-muted-foreground">Premium / Discount</p>
-                      <p className={`text-2xl font-bold tabular-nums ${Number(navData.nav_premium_discount_percent) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                        {Number(navData.nav_premium_discount_percent) >= 0 ? '+' : ''}{Number(navData.nav_premium_discount_percent).toFixed(1)}%
-                      </p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-              <Card>
-                <CardHeader className="pb-2"><CardTitle className="text-sm flex items-center gap-2"><Building2 className="h-4 w-4" /> NAV Components</CardTitle></CardHeader>
-                <CardContent className="space-y-0">
-                  <DRow label="Total Property Value" value={formatCurrency(navData.components?.total_property_value)} />
-                  <DRow label="Cash & Reserves" value={formatCurrency(navData.components?.cash_and_reserves)} />
-                  <DRow label="Outstanding Debt" value={`(${formatCurrency(navData.components?.total_outstanding_debt)})`} />
-                  <DRow label="Accrued Mgmt Fees" value={`(${formatCurrency(navData.components?.accrued_management_fees)})`} />
-                  <div className="flex justify-between py-1.5 border-t-2 border-border mt-1">
-                    <span className="text-sm font-semibold">Net Asset Value</span>
-                    <span className="text-sm font-bold">{formatCurrency(navData.nav)}</span>
-                  </div>
-                </CardContent>
-              </Card>
-              <Card>
-                <CardHeader className="pb-2"><CardTitle className="text-sm flex items-center gap-2"><Hash className="h-4 w-4" /> Unit Summary</CardTitle></CardHeader>
-                <CardContent className="space-y-0">
-                  <DRow label="Units Outstanding" value={fmtNum(navData.total_units_outstanding)} />
-                  <DRow label="NAV per Unit" value={formatCurrency(navData.nav_per_unit)} />
-                  <DRow label="Original Unit Price" value={formatCurrency(navData.original_unit_price)} />
-                  <DRow label="Premium/Discount" value={`${Number(navData.nav_premium_discount_percent) >= 0 ? '+' : ''}${Number(navData.nav_premium_discount_percent).toFixed(1)}%`} />
-                </CardContent>
-              </Card>
-              {navData.properties?.length > 0 && (
-                <Card className="md:col-span-2">
-                  <CardHeader className="pb-2"><CardTitle className="text-sm">Property Valuations</CardTitle></CardHeader>
-                  <CardContent>
-                    <div className="overflow-x-auto">
-                      <Table>
-                        <TableHeader>
-                          <TableRow>
-                            <TableHead>Property</TableHead>
-                            <TableHead className="text-right">Value</TableHead>
-                            <TableHead>Source</TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {navData.properties.map((p: any) => (
-                            <TableRow key={p.property_id}>
-                              <TableCell className="text-sm font-medium">{p.address}</TableCell>
-                              <TableCell className="text-right tabular-nums text-sm">{formatCurrency(p.value)}</TableCell>
-                              <TableCell className="text-sm">
-                                <Badge variant="outline" className="text-[10px]">{p.value_source?.replace(/_/g, ' ').toUpperCase()}</Badge>
-                              </TableCell>
-                            </TableRow>
-                          ))}
-                        </TableBody>
-                      </Table>
-                    </div>
-                  </CardContent>
-                </Card>
-              )}
-            </div>
-          )}
+        {/* Projected GP Returns Tab */}
+        <TabsContent value="projections-gp" className="mt-4">
+          <ProjectedReturnsView lpId={lpId} projectionType="gp" />
         </TabsContent>
 
-        {/* ── Portfolio Analytics Tab ──────────────────────────── */}
-        <TabsContent value="portfolio-analytics" className="mt-4">
-          <PortfolioAnalyticsTab lpId={lpId} />
-        </TabsContent>
-
-        {/* ── Income Integration Tab ──────────────────────────── */}
-        <TabsContent value="income-integration" className="mt-4">
-          <PropertyIncomeIntegrationTab lpId={lpId} />
-        </TabsContent>
       </Tabs>
 
       {/* ================================================================= */}
@@ -1698,6 +1376,56 @@ export default function LPDetailPage() {
 }
 
 /* ── Owned Properties Section (used in Pipeline tab) ─────────────── */
+/* ── Tranche Snapshot Controls — capture button + history line ───── */
+function TrancheSnapshotControls({ lpId, trancheId, canEdit }: { lpId: number; trancheId: number; canEdit: boolean }) {
+  const qc = useQueryClient();
+  const { data: snapshots } = useQuery<any[]>({
+    queryKey: ["lp-snapshots", lpId, "lp"],
+    queryFn: () => apiClient.get(`/api/investment/lp/${lpId}/snapshots?projection_type=lp`).then((r) => r.data || []),
+    enabled: lpId > 0,
+  });
+  const trancheSnapshots = (snapshots || []).filter((s: any) => s.tranche_id === trancheId);
+  const latest = trancheSnapshots[0];
+
+  const captureMutation = useMutation({
+    mutationFn: () =>
+      apiClient.post(`/api/investment/lp/${lpId}/tranches/${trancheId}/snapshot`).then((r) => r.data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["lp-snapshots", lpId, "lp"] });
+      qc.invalidateQueries({ queryKey: ["lp-snapshots", lpId, "gp"] });
+    },
+  });
+
+  return (
+    <div className="border-t pt-3 mt-2 flex items-center justify-between gap-2">
+      <div className="text-[11px] text-muted-foreground">
+        {trancheSnapshots.length === 0 ? (
+          <span className="italic">No projection snapshots captured yet</span>
+        ) : (
+          <>
+            <strong>{trancheSnapshots.length}</strong> snapshot{trancheSnapshots.length === 1 ? "" : "s"} captured
+            {latest && (
+              <> &middot; latest <strong>{new Date(latest.captured_at).toLocaleDateString("en-CA")}</strong> ({latest.capture_trigger})</>
+            )}
+          </>
+        )}
+      </div>
+      {canEdit && (
+        <Button
+          size="sm"
+          variant="outline"
+          className="h-7 text-[11px] gap-1"
+          disabled={captureMutation.isPending}
+          onClick={() => captureMutation.mutate()}
+        >
+          📸 {captureMutation.isPending ? "Capturing…" : "Capture Snapshot"}
+        </Button>
+      )}
+    </div>
+  );
+}
+
+
 const STAGE_BADGE: Record<string, { label: string; color: string }> = {
   prospect:          { label: "Prospect",          color: "bg-slate-100 text-slate-700 border-slate-200" },
   acquisition:       { label: "Acquisition",       color: "bg-purple-50 text-purple-700 border-purple-200" },
@@ -1709,16 +1437,69 @@ const STAGE_BADGE: Record<string, { label: string; color: string }> = {
   exit:              { label: "Exit",              color: "bg-red-50 text-red-700 border-red-200" },
 };
 
+// Canonical order for stage groups (matches the lifecycle progression)
+const STAGE_ORDER: string[] = [
+  "prospect",
+  "acquisition",
+  "interim_operation",
+  "planning",
+  "construction",
+  "lease_up",
+  "stabilized",
+  "exit",
+];
+
 function OwnedPropertiesSection({ lpId }: { lpId: number }) {
   const { data: properties, isLoading } = usePropertiesByLp(lpId);
+  // Default = list view per spec
+  const [viewMode, setViewMode] = useState<"list" | "card">("list");
+
+  // Group properties by stage, preserving the canonical lifecycle order
+  const grouped = React.useMemo(() => {
+    if (!properties) return [] as Array<{ stage: string; cfg: { label: string; color: string }; items: typeof properties }>;
+    const buckets: Record<string, typeof properties> = {};
+    for (const p of properties) {
+      const k = p.development_stage || "prospect";
+      (buckets[k] ||= []).push(p);
+    }
+    // Stages in canonical order, then any unknown stages alphabetically
+    const known = STAGE_ORDER.filter((s) => buckets[s]?.length);
+    const unknown = Object.keys(buckets).filter((s) => !STAGE_ORDER.includes(s)).sort();
+    return [...known, ...unknown].map((stage) => ({
+      stage,
+      cfg: STAGE_BADGE[stage] ?? { label: stage, color: "bg-gray-100 text-gray-700 border-gray-200" },
+      items: buckets[stage],
+    }));
+  }, [properties]);
 
   return (
     <div className="space-y-3">
-      <h3 className="text-sm font-semibold flex items-center gap-2">
-        <Building2 className="h-4 w-4 text-muted-foreground" />
-        Owned Properties
-        {properties && <Badge variant="secondary" className="text-xs">{properties.length}</Badge>}
-      </h3>
+      <div className="flex items-center justify-between gap-2 flex-wrap">
+        <h3 className="text-sm font-semibold flex items-center gap-2">
+          <Building2 className="h-4 w-4 text-muted-foreground" />
+          Owned Properties
+          {properties && <Badge variant="secondary" className="text-xs">{properties.length}</Badge>}
+        </h3>
+        <div className="flex items-center rounded-md border">
+          <button
+            type="button"
+            onClick={() => setViewMode("list")}
+            className={`p-2 ${viewMode === "list" ? "bg-muted" : ""}`}
+            title="List view"
+          >
+            <ListIcon className="h-4 w-4" />
+          </button>
+          <button
+            type="button"
+            onClick={() => setViewMode("card")}
+            className={`p-2 ${viewMode === "card" ? "bg-muted" : ""}`}
+            title="Card view"
+          >
+            <LayoutGrid className="h-4 w-4" />
+          </button>
+        </div>
+      </div>
+
       {isLoading ? (
         <div className="space-y-3">
           <Skeleton className="h-24 w-full" />
@@ -1731,61 +1512,98 @@ function OwnedPropertiesSection({ lpId }: { lpId: number }) {
           </CardContent>
         </Card>
       ) : (
-        <div className="grid gap-3 sm:grid-cols-2">
-          {properties.map((p) => {
-            const stageCfg = STAGE_BADGE[p.development_stage] ?? { label: p.development_stage, color: "bg-gray-100 text-gray-700 border-gray-200" };
-            return (
-              <Link key={p.property_id} href={`/portfolio/${p.property_id}`}>
-                <Card className="hover:shadow-md transition-shadow cursor-pointer h-full">
-                  <CardContent className="pt-4 pb-4">
-                    <div className="flex items-start justify-between gap-2 mb-2">
-                      <div className="min-w-0">
-                        <p className="text-sm font-semibold truncate">{p.address}</p>
-                        <p className="text-xs text-muted-foreground">{p.city}, {p.province}</p>
-                      </div>
-                      <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-medium shrink-0 ${stageCfg.color}`}>
-                        {stageCfg.label}
-                      </span>
-                    </div>
-                    <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
-                      <div>
-                        <span className="text-muted-foreground">Purchase Price</span>
-                        <p className="font-medium tabular-nums">{p.purchase_price ? formatCurrencyCompact(Number(p.purchase_price)) : "—"}</p>
-                      </div>
-                      <div>
-                        <span className="text-muted-foreground">Market Value</span>
-                        <p className="font-medium tabular-nums">{p.current_market_value ? formatCurrencyCompact(Number(p.current_market_value)) : "—"}</p>
-                      </div>
-                      {p.community_name && (
-                        <div className="col-span-2">
-                          <span className="text-muted-foreground">Community</span>
-                          <p className="font-medium">{p.community_name}</p>
-                        </div>
-                      )}
-                    </div>
-                  </CardContent>
+        <div className="space-y-6">
+          {grouped.map(({ stage, cfg, items }) => (
+            <div key={stage} className="space-y-2">
+              <div className="flex items-center gap-2">
+                <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-semibold ${cfg.color}`}>
+                  {cfg.label}
+                </span>
+                <span className="text-xs text-muted-foreground">
+                  {items.length} {items.length === 1 ? "property" : "properties"}
+                </span>
+              </div>
+
+              {viewMode === "card" ? (
+                /* ── CARD VIEW ──────────────────────────────────── */
+                <div className="grid gap-3 sm:grid-cols-2">
+                  {items.map((p) => (
+                    <Link key={p.property_id} href={`/portfolio/${p.property_id}`}>
+                      <Card className="hover:shadow-md transition-shadow cursor-pointer h-full">
+                        <CardContent className="pt-4 pb-4">
+                          <div className="flex items-start justify-between gap-2 mb-2">
+                            <div className="min-w-0">
+                              <p className="text-sm font-semibold truncate">{p.address}</p>
+                              <p className="text-xs text-muted-foreground">{p.city}, {p.province}</p>
+                            </div>
+                          </div>
+                          <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
+                            <div>
+                              <span className="text-muted-foreground">Purchase Price</span>
+                              <p className="font-medium tabular-nums">{p.purchase_price ? formatCurrencyCompact(Number(p.purchase_price)) : "—"}</p>
+                            </div>
+                            <div>
+                              <span className="text-muted-foreground">Market Value</span>
+                              <p className="font-medium tabular-nums">{p.current_market_value ? formatCurrencyCompact(Number(p.current_market_value)) : "—"}</p>
+                            </div>
+                            {p.community_name && (
+                              <div className="col-span-2">
+                                <span className="text-muted-foreground">Community</span>
+                                <p className="font-medium">{p.community_name}</p>
+                              </div>
+                            )}
+                          </div>
+                        </CardContent>
+                      </Card>
+                    </Link>
+                  ))}
+                </div>
+              ) : (
+                /* ── LIST / TABLE VIEW (default) ────────────────── */
+                <Card>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b bg-muted/40">
+                          <th className="px-4 py-2 text-left font-medium">Address</th>
+                          <th className="px-4 py-2 text-left font-medium">City</th>
+                          <th className="px-4 py-2 text-left font-medium">Type</th>
+                          <th className="px-4 py-2 text-right font-medium">Purchase</th>
+                          <th className="px-4 py-2 text-right font-medium">Market Value</th>
+                          <th className="px-4 py-2 text-right font-medium">Beds</th>
+                          <th className="px-4 py-2 text-left font-medium">Community</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {items.map((p) => (
+                          <tr
+                            key={p.property_id}
+                            className="border-b last:border-0 hover:bg-muted/30 cursor-pointer"
+                            onClick={() => { window.location.href = `/portfolio/${p.property_id}`; }}
+                          >
+                            <td className="px-4 py-2 font-medium">{p.address}</td>
+                            <td className="px-4 py-2 text-muted-foreground">{p.city}, {p.province}</td>
+                            <td className="px-4 py-2 text-muted-foreground">{p.property_type ?? "—"}</td>
+                            <td className="px-4 py-2 text-right font-medium tabular-nums">
+                              {p.purchase_price ? formatCurrencyCompact(Number(p.purchase_price)) : "—"}
+                            </td>
+                            <td className="px-4 py-2 text-right font-medium text-blue-600 tabular-nums">
+                              {p.current_market_value ? formatCurrencyCompact(Number(p.current_market_value)) : "—"}
+                            </td>
+                            <td className="px-4 py-2 text-right tabular-nums">{p.bedrooms ?? "—"}</td>
+                            <td className="px-4 py-2 text-muted-foreground truncate max-w-[160px]">{p.community_name ?? "—"}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
                 </Card>
-              </Link>
-            );
-          })}
+              )}
+            </div>
+          ))}
         </div>
       )}
 
-      {/* LP Trend Charts */}
-      <div className="grid gap-4 lg:grid-cols-2 mt-6">
-        <TrendChart
-          entityType="lp"
-          entityId={lpId}
-          title="NAV & Capital Trend"
-          metrics={["nav", "total_funded", "capital_deployed"]}
-        />
-        <TrendChart
-          entityType="lp"
-          entityId={lpId}
-          title="Debt & Distributions"
-          metrics={["total_debt", "total_distributions"]}
-        />
-      </div>
     </div>
   );
 }
