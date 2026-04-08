@@ -50,8 +50,9 @@ const GP = "GP_ADMIN" as UserRole;
 const OP = "OPERATIONS_MANAGER" as UserRole;
 const PM = "PROPERTY_MANAGER" as UserRole;
 const INV = "INVESTOR" as UserRole;
+const PARTNER = "PARTNER" as UserRole;
 
-const ALL_PLATFORM: UserRole[] = [DEV, GP, OP, PM, INV];
+const ALL_PLATFORM: UserRole[] = [DEV, GP, OP, PM, INV, PARTNER];
 
 interface NavItem {
   href: string;

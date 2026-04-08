@@ -72,6 +72,7 @@ const ROLES: { value: UserRole; label: string }[] = [
   { value: "OPERATIONS_MANAGER", label: "Operations Manager" },
   { value: "PROPERTY_MANAGER", label: "Property Manager" },
   { value: "INVESTOR", label: "Investor" },
+  { value: "PARTNER", label: "Partner" },
 ];
 
 const ROLE_LABELS: Record<string, string> = {
@@ -79,6 +80,7 @@ const ROLE_LABELS: Record<string, string> = {
   OPERATIONS_MANAGER: "Ops Manager",
   PROPERTY_MANAGER: "Property Mgr",
   INVESTOR: "Investor",
+  PARTNER: "Partner",
   RESIDENT: "Resident",
 };
 

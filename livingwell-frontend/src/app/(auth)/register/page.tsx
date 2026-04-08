@@ -19,6 +19,7 @@ const ROLES: { value: UserRole; label: string }[] = [
   { value: "OPERATIONS_MANAGER", label: "Operations Manager" },
   { value: "PROPERTY_MANAGER", label: "Property Manager" },
   { value: "INVESTOR", label: "Investor" },
+  { value: "PARTNER", label: "Partner" },
   { value: "RESIDENT", label: "Resident" },
 ];
 

@@ -465,11 +465,16 @@ function PropertyPerformanceTab({ lpId }: { lpId: number }) {
 function RealizedCashFlowTab({ lpId }: { lpId: number }) {
   const { data: distributions, isLoading } = useQuery({
     queryKey: ["lp-distributions", lpId],
-    queryFn: () => apiClient.get(`/api/investment/lp/${lpId}/distributions`).then((r) => r.data || []),
+    queryFn: () =>
+      apiClient.get(`/api/investment/lp/${lpId}/distributions`).then((r) => {
+        const raw = r.data;
+        if (Array.isArray(raw)) return raw;
+        return raw?.items || raw?.data || raw?.results || [];
+      }),
     enabled: lpId > 0,
   });
 
-  const dists = (distributions || []) as any[];
+  const dists = (Array.isArray(distributions) ? distributions : []) as any[];
   const totalDistributed = dists.reduce((s, d) => s + (Number(d.total_amount) || Number(d.amount) || 0), 0);
 
   return (
@@ -675,11 +680,16 @@ function DebtPositionTab({ lpId }: { lpId: number }) {
 function InvestorPerformanceTab({ lpId }: { lpId: number }) {
   const { data: subs, isLoading } = useQuery({
     queryKey: ["lp-subscriptions", lpId],
-    queryFn: () => apiClient.get(`/api/investment/lp/${lpId}/subscriptions`).then((r) => r.data || []),
+    queryFn: () =>
+      apiClient.get(`/api/investment/lp/${lpId}/subscriptions`).then((r) => {
+        const raw = r.data;
+        if (Array.isArray(raw)) return raw;
+        return raw?.items || raw?.data || raw?.results || [];
+      }),
     enabled: lpId > 0,
   });
 
-  const rows = (subs || []) as any[];
+  const rows = (Array.isArray(subs) ? subs : []) as any[];
   const totalCommitted = rows.reduce((s, r) => s + (Number(r.committed_amount) || 0), 0);
   const totalFunded = rows.reduce((s, r) => s + (Number(r.funded_amount) || 0), 0);
 

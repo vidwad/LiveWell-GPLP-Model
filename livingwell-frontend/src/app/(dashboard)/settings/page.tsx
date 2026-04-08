@@ -38,6 +38,7 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { settingsApi } from "@/lib/api";
 import { cn } from "@/lib/utils";
+import { DatabaseBackupSection } from "@/components/settings/DatabaseBackupSection";
 
 /* ── Types ─────────────────────────────────────────────────────────────── */
 
@@ -746,6 +747,9 @@ export default function SettingsPage() {
           </Card>
         );
       })}
+
+      {/* Database Backups (Developer only) */}
+      <DatabaseBackupSection />
 
       {/* Help */}
       <Card className="border-dashed">

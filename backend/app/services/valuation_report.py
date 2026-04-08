@@ -50,10 +50,10 @@ import os
 # with the Responses API; the user can switch to deep-research / GPT-5 once
 # they have access.
 RESEARCH_MODEL = os.environ.get("OPENAI_RESEARCH_MODEL", "o3-deep-research-2025-06-26")
-SYNTHESIS_MODEL = os.environ.get("OPENAI_SYNTHESIS_MODEL", "gpt-4.1")
+SYNTHESIS_MODEL = os.environ.get("OPENAI_SYNTHESIS_MODEL", "gpt-5.4")
 # Fallbacks if the primary model fails (e.g. account doesn't have access).
-RESEARCH_MODEL_FALLBACK = os.environ.get("OPENAI_RESEARCH_MODEL_FALLBACK", "gpt-4.1")
-SYNTHESIS_MODEL_FALLBACK = os.environ.get("OPENAI_SYNTHESIS_MODEL_FALLBACK", "gpt-4o")
+RESEARCH_MODEL_FALLBACK = os.environ.get("OPENAI_RESEARCH_MODEL_FALLBACK", "gpt-5.4")
+SYNTHESIS_MODEL_FALLBACK = os.environ.get("OPENAI_SYNTHESIS_MODEL_FALLBACK", "gpt-5.4-mini")
 
 # Fallback / mock mode if no OpenAI API key is configured, OR if explicitly
 # forced via env var. The pipeline always produces a renderable PDF in mock

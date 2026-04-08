@@ -9,7 +9,7 @@ from datetime import datetime
 from functools import partial
 
 from sqlalchemy import (
-    Boolean, Column, Date, DateTime, Enum as SAEnum,
+    BigInteger, Boolean, Column, Date, DateTime, Enum as SAEnum,
     ForeignKey, Integer, Numeric, String, Text, UniqueConstraint, func,
 )
 from sqlalchemy.orm import relationship
@@ -31,6 +31,7 @@ class UserRole(str, enum.Enum):
     OPERATIONS_MANAGER = "OPERATIONS_MANAGER"
     PROPERTY_MANAGER = "PROPERTY_MANAGER"
     INVESTOR = "INVESTOR"
+    PARTNER = "PARTNER"
     RESIDENT = "RESIDENT"
 
 
@@ -447,6 +448,13 @@ ROLE_DEFAULT_CAPABILITIES: dict[str, set[str]] = {
     },
     UserRole.INVESTOR: {
         "view_financials", "create_reports",
+    },
+    # Partner = co-GP / JV partner / strategic partner.
+    # Read-only access across portfolio, financials, valuations, and reports
+    # but no editing rights on properties, debt, or operations.
+    UserRole.PARTNER: {
+        "view_financials", "create_reports", "manage_documents",
+        "manage_valuations",
     },
 }
 
@@ -2952,3 +2960,34 @@ class TrancheProjectionSnapshot(Base):
     lp = relationship("LPEntity")
     tranche = relationship("LPTranche")
     captor = relationship("User")
+
+
+class DatabaseBackup(Base):
+    """Metadata for a stored database backup.
+
+    Two backup types are supported:
+      - 'logical' — JSON export of source-of-truth tables (schema-tolerant restore)
+      - 'physical' — byte-for-byte SQLite/Postgres dump (cold restore only)
+
+    The actual backup file lives on disk at file_path. Each type has its own
+    rotation: at most 3 backups per type are retained, with the oldest auto-
+    deleted on creation of a 4th.
+    """
+    __tablename__ = "database_backups"
+
+    backup_id = Column(Integer, primary_key=True, index=True)
+    backup_type = Column(String(16), nullable=False)  # 'logical' or 'physical'
+    filename = Column(String(256), nullable=False)
+    file_path = Column(String(512), nullable=False)
+    size_bytes = Column(BigInteger, nullable=False, default=0)
+
+    # Metadata captured at create time
+    description = Column(String(512), nullable=True)
+    row_counts = Column(Text, nullable=True)            # JSON: { table: count }
+    schema_fingerprint = Column(Text, nullable=True)    # JSON: { table_names, column_counts }
+    app_version = Column(String(64), nullable=True)     # git commit hash if available
+
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    created_by = Column(Integer, ForeignKey("users.user_id"), nullable=True)
+
+    creator = relationship("User", foreign_keys=[created_by])

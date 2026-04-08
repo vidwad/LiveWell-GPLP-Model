@@ -35,6 +35,7 @@ const ROLE_LABELS: Record<string, string> = {
   OPERATIONS_MANAGER: "Operations Manager",
   PROPERTY_MANAGER: "Property Manager",
   INVESTOR: "Investor",
+  PARTNER: "Partner",
   RESIDENT: "Resident",
 };
 

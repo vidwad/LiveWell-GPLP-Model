@@ -4,6 +4,7 @@ export type UserRole =
   | "OPERATIONS_MANAGER"
   | "PROPERTY_MANAGER"
   | "INVESTOR"
+  | "PARTNER"
   | "RESIDENT";
 
 export interface User {

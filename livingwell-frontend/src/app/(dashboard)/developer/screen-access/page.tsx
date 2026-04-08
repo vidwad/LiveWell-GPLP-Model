@@ -17,6 +17,7 @@ import {
 const ROLE_LABELS: Record<string, { label: string; color: string }> = {
   DEVELOPER: { label: "Developer", color: "bg-red-100 text-red-700" },
   GP_ADMIN: { label: "GP Admin", color: "bg-blue-100 text-blue-700" },
+  PARTNER: { label: "Partner", color: "bg-cyan-100 text-cyan-700" },
   OPERATIONS_MANAGER: { label: "Ops Manager", color: "bg-amber-100 text-amber-700" },
   PROPERTY_MANAGER: { label: "Property Mgr", color: "bg-green-100 text-green-700" },
   INVESTOR: { label: "Investor", color: "bg-violet-100 text-violet-700" },
