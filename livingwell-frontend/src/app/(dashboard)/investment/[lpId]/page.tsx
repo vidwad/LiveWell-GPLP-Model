@@ -6,6 +6,7 @@ import React, { useState, useCallback, useEffect } from "react";
 import { TrendChart } from "@/components/charts/TrendChart";
 import { PortfolioCashFlowTab } from "@/components/investment/PortfolioCashFlowTab";
 import { ProjectedReturnsView } from "@/components/investment/ProjectedReturnsView";
+import { LPDocumentsTab } from "@/components/investment/LPDocumentsTab";
 import {
   ArrowLeft,
   Landmark,
@@ -563,6 +564,7 @@ export default function LPDetailPage() {
             <TabsTrigger value="subscriptions" className="text-xs sm:text-sm">Subscriptions</TabsTrigger>
             <TabsTrigger value="holdings" className="text-xs sm:text-sm">Investor Holdings</TabsTrigger>
             <TabsTrigger value="pipeline" className="text-xs sm:text-sm">Property Holdings</TabsTrigger>
+            <TabsTrigger value="documents" className="text-xs sm:text-sm">Documents</TabsTrigger>
             <TabsTrigger value="portfolio-cashflow" className="text-xs sm:text-sm">Portfolio Cash Flow</TabsTrigger>
             <TabsTrigger value="projections-lp" className="text-xs sm:text-sm">Projected LP Returns</TabsTrigger>
             <TabsTrigger value="projections-gp" className="text-xs sm:text-sm">Projected GP Returns</TabsTrigger>
@@ -1101,6 +1103,11 @@ export default function LPDetailPage() {
               </Card>
             ))
           )}
+        </TabsContent>
+
+        {/* ── Documents Tab ──────────────────────────────────────── */}
+        <TabsContent value="documents" className="mt-4">
+          <LPDocumentsTab lpId={lpId} canEdit={canEdit} />
         </TabsContent>
 
         {/* ── Portfolio Cash Flow Tab ───────────────────────────── */}

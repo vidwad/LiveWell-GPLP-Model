@@ -2991,3 +2991,39 @@ class DatabaseBackup(Base):
     created_by = Column(Integer, ForeignKey("users.user_id"), nullable=True)
 
     creator = relationship("User", foreign_keys=[created_by])
+
+
+class LPDocument(Base):
+    """LP-level template documents (Interpretation A — shared, not per-investor).
+
+    GP/Admin uploads a single canonical copy of each document type for an LP
+    offering. Used for things investors all need: Information Package,
+    Partnership Agreement, Banking Information, blank Subscription Agreement
+    template, blank tax forms, etc. Per-investor signed copies are tracked
+    separately in a future per-investor KYC tracker.
+    """
+    __tablename__ = "lp_documents"
+
+    lp_document_id = Column(Integer, primary_key=True, index=True)
+    lp_id = Column(Integer, ForeignKey("lp_entities.lp_id", ondelete="CASCADE"), nullable=False, index=True)
+
+    # Document type — one of the 10 canonical types from the offering checklist
+    document_type = Column(String(64), nullable=False, index=True)
+    display_name = Column(String(256), nullable=True)
+    description = Column(Text, nullable=True)
+
+    # File metadata
+    filename = Column(String(256), nullable=False)
+    file_url = Column(String(1024), nullable=False)
+    file_size = Column(BigInteger, nullable=False, default=0)
+    content_type = Column(String(128), nullable=True)
+    version = Column(Integer, nullable=False, default=1)
+
+    is_active = Column(Boolean, nullable=False, default=True)
+
+    uploaded_by = Column(Integer, ForeignKey("users.user_id"), nullable=True)
+    uploaded_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    updated_at = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    lp = relationship("LPEntity")
+    uploader = relationship("User", foreign_keys=[uploaded_by])

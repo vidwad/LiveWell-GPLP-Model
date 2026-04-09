@@ -170,6 +170,53 @@ class ReviewUpdate(BaseModel):
     reviewer_notes: str | None = None
 
 
+class ResendEmailRequest(BaseModel):
+    to_email: str | None = None  # if omitted, uses the job's stored deliver_to_email
+
+
+@router.post("/valuation-reports/{job_id}/email")
+def email_existing_report(
+    job_id: int,
+    payload: ResendEmailRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_gp_or_ops),
+):
+    """Email a previously-rendered Management Appraisal Report PDF.
+
+    Use this to (re)send a completed report to a different recipient or
+    when the original delivery failed (e.g. Resend was misconfigured).
+    """
+    job = db.query(ValuationReportJob).filter(ValuationReportJob.id == job_id).first()
+    if not job:
+        raise HTTPException(404, "Job not found")
+    if not job.report_artifact_path:
+        raise HTTPException(400, "Report has not been rendered yet")
+    pdf_path = Path(job.report_artifact_path)
+    if not pdf_path.exists():
+        raise HTTPException(404, "Report PDF missing on disk")
+
+    to_email = (payload.to_email or job.deliver_to_email or getattr(current_user, "email", None))
+    if not to_email:
+        raise HTTPException(400, "No recipient email provided and none stored on the job")
+
+    prop = db.query(Property).filter(Property.property_id == job.property_id).first()
+    prop_label = prop.address if prop else f"Property {job.property_id}"
+
+    from app.services.valuation_report import email_report
+    ok, err = email_report(to_email, prop_label, pdf_path)
+    if not ok:
+        raise HTTPException(502, f"Email delivery failed: {err}")
+
+    job.deliver_to_email = to_email
+    job.delivered_at = datetime.utcnow()
+    db.commit()
+    return {
+        "ok": True,
+        "delivered_to": to_email,
+        "delivered_at": job.delivered_at.isoformat(),
+    }
+
+
 @router.delete("/valuation-reports/{job_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_valuation_report(
     job_id: int,

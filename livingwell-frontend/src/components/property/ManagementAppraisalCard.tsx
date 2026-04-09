@@ -89,6 +89,34 @@ export function ManagementAppraisalCard({ propertyId }: { propertyId: number }) 
       toast.error(e?.response?.data?.detail || "Failed to delete report"),
   });
 
+  const emailMutation = useMutation({
+    mutationFn: ({ jobId, to }: { jobId: number; to: string | null }) =>
+      apiClient
+        .post(`/api/portfolio/valuation-reports/${jobId}/email`, { to_email: to })
+        .then((r) => r.data),
+    onSuccess: (data) => {
+      toast.success(`Emailed to ${data.delivered_to}`);
+      qc.invalidateQueries({ queryKey: ["valuation-reports", propertyId] });
+    },
+    onError: (e: any) =>
+      toast.error(e?.response?.data?.detail || "Email failed"),
+  });
+
+  const handleEmail = (jobId: number, currentTo: string | null) => {
+    const defaultAddr = currentTo || "";
+    const to = window.prompt(
+      "Email this report to:",
+      defaultAddr,
+    );
+    if (to === null) return;  // user cancelled
+    const trimmed = to.trim();
+    if (!trimmed) {
+      toast.error("Email address required");
+      return;
+    }
+    emailMutation.mutate({ jobId, to: trimmed });
+  };
+
   const handleDelete = (jobId: number, version: number) => {
     if (window.confirm(`Delete report v${version}? This removes the PDF and all artifacts permanently.`)) {
       deleteMutation.mutate(jobId);
@@ -209,8 +237,21 @@ export function ManagementAppraisalCard({ propertyId }: { propertyId: number }) 
                       variant="ghost"
                       className="h-7 gap-1 text-[11px]"
                       onClick={() => downloadPdf(j.id)}
+                      title="Download PDF"
                     >
                       <Download className="h-3 w-3" /> PDF
+                    </Button>
+                  )}
+                  {j.has_pdf && (
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-7 w-7 p-0 text-blue-600 hover:text-blue-800 hover:bg-blue-50"
+                      onClick={() => handleEmail(j.id, j.deliver_to_email)}
+                      disabled={emailMutation.isPending}
+                      title={`Email this report${j.deliver_to_email ? ` (last sent to ${j.deliver_to_email})` : ""}`}
+                    >
+                      <Mail className="h-3.5 w-3.5" />
                     </Button>
                   )}
                   <Button

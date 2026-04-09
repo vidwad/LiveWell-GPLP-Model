@@ -13,6 +13,7 @@ from fastapi import APIRouter, Depends, Form as _Form, HTTPException, Query, sta
 from fastapi.responses import Response
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
+from sqlalchemy.exc import IntegrityError
 
 from app.core.deps import get_current_user, require_gp_admin, require_gp_or_ops, require_investor_or_above
 from app.db.models import (
@@ -1910,6 +1911,28 @@ def edit_investor_crm(
                "investor_status", "linkedin_url", "risk_tolerance", "re_knowledge",
                "other_investments", "income_range", "net_worth_range", "investment_goals",
                "referral_source"}
+
+    # Pre-flight uniqueness check on email — investors.email has a UNIQUE
+    # constraint, so a clean 409 with a helpful message is better than a
+    # generic 500 from the IntegrityError raised on commit.
+    if "email" in payload:
+        new_email = (payload.get("email") or "").strip() or None
+        if new_email and new_email != investor.email:
+            existing = (
+                db.query(Investor)
+                .filter(Investor.email == new_email, Investor.investor_id != investor_id)
+                .first()
+            )
+            if existing:
+                raise HTTPException(
+                    status_code=409,
+                    detail=(
+                        f"That email address is already in use by another investor "
+                        f"(#{existing.investor_id} {existing.name or ''}). "
+                        f"Use a different address or merge the contacts."
+                    ),
+                )
+
     for key, val in payload.items():
         if key in allowed:
             setattr(investor, key, val if val != "" else None)
@@ -1920,8 +1943,17 @@ def edit_investor_crm(
         ln = investor.last_name or ""
         investor.name = f"{fn} {ln}".strip()
 
-    db.commit()
-    db.refresh(investor)
+    try:
+        db.commit()
+        db.refresh(investor)
+    except IntegrityError as e:
+        db.rollback()
+        # Catch any other unique-constraint hits we didn't pre-check
+        msg = str(e.orig) if hasattr(e, "orig") else str(e)
+        if "UNIQUE" in msg.upper() and "email" in msg.lower():
+            raise HTTPException(409, "Email address already in use by another investor")
+        raise HTTPException(400, f"Database constraint failed: {msg}")
+
     return {
         "investor_id": investor.investor_id,
         "name": investor.name,

@@ -4,6 +4,7 @@ import { useState, useMemo, useCallback, useRef, useEffect, Suspense } from "rea
 import { useSearchParams } from "next/navigation";
 // createPortal removed — using direct fixed overlay instead
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 import { apiClient, investors as investorsApi, twilio as twilioApi } from "@/lib/api";
 import { useTwilioDevice } from "@/hooks/useTwilioDevice";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -1390,6 +1391,21 @@ function InvestorDetailDrawer({
       queryClient.invalidateQueries({ queryKey: ["onboarding-detail", investorId] });
       queryClient.invalidateQueries({ queryKey: ["onboarding-investors"] });
       setIsEditing(false);
+      toast.success("Investor updated");
+    },
+    onError: (err: any) => {
+      // Surface backend-side validation errors (e.g. duplicate email 409)
+      // so the user knows exactly why the save was rejected
+      const detail = err?.response?.data?.detail;
+      const status = err?.response?.status;
+      const msg =
+        detail ||
+        (status === 409
+          ? "Duplicate value — that email or unique field is already in use."
+          : status === 422
+            ? "Validation failed. Check the form fields."
+            : "Failed to save investor changes.");
+      toast.error(msg, { duration: 8000 });
     },
   });
 
@@ -2569,7 +2585,11 @@ function InvestorDetailDrawer({
         ================================================================ */}
         {activeTab === "documents" && (
           <div className="space-y-4">
-            <InvestorIOISection investorId={investorId} investorName={`${investor.first_name || ""} ${investor.last_name || ""}`.trim()} />
+            <InvestorIOISection
+              investorId={investorId}
+              investorName={`${investor.first_name || ""} ${investor.last_name || ""}`.trim()}
+              investorEmail={(investor.email as string) || ""}
+            />
             <InvestorDocumentsTab investorId={investorId} />
           </div>
         )}
@@ -2606,7 +2626,7 @@ const DOC_CATEGORIES = [
 
 // ── Investor IOI (Indication of Interest) Section ─────────────────────
 
-function InvestorIOISection({ investorId, investorName }: { investorId: number; investorName: string }) {
+function InvestorIOISection({ investorId, investorName, investorEmail }: { investorId: number; investorName: string; investorEmail: string }) {
   const queryClient = useQueryClient();
   const [addingLpId, setAddingLpId] = useState<number | null>(null);
   const [ioiAmount, setIoiAmount] = useState("");
@@ -2770,6 +2790,14 @@ function InvestorIOISection({ investorId, investorName }: { investorId: number; 
                     </Button>
                   )}
                 </div>
+
+                {/* Per-LP offering documents (download or email to investor) */}
+                <OfferingDocumentList
+                  lpId={lp.lp_id}
+                  lpName={lp.name}
+                  investorEmail={investorEmail}
+                  investorName={investorName}
+                />
                 {addingLpId === lp.lp_id && (
                   <div className="mt-2 rounded border bg-blue-50/30 p-2 space-y-1.5">
                     <div className="grid grid-cols-2 gap-2">
@@ -2829,6 +2857,125 @@ function InvestorIOISection({ investorId, investorName }: { investorId: number; 
         )}
       </CardContent>
     </Card>
+  );
+}
+
+// ── Per-LP offering document list (rendered inside an Open Offering card) ──
+
+function OfferingDocumentList({
+  lpId, lpName, investorEmail, investorName,
+}: {
+  lpId: number;
+  lpName: string;
+  investorEmail: string;
+  investorName: string;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const [emailingDocId, setEmailingDocId] = useState<number | null>(null);
+
+  const { data: docs } = useQuery<any[]>({
+    queryKey: ["lp-documents", lpId],
+    queryFn: () => apiClient.get(`/api/investment/lp/${lpId}/documents`).then((r) => r.data || []),
+    enabled: expanded,
+  });
+
+  const handleDownload = (docId: number) => {
+    const url = `${apiClient.defaults.baseURL || ""}/api/investment/lp-documents/${docId}/download`;
+    window.open(url, "_blank");
+  };
+
+  const handleEmail = async (docId: number, docLabel: string) => {
+    if (!investorEmail) {
+      alert("This investor has no email address on file. Add one before sending documents.");
+      return;
+    }
+    const to = window.prompt(`Email "${docLabel}" to:`, investorEmail);
+    if (to === null) return;
+    const trimmed = to.trim();
+    if (!trimmed) return;
+    setEmailingDocId(docId);
+    try {
+      await apiClient.post(`/api/investment/lp-documents/${docId}/email`, {
+        to_email: trimmed,
+        recipient_name: investorName,
+      });
+      // Use sonner if available, else native confirm
+      try {
+        const sonner = await import("sonner");
+        sonner.toast.success(`Sent "${docLabel}" to ${trimmed}`);
+      } catch {
+        alert(`Sent "${docLabel}" to ${trimmed}`);
+      }
+    } catch (e: any) {
+      const msg = e?.response?.data?.detail || "Email delivery failed";
+      try {
+        const sonner = await import("sonner");
+        sonner.toast.error(msg);
+      } catch {
+        alert(msg);
+      }
+    } finally {
+      setEmailingDocId(null);
+    }
+  };
+
+  const docCount = docs?.length || 0;
+
+  return (
+    <div className="mt-2 border-t pt-2">
+      <button
+        type="button"
+        onClick={() => setExpanded((x) => !x)}
+        className="text-[10px] text-blue-600 hover:underline flex items-center gap-1"
+      >
+        <FileText className="h-2.5 w-2.5" />
+        {expanded ? "Hide" : "Show"} offering documents
+        {expanded && docs && <span className="text-muted-foreground">({docCount})</span>}
+      </button>
+      {expanded && (
+        <div className="mt-1.5 space-y-1">
+          {!docs ? (
+            <p className="text-[10px] text-muted-foreground italic py-1">Loading…</p>
+          ) : docCount === 0 ? (
+            <p className="text-[10px] text-muted-foreground italic py-1">
+              No documents uploaded for this LP yet. Upload templates from the LP detail page → Documents tab.
+            </p>
+          ) : (
+            docs.map((d) => (
+              <div
+                key={d.lp_document_id}
+                className="flex items-center justify-between gap-2 rounded border border-slate-200 bg-slate-50/50 px-2 py-1.5 text-[10px]"
+              >
+                <div className="min-w-0 flex-1">
+                  <p className="font-medium truncate">{d.display_name}</p>
+                  <p className="text-muted-foreground font-mono truncate">{d.filename}</p>
+                </div>
+                <div className="flex items-center gap-1 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => handleDownload(d.lp_document_id)}
+                    className="h-6 px-1.5 rounded border border-slate-300 hover:bg-white inline-flex items-center gap-0.5"
+                    title="Download"
+                  >
+                    <Download className="h-2.5 w-2.5" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleEmail(d.lp_document_id, d.display_name)}
+                    disabled={emailingDocId === d.lp_document_id}
+                    className="h-6 px-1.5 rounded border border-blue-300 text-blue-600 hover:bg-blue-50 inline-flex items-center gap-0.5"
+                    title={`Email to ${investorEmail || "investor"}`}
+                  >
+                    <Mail className="h-2.5 w-2.5" />
+                    {emailingDocId === d.lp_document_id ? "…" : ""}
+                  </button>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -2918,26 +3065,9 @@ function InvestorDocumentsTab({ investorId }: { investorId: number }) {
         </CardContent>
       </Card>
 
-      {/* Template downloads */}
-      <Card>
-        <CardHeader className="p-4 pb-2">
-          <CardTitle className="text-sm font-semibold">Download Templates</CardTitle>
-        </CardHeader>
-        <CardContent className="p-4 pt-0">
-          <div className="grid grid-cols-2 gap-2">
-            {DOC_CATEGORIES.filter((c) => ["Onboarding", "Investment", "Account"].includes(c.group)).map((c) => (
-              <button
-                key={c.key}
-                className="flex items-center gap-2 rounded border p-2 text-xs hover:bg-muted/50 transition-colors text-left"
-                onClick={() => alert(`Template "${c.label}" download — templates can be uploaded to /uploads/templates/ on the server.`)}
-              >
-                <Download className="h-3 w-3 text-muted-foreground shrink-0" />
-                <span className="truncate">{c.label}</span>
-              </button>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
+      {/* NOTE: per-LP offering templates are now rendered inline under each
+          Open Offering in the Indications of Interest section above.
+          This used to be a stub card that opened alert() dialogs. */}
 
       {/* Uploaded documents */}
       {isLoading ? (

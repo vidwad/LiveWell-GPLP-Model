@@ -73,6 +73,9 @@ app.include_router(timeline_router, prefix="/api", tags=["timeline"])
 
 from app.routes.database_backups import router as database_backups_router
 app.include_router(database_backups_router, prefix="/api/admin/backups", tags=["admin-backups"])
+
+from app.routes.lp_documents import router as lp_documents_router
+app.include_router(lp_documents_router, prefix="/api/investment", tags=["lp-documents"])
 # NOTE: ancillary_revenue, operating_expenses, underwriting, proforma,
 # valuation, and construction routers are included via portfolio.py's
 # router.include_router() calls — no need to register them separately here.

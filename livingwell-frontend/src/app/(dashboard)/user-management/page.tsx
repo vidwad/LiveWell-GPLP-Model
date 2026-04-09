@@ -293,10 +293,20 @@ function InvitationsTab() {
         role: data.role,
         personal_message: data.personal_message || undefined,
       }).then((r) => r.data),
-    onSuccess: (data: Invitation) => {
-      toast.success("Invitation sent");
+    onSuccess: (data: any) => {
+      // The backend returns email_sent: true|false. The invite row exists either
+      // way, but warn the user if delivery actually failed so they know to copy
+      // the magic link manually instead of waiting for an email that won't arrive.
+      if (data.email_sent === false) {
+        toast.warning(
+          "Invitation created but email delivery failed. Copy the invite link below and send it manually.",
+          { duration: 8000 },
+        );
+      } else {
+        toast.success("Invitation sent");
+      }
       queryClient.invalidateQueries({ queryKey: ["admin-invitations"] });
-      setCreatedLink(data.invite_link ?? null);
+      setCreatedLink(data.invite_link ?? data.invite_url ?? null);
       setForm({ email: "", full_name: "", role: "INVESTOR", personal_message: "" });
     },
     onError: (err) => {

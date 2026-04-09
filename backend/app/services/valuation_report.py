@@ -1085,15 +1085,26 @@ def render_pdf(markdown_text: str, out_path: Path, title: str,
 
 # ── Stage 5: email delivery ──────────────────────────────────────────────────
 
-def email_report(to_email: str, property_name: str, pdf_path: Path) -> bool:
-    """Email the rendered PDF as an attachment via Resend."""
+def email_report(to_email: str, property_name: str, pdf_path: Path) -> tuple[bool, str | None]:
+    """Email the rendered PDF as an attachment via Resend.
+
+    Returns (success, error_message). On failure, the error message is
+    surfaced so the orchestrator can record WHY the email step skipped
+    instead of leaving delivered_at silently NULL.
+    """
     try:
         from app.services.email import _get_resend_config
         api_key, from_email = _get_resend_config()
         if not api_key:
-            logger.warning("Resend API key not set — skipping email")
-            return False
-        import resend
+            msg = "Resend API key not configured (set RESEND_API_KEY in Settings)"
+            logger.warning(msg)
+            return (False, msg)
+        try:
+            import resend
+        except ImportError:
+            msg = "resend package not installed in this environment"
+            logger.error(msg)
+            return (False, msg)
         import base64
         resend.api_key = api_key
 
@@ -1119,10 +1130,11 @@ def email_report(to_email: str, property_name: str, pdf_path: Path) -> bool:
             ],
         }
         resend.Emails.send(params)
-        return True
+        return (True, None)
     except Exception as e:
-        logger.exception("Failed to email report: %s", e)
-        return False
+        msg = f"{type(e).__name__}: {e}"
+        logger.exception("Failed to email report")
+        return (False, msg)
 
 
 # ── Orchestrator ─────────────────────────────────────────────────────────────
@@ -1211,9 +1223,18 @@ def run_job(job_id: int) -> None:
         # Stage 5: email
         if job.deliver_to_email:
             _set_status(db, job, "emailing")
-            if email_report(job.deliver_to_email, prop_label, pdf_path):
+            ok, err = email_report(job.deliver_to_email, prop_label, pdf_path)
+            if ok:
                 job.delivered_at = datetime.utcnow()
                 db.commit()
+            else:
+                # Surface the failure on the job record so the UI shows WHY
+                # the email step skipped (instead of leaving delivered_at NULL
+                # with no explanation)
+                existing_err = job.error or ""
+                job.error = (existing_err + "\n" if existing_err else "") + f"Email delivery failed: {err}"
+                db.commit()
+                logger.warning("Job %s rendered but email delivery failed: %s", job_id, err)
 
         _set_status(db, job, "completed")
         logger.info("Valuation report job %s completed", job_id)
