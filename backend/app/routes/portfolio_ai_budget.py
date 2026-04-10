@@ -112,10 +112,10 @@ Return ONLY a valid JSON array. No markdown, no explanation, just the array."""
 
     try:
         response = client.chat.completions.create(
-            model="gpt-4o",
+            model="gpt-5.4",
             messages=[{"role": "user", "content": prompt}],
             temperature=0.3,
-            max_tokens=3000,
+            max_completion_tokens=3000,
         )
         content = response.choices[0].message.content or "[]"
 

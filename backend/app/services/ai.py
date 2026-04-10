@@ -908,7 +908,7 @@ def research_property_area(
         for label, query in targeted_searches:
             try:
                 resp = client.responses.create(
-                    model="gpt-4o",
+                    model="gpt-5.4",
                     tools=[{"type": "web_search_preview"}],
                     input=query,
                 )
@@ -1128,9 +1128,9 @@ Return ONLY valid JSON."""
                 from openai import OpenAI as _OpenAI
                 client = _OpenAI(api_key=openai_key)
                 json_resp = client.chat.completions.create(
-                    model="gpt-4o",
+                    model="gpt-5.4",
                     messages=[{"role": "user", "content": synthesis_prompt}],
-                    max_tokens=4096,
+                    max_completion_tokens=4096,
                 )
                 text = json_resp.choices[0].message.content.strip()
                 text = re.sub(r"^```(?:json)?\s*", "", text)

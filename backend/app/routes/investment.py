@@ -2460,3 +2460,48 @@ def delete_lp_fee_item(
         db.rollback()
         raise HTTPException(status_code=500, detail="Internal server error")
     return None
+
+
+# ---------------------------------------------------------------------------
+# LP AI Investment Commentary
+# ---------------------------------------------------------------------------
+
+@router.get("/lp/{lp_id}/ai-commentary")
+def get_lp_ai_commentary(
+    lp_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_investor_or_above),
+):
+    """Retrieve the most recent AI commentary for this LP (if any)."""
+    lp = db.query(LPEntity).filter(LPEntity.lp_id == lp_id).first()
+    if not lp:
+        raise HTTPException(status_code=404, detail="LP not found")
+    return {
+        "lp_id": lp_id,
+        "commentary": lp.ai_commentary,
+        "model": getattr(lp, "ai_commentary_model", None),
+        "generated_at": lp.ai_commentary_updated_at.isoformat() if lp.ai_commentary_updated_at else None,
+    }
+
+
+@router.post("/lp/{lp_id}/ai-commentary")
+def generate_lp_ai_commentary(
+    lp_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_gp_admin),
+):
+    """Generate (or regenerate) an AI investment commentary for this LP.
+    Calls OpenAI gpt-5.4, gathers all fund + portfolio data, and returns
+    the expert analyst write-up. Persists to the LP record."""
+    lp = db.query(LPEntity).filter(LPEntity.lp_id == lp_id).first()
+    if not lp:
+        raise HTTPException(status_code=404, detail="LP not found")
+
+    try:
+        from app.services.lp_ai_commentary import generate_commentary
+        result = generate_commentary(db, lp_id, current_user)
+        return result
+    except RuntimeError as e:
+        raise HTTPException(status_code=502, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Commentary generation failed: {type(e).__name__}: {e}")

@@ -616,6 +616,60 @@ def revoke_invitation(
     return {"invitation_id": invitation_id, "status": "revoked"}
 
 
+@router.delete("/invitations/{invitation_id}/hard", status_code=204)
+def delete_invitation(
+    invitation_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_capability("admin_users")),
+):
+    """Hard-delete an invitation row (any status)."""
+    invite = db.query(UserInvitation).filter(UserInvitation.invitation_id == invitation_id).first()
+    if not invite:
+        raise HTTPException(404, "Invitation not found")
+    db.delete(invite)
+    db.commit()
+    return None
+
+
+@router.post("/invitations/{invitation_id}/resend")
+def resend_invitation(
+    invitation_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_capability("admin_users")),
+):
+    """Resend the invitation email. Refreshes token + expiry if pending;
+    re-activates if previously revoked/expired."""
+    invite = db.query(UserInvitation).filter(UserInvitation.invitation_id == invitation_id).first()
+    if not invite:
+        raise HTTPException(404, "Invitation not found")
+    if invite.status == InvitationStatus.accepted:
+        raise HTTPException(400, "Cannot resend — invitation already accepted")
+
+    from datetime import datetime, timedelta
+    invite.token = secrets.token_urlsafe(48)
+    invite.expires_at = datetime.utcnow() + timedelta(days=7)
+    invite.status = InvitationStatus.pending
+    db.commit()
+    db.refresh(invite)
+
+    invite_url = f"/accept-invite?token={invite.token}"
+    from app.services.email import send_invitation_email
+    email_sent = send_invitation_email(
+        to_email=invite.email,
+        invite_url=invite_url,
+        inviter_name=current_user.full_name or current_user.email,
+        role=invite.role.value,
+        personal_message=invite.message,
+        invitee_name=invite.full_name,
+    )
+    return {
+        "invitation_id": invite.invitation_id,
+        "email_sent": email_sent,
+        "invite_url": invite_url,
+        "expires_at": str(invite.expires_at),
+    }
+
+
 # ---------------------------------------------------------------------------
 # User Management (list/update users)
 # ---------------------------------------------------------------------------

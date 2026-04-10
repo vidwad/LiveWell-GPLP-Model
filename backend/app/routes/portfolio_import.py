@@ -148,7 +148,7 @@ async def extract_pdf_data(
 
                 # Use vision model with images
                 response = client.chat.completions.create(
-                    model="gpt-4o",
+                    model="gpt-5.4",
                     messages=[{
                         "role": "user",
                         "content": [
@@ -157,7 +157,7 @@ async def extract_pdf_data(
                         ],
                     }],
                     temperature=0.2,
-                    max_tokens=3000,
+                    max_completion_tokens=3000,
                 )
                 result_text = response.choices[0].message.content or "{}"
                 result_text = re.sub(r'^```(?:json)?\s*', '', result_text.strip())
@@ -194,7 +194,7 @@ async def extract_pdf_data(
             name_parts = file.filename.replace(".pdf", "").replace("_", " ").replace(" - ", " ")
             try:
                 search_response = client.responses.create(
-                    model="gpt-4o",
+                    model="gpt-5.4",
                     tools=[{"type": "web_search_preview"}],
                     input=(
                         f"Search for this Canadian real estate listing and extract ALL property details:\n"
@@ -213,10 +213,10 @@ async def extract_pdf_data(
                 pass  # Fall through to text-based approach
 
         response = client.chat.completions.create(
-            model="gpt-4o",
+            model="gpt-5.4",
             messages=[{"role": "user", "content": prompt}],
             temperature=0.2,
-            max_tokens=3000,
+            max_completion_tokens=3000,
         )
         result_text = response.choices[0].message.content or "{}"
 

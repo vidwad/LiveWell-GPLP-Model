@@ -12,6 +12,8 @@ import {
   Trash2,
   Check,
   Loader2,
+  Send,
+  Ban,
 } from "lucide-react";
 import { apiClient } from "@/lib/api";
 import { getApiErrorMessage } from "@/lib/errors";
@@ -326,6 +328,34 @@ function InvitationsTab() {
     },
   });
 
+  const deleteMutation = useMutation({
+    mutationFn: (invitationId: string) =>
+      apiClient.delete(`/api/auth/invitations/${invitationId}/hard`).then((r) => r.data),
+    onSuccess: () => {
+      toast.success("Invitation deleted");
+      queryClient.invalidateQueries({ queryKey: ["admin-invitations"] });
+    },
+    onError: (err) => {
+      toast.error(getApiErrorMessage(err, "Failed to delete invitation"));
+    },
+  });
+
+  const resendMutation = useMutation({
+    mutationFn: (invitationId: string) =>
+      apiClient.post(`/api/auth/invitations/${invitationId}/resend`).then((r) => r.data),
+    onSuccess: (data: any) => {
+      if (data?.email_sent === false) {
+        toast.warning("Invitation refreshed but email delivery failed. Copy the link manually.", { duration: 8000 });
+      } else {
+        toast.success("Invitation resent");
+      }
+      queryClient.invalidateQueries({ queryKey: ["admin-invitations"] });
+    },
+    onError: (err) => {
+      toast.error(getApiErrorMessage(err, "Failed to resend invitation"));
+    },
+  });
+
   const handleCopy = async (text: string) => {
     await navigator.clipboard.writeText(text);
     setCopiedLink(text);
@@ -494,18 +524,52 @@ function InvitationsTab() {
                       {new Date(inv.created_at).toLocaleDateString()}
                     </TableCell>
                     <TableCell className="text-right">
-                      {inv.status === "pending" && (
+                      <div className="flex items-center justify-end gap-1">
+                        {inv.status !== "accepted" && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 text-xs"
+                            onClick={() => resendMutation.mutate(inv.invitation_id)}
+                            disabled={resendMutation.isPending}
+                            title="Resend invitation email"
+                          >
+                            <Send className="h-3 w-3 mr-1" />
+                            Resend
+                          </Button>
+                        )}
+                        {inv.status === "pending" && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 text-xs text-amber-600 hover:text-amber-700 hover:bg-amber-50"
+                            onClick={() => {
+                              if (window.confirm(`Revoke invitation for ${inv.email}? The link will stop working.`)) {
+                                revokeMutation.mutate(inv.invitation_id);
+                              }
+                            }}
+                            disabled={revokeMutation.isPending}
+                            title="Revoke (invalidate link, keep record)"
+                          >
+                            <Ban className="h-3 w-3 mr-1" />
+                            Revoke
+                          </Button>
+                        )}
                         <Button
                           variant="ghost"
                           size="sm"
-                          className="h-7 text-xs text-red-600 hover:text-red-700 hover:bg-red-50"
-                          onClick={() => revokeMutation.mutate(inv.invitation_id)}
-                          disabled={revokeMutation.isPending}
+                          className="h-7 w-7 p-0 text-red-600 hover:text-red-700 hover:bg-red-50"
+                          onClick={() => {
+                            if (window.confirm(`Permanently delete invitation for ${inv.email}? This cannot be undone.`)) {
+                              deleteMutation.mutate(inv.invitation_id);
+                            }
+                          }}
+                          disabled={deleteMutation.isPending}
+                          title="Delete invitation permanently"
                         >
-                          <Trash2 className="h-3 w-3 mr-1" />
-                          Revoke
+                          <Trash2 className="h-3 w-3" />
                         </Button>
-                      )}
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))}

@@ -1228,7 +1228,7 @@ def linkedin_search(
 
     try:
         response = client.responses.create(
-            model="gpt-4o",
+            model="gpt-5.4",
             tools=[{"type": "web_search_preview"}],
             input=prompt,
         )
@@ -1319,7 +1319,7 @@ def linkedin_fetch_info(
 
     try:
         response = client.responses.create(
-            model="gpt-4o",
+            model="gpt-5.4",
             tools=[{"type": "web_search_preview"}],
             input=prompt,
         )
@@ -1334,7 +1334,7 @@ def linkedin_fetch_info(
         )
         try:
             summary_resp = client.responses.create(
-                model="gpt-4o",
+                model="gpt-5.4",
                 input=summary_prompt,
             )
             summary = summary_resp.output_text.strip()
@@ -2639,7 +2639,7 @@ def suggest_tasks(
         _logging.info(f"AI Suggest: Claude failed ({e}), trying OpenAI...")
         # Fall back to OpenAI
         try:
-            response = client.responses.create(model="gpt-4o", input=prompt)
+            response = client.responses.create(model="gpt-5.4", input=prompt)
             raw = response.output_text
             _logging.info(f"AI Suggest: OpenAI raw response: {raw[:200]}")
             suggestions = _parse_json_array(raw)
@@ -2775,7 +2775,7 @@ def generate_task_actions(
         return []
 
     try:
-        response = client.responses.create(model="gpt-4o", input=prompt)
+        response = client.responses.create(model="gpt-5.4", input=prompt)
         actions_data = _parse_json_array(response.output_text)
     except Exception:
         actions_data = []
@@ -3519,9 +3519,9 @@ def investor_query(
 
     try:
         response = client.chat.completions.create(
-            model="gpt-4o",
+            model="gpt-5.4",
             messages=messages,
-            max_tokens=2048,
+            max_completion_tokens=2048,
         )
         answer = response.choices[0].message.content.strip()
     except Exception as e:

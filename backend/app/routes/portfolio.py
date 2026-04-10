@@ -1449,7 +1449,7 @@ def extract_listing_data(
         address_hint = " ".join(url_parts[-1].replace("-", " ").split()) if url_parts else ""
 
         search_response = client.responses.create(
-            model="gpt-4o",
+            model="gpt-5.4",
             tools=[{"type": "web_search_preview"}],
             input=(
                 f"Search for this property listing and extract ALL available details:\n"
@@ -1484,7 +1484,7 @@ def extract_listing_data(
         )
 
         json_response = client.responses.create(
-            model="gpt-4o",
+            model="gpt-5.4",
             input=json_prompt,
         )
         text = json_response.output_text.strip()
@@ -1683,9 +1683,9 @@ def generate_property_assessment(
 
     try:
         response = client.chat.completions.create(
-            model="gpt-4o",
+            model="gpt-5.4",
             messages=[{"role": "user", "content": prompt}],
-            max_tokens=3000,
+            max_completion_tokens=3000,
         )
         assessment = response.choices[0].message.content.strip()
     except Exception as e:

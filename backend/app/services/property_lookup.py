@@ -362,7 +362,7 @@ Return a JSON object with these fields (use null if not found):
 IMPORTANT: Only include data you actually found from web sources. Use null for fields you cannot verify. Include the listing URL if you find one."""
 
         response = client.responses.create(
-            model="gpt-4o-mini",
+            model="gpt-5.4-mini",
             tools=[{"type": "web_search_preview"}],
             input=prompt,
         )

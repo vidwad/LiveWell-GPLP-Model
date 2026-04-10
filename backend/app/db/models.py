@@ -553,6 +553,12 @@ class LPEntity(Base):
     total_units_authorized = Column(Numeric(14, 4), nullable=True)
 
     notes = Column(Text, nullable=True)
+
+    # AI investment commentary
+    ai_commentary = Column(Text, nullable=True)
+    ai_commentary_updated_at = Column(DateTime, nullable=True)
+    ai_commentary_model = Column(String(64), nullable=True)
+
     created_at = Column(DateTime, nullable=True, default=func.now())
     updated_at = Column(DateTime, nullable=True, default=func.now(), onupdate=func.now())
 

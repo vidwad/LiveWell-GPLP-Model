@@ -7,6 +7,7 @@ import { TrendChart } from "@/components/charts/TrendChart";
 import { PortfolioCashFlowTab } from "@/components/investment/PortfolioCashFlowTab";
 import { ProjectedReturnsView } from "@/components/investment/ProjectedReturnsView";
 import { LPDocumentsTab } from "@/components/investment/LPDocumentsTab";
+import { LPAICommentary } from "@/components/investment/LPAICommentary";
 import {
   ArrowLeft,
   Landmark,
@@ -554,6 +555,9 @@ export default function LPDetailPage() {
           })()}
         </CardContent>
       </Card>
+
+      {/* ── AI Investment Commentary ────────────────────────────── */}
+      <LPAICommentary lpId={lpId} canEdit={canEdit} />
 
       {/* ── Tabs ──────────────────────────────────────────────────── */}
       <Tabs defaultValue="overview">

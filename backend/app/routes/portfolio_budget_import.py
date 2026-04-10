@@ -103,10 +103,10 @@ Return ONLY the JSON array, no markdown or explanation."""
 
     try:
         response = client.chat.completions.create(
-            model="gpt-4o",
+            model="gpt-5.4",
             messages=[{"role": "user", "content": prompt}],
             temperature=0.2,
-            max_tokens=3000,
+            max_completion_tokens=3000,
         )
         result_text = response.choices[0].message.content or "[]"
         result_text = re.sub(r'^```(?:json)?\s*', '', result_text.strip())
