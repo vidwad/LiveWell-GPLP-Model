@@ -705,7 +705,23 @@ def list_investors(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_gp_or_ops),
 ):
-    return pg.paginate(db.query(Investor).order_by(Investor.name))
+    from app.db.models import ContactAssignment
+    page = pg.paginate(db.query(Investor).order_by(Investor.name))
+    items = page.get("items", page) if isinstance(page, dict) else page
+    rows = items if isinstance(items, list) else list(items)
+    result = []
+    for inv in rows:
+        d = {c.name: getattr(inv, c.name) for c in inv.__table__.columns}
+        for k in ("investor_status", "onboarding_status", "entity_type", "accredited_status"):
+            if d.get(k) and hasattr(d[k], "value"):
+                d[k] = d[k].value
+        assignments = db.query(ContactAssignment).filter(ContactAssignment.investor_id == inv.investor_id).all()
+        d["assigned_users"] = [
+            {"user_id": a.user_id, "user_name": a.user.full_name if a.user else None}
+            for a in assignments
+        ]
+        result.append(d)
+    return result
 
 
 @router.post("/investors", response_model=InvestorOut, status_code=status.HTTP_201_CREATED)

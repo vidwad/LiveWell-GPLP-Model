@@ -99,6 +99,7 @@ class InvestorOut(BaseModel):
     approved_at: Optional[datetime.datetime] = None
     created_at: Optional[datetime.datetime] = None
     updated_at: Optional[datetime.datetime] = None
+    assigned_users: List[dict] = []
 
     model_config = {"from_attributes": True}
 
@@ -315,7 +316,7 @@ class OnboardingStatusTransition(BaseModel):
 
 
 class InvestorOnboardingDetail(BaseModel):
-    investor: InvestorOut
+    investor: dict | InvestorOut
     checklist: List[OnboardingChecklistItemOut] = []
     completed_steps: int = 0
     total_steps: int = 0

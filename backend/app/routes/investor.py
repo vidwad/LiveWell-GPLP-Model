@@ -663,8 +663,16 @@ def get_investor_onboarding(
     completed_required = sum(1 for i in items if i.is_required and i.is_completed)
     is_ready = completed_required >= required and required > 0
 
+    # Build investor dict with assigned_users as plain dicts
+    assignments = db.query(ContactAssignment).filter(ContactAssignment.investor_id == investor_id).all()
+    inv_data = {c.name: getattr(inv, c.name) for c in inv.__table__.columns}
+    inv_data["assigned_users"] = [
+        {"user_id": a.user_id, "user_name": a.user.full_name if a.user else None}
+        for a in assignments
+    ]
+
     return InvestorOnboardingDetail(
-        investor=inv,
+        investor=inv_data,
         checklist=items,
         completed_steps=completed,
         total_steps=total,
