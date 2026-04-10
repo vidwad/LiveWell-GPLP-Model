@@ -730,9 +730,10 @@ def create_investor(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_gp_or_ops),
 ):
-    existing = db.query(Investor).filter(Investor.email == payload.email).first()
-    if existing:
-        raise HTTPException(status_code=409, detail="Investor with this email already exists")
+    if payload.email:
+        existing = db.query(Investor).filter(Investor.email == payload.email).first()
+        if existing:
+            raise HTTPException(status_code=409, detail="Investor with this email already exists")
     inv = Investor(**payload.model_dump())
     db.add(inv)
     try:

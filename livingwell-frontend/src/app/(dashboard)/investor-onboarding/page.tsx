@@ -142,6 +142,102 @@ function fetchInvestors(): Promise<InvestorRecord[]> {
   });
 }
 
+const EXCLUDED_ASSIGNMENT_ROLES = new Set(["INVESTOR", "RESIDENT"]);
+
+function AssignedToCard({ investor, userDirectory, queryClient }: {
+  investor: any;
+  userDirectory: Array<{ user_id: number; full_name: string; role: string }>;
+  queryClient: any;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const assigned = (investor.assigned_users as Array<{user_id: number; user_name: string}> || []);
+  const assignableUsers = userDirectory.filter((u: any) => !EXCLUDED_ASSIGNMENT_ROLES.has(u.role));
+
+  return (
+    <Card>
+      <button
+        type="button"
+        className="flex items-center justify-between gap-2 w-full p-4 pb-2 text-left"
+        onClick={() => setExpanded(!expanded)}
+      >
+        <span className="text-sm font-semibold flex items-center gap-2">
+          <Users className="h-4 w-4" />
+          Assigned To
+          {assigned.length > 0 && (
+            <Badge variant="outline" className="text-[10px] ml-1">{assigned.length}</Badge>
+          )}
+        </span>
+        <ChevronRight className={`h-4 w-4 text-muted-foreground transition-transform duration-200 ${expanded ? "rotate-90" : ""}`} />
+      </button>
+
+      {/* Collapsed: show assigned users as badges */}
+      {!expanded && (
+        <CardContent className="p-4 pt-0">
+          {assigned.length > 0 ? (
+            <div className="flex flex-wrap gap-1.5">
+              {assigned.map((a: any) => (
+                <span key={a.user_id} className="inline-flex items-center rounded-full bg-blue-50 border border-blue-200 px-2.5 py-1 text-xs text-blue-700 font-medium">
+                  {a.user_name || "?"}
+                </span>
+              ))}
+            </div>
+          ) : (
+            <p className="text-xs text-muted-foreground italic">No one assigned</p>
+          )}
+        </CardContent>
+      )}
+
+      {/* Expanded: full checkbox list */}
+      {expanded && (
+        <CardContent className="p-4 pt-0">
+          <div className="space-y-1.5">
+            {assignableUsers.map((u: any) => {
+              const isAssigned = assigned.some((a: any) => a.user_id === u.user_id);
+              return (
+                <label
+                  key={u.user_id}
+                  className={`flex items-center gap-2.5 rounded border px-3 py-2 cursor-pointer transition-colors hover:bg-muted/50 ${
+                    isAssigned ? "border-blue-300 bg-blue-50/50" : "border-border"
+                  }`}
+                >
+                  <input
+                    type="checkbox"
+                    className="h-3.5 w-3.5 rounded border-gray-300 text-blue-600 accent-blue-600"
+                    checked={isAssigned}
+                    onChange={async () => {
+                      try {
+                        if (isAssigned) {
+                          await apiClient.delete(`/api/investor/investors/${investor.investor_id}/assignments/${u.user_id}`);
+                        } else {
+                          await apiClient.post(`/api/investor/investors/${investor.investor_id}/assignments`, { user_id: u.user_id });
+                        }
+                        queryClient.invalidateQueries({ queryKey: ["onboarding-investors"] });
+                        queryClient.invalidateQueries({ queryKey: ["onboarding-detail", investor.investor_id] });
+                      } catch {
+                        toast.error(isAssigned ? "Failed to remove assignment" : "Failed to assign user");
+                      }
+                    }}
+                  />
+                  <div className="flex-1 min-w-0">
+                    <span className="text-sm font-medium">{u.full_name}</span>
+                    <span className="text-[10px] text-muted-foreground ml-1.5">{u.role?.replace(/_/g, " ")}</span>
+                  </div>
+                  {isAssigned && (
+                    <span className="text-[9px] text-blue-600 font-semibold shrink-0">ASSIGNED</span>
+                  )}
+                </label>
+              );
+            })}
+            {assignableUsers.length === 0 && (
+              <p className="text-xs text-muted-foreground text-center py-2">No assignable users</p>
+            )}
+          </div>
+        </CardContent>
+      )}
+    </Card>
+  );
+}
+
 function fetchOnboardingDetail(investorId: number): Promise<OnboardingDetail> {
   return apiClient.get(`/api/investor/investors/${investorId}/onboarding`).then((r) => r.data);
 }
@@ -712,9 +808,9 @@ function InvestorOnboardingPage() {
                   className="w-full mt-1 rounded-md border px-3 py-2 text-sm" placeholder="Last name" />
               </div>
               <div>
-                <label className="text-xs font-medium text-muted-foreground">Email *</label>
+                <label className="text-xs font-medium text-muted-foreground">Email</label>
                 <input type="email" value={leadForm.email} onChange={e => setLeadForm(f => ({...f, email: e.target.value}))}
-                  className="w-full mt-1 rounded-md border px-3 py-2 text-sm" placeholder="email@example.com" />
+                  className="w-full mt-1 rounded-md border px-3 py-2 text-sm" placeholder="email@example.com (optional)" />
               </div>
               <div>
                 <label className="text-xs font-medium text-muted-foreground">Phone</label>
@@ -2132,60 +2228,8 @@ function InvestorDetailDrawer({
               </CardContent>
             </Card>
 
-            {/* Assigned To — multi-select */}
-            <Card>
-              <CardHeader className="p-4 pb-2">
-                <CardTitle className="text-sm font-semibold flex items-center gap-2">
-                  <Users className="h-4 w-4" />
-                  Assigned To
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="p-4 pt-0">
-                <div className="space-y-1.5">
-                  {userDirectory.map((u: any) => {
-                    const assigned = (investor.assigned_users as Array<{user_id: number; user_name: string}> || []);
-                    const isAssigned = assigned.some((a: any) => a.user_id === u.user_id);
-                    return (
-                      <label
-                        key={u.user_id}
-                        className={`flex items-center gap-2.5 rounded border px-3 py-2 cursor-pointer transition-colors hover:bg-muted/50 ${
-                          isAssigned ? "border-blue-300 bg-blue-50/50" : "border-border"
-                        }`}
-                      >
-                        <input
-                          type="checkbox"
-                          className="h-3.5 w-3.5 rounded border-gray-300 text-blue-600 accent-blue-600"
-                          checked={isAssigned}
-                          onChange={async () => {
-                            try {
-                              if (isAssigned) {
-                                await apiClient.delete(`/api/investor/investors/${investor.investor_id}/assignments/${u.user_id}`);
-                              } else {
-                                await apiClient.post(`/api/investor/investors/${investor.investor_id}/assignments`, { user_id: u.user_id });
-                              }
-                              queryClient.invalidateQueries({ queryKey: ["onboarding-investors"] });
-                              queryClient.invalidateQueries({ queryKey: ["onboarding-detail", investor.investor_id] });
-                            } catch {
-                              toast.error(isAssigned ? "Failed to remove assignment" : "Failed to assign user");
-                            }
-                          }}
-                        />
-                        <div className="flex-1 min-w-0">
-                          <span className="text-sm font-medium">{u.full_name}</span>
-                          <span className="text-[10px] text-muted-foreground ml-1.5">{u.role?.replace(/_/g, " ")}</span>
-                        </div>
-                        {isAssigned && (
-                          <span className="text-[9px] text-blue-600 font-semibold shrink-0">ASSIGNED</span>
-                        )}
-                      </label>
-                    );
-                  })}
-                  {userDirectory.length === 0 && (
-                    <p className="text-xs text-muted-foreground text-center py-2">No users available</p>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
+            {/* Assigned To — collapsible multi-select */}
+            <AssignedToCard investor={investor} userDirectory={userDirectory} queryClient={queryClient} />
 
           </>
         )}
