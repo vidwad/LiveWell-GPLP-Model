@@ -74,9 +74,9 @@ def require_roles(*roles: UserRole):
 # Convenience role guards (DEVELOPER has access to everything GP_ADMIN can)
 require_developer = require_roles(UserRole.DEVELOPER)
 require_gp_admin = require_roles(UserRole.DEVELOPER, UserRole.GP_ADMIN)
-require_gp_or_ops = require_roles(UserRole.DEVELOPER, UserRole.GP_ADMIN, UserRole.OPERATIONS_MANAGER)
+require_gp_or_ops = require_roles(UserRole.DEVELOPER, UserRole.GP_ADMIN, UserRole.OPERATIONS_MANAGER, UserRole.PARTNER)
 require_gp_ops_pm = require_roles(
-    UserRole.DEVELOPER, UserRole.GP_ADMIN, UserRole.OPERATIONS_MANAGER, UserRole.PROPERTY_MANAGER
+    UserRole.DEVELOPER, UserRole.GP_ADMIN, UserRole.OPERATIONS_MANAGER, UserRole.PROPERTY_MANAGER, UserRole.PARTNER
 )
 require_investor_or_above = require_roles(
     UserRole.DEVELOPER, UserRole.GP_ADMIN, UserRole.OPERATIONS_MANAGER, UserRole.PROPERTY_MANAGER, UserRole.INVESTOR, UserRole.PARTNER

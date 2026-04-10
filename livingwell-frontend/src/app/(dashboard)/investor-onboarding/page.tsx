@@ -873,7 +873,7 @@ function InvestorOnboardingPage() {
                 <span className="text-sm text-green-600 flex items-center"><CheckCircle2 className="h-4 w-4 mr-1" /> Lead added!</span>
               )}
               {addLeadMutation.isError && (
-                <span className="text-sm text-red-600">Error adding lead. Check if email already exists.</span>
+                <span className="text-sm text-red-600">{(addLeadMutation.error as any)?.response?.data?.detail || "Error adding lead."}</span>
               )}
             </div>
           </CardContent>
