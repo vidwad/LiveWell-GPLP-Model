@@ -237,7 +237,11 @@ def delete_property(
     if unit_ids:
         bed_ids = [b.bed_id for b in db.query(Bed).filter(Bed.unit_id.in_(unit_ids)).all()]
 
-    # 2) Residents + their children (arrears → rent_payments → residents)
+    # 2) Unit turnovers FIRST (FK to both units AND residents via vacated_by_resident_id)
+    if unit_ids:
+        db.query(UnitTurnover).filter(UnitTurnover.unit_id.in_(unit_ids)).delete(synchronize_session=False)
+
+    # 3) Residents + their children (arrears → rent_payments → residents)
     resident_ids = []
     if unit_ids:
         resident_ids = [r.resident_id for r in db.query(Resident).filter(Resident.unit_id.in_(unit_ids)).all()]
@@ -246,10 +250,6 @@ def delete_property(
         db.query(RentPayment).filter(RentPayment.resident_id.in_(resident_ids)).delete(synchronize_session=False)
         db.query(MaintenanceRequest).filter(MaintenanceRequest.resident_id.in_(resident_ids)).delete(synchronize_session=False)
         db.query(Resident).filter(Resident.resident_id.in_(resident_ids)).delete(synchronize_session=False)
-
-    # 3) Unit turnovers (FK to units)
-    if unit_ids:
-        db.query(UnitTurnover).filter(UnitTurnover.unit_id.in_(unit_ids)).delete(synchronize_session=False)
 
     # 4) Beds (FK to units)
     if bed_ids:
