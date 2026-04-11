@@ -249,6 +249,9 @@ def delete_property(
         "DELETE FROM sale_scenarios WHERE property_id = :pid",
         # Valuation report jobs
         "DELETE FROM valuation_report_jobs WHERE property_id = :pid",
+        # Construction draws/expenses BEFORE debt_facilities (construction_draws.debt_id FK)
+        "DELETE FROM construction_draws WHERE property_id = :pid",
+        "DELETE FROM construction_expenses WHERE property_id = :pid",
         # Direct property children
         "DELETE FROM debt_facilities WHERE property_id = :pid",
         "DELETE FROM property_documents WHERE property_id = :pid",
@@ -259,8 +262,6 @@ def delete_property(
         "DELETE FROM exit_actuals WHERE property_id = :pid",
         "DELETE FROM property_images WHERE property_id = :pid",
         "DELETE FROM valuation_history WHERE property_id = :pid",
-        "DELETE FROM construction_expenses WHERE property_id = :pid",
-        "DELETE FROM construction_draws WHERE property_id = :pid",
         "DELETE FROM pro_formas WHERE property_id = :pid",
         "DELETE FROM decision_log WHERE property_id = :pid",
         "DELETE FROM area_research WHERE property_id = :pid",
