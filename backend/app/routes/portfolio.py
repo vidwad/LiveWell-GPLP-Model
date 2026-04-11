@@ -220,66 +220,66 @@ def delete_property(
     if not prop:
         raise HTTPException(status_code=404, detail="Property not found")
 
-    # Explicitly delete ALL child records in dependency order (deepest first).
-    from app.db.models import (
-        Bed, AncillaryRevenueStream, OperatingExpenseLineItem,
-        DebtFacility, DevelopmentPlan, MaintenanceRequest, PropertyDocument,
-        PropertyStageTransition, PropertyMilestone, AcquisitionBaseline,
-        ExitForecast, ExitActual, PropertyImage, ValuationHistory,
-        ConstructionExpense, ConstructionDraw, ProForma, DecisionLog,
-        AreaResearch, ValuationReportJob, RefinanceScenario, SaleScenario,
-        Resident, RentPayment, ArrearsRecord, UnitTurnover,
-    )
+    # Use raw SQL to delete all child records in strict dependency order.
+    # Raw SQL avoids ORM lazy-loading which poisons PG transactions on error.
+    from sqlalchemy import text
+    pid = property_id
 
-    # 1) Collect unit_ids and bed_ids for this property
-    unit_ids = [u.unit_id for u in db.query(Unit).filter(Unit.property_id == property_id).all()]
-    bed_ids = []
-    if unit_ids:
-        bed_ids = [b.bed_id for b in db.query(Bed).filter(Bed.unit_id.in_(unit_ids)).all()]
+    # All tables that reference property_id directly or transitively.
+    # Order: deepest FK children first, working up to the property itself.
+    RAW_DELETES = [
+        # Arrears → references residents + rent_payments
+        "DELETE FROM arrears_records WHERE resident_id IN (SELECT resident_id FROM residents WHERE unit_id IN (SELECT unit_id FROM units WHERE property_id = :pid))",
+        # Rent payments → references residents + beds
+        "DELETE FROM rent_payments WHERE resident_id IN (SELECT resident_id FROM residents WHERE unit_id IN (SELECT unit_id FROM units WHERE property_id = :pid))",
+        # Unit turnovers → references units + residents
+        "DELETE FROM unit_turnovers WHERE unit_id IN (SELECT unit_id FROM units WHERE property_id = :pid)",
+        # Maintenance requests → references residents (resident_id) AND property_id
+        "DELETE FROM maintenance_requests WHERE property_id = :pid",
+        # Residents → references units + beds
+        "DELETE FROM residents WHERE unit_id IN (SELECT unit_id FROM units WHERE property_id = :pid)",
+        # Beds → references units
+        "DELETE FROM beds WHERE unit_id IN (SELECT unit_id FROM units WHERE property_id = :pid)",
+        # Ancillary revenue streams → references property + development_plans
+        "DELETE FROM ancillary_revenue_streams WHERE property_id = :pid",
+        # Operating expense line items → references property + development_plans
+        "DELETE FROM operating_expense_line_items WHERE property_id = :pid",
+        # Refinance / sale scenarios
+        "DELETE FROM refinance_scenarios WHERE property_id = :pid",
+        "DELETE FROM sale_scenarios WHERE property_id = :pid",
+        # Valuation report jobs
+        "DELETE FROM valuation_report_jobs WHERE property_id = :pid",
+        # Direct property children
+        "DELETE FROM debt_facilities WHERE property_id = :pid",
+        "DELETE FROM property_documents WHERE property_id = :pid",
+        "DELETE FROM property_stage_transitions WHERE property_id = :pid",
+        "DELETE FROM property_milestones WHERE property_id = :pid",
+        "DELETE FROM acquisition_baselines WHERE property_id = :pid",
+        "DELETE FROM exit_forecasts WHERE property_id = :pid",
+        "DELETE FROM exit_actuals WHERE property_id = :pid",
+        "DELETE FROM property_images WHERE property_id = :pid",
+        "DELETE FROM valuation_history WHERE property_id = :pid",
+        "DELETE FROM construction_expenses WHERE property_id = :pid",
+        "DELETE FROM construction_draws WHERE property_id = :pid",
+        "DELETE FROM pro_formas WHERE property_id = :pid",
+        "DELETE FROM decision_log WHERE property_id = :pid",
+        "DELETE FROM area_research WHERE property_id = :pid",
+        # Development plans (after their children are gone)
+        "DELETE FROM development_plans WHERE property_id = :pid",
+        # Units (after beds, residents, turnovers are gone)
+        "DELETE FROM units WHERE property_id = :pid",
+        # The property itself
+        "DELETE FROM properties WHERE property_id = :pid",
+    ]
 
-    # 2) Unit turnovers FIRST (FK to both units AND residents via vacated_by_resident_id)
-    if unit_ids:
-        db.query(UnitTurnover).filter(UnitTurnover.unit_id.in_(unit_ids)).delete(synchronize_session=False)
-
-    # 3) Residents + their children (arrears → rent_payments → residents)
-    resident_ids = []
-    if unit_ids:
-        resident_ids = [r.resident_id for r in db.query(Resident).filter(Resident.unit_id.in_(unit_ids)).all()]
-    if resident_ids:
-        db.query(ArrearsRecord).filter(ArrearsRecord.resident_id.in_(resident_ids)).delete(synchronize_session=False)
-        db.query(RentPayment).filter(RentPayment.resident_id.in_(resident_ids)).delete(synchronize_session=False)
-        db.query(MaintenanceRequest).filter(MaintenanceRequest.resident_id.in_(resident_ids)).delete(synchronize_session=False)
-        db.query(Resident).filter(Resident.resident_id.in_(resident_ids)).delete(synchronize_session=False)
-
-    # 4) Beds (FK to units)
-    if bed_ids:
-        db.query(Bed).filter(Bed.bed_id.in_(bed_ids)).delete(synchronize_session=False)
-
-    # 5) All direct children by property_id
-    for Model in (
-        AncillaryRevenueStream, OperatingExpenseLineItem,
-        RefinanceScenario, SaleScenario, ValuationReportJob,
-        DebtFacility, MaintenanceRequest,
-        PropertyDocument, PropertyStageTransition, PropertyMilestone,
-        AcquisitionBaseline, ExitForecast, ExitActual, PropertyImage,
-        ValuationHistory, ConstructionExpense, ConstructionDraw, ProForma,
-        DecisionLog, AreaResearch,
-        DevelopmentPlan, Unit,
-    ):
-        try:
-            db.query(Model).filter(Model.property_id == property_id).delete(synchronize_session=False)
-        except Exception:
-            pass
-
-    db.delete(prop)
     try:
+        conn = db.connection()
+        for sql in RAW_DELETES:
+            conn.execute(text(sql), {"pid": pid})
         db.commit()
-    except IntegrityError as e:
-        db.rollback()
-        raise HTTPException(status_code=400, detail=f"Cannot delete: {e.orig}")
     except Exception as e:
         db.rollback()
-        raise HTTPException(status_code=500, detail=f"Delete failed: {type(e).__name__}: {e}")
+        raise HTTPException(status_code=400, detail=f"Cannot delete property: {type(e).__name__}: {e}")
 
 
 # ---------------------------------------------------------------------------
