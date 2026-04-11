@@ -219,15 +219,54 @@ def delete_property(
     prop = db.query(Property).filter(Property.property_id == property_id).first()
     if not prop:
         raise HTTPException(status_code=404, detail="Property not found")
+
+    # Explicitly delete child records whose FK lacks ondelete=CASCADE at the DB level.
+    # Order: deepest children first (beds before units), then remaining tables.
+    from app.db.models import (
+        Bed, AncillaryRevenueStream, OperatingExpenseLineItem,
+        DebtFacility, DevelopmentPlan, MaintenanceRequest, PropertyDocument,
+        PropertyStageTransition, PropertyMilestone, AcquisitionBaseline,
+        ExitForecast, ExitActual, PropertyImage, ValuationHistory,
+        ConstructionExpense, ConstructionDraw, ProForma, DecisionLog,
+        AreaResearch, ValuationReportJob,
+    )
+    # Beds live under units — delete them first
+    unit_ids = [u.unit_id for u in db.query(Unit).filter(Unit.property_id == property_id).all()]
+    if unit_ids:
+        db.query(Bed).filter(Bed.unit_id.in_(unit_ids)).delete(synchronize_session=False)
+        db.query(AncillaryRevenueStream).filter(AncillaryRevenueStream.unit_id.in_(unit_ids)).delete(synchronize_session=False)
+
+    # Delete all direct children by property_id
+    for Model in (
+        Unit, DebtFacility, DevelopmentPlan, MaintenanceRequest,
+        PropertyDocument, PropertyStageTransition, PropertyMilestone,
+        AcquisitionBaseline, ExitForecast, ExitActual, PropertyImage,
+        ValuationHistory, ConstructionExpense, ConstructionDraw, ProForma,
+        DecisionLog, AreaResearch, OperatingExpenseLineItem,
+    ):
+        db.query(Model).filter(Model.property_id == property_id).delete(synchronize_session=False)
+
+    # ValuationReportJob + RefinanceScenario / SaleScenario
+    try:
+        from app.db.models import RefinanceScenario, SaleScenario
+        db.query(RefinanceScenario).filter(RefinanceScenario.property_id == property_id).delete(synchronize_session=False)
+        db.query(SaleScenario).filter(SaleScenario.property_id == property_id).delete(synchronize_session=False)
+    except Exception:
+        pass
+    try:
+        db.query(ValuationReportJob).filter(ValuationReportJob.property_id == property_id).delete(synchronize_session=False)
+    except Exception:
+        pass
+
     db.delete(prop)
     try:
         db.commit()
-    except IntegrityError:
+    except IntegrityError as e:
         db.rollback()
-        raise HTTPException(status_code=400, detail="Database integrity error (e.g., duplicate entry or missing foreign key)")
-    except Exception:
+        raise HTTPException(status_code=400, detail=f"Cannot delete: {e.orig}")
+    except Exception as e:
         db.rollback()
-        raise HTTPException(status_code=500, detail="Internal server error")
+        raise HTTPException(status_code=500, detail=f"Delete failed: {type(e).__name__}: {e}")
 
 
 # ---------------------------------------------------------------------------
