@@ -264,10 +264,10 @@ def delete_property(
         "DELETE FROM pro_formas WHERE property_id = :pid",
         "DELETE FROM decision_log WHERE property_id = :pid",
         "DELETE FROM area_research WHERE property_id = :pid",
-        # Development plans (after their children are gone)
-        "DELETE FROM development_plans WHERE property_id = :pid",
-        # Units (after beds, residents, turnovers are gone)
+        # Units BEFORE development_plans (units.development_plan_id FK)
         "DELETE FROM units WHERE property_id = :pid",
+        # Development plans (after units + ancillary + opex are gone)
+        "DELETE FROM development_plans WHERE property_id = :pid",
         # The property itself
         "DELETE FROM properties WHERE property_id = :pid",
     ]
