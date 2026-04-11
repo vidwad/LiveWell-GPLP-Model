@@ -220,8 +220,7 @@ def delete_property(
     if not prop:
         raise HTTPException(status_code=404, detail="Property not found")
 
-    # Explicitly delete child records whose FK lacks ondelete=CASCADE at the DB level.
-    # Order: deepest children first (beds before units), then remaining tables.
+    # Explicitly delete ALL child records in dependency order (deepest first).
     from app.db.models import (
         Bed, AncillaryRevenueStream, OperatingExpenseLineItem,
         DebtFacility, DevelopmentPlan, MaintenanceRequest, PropertyDocument,
@@ -229,15 +228,34 @@ def delete_property(
         ExitForecast, ExitActual, PropertyImage, ValuationHistory,
         ConstructionExpense, ConstructionDraw, ProForma, DecisionLog,
         AreaResearch, ValuationReportJob, RefinanceScenario, SaleScenario,
+        Resident, RentPayment, ArrearsRecord, UnitTurnover,
     )
-    # Beds live under units — delete them first
-    unit_ids = [u.unit_id for u in db.query(Unit).filter(Unit.property_id == property_id).all()]
-    if unit_ids:
-        db.query(Bed).filter(Bed.unit_id.in_(unit_ids)).delete(synchronize_session=False)
 
-    # AncillaryRevenueStream + OperatingExpenseLineItem link to development_plans
-    # which link to property — delete them by property_id directly
-    # Delete all direct children by property_id (each model has a property_id column)
+    # 1) Collect unit_ids and bed_ids for this property
+    unit_ids = [u.unit_id for u in db.query(Unit).filter(Unit.property_id == property_id).all()]
+    bed_ids = []
+    if unit_ids:
+        bed_ids = [b.bed_id for b in db.query(Bed).filter(Bed.unit_id.in_(unit_ids)).all()]
+
+    # 2) Residents + their children (arrears → rent_payments → residents)
+    resident_ids = []
+    if unit_ids:
+        resident_ids = [r.resident_id for r in db.query(Resident).filter(Resident.unit_id.in_(unit_ids)).all()]
+    if resident_ids:
+        db.query(ArrearsRecord).filter(ArrearsRecord.resident_id.in_(resident_ids)).delete(synchronize_session=False)
+        db.query(RentPayment).filter(RentPayment.resident_id.in_(resident_ids)).delete(synchronize_session=False)
+        db.query(MaintenanceRequest).filter(MaintenanceRequest.resident_id.in_(resident_ids)).delete(synchronize_session=False)
+        db.query(Resident).filter(Resident.resident_id.in_(resident_ids)).delete(synchronize_session=False)
+
+    # 3) Unit turnovers (FK to units)
+    if unit_ids:
+        db.query(UnitTurnover).filter(UnitTurnover.unit_id.in_(unit_ids)).delete(synchronize_session=False)
+
+    # 4) Beds (FK to units)
+    if bed_ids:
+        db.query(Bed).filter(Bed.bed_id.in_(bed_ids)).delete(synchronize_session=False)
+
+    # 5) All direct children by property_id
     for Model in (
         AncillaryRevenueStream, OperatingExpenseLineItem,
         RefinanceScenario, SaleScenario, ValuationReportJob,
@@ -251,7 +269,7 @@ def delete_property(
         try:
             db.query(Model).filter(Model.property_id == property_id).delete(synchronize_session=False)
         except Exception:
-            pass  # Model may not have property_id column in DB yet
+            pass
 
     db.delete(prop)
     try:
