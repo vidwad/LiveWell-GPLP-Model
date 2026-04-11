@@ -228,35 +228,30 @@ def delete_property(
         PropertyStageTransition, PropertyMilestone, AcquisitionBaseline,
         ExitForecast, ExitActual, PropertyImage, ValuationHistory,
         ConstructionExpense, ConstructionDraw, ProForma, DecisionLog,
-        AreaResearch, ValuationReportJob,
+        AreaResearch, ValuationReportJob, RefinanceScenario, SaleScenario,
     )
     # Beds live under units — delete them first
     unit_ids = [u.unit_id for u in db.query(Unit).filter(Unit.property_id == property_id).all()]
     if unit_ids:
         db.query(Bed).filter(Bed.unit_id.in_(unit_ids)).delete(synchronize_session=False)
-        db.query(AncillaryRevenueStream).filter(AncillaryRevenueStream.unit_id.in_(unit_ids)).delete(synchronize_session=False)
 
-    # Delete all direct children by property_id
+    # AncillaryRevenueStream + OperatingExpenseLineItem link to development_plans
+    # which link to property — delete them by property_id directly
+    # Delete all direct children by property_id (each model has a property_id column)
     for Model in (
-        Unit, DebtFacility, DevelopmentPlan, MaintenanceRequest,
+        AncillaryRevenueStream, OperatingExpenseLineItem,
+        RefinanceScenario, SaleScenario, ValuationReportJob,
+        DebtFacility, MaintenanceRequest,
         PropertyDocument, PropertyStageTransition, PropertyMilestone,
         AcquisitionBaseline, ExitForecast, ExitActual, PropertyImage,
         ValuationHistory, ConstructionExpense, ConstructionDraw, ProForma,
-        DecisionLog, AreaResearch, OperatingExpenseLineItem,
+        DecisionLog, AreaResearch,
+        DevelopmentPlan, Unit,
     ):
-        db.query(Model).filter(Model.property_id == property_id).delete(synchronize_session=False)
-
-    # ValuationReportJob + RefinanceScenario / SaleScenario
-    try:
-        from app.db.models import RefinanceScenario, SaleScenario
-        db.query(RefinanceScenario).filter(RefinanceScenario.property_id == property_id).delete(synchronize_session=False)
-        db.query(SaleScenario).filter(SaleScenario.property_id == property_id).delete(synchronize_session=False)
-    except Exception:
-        pass
-    try:
-        db.query(ValuationReportJob).filter(ValuationReportJob.property_id == property_id).delete(synchronize_session=False)
-    except Exception:
-        pass
+        try:
+            db.query(Model).filter(Model.property_id == property_id).delete(synchronize_session=False)
+        except Exception:
+            pass  # Model may not have property_id column in DB yet
 
     db.delete(prop)
     try:
