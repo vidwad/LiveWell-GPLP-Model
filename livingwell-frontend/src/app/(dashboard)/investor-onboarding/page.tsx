@@ -636,21 +636,17 @@ function InvestorOnboardingPage() {
       if (field) fieldToCol[field] = parseInt(colIdx);
     }
 
-    let imported = 0;
-    let skippedDuplicates = 0;
-    let failed = 0;
+    // Build all row bodies first so we can do a two-pass import
+    const rowBodies: Record<string, string | number | boolean>[] = [];
+    let skippedInvalid = 0;
 
     for (const row of csvAllRows) {
-      // Use first_name if mapped, otherwise fall back to legacy name
       const name = row[fieldToCol["first_name"]] ?? row[fieldToCol["name"]] ?? "";
-      if (!name) { failed++; continue; }
-
+      if (!name) { skippedInvalid++; continue; }
       const email = fieldToCol["email"] !== undefined ? (row[fieldToCol["email"]] ?? "") : "";
-      // Skip rows with invalid email format (but allow empty email)
-      if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { failed++; continue; }
+      if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { skippedInvalid++; continue; }
 
-      // Send as first_name if mapped, otherwise as legacy name
-      const body: Record<string, string | number> = fieldToCol["first_name"] !== undefined
+      const body: Record<string, string | number | boolean> = fieldToCol["first_name"] !== undefined
         ? { first_name: name }
         : { name };
       if (email) body.email = email;
@@ -663,16 +659,47 @@ function InvestorOnboardingPage() {
       if (fieldToCol["indicated_amount"] !== undefined && row[fieldToCol["indicated_amount"]]) {
         body.indicated_amount = parseFloat(row[fieldToCol["indicated_amount"]]);
       }
+      rowBodies.push(body);
+    }
 
+    // Pass 1: import without update to detect duplicates
+    let imported = 0;
+    let duplicateCount = 0;
+    let failed = 0;
+    const duplicateBodies: Record<string, string | number | boolean>[] = [];
+
+    for (const body of rowBodies) {
       try {
         const resp = await apiClient.post("/api/investor/leads/quick-add", body);
         if (resp.data?.is_new === false) {
-          skippedDuplicates++;
+          duplicateCount++;
+          duplicateBodies.push(body);
         } else {
           imported++;
         }
       } catch {
         failed++;
+      }
+    }
+
+    // Pass 2: if duplicates found, ask user whether to update them
+    let updated = 0;
+    if (duplicateBodies.length > 0) {
+      const doUpdate = window.confirm(
+        `${duplicateBodies.length} existing contact(s) matched by email or name.\n\n` +
+        `Do you want to update them with the imported data?\n\n` +
+        `• OK = Update existing contacts with new data\n` +
+        `• Cancel = Skip duplicates (keep existing data)`
+      );
+      if (doUpdate) {
+        for (const body of duplicateBodies) {
+          try {
+            await apiClient.post("/api/investor/leads/quick-add", { ...body, update_existing: true });
+            updated++;
+          } catch {
+            failed++;
+          }
+        }
       }
     }
 
@@ -683,7 +710,9 @@ function InvestorOnboardingPage() {
     setCsvHeaders([]);
     setColumnMapping({});
     const parts = [`${imported} new leads added`];
-    if (skippedDuplicates > 0) parts.push(`${skippedDuplicates} duplicates skipped`);
+    if (updated > 0) parts.push(`${updated} existing updated`);
+    if (duplicateBodies.length - updated > 0) parts.push(`${duplicateBodies.length - updated} duplicates skipped`);
+    if (skippedInvalid > 0) parts.push(`${skippedInvalid} invalid rows skipped`);
     if (failed > 0) parts.push(`${failed} failed`);
     alert(`Import complete: ${parts.join(", ")}`);
   }, [columnMapping, csvAllRows, queryClient]);

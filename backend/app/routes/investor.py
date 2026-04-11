@@ -1058,6 +1058,7 @@ class QuickAddLeadBody(BaseModel):
     net_worth_range: Optional[str] = None
     investment_goals: Optional[str] = None
     referral_source: Optional[str] = None
+    update_existing: bool = False  # If True, overwrite matched record with incoming data
 
 
 @router.post("/leads/quick-add", status_code=201)
@@ -1107,6 +1108,29 @@ def quick_add_lead(
     if existing:
         inv = existing
         is_new = False
+        # If update_existing flag is set, overwrite fields with incoming data
+        if body.update_existing:
+            updatable = {
+                "first_name": first_name, "last_name": last_name,
+                "company_name": body.company_name, "name": full_name,
+                "phone": body.phone, "mobile": body.mobile,
+                "street_address": body.street_address, "street_address_2": body.street_address_2,
+                "city": body.city, "province": body.province,
+                "postal_code": body.postal_code, "country": body.country,
+                "address": body.address, "entity_type": body.entity_type,
+                "jurisdiction": jurisdiction, "exemption_type": body.exemption_type,
+                "tax_id": body.tax_id, "banking_info": body.banking_info,
+                "notes": body.notes, "linkedin_url": body.linkedin_url,
+                "risk_tolerance": body.risk_tolerance, "re_knowledge": body.re_knowledge,
+                "other_investments": body.other_investments, "income_range": body.income_range,
+                "net_worth_range": body.net_worth_range, "investment_goals": body.investment_goals,
+                "referral_source": body.referral_source,
+            }
+            if body.email:
+                updatable["email"] = body.email
+            for k, v in updatable.items():
+                if v is not None and v != "":
+                    setattr(inv, k, v)
     else:
         inv = Investor(
             first_name=first_name or "",
