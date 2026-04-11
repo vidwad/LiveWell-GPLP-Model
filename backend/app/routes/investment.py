@@ -706,7 +706,27 @@ def list_investors(
     current_user: User = Depends(require_gp_or_ops),
 ):
     from app.db.models import ContactAssignment
-    page = pg.paginate(db.query(Investor).order_by(Investor.name))
+
+    # DEVELOPER and GP_ADMIN see all contacts; everyone else sees
+    # new_lead (unassigned, available to pick up) + their own assigned contacts
+    from app.db.models import InvestorStatus
+    from sqlalchemy import or_
+    full_access = current_user.role in (UserRole.DEVELOPER, UserRole.GP_ADMIN)
+    if full_access:
+        query = db.query(Investor).order_by(Investor.name)
+    else:
+        assigned_ids = [
+            ca.investor_id for ca in
+            db.query(ContactAssignment).filter(ContactAssignment.user_id == current_user.user_id).all()
+        ]
+        query = db.query(Investor).filter(
+            or_(
+                Investor.investor_status == InvestorStatus.new_lead,
+                Investor.investor_id.in_(assigned_ids) if assigned_ids else False,
+            )
+        ).order_by(Investor.name)
+
+    page = pg.paginate(query)
     items = page.get("items", page) if isinstance(page, dict) else page
     rows = items if isinstance(items, list) else list(items)
     result = []
