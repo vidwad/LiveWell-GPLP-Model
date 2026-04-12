@@ -419,8 +419,16 @@ def _build_dashboard(inv: Investor, db: Session) -> InvestorDashboard:
     docs = sorted(inv.documents, key=lambda x: x.upload_date, reverse=True) if inv.documents else []
     msgs = sorted(inv.messages, key=lambda x: x.sent_at, reverse=True) if inv.messages else []
 
+    # Build investor dict to avoid Pydantic serialization of ORM relationships
+    inv_data = {c.name: getattr(inv, c.name) for c in inv.__table__.columns}
+    assignments = db.query(ContactAssignment).filter(ContactAssignment.investor_id == inv.investor_id).all()
+    inv_data["assigned_users"] = [
+        {"user_id": a.user_id, "user_name": a.user.full_name if a.user else None}
+        for a in assignments
+    ]
+
     return InvestorDashboard(
-        investor=InvestorOut.model_validate(inv),
+        investor=inv_data,
         total_committed=total_committed,
         total_funded=total_funded,
         total_distributions=total_distributions,

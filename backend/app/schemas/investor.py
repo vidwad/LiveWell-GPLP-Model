@@ -127,7 +127,7 @@ class InvestorSummary(BaseModel):
 
 class InvestorDashboard(BaseModel):
     """Investor detail with aggregated investment data."""
-    investor: InvestorOut
+    investor: dict | InvestorOut
     total_committed: Decimal = Decimal("0")
     total_funded: Decimal = Decimal("0")
     total_distributions: Decimal = Decimal("0")
