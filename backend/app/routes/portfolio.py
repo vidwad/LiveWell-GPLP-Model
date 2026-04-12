@@ -1678,6 +1678,80 @@ def generate_property_assessment(
         "Community Type": community_type,
     }
 
+    # ── Calgary Zoning / Rezoning Lookup ──────────────────────────────
+    # Query the City of Calgary's "Home Is Here" ArcGIS service for
+    # proposed zoning changes on this parcel. Uses lat/lng spatial query.
+    zoning_lookup_result = None
+    if prop.city and prop.city.lower() == "calgary":
+        try:
+            import requests as _req
+            lat = float(prop.latitude) if prop.latitude else None
+            lng = float(prop.longitude) if prop.longitude else None
+
+            # If no lat/lng stored, geocode the address via Calgary's locator
+            if not lat or not lng:
+                geo_url = (
+                    "https://gis.calgary.ca/arcgis/rest/services/pub_Locator_Pro/"
+                    "CalgaryUniversalLocator/GeocodeServer/findAddressCandidates"
+                )
+                geo_resp = _req.get(geo_url, params={
+                    "SingleLine": f"{prop.address}, Calgary, AB",
+                    "outFields": "*", "f": "json", "maxLocations": 1, "outSR": 4326,
+                }, timeout=10)
+                candidates = geo_resp.json().get("candidates", [])
+                if candidates:
+                    loc = candidates[0].get("location", {})
+                    lng = loc.get("x")
+                    lat = loc.get("y")
+
+            if lat and lng:
+                zone_url = (
+                    "https://services1.arcgis.com/AVP60cs0Q9PEA8rH/arcgis/rest/services/"
+                    "Home_Is_Here_Repeal_Parcels/FeatureServer/0/query"
+                )
+                zone_resp = _req.get(zone_url, params={
+                    "geometry": f"{lng},{lat}",
+                    "geometryType": "esriGeometryPoint",
+                    "inSR": "4326",
+                    "spatialRel": "esriSpatialRelIntersects",
+                    "outFields": "ADDRESS,LU_CODE,LU_CODE_NEW,REZONING_STATUS,COMMUNITY,WARD,"
+                                 "LEGAL_DESCRIPTION,JOB,JOB_STATUS,DEVELOPMENT_STATUS,"
+                                 "IN_CORRIDOR,IN_TOD,LUBB_COMMENTS",
+                    "returnGeometry": "false",
+                    "f": "json",
+                }, timeout=10)
+                features = zone_resp.json().get("features", [])
+                if features:
+                    attrs = features[0].get("attributes", {})
+                    zoning_lookup_result = {
+                        "source": "City of Calgary — Home Is Here Rezoning Initiative",
+                        "found": True,
+                        "current_land_use": attrs.get("LU_CODE"),
+                        "proposed_land_use": attrs.get("LU_CODE_NEW"),
+                        "rezoning_status": attrs.get("REZONING_STATUS"),
+                        "community": attrs.get("COMMUNITY"),
+                        "ward": attrs.get("WARD"),
+                        "legal_description": attrs.get("LEGAL_DESCRIPTION"),
+                        "in_tod": attrs.get("IN_TOD") == "Y",
+                        "in_corridor": attrs.get("IN_CORRIDOR") == "Y",
+                        "development_status": attrs.get("DEVELOPMENT_STATUS"),
+                        "job": attrs.get("JOB"),
+                        "job_status": attrs.get("JOB_STATUS"),
+                        "comments": attrs.get("LUBB_COMMENTS"),
+                    }
+                else:
+                    zoning_lookup_result = {
+                        "source": "City of Calgary — Home Is Here Rezoning Initiative",
+                        "found": False,
+                        "note": (
+                            "No rezoning record found for this parcel in the City of Calgary's "
+                            "Home Is Here dataset. There is a HIGH PROBABILITY this parcel is "
+                            "NOT being rezoned under the current blanket rezoning initiative."
+                        ),
+                    }
+        except Exception as e:
+            zoning_lookup_result = {"source": "Calgary Zoning Lookup", "found": False, "error": str(e)}
+
     # Count available vs missing data
     available = {k: v for k, v in data_points.items() if v is not None}
     missing = [k for k, v in data_points.items() if v is None]
@@ -1725,10 +1799,24 @@ def generate_property_assessment(
         f"Based on lot size, zoning, and buildable area, what development "
         f"opportunities exist? Could a larger building be built? Secondary suites? "
         f"Additions?\n\n"
-        f"## 8. Data Completeness Note\n"
+        f"## 8. Zoning & Rezoning Analysis\n"
+        f"Analyze the current zoning and any proposed changes. How do these affect "
+        f"the property's potential use? What does the zoning allow vs restrict? "
+        f"If rezoning is proposed, explain the implications of the change.\n\n"
+        f"## 9. Data Completeness Note\n"
         f"Comment on the completeness of data available for this assessment.\n\n"
         f"Available Property Data:\n{data_summary}\n\n"
         f"Missing Data: {missing_summary}\n\n"
+        + (
+            f"Calgary Zoning / Rezoning Data (from City of Calgary ArcGIS):\n"
+            + (
+                "\n".join([f"- {k}: {v}" for k, v in zoning_lookup_result.items()])
+                if zoning_lookup_result
+                else "- Not applicable (property not in Calgary)\n"
+            )
+            + "\n\n"
+        )
+        +
         f"Provide specific, actionable insights. Use numbers where possible. "
         f"If data is insufficient for a section, explicitly state what additional "
         f"information would be needed."
@@ -1762,6 +1850,7 @@ def generate_property_assessment(
         "data_available": len(available),
         "data_missing": len(missing),
         "missing_fields": missing,
+        "zoning_lookup": zoning_lookup_result,
         "generated_at": now.isoformat(),
     }
 
