@@ -94,8 +94,9 @@ export default function NewPropertyPage() {
       }
 
       router.push(`/portfolio/${prop.property_id}`);
-    } catch {
-      toast.error("Failed to create property");
+    } catch (err: any) {
+      const detail = err?.response?.data?.detail;
+      toast.error(detail || "Failed to create property", { duration: 8000 });
     }
   };
 
