@@ -235,18 +235,21 @@ def validate_property_lp_community_match(
     if not lp or not community:
         return  # Will be caught by FK validation
 
-    if not lp.purpose_type:
-        return  # LP has no purpose_type set yet — allow assignment
+    # Use community_focus (user-facing) as authority; fall back to purpose_type
+    lp_focus = lp.community_focus or (lp.purpose_type.value if hasattr(lp.purpose_type, "value") else str(lp.purpose_type or ""))
+    if not lp_focus:
+        return  # LP has no community focus set — allow assignment
 
-    lp_type = lp.purpose_type.value if hasattr(lp.purpose_type, "value") else str(lp.purpose_type)
     comm_type = community.community_type.value if hasattr(community.community_type, "value") else str(community.community_type)
 
-    if lp_type != comm_type:
+    # community_focus may be comma-separated (e.g. "StudyWell, RecoverWell")
+    allowed_types = [t.strip() for t in lp_focus.split(",")]
+    if comm_type not in allowed_types:
         raise HTTPException(
             status_code=400,
-            detail=f"Community type mismatch: LP '{lp.name}' is a {lp_type} fund, "
+            detail=f"Community type mismatch: LP '{lp.name}' serves {lp_focus}, "
                    f"but community '{community.name}' is {comm_type}. "
-                   f"Properties in this LP must belong to {lp_type} communities.",
+                   f"Properties in this LP must belong to a matching community.",
         )
 
 
