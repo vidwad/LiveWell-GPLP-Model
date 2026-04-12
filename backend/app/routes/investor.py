@@ -274,7 +274,7 @@ def create_investor(
     return investor
 
 
-@router.get("/investors/{investor_id}", response_model=InvestorOut)
+@router.get("/investors/{investor_id}")
 def get_investor(
     investor_id: int,
     db: Session = Depends(get_db),
@@ -283,7 +283,13 @@ def get_investor(
     inv = _get_investor_or_404(investor_id, db)
     if current_user.role == UserRole.INVESTOR and inv.user_id != current_user.user_id:
         raise HTTPException(status_code=403, detail="Access denied")
-    return inv
+    d = {c.name: getattr(inv, c.name) for c in inv.__table__.columns}
+    assignments = db.query(ContactAssignment).filter(ContactAssignment.investor_id == investor_id).all()
+    d["assigned_users"] = [
+        {"user_id": a.user_id, "user_name": a.user.full_name if a.user else None}
+        for a in assignments
+    ]
+    return d
 
 
 @router.patch("/investors/{investor_id}", response_model=InvestorOut)
