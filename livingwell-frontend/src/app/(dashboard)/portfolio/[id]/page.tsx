@@ -452,14 +452,14 @@ export default function PropertyDetailPage({ params }: { params: { id: string } 
             latitude={property?.latitude ? Number(property.latitude) : undefined}
             longitude={property?.longitude ? Number(property.longitude) : undefined}
           />
-          <div className="mt-6 border-t pt-6">
-            <PropertyPhotosTab propertyId={propertyId} />
-          </div>
         </TabsContent>
 
         {/* ── 3. Acquisition (Baseline + LP Mandate) ── */}
         <TabsContent value="acquisition" className="mt-6">
           <AcquisitionTab propertyId={propertyId} property={property} canEdit={canEdit} />
+          <div className="mt-6 border-t pt-6">
+            <PropertyPhotosTab propertyId={propertyId} />
+          </div>
         </TabsContent>
 
         {/* ── 4. Strategy ── */}
