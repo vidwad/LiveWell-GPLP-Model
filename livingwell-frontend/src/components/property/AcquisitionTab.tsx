@@ -88,13 +88,14 @@ export function AcquisitionTab({ propertyId, property, canEdit }: AcquisitionTab
       "earliest_sale_date", "latest_sale_date", "original_exit_cap_rate",
       "original_exit_noi", "original_selling_cost_pct", "original_sale_price",
       "original_net_proceeds", "target_irr", "target_equity_multiple",
-      "intended_disposition_type", "notes",
+      "intended_disposition_type", "notes", "development_stage",
     ];
     for (const k of fields) {
       f[k] = baseline[k] != null ? String(baseline[k]) : "";
     }
-    // lp_id lives on Property, not on the baseline — pull from property prop
+    // lp_id and development_stage live on Property, not on the baseline
     f.lp_id = property?.lp_id != null ? String(property.lp_id) : "";
+    f.development_stage = property?.development_stage || "prospect";
     setForm(f);
   }, [baseline, property?.lp_id]);
 
@@ -123,13 +124,17 @@ export function AcquisitionTab({ propertyId, property, canEdit }: AcquisitionTab
     }
 
     // Save baseline + property in parallel; show one toast on success
+    const propertyPatch: Record<string, any> = {};
+    if ((form.lp_id !== "" || property?.lp_id != null) && form.lp_id !== String(property?.lp_id ?? "")) {
+      propertyPatch.lp_id = form.lp_id ? Number(form.lp_id) : null;
+    }
+    if (form.development_stage && form.development_stage !== (property?.development_stage || "prospect")) {
+      propertyPatch.development_stage = form.development_stage;
+    }
     Promise.allSettled([
       saveMutation.mutateAsync(payload),
-      // lp_id only PATCHed if it actually changed
-      (form.lp_id !== "" || property?.lp_id != null) && form.lp_id !== String(property?.lp_id ?? "")
-        ? savePropertyMutation.mutateAsync({
-            lp_id: form.lp_id ? Number(form.lp_id) : null,
-          })
+      Object.keys(propertyPatch).length > 0
+        ? savePropertyMutation.mutateAsync(propertyPatch)
         : Promise.resolve(),
     ]).then((results) => {
       const hadError = results.some((r) => r.status === "rejected");
@@ -211,6 +216,34 @@ export function AcquisitionTab({ propertyId, property, canEdit }: AcquisitionTab
                         {lp.name}
                       </SelectItem>
                     ))}
+                  </SelectContent>
+                </Select>
+              )}
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs flex items-center gap-1 text-muted-foreground">
+                Development Stage
+              </Label>
+              {readOnly ? (
+                <div className="text-sm font-medium py-2 capitalize">
+                  {(form.development_stage || "prospect").replace(/_/g, " ")}
+                </div>
+              ) : (
+                <Select
+                  value={form.development_stage || "prospect"}
+                  onValueChange={(v) => sf("development_stage", v)}
+                >
+                  <SelectTrigger className="h-9">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="prospect">Prospect</SelectItem>
+                    <SelectItem value="acquisition">Acquisition</SelectItem>
+                    <SelectItem value="pre_development">Pre-Development</SelectItem>
+                    <SelectItem value="construction">Construction</SelectItem>
+                    <SelectItem value="lease_up">Lease-Up</SelectItem>
+                    <SelectItem value="stabilized">Stabilized</SelectItem>
+                    <SelectItem value="disposition">Disposition</SelectItem>
                   </SelectContent>
                 </Select>
               )}
