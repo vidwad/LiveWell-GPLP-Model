@@ -1822,25 +1822,13 @@ def generate_property_assessment(
         prompt += "\n\nCalgary Zoning / Rezoning Data: Not applicable (property not in Calgary)."
 
     try:
-        response = client.chat.completions.create(
+        response = client.responses.create(
             model="gpt-5.4",
-            messages=[{"role": "user", "content": prompt}],
-            max_completion_tokens=4096,
+            input=prompt,
         )
-        choice = response.choices[0]
-        content = choice.message.content
-        # gpt-5.4 may return content via output_text or in a refusal field
-        if not content and hasattr(choice.message, "refusal") and choice.message.refusal:
-            raise HTTPException(500, f"AI refused to generate assessment: {choice.message.refusal}")
-        assessment = (content or "").strip()
+        assessment = (response.output_text or "").strip()
         if not assessment:
-            # Log response details for debugging
-            import logging
-            logging.getLogger(__name__).error(
-                f"Empty assessment response. finish_reason={choice.finish_reason}, "
-                f"content={content!r}, prompt_len={len(prompt)}"
-            )
-            raise HTTPException(500, f"AI returned empty assessment (finish_reason={choice.finish_reason}). Try again.")
+            raise HTTPException(500, "AI returned empty assessment. Try again.")
     except HTTPException:
         raise
     except Exception as e:
