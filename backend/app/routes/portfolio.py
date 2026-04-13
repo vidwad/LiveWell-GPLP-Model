@@ -146,17 +146,20 @@ def create_property(
     from app.services.validation_service import validate_property_lp_community_match
     validate_property_lp_community_match(db, payload.lp_id, payload.community_id)
 
-    prop = Property(**payload.model_dump())
+    try:
+        prop = Property(**payload.model_dump())
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Invalid property data: {type(e).__name__}: {e}")
     db.add(prop)
     try:
         db.commit()
         db.refresh(prop)
-    except IntegrityError:
+    except IntegrityError as e:
         db.rollback()
-        raise HTTPException(status_code=400, detail="Database integrity error (e.g., duplicate entry or missing foreign key)")
-    except Exception:
+        raise HTTPException(status_code=400, detail=f"Database integrity error: {e.orig}")
+    except Exception as e:
         db.rollback()
-        raise HTTPException(status_code=500, detail="Internal server error")
+        raise HTTPException(status_code=500, detail=f"Failed to create property: {type(e).__name__}: {e}")
     return _property_to_out(prop)
 
 
