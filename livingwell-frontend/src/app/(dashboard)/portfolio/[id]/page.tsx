@@ -45,6 +45,7 @@ import {
   FolderOpen,
   Eye,
   Wrench,
+  AlertTriangle,
 } from "lucide-react";
 import {
   useProperty,
@@ -307,6 +308,22 @@ export default function PropertyDetailPage({ params }: { params: { id: string } 
           </div>
         </div>
       </div>
+
+      {/* ── Missing Data Warnings ── */}
+      {(!property.latitude || !property.longitude) && (
+        <div className="rounded-lg border border-amber-300 bg-amber-50 p-3 flex items-start gap-2.5">
+          <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
+          <div>
+            <p className="text-sm font-semibold text-amber-900">Location coordinates missing</p>
+            <p className="text-xs text-amber-700 mt-0.5">
+              Latitude and longitude are not set for this property. This affects the <strong>map display</strong>,{" "}
+              <strong>area research accuracy</strong>, <strong>zoning change detection</strong>, and{" "}
+              <strong>walk/transit scores</strong>. Update the coordinates in the property details or re-run the
+              AI property lookup to auto-populate.
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* ════════════════════════════════════════════════════════════════════════
           KPI STRIP
