@@ -1026,37 +1026,59 @@ function InvestmentSummaryCard({ propertyId }: { propertyId: number }) {
 
 /* ── Professional markdown renderer for AI content ── */
 function renderMarkdownPro(md: string): string {
-  // Pre-process: collapse blank lines between list items so they render tight
-  let text = md
-    // Remove blank lines between consecutive bullet/numbered list items
-    .replace(/^([-*] .+)\n{2,}(?=[-*] )/gm, "$1\n")
-    .replace(/^(\d+\. .+)\n{2,}(?=\d+\. )/gm, "$1\n")
-    // Remove trailing blank lines after a list item before the next list item
-    .replace(/,\n{2,}(?=[-*] |\d+\. )/g, ",\n")
-    // Collapse "item,\n\n" patterns (AI often puts blank line after comma-ended bullets)
-    .replace(/,\n\n+/g, ",\n");
+  // Pre-process: aggressively collapse all blank lines in the document.
+  // The AI puts blank lines between every bullet/item — strip them all,
+  // then re-add paragraph breaks only where truly needed.
+  const lines = md.split("\n");
+  const collapsed: string[] = [];
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const trimmed = line.trim();
+    // Skip fully blank lines — we'll add paragraph breaks via ## headers and --- only
+    if (trimmed === "") {
+      // Keep blank line only if next non-blank line is a header, HR, or paragraph start
+      // (i.e. not a list item or continuation)
+      let j = i + 1;
+      while (j < lines.length && lines[j].trim() === "") j++;
+      const next = j < lines.length ? lines[j].trim() : "";
+      const prev = collapsed.length > 0 ? collapsed[collapsed.length - 1].trim() : "";
+      // Insert a single blank line before headers, HRs, and after non-list paragraphs
+      if (
+        next.startsWith("##") || next.startsWith("---") ||
+        (!prev.startsWith("-") && !prev.startsWith("*") && !prev.match(/^\d+\./) &&
+         !next.startsWith("-") && !next.startsWith("*") && !next.match(/^\d+\./) &&
+         prev !== "" && next !== "")
+      ) {
+        collapsed.push("");
+      }
+      continue;
+    }
+    collapsed.push(line);
+  }
+
+  const text = collapsed.join("\n");
 
   return text
     // Headers
     .replace(/^#### (.+)$/gm, '<h5 class="text-xs font-semibold text-foreground mt-2 mb-0.5">$1</h5>')
-    .replace(/^### (.+)$/gm, '<h4 class="text-[13px] font-semibold text-foreground mt-3 mb-0.5">$1</h4>')
+    .replace(/^### (.+)$/gm, '<h4 class="text-[13px] font-semibold text-foreground mt-2 mb-0.5">$1</h4>')
     // Bold and italic
     .replace(/\*\*(.+?)\*\*/g, '<strong class="text-foreground font-semibold">$1</strong>')
     .replace(/\*(.+?)\*/g, '<em>$1</em>')
     // Numbered lists
-    .replace(/^(\d+)\. (.+)$/gm, '<li class="ml-5 list-decimal text-[13px] leading-tight py-0">$2</li>')
-    // Bullet lists (- or *)
-    .replace(/^[-*] (.+)$/gm, '<li class="ml-5 list-disc text-[13px] leading-tight py-0">$1</li>')
-    // Wrap consecutive <li> in <ul>/<ol> — strip any <br/> between them
+    .replace(/^(\d+)\. (.+)$/gm, '<li class="ml-5 list-decimal text-[13px] leading-snug">$2</li>')
+    // Bullet/dash lists
+    .replace(/^[-*] (.+)$/gm, '<li class="ml-5 list-disc text-[13px] leading-snug">$1</li>')
+    // Wrap consecutive <li> — clean any stray <br/> between them
     .replace(/((?:<li[^>]*>.*?<\/li>(?:\s|<br\/>)*)+)/g, (match) => {
       const cleaned = match.replace(/<br\/>/g, "").replace(/\n/g, "");
-      if (cleaned.includes("list-decimal")) return `<ol class="my-1">${cleaned}</ol>`;
-      return `<ul class="my-1">${cleaned}</ul>`;
+      if (cleaned.includes("list-decimal")) return `<ol class="my-0.5">${cleaned}</ol>`;
+      return `<ul class="my-0.5">${cleaned}</ul>`;
     })
     // Horizontal rules
-    .replace(/^---+$/gm, '<hr class="my-3 border-border/60" />')
-    // Paragraphs: double newlines (only outside of lists)
-    .replace(/\n{2,}/g, '</p><p class="text-[13px] leading-tight text-muted-foreground mb-1">')
+    .replace(/^---+$/gm, '<hr class="my-2 border-border/60" />')
+    // Double newlines → paragraph break
+    .replace(/\n{2,}/g, '</p><p class="text-[13px] leading-snug text-muted-foreground mb-1">')
     // Single newlines
     .replace(/\n/g, "<br/>");
 }
