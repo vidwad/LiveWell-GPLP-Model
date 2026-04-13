@@ -113,21 +113,60 @@ def _fetch_calgary_assessment(address: str) -> Optional[dict]:
 
         # Take first match
         rec = data[0]
+
+        # Extract lat/lng from multipolygon geometry if present
+        lat = _to_float(rec.get("latitude"))
+        lng = _to_float(rec.get("longitude"))
+        if not lat or not lng:
+            mp = rec.get("multipolygon")
+            if mp and isinstance(mp, dict):
+                coords = mp.get("coordinates")
+                if coords:
+                    # multipolygon: [[[[lng, lat], ...]]] — average all points for centroid
+                    try:
+                        all_pts = []
+                        for poly in (coords if isinstance(coords[0][0][0], list) else [coords]):
+                            for ring in poly:
+                                for pt in ring:
+                                    all_pts.append(pt)
+                        if all_pts:
+                            lng = sum(p[0] for p in all_pts) / len(all_pts)
+                            lat = sum(p[1] for p in all_pts) / len(all_pts)
+                    except Exception:
+                        pass
+
+        # Fallback: geocode via Calgary's free municipal geocoder
+        if not lat or not lng:
+            try:
+                geo_resp = requests.get(
+                    "https://gis.calgary.ca/arcgis/rest/services/pub_Locator_Pro/"
+                    "CalgaryUniversalLocator/GeocodeServer/findAddressCandidates",
+                    params={"SingleLine": addr_upper, "outSR": "4326", "f": "json", "maxLocations": 1},
+                    timeout=_TIMEOUT,
+                )
+                candidates = geo_resp.json().get("candidates", [])
+                if candidates:
+                    loc = candidates[0].get("location", {})
+                    lng = loc.get("x")
+                    lat = loc.get("y")
+            except Exception:
+                pass
+
         return {
             "assessed_value": _to_decimal(rec.get("current_value") or rec.get("assessed_value")),
-            "lot_size": _to_decimal(rec.get("lot_size") or rec.get("land_size")),
+            "lot_size": _to_decimal(rec.get("lot_size") or rec.get("land_size") or rec.get("land_size_sf")),
             "year_built": rec.get("year_built") or rec.get("year_of_construction"),
             "property_type": rec.get("property_type") or rec.get("building_type"),
             "building_sqft": _to_decimal(rec.get("total_living_area") or rec.get("building_size")),
             "neighbourhood": rec.get("community_name") or rec.get("comm_name"),
             "ward": rec.get("ward"),
             "legal_description": rec.get("legal_description"),
-            "latitude": _to_float(rec.get("latitude")),
-            "longitude": _to_float(rec.get("longitude")),
+            "latitude": lat,
+            "longitude": lng,
             "tax_amount": _to_decimal(rec.get("current_tax") or rec.get("tax_amount")),
             "tax_year": rec.get("tax_year") or rec.get("roll_year"),
             "roll_number": rec.get("roll_number"),
-            "assessment_class": rec.get("assessment_class") or rec.get("property_class"),
+            "assessment_class": rec.get("assessment_class") or rec.get("assessment_class_description"),
             "_source": "calgary_opendata",
             "_raw": rec,
         }
@@ -201,6 +240,33 @@ def _fetch_edmonton_assessment(address: str) -> Optional[dict]:
             return None
 
         rec = data[0]
+
+        # Extract lat/lng — Edmonton may have point geometry or explicit fields
+        lat = _to_float(rec.get("latitude"))
+        lng = _to_float(rec.get("longitude"))
+        if not lat or not lng:
+            pt = rec.get("point") or rec.get("location") or rec.get("geom")
+            if pt and isinstance(pt, dict):
+                coords = pt.get("coordinates")
+                if coords and len(coords) >= 2:
+                    lng, lat = coords[0], coords[1]
+
+        # Fallback: geocode via Nominatim (free, no API key)
+        if not lat or not lng:
+            try:
+                geo_resp = requests.get(
+                    "https://nominatim.openstreetmap.org/search",
+                    params={"q": f"{addr_upper}, Edmonton, AB, Canada", "format": "json", "limit": 1},
+                    headers={"User-Agent": "LivingWell-GPLP/1.0"},
+                    timeout=_TIMEOUT,
+                )
+                geo_data = geo_resp.json()
+                if geo_data:
+                    lat = _to_float(geo_data[0].get("lat"))
+                    lng = _to_float(geo_data[0].get("lon"))
+            except Exception:
+                pass
+
         return {
             "assessed_value": _to_decimal(rec.get("assessed_value")),
             "lot_size": _to_decimal(rec.get("lot_size")),
@@ -208,8 +274,8 @@ def _fetch_edmonton_assessment(address: str) -> Optional[dict]:
             "neighbourhood": rec.get("neighbourhood"),
             "ward": rec.get("ward"),
             "zoning": rec.get("zoning"),
-            "latitude": _to_float(rec.get("latitude")),
-            "longitude": _to_float(rec.get("longitude")),
+            "latitude": lat,
+            "longitude": lng,
             "tax_amount": _to_decimal(rec.get("tax_levy")),
             "roll_number": rec.get("account_number"),
             "assessment_class": rec.get("assessment_class_1") or rec.get("tax_class"),
