@@ -1024,18 +1024,39 @@ function InvestmentSummaryCard({ propertyId }: { propertyId: number }) {
 }
 
 
+/* ── Professional markdown renderer for AI content ── */
+function renderMarkdownPro(md: string): string {
+  return md
+    // Headers
+    .replace(/^#### (.+)$/gm, '<h5 class="text-xs font-semibold text-foreground mt-3 mb-1">$1</h5>')
+    .replace(/^### (.+)$/gm, '<h4 class="text-sm font-semibold text-foreground mt-4 mb-1.5">$1</h4>')
+    // Bold and italic
+    .replace(/\*\*(.+?)\*\*/g, '<strong class="text-foreground font-semibold">$1</strong>')
+    .replace(/\*(.+?)\*/g, '<em>$1</em>')
+    // Numbered lists
+    .replace(/^(\d+)\. (.+)$/gm, '<li class="ml-5 list-decimal text-[13px] leading-relaxed my-0.5">$2</li>')
+    // Bullet lists (- or *)
+    .replace(/^[-*] (.+)$/gm, '<li class="ml-5 list-disc text-[13px] leading-relaxed my-0.5">$1</li>')
+    // Wrap consecutive <li> in <ul>/<ol>
+    .replace(/((?:<li class="ml-5 list-disc[^>]*>.*?<\/li>\n?)+)/g, '<ul class="my-2">$1</ul>')
+    .replace(/((?:<li class="ml-5 list-decimal[^>]*>.*?<\/li>\n?)+)/g, '<ol class="my-2">$1</ol>')
+    // Horizontal rules
+    .replace(/^---+$/gm, '<hr class="my-4 border-border/60" />')
+    // Paragraphs: double newlines
+    .replace(/\n{2,}/g, '</p><p class="text-[13px] leading-relaxed text-muted-foreground mb-2">')
+    // Single newlines within paragraphs
+    .replace(/\n/g, '<br/>');
+}
+
 function AIPropertyAssessment({ propertyId }: { propertyId: number }) {
   const [assessment, setAssessment] = useState<Record<string, any> | null>(null);
   const [loading, setLoading] = useState(false);
   const [loadingInitial, setLoadingInitial] = useState(true);
   const [error, setError] = useState("");
 
-  // Load saved assessment on mount
   React.useEffect(() => {
     apiClient.get(`/api/portfolio/properties/${propertyId}/ai-assessment`)
-      .then(resp => {
-        if (resp.data) setAssessment(resp.data);
-      })
+      .then(resp => { if (resp.data) setAssessment(resp.data); })
       .catch(() => {})
       .finally(() => setLoadingInitial(false));
   }, [propertyId]);
@@ -1055,236 +1076,263 @@ function AIPropertyAssessment({ propertyId }: { propertyId: number }) {
 
   const [expanded, setExpanded] = useState(false);
 
-  // Split assessment into sections for better formatting
+  // Parse assessment into numbered sections
   const sections = React.useMemo(() => {
     if (!assessment?.assessment) return [];
     const text = assessment.assessment;
+    // Split on ## followed by a digit (section headers)
     const parts = text.split(/(?=## \d)/);
-    return parts.map((section: string) => {
+    return parts.map((section: string, idx: number) => {
       const lines = section.trim().split("\n");
-      const title = lines[0]?.replace(/^##\s*\d+\.\s*/, "").trim() || "";
+      const rawTitle = lines[0]?.replace(/^##\s*/, "").trim() || "";
+      // Extract number and title
+      const match = rawTitle.match(/^(\d+)\.\s*(.*)/);
+      const num = match ? match[1] : String(idx + 1);
+      const title = match ? match[2] : rawTitle;
       const body = lines.slice(1).join("\n").trim();
-      return { title, body };
+      return { num, title, body };
     }).filter((s: { title: string; body: string }) => s.title && s.body);
   }, [assessment]);
 
-  const firstSection = sections[0];
-  const remainingSections = sections.slice(1);
+  const executiveSections = sections.slice(0, 2); // Overview + Suitability
+  const detailSections = sections.slice(2);
+
+  const communityLabel = assessment?.community_type
+    ? assessment.community_type.charAt(0).toUpperCase() + assessment.community_type.slice(1)
+    : "";
 
   return (
-    <Card className="border-purple-200 bg-purple-50/20">
-      <CardHeader className="pb-2">
-        <div className="flex items-center justify-between">
-          <CardTitle className="text-base flex items-center gap-2">
-            <Sparkles className="h-5 w-5 text-purple-600" />
-            AI Preliminary Property Assessment
-          </CardTitle>
-          <div className="flex items-center gap-2">
+    <Card className="border-purple-200/60 shadow-sm overflow-hidden">
+      {/* Report Header */}
+      <div className="bg-gradient-to-r from-purple-600 to-indigo-600 px-5 py-4 text-white">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <div className="flex items-center gap-2 mb-0.5">
+              <Sparkles className="h-4 w-4" />
+              <h3 className="text-sm font-bold tracking-wide uppercase">
+                AI Preliminary Property Assessment
+              </h3>
+            </div>
             {assessment && (
-              <span className="text-[10px] text-muted-foreground">
-                {assessment.data_available} data points · {new Date(assessment.generated_at).toLocaleDateString()}
-              </span>
+              <p className="text-[11px] text-purple-200">
+                {assessment.data_available} data points analyzed
+                {assessment.data_missing > 0 && <> · {assessment.data_missing} missing</>}
+                {assessment.generated_at && <> · Generated {new Date(assessment.generated_at).toLocaleDateString("en-CA", { year: "numeric", month: "long", day: "numeric" })}</>}
+              </p>
             )}
-            <Button
-              size="sm"
-              variant="outline"
-              className={`h-7 text-xs gap-1 ${assessment ? "" : "bg-purple-100 border-purple-300 text-purple-700 hover:bg-purple-200"}`}
-              disabled={loading}
-              onClick={generateAssessment}
-            >
-              {loading ? (
-                <><Loader2 className="h-3 w-3 animate-spin" /> Analyzing...</>
-              ) : assessment ? (
-                <><RefreshCw className="h-3 w-3" /> Update</>
-              ) : (
-                <><Sparkles className="h-3 w-3" /> Generate Assessment</>
-              )}
-            </Button>
           </div>
+          <Button
+            size="sm"
+            variant="secondary"
+            className="h-8 text-xs gap-1.5 bg-white/15 hover:bg-white/25 text-white border-white/20"
+            disabled={loading}
+            onClick={generateAssessment}
+          >
+            {loading ? (
+              <><Loader2 className="h-3 w-3 animate-spin" /> Analyzing...</>
+            ) : assessment ? (
+              <><RefreshCw className="h-3 w-3" /> Regenerate</>
+            ) : (
+              <><Sparkles className="h-3 w-3" /> Generate Assessment</>
+            )}
+          </Button>
         </div>
-        {!assessment && !loading && !error && (
-          <p className="text-xs text-muted-foreground mt-1">
-            AI analyzes this property for suitability, assesses structure, renovation opportunities, and development potential.
-          </p>
+        {communityLabel && (
+          <div className="mt-2">
+            <span className="inline-flex items-center text-[10px] font-semibold bg-white/20 px-2.5 py-0.5 rounded-full">
+              {communityLabel}
+            </span>
+          </div>
         )}
-      </CardHeader>
-      <CardContent>
+      </div>
+
+      <CardContent className="p-0">
+        {/* Empty state */}
+        {!assessment && !loading && !error && (
+          <div className="px-5 py-8 text-center">
+            <Sparkles className="h-8 w-8 mx-auto mb-3 text-purple-300" />
+            <p className="text-sm font-medium text-muted-foreground">No assessment generated yet</p>
+            <p className="text-xs text-muted-foreground mt-1 max-w-md mx-auto">
+              Generate an AI-powered preliminary assessment that covers property suitability,
+              renovation opportunities, development potential, and zoning analysis.
+            </p>
+          </div>
+        )}
+
+        {/* Error */}
         {error && (
-          <div className="flex items-start gap-2 text-sm text-red-700 bg-red-50 rounded-lg p-3">
+          <div className="mx-5 mt-4 mb-4 flex items-start gap-2 text-sm text-red-700 bg-red-50 rounded-lg p-3 border border-red-200">
             <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
             <span>{error}</span>
           </div>
         )}
 
+        {/* Loading */}
         {loading && (
-          <div className="flex items-center gap-3 py-8 justify-center">
+          <div className="flex items-center gap-3 py-12 justify-center">
             <Loader2 className="h-6 w-6 animate-spin text-purple-500" />
             <div>
-              <p className="text-sm font-medium">Analyzing property...</p>
-              <p className="text-xs text-muted-foreground">This may take 15-30 seconds</p>
+              <p className="text-sm font-medium">Generating comprehensive assessment...</p>
+              <p className="text-xs text-muted-foreground">Analyzing property data, zoning, and market context. This may take 15-30 seconds.</p>
             </div>
           </div>
         )}
 
         {assessment && !loading && (
-          <div className="space-y-2">
-            {/* Community Type Badge */}
-            <div className="flex items-center gap-2 mb-2">
-              <span className="text-[10px] font-semibold bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full">
-                {assessment.community_type}
-              </span>
-              {assessment.data_missing > 0 && (
-                <span className="text-[10px] text-amber-600">{assessment.data_missing} data points missing</span>
-              )}
-            </div>
-
+          <div>
             {/* Calgary Zoning / Rezoning Status Banner */}
             {assessment.zoning_lookup && (
-              (() => {
-                const addr = assessment.zoning_lookup?.address || "";
-                const mapUrl = `https://thecityofcalgary.maps.arcgis.com/apps/instant/lookup/index.html?appid=356547836fa6409dbec74a1dc8d6bd7c#find=${encodeURIComponent(addr)}`;
-                return assessment.zoning_lookup.found ? (
-                  <div className="rounded-lg border border-orange-300 bg-orange-50 p-3">
-                    <div className="flex items-start gap-2">
-                      <AlertTriangle className="h-4 w-4 text-orange-600 shrink-0 mt-0.5" />
-                      <div className="flex-1">
-                        <div className="flex items-center justify-between gap-2">
-                          <p className="text-xs font-bold text-orange-800">
-                            Proposed Zoning Change — City of Calgary Home Is Here Initiative
-                          </p>
-                          <a
-                            href={mapUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-[10px] text-orange-700 hover:text-orange-900 underline shrink-0"
-                          >
-                            View on Map ↗
-                          </a>
+              <div className="px-5 pt-4">
+                {(() => {
+                  const addr = assessment.zoning_lookup?.address || "";
+                  const mapUrl = `https://thecityofcalgary.maps.arcgis.com/apps/instant/lookup/index.html?appid=356547836fa6409dbec74a1dc8d6bd7c#find=${encodeURIComponent(addr)}`;
+                  return assessment.zoning_lookup.found ? (
+                    <div className="rounded-lg border-2 border-orange-300 bg-orange-50 p-4">
+                      <div className="flex items-start gap-3">
+                        <div className="p-1.5 rounded-full bg-orange-200">
+                          <AlertTriangle className="h-4 w-4 text-orange-700" />
                         </div>
-                        <div className="mt-1.5 grid grid-cols-2 sm:grid-cols-4 gap-2 text-[11px]">
-                          <div>
-                            <span className="text-orange-600">Current Zoning</span>
-                            <p className="font-semibold text-orange-900">{assessment.zoning_lookup.current_land_use || "—"}</p>
+                        <div className="flex-1">
+                          <div className="flex items-center justify-between gap-2">
+                            <p className="text-sm font-bold text-orange-900">
+                              Proposed Zoning Change Detected
+                            </p>
+                            <a href={mapUrl} target="_blank" rel="noopener noreferrer"
+                              className="text-[11px] text-orange-700 hover:text-orange-900 underline font-medium shrink-0">
+                              View on Map ↗
+                            </a>
                           </div>
-                          <div>
-                            <span className="text-orange-600">Proposed Zoning</span>
-                            <p className="font-semibold text-orange-900">{assessment.zoning_lookup.proposed_land_use || "—"}</p>
+                          <p className="text-[11px] text-orange-700 mt-0.5">City of Calgary — Home Is Here Rezoning Initiative</p>
+                          <div className="mt-2 grid grid-cols-2 sm:grid-cols-4 gap-3">
+                            {[
+                              { label: "Current Zoning", value: assessment.zoning_lookup.current_land_use },
+                              { label: "Proposed Zoning", value: assessment.zoning_lookup.proposed_land_use },
+                              { label: "Rezoning Status", value: assessment.zoning_lookup.rezoning_status },
+                              { label: "Transit-Oriented", value: assessment.zoning_lookup.in_tod ? "Yes" : "No" },
+                            ].map((item) => (
+                              <div key={item.label} className="bg-white/70 rounded px-2.5 py-1.5 border border-orange-200">
+                                <p className="text-[10px] text-orange-600 uppercase tracking-wider">{item.label}</p>
+                                <p className="text-sm font-bold text-orange-900">{item.value || "—"}</p>
+                              </div>
+                            ))}
                           </div>
-                          <div>
-                            <span className="text-orange-600">Status</span>
-                            <p className="font-semibold text-orange-900">{assessment.zoning_lookup.rezoning_status || "—"}</p>
-                          </div>
-                          <div>
-                            <span className="text-orange-600">Transit-Oriented</span>
-                            <p className="font-semibold text-orange-900">{assessment.zoning_lookup.in_tod ? "Yes" : "No"}</p>
-                          </div>
+                          {assessment.zoning_lookup.community && (
+                            <p className="text-[11px] text-orange-600 mt-2">
+                              Community: <strong>{assessment.zoning_lookup.community}</strong> · Ward {assessment.zoning_lookup.ward}
+                            </p>
+                          )}
                         </div>
-                        {assessment.zoning_lookup.community && (
-                          <p className="text-[10px] text-orange-600 mt-1.5">
-                            Community: {assessment.zoning_lookup.community} · Ward {assessment.zoning_lookup.ward}
-                          </p>
-                        )}
                       </div>
                     </div>
-                  </div>
-                ) : (
-                  <div className="rounded-lg border border-green-300 bg-green-50 p-3">
-                    <div className="flex items-start gap-2">
-                      <CheckCircle2 className="h-4 w-4 text-green-600 shrink-0 mt-0.5" />
-                      <div className="flex-1">
-                        <div className="flex items-center justify-between gap-2">
-                          <p className="text-xs font-bold text-green-800">
-                            No Proposed Zoning Change Detected
-                          </p>
-                          <a
-                            href={mapUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-[10px] text-green-700 hover:text-green-900 underline shrink-0"
-                          >
-                            Verify on Map ↗
-                          </a>
+                  ) : (
+                    <div className="rounded-lg border-2 border-green-300 bg-green-50 p-4">
+                      <div className="flex items-start gap-3">
+                        <div className="p-1.5 rounded-full bg-green-200">
+                          <CheckCircle2 className="h-4 w-4 text-green-700" />
                         </div>
-                        <p className="text-[11px] text-green-700 mt-0.5">
-                          Based on the City of Calgary&apos;s Home Is Here dataset, there is a <strong>high probability</strong> this
-                          parcel is <strong>not being rezoned</strong> under the current citywide rezoning initiative.
-                        </p>
-                        {assessment.zoning_lookup.error && (
-                          <p className="text-[10px] text-green-600 mt-1 italic">Note: {assessment.zoning_lookup.error}</p>
-                        )}
+                        <div className="flex-1">
+                          <div className="flex items-center justify-between gap-2">
+                            <p className="text-sm font-bold text-green-900">No Proposed Zoning Change Detected</p>
+                            <a href={mapUrl} target="_blank" rel="noopener noreferrer"
+                              className="text-[11px] text-green-700 hover:text-green-900 underline font-medium shrink-0">
+                              Verify on Map ↗
+                            </a>
+                          </div>
+                          <p className="text-[12px] text-green-700 mt-1">
+                            Based on the City of Calgary&apos;s Home Is Here dataset, there is a <strong>high probability</strong> this
+                            parcel is <strong>not being rezoned</strong> under the current citywide rezoning initiative.
+                          </p>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                );
-              })()
-            )}
-
-            {/* First Section — always visible */}
-            {firstSection && (
-              <div className="rounded-lg border bg-white p-3">
-                <h3 className="text-xs font-bold text-purple-800 mb-1.5">{firstSection.title}</h3>
-                <div className="text-xs text-muted-foreground leading-relaxed whitespace-pre-wrap"
-                  dangerouslySetInnerHTML={{
-                    __html: firstSection.body
-                      .replace(/\*\*(.*?)\*\*/g, "<strong class='text-foreground'>$1</strong>")
-                      .replace(/^- (.*?)$/gm, "<li class='ml-3'>$1</li>")
-                      .replace(/\n/g, "<br/>")
-                  }}
-                />
+                  );
+                })()}
               </div>
             )}
 
-            {/* Remaining Sections — collapsible */}
-            {remainingSections.length > 0 && (
-              <>
-                {!expanded && (
+            {/* Executive Summary (first 1-2 sections always visible) */}
+            <div className="px-5 pt-4 pb-2 space-y-4">
+              {executiveSections.map((section: { num: string; title: string; body: string }) => (
+                <div key={section.num}>
+                  <div className="flex items-baseline gap-2 mb-2">
+                    <span className="inline-flex items-center justify-center h-5 w-5 rounded-full bg-purple-100 text-purple-700 text-[10px] font-bold shrink-0">
+                      {section.num}
+                    </span>
+                    <h4 className="text-sm font-bold text-foreground">{section.title}</h4>
+                  </div>
+                  <div className="pl-7">
+                    <div className="text-[13px] text-muted-foreground leading-relaxed"
+                      dangerouslySetInnerHTML={{ __html: renderMarkdownPro(section.body) }}
+                    />
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Expand/Collapse for detailed sections */}
+            {detailSections.length > 0 && (
+              <div className="border-t border-border/40">
+                {!expanded ? (
                   <button
                     onClick={() => setExpanded(true)}
-                    className="w-full text-center text-xs text-purple-600 hover:text-purple-800 py-2 rounded-lg border border-dashed border-purple-200 hover:border-purple-300 hover:bg-purple-50 transition-colors"
+                    className="w-full flex items-center justify-center gap-2 py-3 text-sm text-purple-600 hover:text-purple-800 hover:bg-purple-50/50 transition-colors font-medium"
                   >
-                    Show Full Assessment ({remainingSections.length} more sections)
+                    <ChevronRight className="h-4 w-4" />
+                    View Full Assessment ({detailSections.length} more sections)
                   </button>
-                )}
-
-                {expanded && (
-                  <div className="space-y-2">
-                    {remainingSections.map((section: { title: string; body: string }, i: number) => (
-                      <div key={i} className="rounded-lg border bg-white p-3">
-                        <h3 className="text-xs font-bold text-purple-800 mb-1.5">{section.title}</h3>
-                        <div className="text-xs text-muted-foreground leading-relaxed whitespace-pre-wrap"
-                          dangerouslySetInnerHTML={{
-                            __html: section.body
-                              .replace(/\*\*(.*?)\*\*/g, "<strong class='text-foreground'>$1</strong>")
-                              .replace(/^- (.*?)$/gm, "<li class='ml-3'>$1</li>")
-                              .replace(/\n/g, "<br/>")
-                          }}
-                        />
+                ) : (
+                  <div className="px-5 py-4 space-y-5">
+                    {detailSections.map((section: { num: string; title: string; body: string }) => (
+                      <div key={section.num} className="border-l-2 border-purple-200 pl-4">
+                        <div className="flex items-baseline gap-2 mb-2">
+                          <span className="inline-flex items-center justify-center h-5 w-5 rounded-full bg-purple-100 text-purple-700 text-[10px] font-bold shrink-0">
+                            {section.num}
+                          </span>
+                          <h4 className="text-sm font-bold text-foreground">{section.title}</h4>
+                        </div>
+                        <div className="pl-7">
+                          <div className="text-[13px] text-muted-foreground leading-relaxed"
+                            dangerouslySetInnerHTML={{ __html: renderMarkdownPro(section.body) }}
+                          />
+                        </div>
                       </div>
                     ))}
 
-                    {/* Missing Data Warning */}
+                    {/* Missing Data */}
                     {assessment.missing_fields && assessment.missing_fields.length > 0 && (
-                      <div className="rounded-lg border border-amber-200 bg-amber-50 p-3">
-                        <p className="text-[10px] font-semibold text-amber-800 flex items-center gap-1.5">
-                          <AlertTriangle className="h-3 w-3" />
-                          Data that would improve this assessment:
+                      <div className="rounded-lg border border-amber-200 bg-amber-50/60 p-3.5 mt-4">
+                        <p className="text-[11px] font-semibold text-amber-800 flex items-center gap-1.5 mb-1">
+                          <AlertTriangle className="h-3.5 w-3.5" />
+                          Additional data that would strengthen this assessment:
                         </p>
-                        <p className="text-[10px] text-amber-700 mt-0.5">
-                          {assessment.missing_fields.join(" · ")}
-                        </p>
+                        <div className="flex flex-wrap gap-1.5 mt-1.5">
+                          {assessment.missing_fields.map((f: string) => (
+                            <span key={f} className="text-[10px] bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full border border-amber-200">
+                              {f}
+                            </span>
+                          ))}
+                        </div>
                       </div>
                     )}
 
                     <button
                       onClick={() => setExpanded(false)}
-                      className="w-full text-center text-xs text-muted-foreground hover:text-foreground py-1.5"
+                      className="w-full flex items-center justify-center gap-1 py-2 text-xs text-muted-foreground hover:text-foreground transition-colors"
                     >
-                      Collapse
+                      Collapse Detailed Sections
                     </button>
                   </div>
                 )}
-              </>
+              </div>
             )}
+
+            {/* Footer */}
+            <div className="bg-muted/30 px-5 py-2.5 border-t border-border/40">
+              <p className="text-[10px] text-muted-foreground italic">
+                This assessment is AI-generated based on available property data and should be used for preliminary evaluation only.
+                Always verify findings through professional inspection, legal review, and municipal records before making investment decisions.
+              </p>
+            </div>
           </div>
         )}
       </CardContent>
