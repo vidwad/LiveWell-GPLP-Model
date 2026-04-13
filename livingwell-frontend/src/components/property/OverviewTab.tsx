@@ -1028,22 +1028,22 @@ function InvestmentSummaryCard({ propertyId }: { propertyId: number }) {
 function renderMarkdownPro(md: string): string {
   return md
     // Headers
-    .replace(/^#### (.+)$/gm, '<h5 class="text-xs font-semibold text-foreground mt-3 mb-1">$1</h5>')
-    .replace(/^### (.+)$/gm, '<h4 class="text-sm font-semibold text-foreground mt-4 mb-1.5">$1</h4>')
+    .replace(/^#### (.+)$/gm, '<h5 class="text-xs font-semibold text-foreground mt-2 mb-0.5">$1</h5>')
+    .replace(/^### (.+)$/gm, '<h4 class="text-[13px] font-semibold text-foreground mt-3 mb-1">$1</h4>')
     // Bold and italic
     .replace(/\*\*(.+?)\*\*/g, '<strong class="text-foreground font-semibold">$1</strong>')
     .replace(/\*(.+?)\*/g, '<em>$1</em>')
     // Numbered lists
-    .replace(/^(\d+)\. (.+)$/gm, '<li class="ml-5 list-decimal text-[13px] leading-relaxed my-0.5">$2</li>')
+    .replace(/^(\d+)\. (.+)$/gm, '<li class="ml-5 list-decimal text-[13px] leading-snug">$2</li>')
     // Bullet lists (- or *)
-    .replace(/^[-*] (.+)$/gm, '<li class="ml-5 list-disc text-[13px] leading-relaxed my-0.5">$1</li>')
+    .replace(/^[-*] (.+)$/gm, '<li class="ml-5 list-disc text-[13px] leading-snug">$1</li>')
     // Wrap consecutive <li> in <ul>/<ol>
-    .replace(/((?:<li class="ml-5 list-disc[^>]*>.*?<\/li>\n?)+)/g, '<ul class="my-2">$1</ul>')
-    .replace(/((?:<li class="ml-5 list-decimal[^>]*>.*?<\/li>\n?)+)/g, '<ol class="my-2">$1</ol>')
+    .replace(/((?:<li class="ml-5 list-disc[^>]*>.*?<\/li>\n?)+)/g, '<ul class="my-1 space-y-0">$1</ul>')
+    .replace(/((?:<li class="ml-5 list-decimal[^>]*>.*?<\/li>\n?)+)/g, '<ol class="my-1 space-y-0">$1</ol>')
     // Horizontal rules
-    .replace(/^---+$/gm, '<hr class="my-4 border-border/60" />')
+    .replace(/^---+$/gm, '<hr class="my-3 border-border/60" />')
     // Paragraphs: double newlines
-    .replace(/\n{2,}/g, '</p><p class="text-[13px] leading-relaxed text-muted-foreground mb-2">')
+    .replace(/\n{2,}/g, '</p><p class="text-[13px] leading-snug text-muted-foreground mb-1.5">')
     // Single newlines within paragraphs
     .replace(/\n/g, '<br/>');
 }
@@ -1094,8 +1094,7 @@ function AIPropertyAssessment({ propertyId }: { propertyId: number }) {
     }).filter((s: { title: string; body: string }) => s.title && s.body);
   }, [assessment]);
 
-  const executiveSections = sections.slice(0, 2); // Overview + Suitability
-  const detailSections = sections.slice(2);
+  // executiveSections / detailSections no longer needed — collapsed shows truncated first section
 
   const communityLabel = assessment?.community_type
     ? assessment.community_type.charAt(0).toUpperCase() + assessment.community_type.slice(1)
@@ -1232,16 +1231,25 @@ function AIPropertyAssessment({ propertyId }: { propertyId: number }) {
                         </div>
                         <div className="flex-1">
                           <div className="flex items-center justify-between gap-2">
-                            <p className="text-sm font-bold text-green-900">No Proposed Zoning Change Detected</p>
+                            <p className="text-sm font-bold text-green-900">Proposed Citywide Zoning Change</p>
                             <a href={mapUrl} target="_blank" rel="noopener noreferrer"
                               className="text-[11px] text-green-700 hover:text-green-900 underline font-medium shrink-0">
                               Verify on Map ↗
                             </a>
                           </div>
-                          <p className="text-[12px] text-green-700 mt-1">
-                            Based on the City of Calgary&apos;s Home Is Here dataset, there is a <strong>high probability</strong> this
-                            parcel is <strong>not being rezoned</strong> under the current citywide rezoning initiative.
+                          <p className="text-[12px] text-green-800 mt-1.5">
+                            This parcel was <strong>not part of the citywide rezoning for housing</strong>.
                           </p>
+                          {assessment.zoning_lookup.address && (
+                            <p className="text-[11px] text-green-700 mt-1">
+                              Parcel Address: <strong>{assessment.zoning_lookup.address}</strong>
+                            </p>
+                          )}
+                          {assessment.zoning_lookup.legal_description && (
+                            <p className="text-[11px] text-green-700 mt-0.5">
+                              Legal Description: {assessment.zoning_lookup.legal_description}
+                            </p>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -1250,79 +1258,78 @@ function AIPropertyAssessment({ propertyId }: { propertyId: number }) {
               </div>
             )}
 
-            {/* Executive Summary (first 1-2 sections always visible) */}
-            <div className="px-5 pt-4 pb-2 space-y-4">
-              {executiveSections.map((section: { num: string; title: string; body: string }) => (
-                <div key={section.num}>
-                  <div className="flex items-baseline gap-2 mb-2">
+            {/* Collapsed preview — max ~2 inches, first section only */}
+            {!expanded && sections.length > 0 && (
+              <div className="px-5 pt-3 pb-1">
+                <div className="relative max-h-[120px] overflow-hidden">
+                  <div className="flex items-baseline gap-2 mb-1">
                     <span className="inline-flex items-center justify-center h-5 w-5 rounded-full bg-purple-100 text-purple-700 text-[10px] font-bold shrink-0">
-                      {section.num}
+                      {sections[0].num}
                     </span>
-                    <h4 className="text-sm font-bold text-foreground">{section.title}</h4>
+                    <h4 className="text-sm font-bold text-foreground">{sections[0].title}</h4>
                   </div>
                   <div className="pl-7">
-                    <div className="text-[13px] text-muted-foreground leading-relaxed"
-                      dangerouslySetInnerHTML={{ __html: renderMarkdownPro(section.body) }}
+                    <div className="text-[13px] text-muted-foreground leading-snug"
+                      dangerouslySetInnerHTML={{ __html: renderMarkdownPro(sections[0].body) }}
                     />
                   </div>
+                  {/* Fade overlay */}
+                  <div className="absolute bottom-0 left-0 right-0 h-10 bg-gradient-to-t from-white to-transparent pointer-events-none" />
                 </div>
-              ))}
-            </div>
+                <button
+                  onClick={() => setExpanded(true)}
+                  className="w-full flex items-center justify-center gap-2 py-2 mt-1 text-sm text-purple-600 hover:text-purple-800 hover:bg-purple-50/50 transition-colors font-medium rounded"
+                >
+                  <ChevronRight className="h-4 w-4" />
+                  Read Full Assessment ({sections.length} sections)
+                </button>
+              </div>
+            )}
 
-            {/* Expand/Collapse for detailed sections */}
-            {detailSections.length > 0 && (
+            {/* Expanded — all sections */}
+            {expanded && sections.length > 0 && (
               <div className="border-t border-border/40">
-                {!expanded ? (
-                  <button
-                    onClick={() => setExpanded(true)}
-                    className="w-full flex items-center justify-center gap-2 py-3 text-sm text-purple-600 hover:text-purple-800 hover:bg-purple-50/50 transition-colors font-medium"
-                  >
-                    <ChevronRight className="h-4 w-4" />
-                    View Full Assessment ({detailSections.length} more sections)
-                  </button>
-                ) : (
-                  <div className="px-5 py-4 space-y-5">
-                    {detailSections.map((section: { num: string; title: string; body: string }) => (
-                      <div key={section.num} className="border-l-2 border-purple-200 pl-4">
-                        <div className="flex items-baseline gap-2 mb-2">
-                          <span className="inline-flex items-center justify-center h-5 w-5 rounded-full bg-purple-100 text-purple-700 text-[10px] font-bold shrink-0">
-                            {section.num}
+                <div className="px-5 py-4 space-y-4">
+                  {sections.map((section: { num: string; title: string; body: string }) => (
+                    <div key={section.num} className={Number(section.num) > 2 ? "border-l-2 border-purple-200 pl-4" : ""}>
+                      <div className="flex items-baseline gap-2 mb-1">
+                        <span className="inline-flex items-center justify-center h-5 w-5 rounded-full bg-purple-100 text-purple-700 text-[10px] font-bold shrink-0">
+                          {section.num}
+                        </span>
+                        <h4 className="text-sm font-bold text-foreground">{section.title}</h4>
+                      </div>
+                      <div className={Number(section.num) <= 2 ? "pl-7" : ""}>
+                        <div className="text-[13px] text-muted-foreground leading-snug"
+                          dangerouslySetInnerHTML={{ __html: renderMarkdownPro(section.body) }}
+                        />
+                      </div>
+                    </div>
+                  ))}
+
+                  {/* Missing Data */}
+                  {assessment.missing_fields && assessment.missing_fields.length > 0 && (
+                    <div className="rounded-lg border border-amber-200 bg-amber-50/60 p-3 mt-3">
+                      <p className="text-[11px] font-semibold text-amber-800 flex items-center gap-1.5 mb-1">
+                        <AlertTriangle className="h-3.5 w-3.5" />
+                        Additional data that would strengthen this assessment:
+                      </p>
+                      <div className="flex flex-wrap gap-1.5 mt-1">
+                        {assessment.missing_fields.map((f: string) => (
+                          <span key={f} className="text-[10px] bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full border border-amber-200">
+                            {f}
                           </span>
-                          <h4 className="text-sm font-bold text-foreground">{section.title}</h4>
-                        </div>
-                        <div className="pl-7">
-                          <div className="text-[13px] text-muted-foreground leading-relaxed"
-                            dangerouslySetInnerHTML={{ __html: renderMarkdownPro(section.body) }}
-                          />
-                        </div>
+                        ))}
                       </div>
-                    ))}
+                    </div>
+                  )}
 
-                    {/* Missing Data */}
-                    {assessment.missing_fields && assessment.missing_fields.length > 0 && (
-                      <div className="rounded-lg border border-amber-200 bg-amber-50/60 p-3.5 mt-4">
-                        <p className="text-[11px] font-semibold text-amber-800 flex items-center gap-1.5 mb-1">
-                          <AlertTriangle className="h-3.5 w-3.5" />
-                          Additional data that would strengthen this assessment:
-                        </p>
-                        <div className="flex flex-wrap gap-1.5 mt-1.5">
-                          {assessment.missing_fields.map((f: string) => (
-                            <span key={f} className="text-[10px] bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full border border-amber-200">
-                              {f}
-                            </span>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-
-                    <button
-                      onClick={() => setExpanded(false)}
-                      className="w-full flex items-center justify-center gap-1 py-2 text-xs text-muted-foreground hover:text-foreground transition-colors"
-                    >
-                      Collapse Detailed Sections
-                    </button>
-                  </div>
-                )}
+                  <button
+                    onClick={() => setExpanded(false)}
+                    className="w-full flex items-center justify-center gap-1 py-2 text-xs text-muted-foreground hover:text-foreground transition-colors"
+                  >
+                    Collapse
+                  </button>
+                </div>
               </div>
             )}
 

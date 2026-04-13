@@ -1753,11 +1753,8 @@ def generate_property_assessment(
                         "source": "City of Calgary — Home Is Here Rezoning Initiative",
                         "found": False,
                         "address": prop.address,
-                        "note": (
-                            "No rezoning record found for this parcel in the City of Calgary's "
-                            "Home Is Here dataset. There is a HIGH PROBABILITY this parcel is "
-                            "NOT being rezoned under the current blanket rezoning initiative."
-                        ),
+                        "legal_description": getattr(prop, "legal_description", None),
+                        "note": "This parcel was not part of the citywide rezoning for housing.",
                     }
         except Exception as e:
             zoning_lookup_result = {"source": "Calgary Zoning Lookup", "found": False, "address": prop.address, "error": str(e)}
