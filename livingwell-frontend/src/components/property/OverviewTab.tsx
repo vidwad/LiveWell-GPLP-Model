@@ -1100,6 +1100,7 @@ const DEV_STAGES = [
 
 function PropertyAssignmentSection({ property, onUpdated }: { property: Record<string, any>; onUpdated?: () => void }) {
   const qc = useQueryClient();
+  const [editing, setEditing] = useState(false);
   const { data: lps } = useQuery<any[]>({
     queryKey: ["lps"],
     queryFn: () => apiClient.get("/api/investment/lp").then(r => {
@@ -1124,54 +1125,81 @@ function PropertyAssignmentSection({ property, onUpdated }: { property: Record<s
   const currentLpId = property.lp_id ? String(property.lp_id) : "";
   const currentStage = property.development_stage || "prospect";
   const currentLp = (lps || []).find((lp: any) => lp.lp_id === property.lp_id);
+  const stageLabel = DEV_STAGES.find(s => s.value === currentStage)?.label || currentStage;
 
   return (
     <div className="mb-4 pb-4 border-b">
-      <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2.5 flex items-center gap-1.5">
-        <Landmark className="h-3 w-3" /> Fund & Stage
-      </p>
-      <div className="grid grid-cols-2 gap-3">
-        <div className="space-y-1">
-          <Label className="text-[11px] text-muted-foreground">LP Fund</Label>
-          <Select
-            value={currentLpId || "__none__"}
-            onValueChange={(v) => {
-              const lpId = v === "__none__" ? null : Number(v);
-              saveMutation.mutate({ lp_id: lpId });
-            }}
-          >
-            <SelectTrigger className="h-8 text-xs">
-              <SelectValue placeholder="Unassigned" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="__none__">— Unassigned —</SelectItem>
-              {(lps || []).map((lp: any) => (
-                <SelectItem key={lp.lp_id} value={String(lp.lp_id)}>
-                  {lp.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="space-y-1">
-          <Label className="text-[11px] text-muted-foreground">Development Stage</Label>
-          <Select
-            value={currentStage}
-            onValueChange={(v) => {
-              saveMutation.mutate({ development_stage: v });
-            }}
-          >
-            <SelectTrigger className="h-8 text-xs">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {DEV_STAGES.map((s) => (
-                <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
+      <div className="flex items-center justify-between mb-2.5">
+        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+          <Landmark className="h-3 w-3" /> Fund & Stage
+        </p>
+        <Button
+          variant="ghost"
+          size="sm"
+          className="h-6 text-[11px] px-2 text-muted-foreground"
+          onClick={() => setEditing(!editing)}
+        >
+          {editing ? "Done" : <><Pencil className="h-3 w-3 mr-1" /> Edit</>}
+        </Button>
       </div>
+
+      {editing ? (
+        <div className="grid grid-cols-2 gap-3">
+          <div className="space-y-1">
+            <Label className="text-[11px] text-muted-foreground">LP Fund</Label>
+            <Select
+              value={currentLpId || "__none__"}
+              onValueChange={(v) => {
+                const lpId = v === "__none__" ? null : Number(v);
+                saveMutation.mutate({ lp_id: lpId });
+                setEditing(false);
+              }}
+            >
+              <SelectTrigger className="h-8 text-xs">
+                <SelectValue placeholder="Unassigned" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__none__">— Unassigned —</SelectItem>
+                {(lps || []).map((lp: any) => (
+                  <SelectItem key={lp.lp_id} value={String(lp.lp_id)}>
+                    {lp.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1">
+            <Label className="text-[11px] text-muted-foreground">Development Stage</Label>
+            <Select
+              value={currentStage}
+              onValueChange={(v) => {
+                saveMutation.mutate({ development_stage: v });
+                setEditing(false);
+              }}
+            >
+              <SelectTrigger className="h-8 text-xs">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {DEV_STAGES.map((s) => (
+                  <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+      ) : (
+        <dl className="text-sm space-y-0">
+          <div className="flex justify-between gap-4 py-1.5">
+            <dt className="text-muted-foreground shrink-0">LP Fund</dt>
+            <dd className="font-medium text-right">{currentLp?.name || <span className="text-muted-foreground italic">Unassigned</span>}</dd>
+          </div>
+          <div className="flex justify-between gap-4 py-1.5">
+            <dt className="text-muted-foreground shrink-0">Stage</dt>
+            <dd className="font-medium text-right capitalize">{stageLabel}</dd>
+          </div>
+        </dl>
+      )}
     </div>
   );
 }
