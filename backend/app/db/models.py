@@ -1251,6 +1251,7 @@ class Property(Base):
     ai_assessment_data_available = Column(Integer, nullable=True)
     ai_assessment_data_missing = Column(Integer, nullable=True)
     ai_assessment_missing_fields = Column(Text, nullable=True)  # JSON array
+    ai_assessment_zoning_lookup = Column(Text, nullable=True)  # JSON — Calgary zoning lookup result
     ai_assessment_updated_at = Column(DateTime, nullable=True)
 
     # ── Lifecycle relationships ──

@@ -2,7 +2,7 @@
 
 import React, { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { MapPin, DollarSign, Calendar, Building2, Landmark, TrendingUp, Pencil, Loader2, Sparkles, RefreshCw, AlertTriangle, Target, ChevronRight } from "lucide-react";
+import { MapPin, DollarSign, Calendar, Building2, Landmark, TrendingUp, Pencil, Loader2, Sparkles, RefreshCw, AlertTriangle, Target, ChevronRight, CheckCircle2 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -1137,6 +1137,87 @@ function AIPropertyAssessment({ propertyId }: { propertyId: number }) {
                 <span className="text-[10px] text-amber-600">{assessment.data_missing} data points missing</span>
               )}
             </div>
+
+            {/* Calgary Zoning / Rezoning Status Banner */}
+            {assessment.zoning_lookup && (
+              (() => {
+                const addr = assessment.zoning_lookup?.address || "";
+                const mapUrl = `https://thecityofcalgary.maps.arcgis.com/apps/instant/lookup/index.html?appid=356547836fa6409dbec74a1dc8d6bd7c#find=${encodeURIComponent(addr)}`;
+                return assessment.zoning_lookup.found ? (
+                  <div className="rounded-lg border border-orange-300 bg-orange-50 p-3">
+                    <div className="flex items-start gap-2">
+                      <AlertTriangle className="h-4 w-4 text-orange-600 shrink-0 mt-0.5" />
+                      <div className="flex-1">
+                        <div className="flex items-center justify-between gap-2">
+                          <p className="text-xs font-bold text-orange-800">
+                            Proposed Zoning Change — City of Calgary Home Is Here Initiative
+                          </p>
+                          <a
+                            href={mapUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-[10px] text-orange-700 hover:text-orange-900 underline shrink-0"
+                          >
+                            View on Map ↗
+                          </a>
+                        </div>
+                        <div className="mt-1.5 grid grid-cols-2 sm:grid-cols-4 gap-2 text-[11px]">
+                          <div>
+                            <span className="text-orange-600">Current Zoning</span>
+                            <p className="font-semibold text-orange-900">{assessment.zoning_lookup.current_land_use || "—"}</p>
+                          </div>
+                          <div>
+                            <span className="text-orange-600">Proposed Zoning</span>
+                            <p className="font-semibold text-orange-900">{assessment.zoning_lookup.proposed_land_use || "—"}</p>
+                          </div>
+                          <div>
+                            <span className="text-orange-600">Status</span>
+                            <p className="font-semibold text-orange-900">{assessment.zoning_lookup.rezoning_status || "—"}</p>
+                          </div>
+                          <div>
+                            <span className="text-orange-600">Transit-Oriented</span>
+                            <p className="font-semibold text-orange-900">{assessment.zoning_lookup.in_tod ? "Yes" : "No"}</p>
+                          </div>
+                        </div>
+                        {assessment.zoning_lookup.community && (
+                          <p className="text-[10px] text-orange-600 mt-1.5">
+                            Community: {assessment.zoning_lookup.community} · Ward {assessment.zoning_lookup.ward}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="rounded-lg border border-green-300 bg-green-50 p-3">
+                    <div className="flex items-start gap-2">
+                      <CheckCircle2 className="h-4 w-4 text-green-600 shrink-0 mt-0.5" />
+                      <div className="flex-1">
+                        <div className="flex items-center justify-between gap-2">
+                          <p className="text-xs font-bold text-green-800">
+                            No Proposed Zoning Change Detected
+                          </p>
+                          <a
+                            href={mapUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-[10px] text-green-700 hover:text-green-900 underline shrink-0"
+                          >
+                            Verify on Map ↗
+                          </a>
+                        </div>
+                        <p className="text-[11px] text-green-700 mt-0.5">
+                          Based on the City of Calgary&apos;s Home Is Here dataset, there is a <strong>high probability</strong> this
+                          parcel is <strong>not being rezoned</strong> under the current citywide rezoning initiative.
+                        </p>
+                        {assessment.zoning_lookup.error && (
+                          <p className="text-[10px] text-green-600 mt-1 italic">Note: {assessment.zoning_lookup.error}</p>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()
+            )}
 
             {/* First Section — always visible */}
             {firstSection && (

@@ -1594,6 +1594,13 @@ def get_property_assessment(
         except Exception:
             pass
 
+    zoning_lookup = None
+    if hasattr(prop, "ai_assessment_zoning_lookup") and prop.ai_assessment_zoning_lookup:
+        try:
+            zoning_lookup = _json.loads(prop.ai_assessment_zoning_lookup)
+        except Exception:
+            pass
+
     return {
         "property_id": property_id,
         "community_type": prop.ai_assessment_community_type,
@@ -1601,6 +1608,7 @@ def get_property_assessment(
         "data_available": prop.ai_assessment_data_available,
         "data_missing": prop.ai_assessment_data_missing,
         "missing_fields": missing_fields,
+        "zoning_lookup": zoning_lookup,
         "generated_at": prop.ai_assessment_updated_at.isoformat() if prop.ai_assessment_updated_at else None,
     }
 
@@ -1726,6 +1734,7 @@ def generate_property_assessment(
                     zoning_lookup_result = {
                         "source": "City of Calgary — Home Is Here Rezoning Initiative",
                         "found": True,
+                        "address": attrs.get("ADDRESS") or prop.address,
                         "current_land_use": attrs.get("LU_CODE"),
                         "proposed_land_use": attrs.get("LU_CODE_NEW"),
                         "rezoning_status": attrs.get("REZONING_STATUS"),
@@ -1743,6 +1752,7 @@ def generate_property_assessment(
                     zoning_lookup_result = {
                         "source": "City of Calgary — Home Is Here Rezoning Initiative",
                         "found": False,
+                        "address": prop.address,
                         "note": (
                             "No rezoning record found for this parcel in the City of Calgary's "
                             "Home Is Here dataset. There is a HIGH PROBABILITY this parcel is "
@@ -1750,7 +1760,7 @@ def generate_property_assessment(
                         ),
                     }
         except Exception as e:
-            zoning_lookup_result = {"source": "Calgary Zoning Lookup", "found": False, "error": str(e)}
+            zoning_lookup_result = {"source": "Calgary Zoning Lookup", "found": False, "address": prop.address, "error": str(e)}
 
     # Count available vs missing data
     available = {k: v for k, v in data_points.items() if v is not None}
@@ -1842,6 +1852,7 @@ def generate_property_assessment(
     prop.ai_assessment_data_available = len(available)
     prop.ai_assessment_data_missing = len(missing)
     prop.ai_assessment_missing_fields = _json.dumps(missing)
+    prop.ai_assessment_zoning_lookup = _json.dumps(zoning_lookup_result) if zoning_lookup_result else None
     prop.ai_assessment_updated_at = now
     db.commit()
 
