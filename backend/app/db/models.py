@@ -1151,26 +1151,26 @@ class Property(Base):
     bedrooms = Column(Integer, nullable=True)
     bathrooms = Column(Integer, nullable=True)
     property_style = Column(String(128), nullable=True)       # e.g. "Bungalow", "2-Storey"
-    garage = Column(String(64), nullable=True)                 # e.g. "Double Attached"
+    garage = Column(String(256), nullable=True)                 # e.g. "Double Attached"
     storeys = Column(Integer, nullable=True)                   # number of storeys
-    building_type = Column(String(64), nullable=True)          # e.g. "House", "Townhouse"
+    building_type = Column(String(256), nullable=True)          # e.g. "House", "Townhouse"
     total_finished_area = Column(Numeric(14, 2), nullable=True)  # total livable sqft including basement
 
     # ── Construction & structure ──
-    foundation_type = Column(String(64), nullable=True)        # e.g. "Poured Concrete", "Block"
-    construction_material = Column(String(64), nullable=True)  # e.g. "Wood frame", "Concrete"
-    exterior_finish = Column(String(64), nullable=True)        # e.g. "Vinyl siding", "Stucco"
-    basement_type = Column(String(64), nullable=True)          # e.g. "Full (Finished)", "Crawl Space", "None"
-    heating_type = Column(String(128), nullable=True)          # e.g. "Forced air (Natural gas)"
-    cooling_type = Column(String(64), nullable=True)           # e.g. "Central air", "Wall unit"
-    flooring_types = Column(String(256), nullable=True)        # e.g. "Carpeted, Laminate, Hardwood"
+    foundation_type = Column(String(256), nullable=True)        # e.g. "Poured Concrete", "Block"
+    construction_material = Column(String(256), nullable=True)  # e.g. "Wood frame", "Concrete"
+    exterior_finish = Column(String(256), nullable=True)        # e.g. "Vinyl siding", "Stucco"
+    basement_type = Column(String(256), nullable=True)          # e.g. "Full (Finished)", "Crawl Space", "None"
+    heating_type = Column(String(256), nullable=True)           # e.g. "Forced air (Natural gas)"
+    cooling_type = Column(String(256), nullable=True)           # e.g. "Central air", "Wall unit"
+    flooring_types = Column(String(512), nullable=True)        # e.g. "Carpeted, Laminate, Hardwood"
 
     # ── Title & ownership ──
-    title_type = Column(String(64), nullable=True)             # e.g. "Freehold", "Condominium"
+    title_type = Column(String(256), nullable=True)             # e.g. "Freehold", "Condominium"
     postal_code = Column(String(16), nullable=True)
 
     # ── Parking ──
-    parking_type = Column(String(64), nullable=True)           # e.g. "Double Attached Garage", "Parking Pad"
+    parking_type = Column(String(256), nullable=True)           # e.g. "Double Attached Garage", "Parking Pad"
     parking_spaces = Column(Integer, nullable=True)
 
     # ── Land dimensions ──
@@ -1198,7 +1198,7 @@ class Property(Base):
     latitude = Column(Numeric(10, 7), nullable=True)
     longitude = Column(Numeric(11, 7), nullable=True)
     roll_number = Column(String(64), nullable=True)           # municipal assessment roll ID
-    assessment_class = Column(String(64), nullable=True)      # e.g. "Residential", "Non-Residential"
+    assessment_class = Column(String(256), nullable=True)      # e.g. "Residential", "Non-Residential"
 
     # ── Tax data ──
     tax_amount = Column(Numeric(12, 2), nullable=True)
