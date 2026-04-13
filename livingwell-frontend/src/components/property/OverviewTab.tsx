@@ -1102,7 +1102,7 @@ function PropertyAssignmentSection({ property, onUpdated }: { property: Record<s
   const qc = useQueryClient();
   const { data: lps } = useQuery<any[]>({
     queryKey: ["lps"],
-    queryFn: () => apiClient.get("/api/investment/lps").then(r => {
+    queryFn: () => apiClient.get("/api/investment/lp").then(r => {
       const d = r.data;
       return Array.isArray(d) ? d : d.items ?? [];
     }),
