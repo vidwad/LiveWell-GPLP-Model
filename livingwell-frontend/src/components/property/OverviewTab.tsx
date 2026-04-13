@@ -1221,37 +1221,49 @@ function AIPropertyAssessment({ propertyId }: { propertyId: number }) {
                   const addr = assessment.zoning_lookup?.address || "";
                   const mapUrl = `https://thecityofcalgary.maps.arcgis.com/apps/instant/lookup/index.html?appid=356547836fa6409dbec74a1dc8d6bd7c#find=${encodeURIComponent(addr)}`;
                   return assessment.zoning_lookup.found ? (
-                    <div className="rounded-lg border-2 border-orange-300 bg-orange-50 p-4">
+                    <div className="rounded-lg border-2 border-red-300 bg-red-50 p-4">
                       <div className="flex items-start gap-3">
-                        <div className="p-1.5 rounded-full bg-orange-200">
-                          <AlertTriangle className="h-4 w-4 text-orange-700" />
+                        <div className="p-1.5 rounded-full bg-red-200">
+                          <AlertTriangle className="h-4 w-4 text-red-700" />
                         </div>
                         <div className="flex-1">
                           <div className="flex items-center justify-between gap-2">
-                            <p className="text-sm font-bold text-orange-900">
-                              Proposed Zoning Change Detected
+                            <p className="text-sm font-bold text-red-900">
+                              Proposed Citywide Zoning Change
                             </p>
                             <a href={mapUrl} target="_blank" rel="noopener noreferrer"
-                              className="text-[11px] text-orange-700 hover:text-orange-900 underline font-medium shrink-0">
+                              className="text-[11px] text-red-700 hover:text-red-900 underline font-medium shrink-0">
                               View on Map ↗
                             </a>
                           </div>
-                          <p className="text-[11px] text-orange-700 mt-0.5">City of Calgary — Home Is Here Rezoning Initiative</p>
-                          <div className="mt-2 grid grid-cols-2 sm:grid-cols-4 gap-3">
+                          <p className="text-[12px] text-red-800 mt-1.5">
+                            This parcel is <strong>proposed to be rezoned</strong> as part of the repeal of citywide rezoning.
+                          </p>
+                          {assessment.zoning_lookup.address && (
+                            <p className="text-[11px] text-red-700 mt-1">
+                              Parcel Address: <strong>{assessment.zoning_lookup.address}</strong>
+                            </p>
+                          )}
+                          {assessment.zoning_lookup.legal_description && (
+                            <p className="text-[11px] text-red-700 mt-0.5">
+                              Legal Description: {assessment.zoning_lookup.legal_description}
+                            </p>
+                          )}
+                          <div className="mt-2.5 grid grid-cols-2 sm:grid-cols-4 gap-3">
                             {[
                               { label: "Current Zoning", value: assessment.zoning_lookup.current_land_use },
-                              { label: "Proposed Zoning", value: assessment.zoning_lookup.proposed_land_use },
+                              { label: "Proposed Rezoning To", value: assessment.zoning_lookup.proposed_land_use },
                               { label: "Rezoning Status", value: assessment.zoning_lookup.rezoning_status },
                               { label: "Transit-Oriented", value: assessment.zoning_lookup.in_tod ? "Yes" : "No" },
                             ].map((item) => (
-                              <div key={item.label} className="bg-white/70 rounded px-2.5 py-1.5 border border-orange-200">
-                                <p className="text-[10px] text-orange-600 uppercase tracking-wider">{item.label}</p>
-                                <p className="text-sm font-bold text-orange-900">{item.value || "—"}</p>
+                              <div key={item.label} className="bg-white/70 rounded px-2.5 py-1.5 border border-red-200">
+                                <p className="text-[10px] text-red-600 uppercase tracking-wider">{item.label}</p>
+                                <p className="text-sm font-bold text-red-900">{item.value || "—"}</p>
                               </div>
                             ))}
                           </div>
                           {assessment.zoning_lookup.community && (
-                            <p className="text-[11px] text-orange-600 mt-2">
+                            <p className="text-[11px] text-red-600 mt-2">
                               Community: <strong>{assessment.zoning_lookup.community}</strong> · Ward {assessment.zoning_lookup.ward}
                             </p>
                           )}
