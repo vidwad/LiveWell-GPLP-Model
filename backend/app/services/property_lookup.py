@@ -213,28 +213,44 @@ def _fetch_edmonton_assessment(address: str) -> Optional[dict]:
     """Fetch property assessment from City of Edmonton Open Data."""
     try:
         addr_upper = address.upper().strip()
-        params = {
-            "$where": f"street_name LIKE '%{addr_upper}%' OR suite LIKE '%{addr_upper}%'",
-            "$limit": 5,
-        }
-        resp = requests.get(EDMONTON_ASSESSMENT_URL, params=params, timeout=_TIMEOUT)
-        if resp.status_code != 200:
-            return None
+        # Parse house number and street from address like "10623 75 AV NW"
+        parts = addr_upper.split()
+        data = None
 
-        data = resp.json()
-        if not data:
-            # Try simpler search
-            parts = addr_upper.split()
-            if len(parts) >= 2:
-                house_num = parts[0]
-                street = " ".join(parts[1:])
+        if len(parts) >= 2:
+            house_num = parts[0]
+            street_rest = " ".join(parts[1:])
+            # Expand common abbreviations so LIKE matches Edmonton's full names
+            # "AV" → "AVE", "ST" → "ST" (already matches), "DR" → "DR", etc.
+            street_expanded = street_rest
+            for abbr, full in [("AV ", "AVE"), ("AV\t", "AVE"), (" AV", " AVENUE")]:
+                street_expanded = street_expanded.replace(abbr, full)
+            # Also try without directional suffix for broader match
+            street_core = street_rest
+            for suffix in (" NW", " NE", " SW", " SE"):
+                street_core = street_core.replace(suffix, "")
+
+            # Try exact house_number + street LIKE (most precise)
+            for street_query in [street_rest, street_expanded, street_core]:
                 params = {
-                    "$where": f"house_number='{house_num}' AND street_name LIKE '%{street}%'",
+                    "$where": f"house_number='{house_num}' AND street_name LIKE '%{street_query}%'",
                     "$limit": 5,
                 }
                 resp = requests.get(EDMONTON_ASSESSMENT_URL, params=params, timeout=_TIMEOUT)
                 if resp.status_code == 200:
                     data = resp.json()
+                    if data:
+                        break
+
+        # Fallback: full address search
+        if not data:
+            params = {
+                "$where": f"street_name LIKE '%{addr_upper}%'",
+                "$limit": 5,
+            }
+            resp = requests.get(EDMONTON_ASSESSMENT_URL, params=params, timeout=_TIMEOUT)
+            if resp.status_code == 200:
+                data = resp.json()
 
         if not data:
             return None
