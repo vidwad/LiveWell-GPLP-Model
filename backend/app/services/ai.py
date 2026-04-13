@@ -908,9 +908,9 @@ def research_property_area(
         for label, query in targeted_searches:
             try:
                 resp = client.responses.create(
-                    model="gpt-5.4",
+                    model="gpt-5.4-mini",
                     tools=[{"type": "web_search_preview"}],
-                    input=query,
+                    input=f"Search the web and provide detailed factual results for: {query}",
                 )
                 text = resp.output_text.strip()
                 if text:
@@ -1122,17 +1122,16 @@ Return ONLY valid JSON."""
     result = _call_claude_json(synthesis_prompt, max_tokens=4096)
 
     if not result or "summary" not in result:
-        # Fallback to OpenAI for synthesis
+        # Fallback to OpenAI for synthesis via Responses API
         if openai_key:
             try:
                 from openai import OpenAI as _OpenAI
                 client = _OpenAI(api_key=openai_key)
-                json_resp = client.chat.completions.create(
+                resp = client.responses.create(
                     model="gpt-5.4",
-                    messages=[{"role": "user", "content": synthesis_prompt}],
-                    max_completion_tokens=4096,
+                    input=synthesis_prompt,
                 )
-                text = json_resp.choices[0].message.content.strip()
+                text = (resp.output_text or "").strip()
                 text = re.sub(r"^```(?:json)?\s*", "", text)
                 text = re.sub(r"\s*```$", "", text)
                 text = text.strip()
