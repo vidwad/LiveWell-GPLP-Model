@@ -1108,6 +1108,13 @@ function PropertyAssignmentSection({ property, onUpdated }: { property: Record<s
       return Array.isArray(d) ? d : d.items ?? [];
     }),
   });
+  const { data: communities } = useQuery<any[]>({
+    queryKey: ["communities"],
+    queryFn: () => apiClient.get("/api/community/communities").then(r => {
+      const d = r.data;
+      return Array.isArray(d) ? d : d.items ?? [];
+    }),
+  });
 
   const saveMutation = useMutation({
     mutationFn: (payload: Record<string, any>) =>
@@ -1124,7 +1131,9 @@ function PropertyAssignmentSection({ property, onUpdated }: { property: Record<s
 
   const currentLpId = property.lp_id ? String(property.lp_id) : "";
   const currentStage = property.development_stage || "prospect";
+  const currentCommunityId = property.community_id ? String(property.community_id) : "";
   const currentLp = (lps || []).find((lp: any) => lp.lp_id === property.lp_id);
+  const currentCommunity = (communities || []).find((c: any) => c.community_id === property.community_id);
   const stageLabel = DEV_STAGES.find(s => s.value === currentStage)?.label || currentStage;
 
   return (
@@ -1144,48 +1153,72 @@ function PropertyAssignmentSection({ property, onUpdated }: { property: Record<s
       </div>
 
       {editing ? (
-        <div className="grid grid-cols-2 gap-3">
-          <div className="space-y-1">
-            <Label className="text-[11px] text-muted-foreground">LP Fund</Label>
-            <Select
-              value={currentLpId || "__none__"}
-              onValueChange={(v) => {
-                const lpId = v === "__none__" ? null : Number(v);
-                saveMutation.mutate({ lp_id: lpId });
-                setEditing(false);
-              }}
-            >
-              <SelectTrigger className="h-8 text-xs">
-                <SelectValue placeholder="Unassigned" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="__none__">— Unassigned —</SelectItem>
-                {(lps || []).map((lp: any) => (
-                  <SelectItem key={lp.lp_id} value={String(lp.lp_id)}>
-                    {lp.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+        <div className="space-y-3">
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1">
+              <Label className="text-[11px] text-muted-foreground">LP Fund</Label>
+              <Select
+                value={currentLpId || "__none__"}
+                onValueChange={(v) => {
+                  const lpId = v === "__none__" ? null : Number(v);
+                  saveMutation.mutate({ lp_id: lpId });
+                }}
+              >
+                <SelectTrigger className="h-8 text-xs">
+                  <SelectValue placeholder="Unassigned" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">— Unassigned —</SelectItem>
+                  {(lps || []).map((lp: any) => (
+                    <SelectItem key={lp.lp_id} value={String(lp.lp_id)}>
+                      {lp.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <Label className="text-[11px] text-muted-foreground">Community</Label>
+              <Select
+                value={currentCommunityId || "__none__"}
+                onValueChange={(v) => {
+                  const cId = v === "__none__" ? null : Number(v);
+                  saveMutation.mutate({ community_id: cId });
+                }}
+              >
+                <SelectTrigger className="h-8 text-xs">
+                  <SelectValue placeholder="Unassigned" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">— Unassigned —</SelectItem>
+                  {(communities || []).map((c: any) => (
+                    <SelectItem key={c.community_id} value={String(c.community_id)}>
+                      {c.name} ({c.community_type})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
-          <div className="space-y-1">
-            <Label className="text-[11px] text-muted-foreground">Development Stage</Label>
-            <Select
-              value={currentStage}
-              onValueChange={(v) => {
-                saveMutation.mutate({ development_stage: v });
-                setEditing(false);
-              }}
-            >
-              <SelectTrigger className="h-8 text-xs">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {DEV_STAGES.map((s) => (
-                  <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1">
+              <Label className="text-[11px] text-muted-foreground">Development Stage</Label>
+              <Select
+                value={currentStage}
+                onValueChange={(v) => {
+                  saveMutation.mutate({ development_stage: v });
+                }}
+              >
+                <SelectTrigger className="h-8 text-xs">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {DEV_STAGES.map((s) => (
+                    <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
         </div>
       ) : (
@@ -1193,6 +1226,10 @@ function PropertyAssignmentSection({ property, onUpdated }: { property: Record<s
           <div className="flex justify-between gap-4 py-1.5">
             <dt className="text-muted-foreground shrink-0">LP Fund</dt>
             <dd className="font-medium text-right">{currentLp?.name || <span className="text-muted-foreground italic">Unassigned</span>}</dd>
+          </div>
+          <div className="flex justify-between gap-4 py-1.5">
+            <dt className="text-muted-foreground shrink-0">Community</dt>
+            <dd className="font-medium text-right">{currentCommunity?.name || <span className="text-muted-foreground italic">Unassigned</span>}</dd>
           </div>
           <div className="flex justify-between gap-4 py-1.5">
             <dt className="text-muted-foreground shrink-0">Stage</dt>
