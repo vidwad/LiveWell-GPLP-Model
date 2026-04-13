@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { MapPin, DollarSign, Calendar, Building2, Landmark, TrendingUp, Pencil, Loader2, Sparkles, RefreshCw, AlertTriangle, Target, ChevronRight, CheckCircle2 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -354,6 +354,9 @@ export function OverviewTab({
             </CardTitle>
           </CardHeader>
           <CardContent>
+            {/* LP Fund & Stage Assignment */}
+            <PropertyAssignmentSection property={property} onUpdated={onPropertyUpdated} />
+
             <dl className="space-y-0 text-sm">
               <div className="flex justify-between gap-4 py-2.5 border-b border-dashed">
                 <dt className="text-muted-foreground shrink-0">Purchase Price</dt>
@@ -1081,6 +1084,96 @@ function renderMarkdownPro(md: string): string {
     .replace(/\n{2,}/g, '</p><p class="text-[13px] leading-snug text-muted-foreground mb-1">')
     // Single newlines
     .replace(/\n/g, "<br/>");
+}
+
+/* ── LP Fund & Stage Assignment (inline in Financial Snapshot) ── */
+
+const DEV_STAGES = [
+  { value: "prospect", label: "Prospect" },
+  { value: "acquisition", label: "Acquisition" },
+  { value: "pre_development", label: "Pre-Development" },
+  { value: "construction", label: "Construction" },
+  { value: "lease_up", label: "Lease-Up" },
+  { value: "stabilized", label: "Stabilized" },
+  { value: "disposition", label: "Disposition" },
+];
+
+function PropertyAssignmentSection({ property, onUpdated }: { property: Record<string, any>; onUpdated?: () => void }) {
+  const qc = useQueryClient();
+  const { data: lps } = useQuery<any[]>({
+    queryKey: ["lps"],
+    queryFn: () => apiClient.get("/api/investment/lps").then(r => {
+      const d = r.data;
+      return Array.isArray(d) ? d : d.items ?? [];
+    }),
+  });
+
+  const saveMutation = useMutation({
+    mutationFn: (payload: Record<string, any>) =>
+      apiClient.patch(`/api/portfolio/properties/${property.property_id}`, payload).then(r => r.data),
+    onSuccess: () => {
+      toast.success("Updated");
+      qc.invalidateQueries({ queryKey: ["property", property.property_id] });
+      onUpdated?.();
+    },
+    onError: (err: any) => {
+      toast.error(err?.response?.data?.detail || "Failed to update");
+    },
+  });
+
+  const currentLpId = property.lp_id ? String(property.lp_id) : "";
+  const currentStage = property.development_stage || "prospect";
+  const currentLp = (lps || []).find((lp: any) => lp.lp_id === property.lp_id);
+
+  return (
+    <div className="mb-4 pb-4 border-b">
+      <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2.5 flex items-center gap-1.5">
+        <Landmark className="h-3 w-3" /> Fund & Stage
+      </p>
+      <div className="grid grid-cols-2 gap-3">
+        <div className="space-y-1">
+          <Label className="text-[11px] text-muted-foreground">LP Fund</Label>
+          <Select
+            value={currentLpId || "__none__"}
+            onValueChange={(v) => {
+              const lpId = v === "__none__" ? null : Number(v);
+              saveMutation.mutate({ lp_id: lpId });
+            }}
+          >
+            <SelectTrigger className="h-8 text-xs">
+              <SelectValue placeholder="Unassigned" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="__none__">— Unassigned —</SelectItem>
+              {(lps || []).map((lp: any) => (
+                <SelectItem key={lp.lp_id} value={String(lp.lp_id)}>
+                  {lp.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="space-y-1">
+          <Label className="text-[11px] text-muted-foreground">Development Stage</Label>
+          <Select
+            value={currentStage}
+            onValueChange={(v) => {
+              saveMutation.mutate({ development_stage: v });
+            }}
+          >
+            <SelectTrigger className="h-8 text-xs">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {DEV_STAGES.map((s) => (
+                <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 function AIPropertyAssessment({ propertyId }: { propertyId: number }) {
