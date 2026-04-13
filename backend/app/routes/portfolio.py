@@ -1807,20 +1807,19 @@ def generate_property_assessment(
         f"Comment on the completeness of data available for this assessment.\n\n"
         f"Available Property Data:\n{data_summary}\n\n"
         f"Missing Data: {missing_summary}\n\n"
-        + (
-            f"Calgary Zoning / Rezoning Data (from City of Calgary ArcGIS):\n"
-            + (
-                "\n".join([f"- {k}: {v}" for k, v in zoning_lookup_result.items()])
-                if zoning_lookup_result
-                else "- Not applicable (property not in Calgary)\n"
-            )
-            + "\n\n"
-        )
-        +
         f"Provide specific, actionable insights. Use numbers where possible. "
         f"If data is insufficient for a section, explicitly state what additional "
         f"information would be needed."
     )
+
+    # Append zoning data to prompt
+    if zoning_lookup_result:
+        zoning_lines = "\n".join([f"- {k}: {v}" for k, v in zoning_lookup_result.items()])
+        prompt += f"\n\nCalgary Zoning / Rezoning Data (from City of Calgary ArcGIS):\n{zoning_lines}"
+    elif prop.city and prop.city.lower() == "calgary":
+        prompt += "\n\nCalgary Zoning / Rezoning Data: Not applicable — no record found in the Home Is Here dataset."
+    else:
+        prompt += "\n\nCalgary Zoning / Rezoning Data: Not applicable (property not in Calgary)."
 
     try:
         response = client.chat.completions.create(
@@ -1828,7 +1827,12 @@ def generate_property_assessment(
             messages=[{"role": "user", "content": prompt}],
             max_completion_tokens=3000,
         )
-        assessment = response.choices[0].message.content.strip()
+        content = response.choices[0].message.content
+        assessment = (content or "").strip()
+        if not assessment:
+            raise HTTPException(500, "AI returned empty assessment — try again or check the prompt")
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(500, f"AI assessment failed: {str(e)}")
 
