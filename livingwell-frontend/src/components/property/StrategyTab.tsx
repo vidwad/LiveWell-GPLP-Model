@@ -241,7 +241,7 @@ export function StrategyTab({ propertyId, canEdit, property }: StrategyTabProps)
             </p>
           </CardContent>
         </Card>
-      </div>
+      )}
 
       {/* ═══ STRATEGY TIMELINE (Gantt) ═══ */}
       <Card key={`timeline-${sortedPlans.map(p => `${p.plan_id}-${p.development_start_date}-${p.construction_duration_days}`).join("-")}-exit-${targetExitYear}`}>
