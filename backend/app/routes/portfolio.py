@@ -132,6 +132,42 @@ def list_properties(
     return pg.paginate(query, transform=_property_to_out)
 
 
+def _ensure_as_is_plan(db: Session, prop: Property):
+    """Auto-create an 'As-Is' baseline development plan if one doesn't exist.
+    Uses the property's current bedrooms/sqft as defaults."""
+    existing = (
+        db.query(DevelopmentPlan)
+        .filter(DevelopmentPlan.property_id == prop.property_id, DevelopmentPlan.plan_name == "As-Is")
+        .first()
+    )
+    if existing:
+        return existing
+
+    plan = DevelopmentPlan(
+        property_id=prop.property_id,
+        version=0,
+        plan_name="As-Is",
+        description="Current property configuration — baseline state before any renovation or development.",
+        status="active",
+        planned_units=1,
+        planned_beds=prop.bedrooms or 1,
+        planned_sqft=float(prop.building_sqft) if prop.building_sqft else 0,
+        estimated_construction_cost=0,
+        hard_costs=0,
+        soft_costs=0,
+        site_costs=0,
+        financing_costs=0,
+        occupancy_during_construction=True,
+    )
+    db.add(plan)
+    try:
+        db.commit()
+        db.refresh(plan)
+    except Exception:
+        db.rollback()
+    return plan
+
+
 @router.post("/properties", response_model=PropertyOut, status_code=status.HTTP_201_CREATED)
 def create_property(
     payload: PropertyCreate,
@@ -160,6 +196,10 @@ def create_property(
     except Exception as e:
         db.rollback()
         raise HTTPException(status_code=500, detail=f"Failed to create property: {type(e).__name__}: {e}")
+
+    # Auto-create "As-Is" baseline development plan
+    _ensure_as_is_plan(db, prop)
+
     return _property_to_out(prop)
 
 
@@ -177,6 +217,8 @@ def get_property(
         from app.core.deps import check_entity_access
         if not check_entity_access(current_user, db, ScopeEntityType.lp, prop.lp_id):
             raise HTTPException(status_code=403, detail="Access denied")
+    # Ensure As-Is plan exists (backfill for existing properties)
+    _ensure_as_is_plan(db, prop)
     return _property_to_out(prop)
 
 
