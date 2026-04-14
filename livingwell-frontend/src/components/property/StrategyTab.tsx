@@ -54,6 +54,12 @@ export function StrategyTab({ propertyId, canEdit, property }: StrategyTabProps)
   });
 
   const sortedPlans = [...(plans ?? [])].sort((a: DevelopmentPlan, b: DevelopmentPlan) => {
+    // As-Is (version=0) always first
+    const aIsAsIs = (a as any).plan_name === "As-Is" && (a as any).version === 0;
+    const bIsAsIs = (b as any).plan_name === "As-Is" && (b as any).version === 0;
+    if (aIsAsIs && !bIsAsIs) return -1;
+    if (!aIsAsIs && bIsAsIs) return 1;
+    // Then sort by start date ascending
     const da = a.development_start_date || "9999";
     const db2 = b.development_start_date || "9999";
     return da < db2 ? -1 : da > db2 ? 1 : 0;
