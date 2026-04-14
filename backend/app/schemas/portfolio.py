@@ -283,6 +283,8 @@ class DevelopmentPlanCreate(BaseModel):
     estimated_stabilization_date: datetime.date | None = None
     rent_pricing_mode: str | None = None
     annual_rent_increase_pct: Decimal | None = None
+    is_demolition: bool = False
+    demolition_cost: Decimal | None = None
 
 
 class DevelopmentPlanUpdate(BaseModel):
@@ -314,6 +316,8 @@ class DevelopmentPlanUpdate(BaseModel):
     construction_duration_months: int | None = None
     occupancy_during_construction: bool | None = None
     during_construction_revenue_pct: float | None = None
+    is_demolition: bool | None = None
+    demolition_cost: Decimal | None = None
 
 
 class DevelopmentPlanOut(BaseModel):
@@ -357,6 +361,8 @@ class DevelopmentPlanOut(BaseModel):
     construction_duration_months: int | None = None
     occupancy_during_construction: bool | None = None
     during_construction_revenue_pct: float | None = None
+    is_demolition: bool | None = False
+    demolition_cost: Decimal | None = None
 
     model_config = {"from_attributes": True}
 

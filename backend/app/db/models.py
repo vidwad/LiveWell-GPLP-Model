@@ -1488,6 +1488,10 @@ class DevelopmentPlan(Base):
     during_construction_revenue_pct = Column(Numeric(5, 2), nullable=True)  # % of pre-plan EGI captured during construction (e.g. 60 = 60% — partial occupancy due to units offline)
     construction_duration_months = Column(Integer, nullable=True)  # alternative to days
 
+    # ── Demolition / bare land flag ──
+    is_demolition = Column(Boolean, nullable=False, default=False)  # True = structure to be demolished, no occupancy/revenue
+    demolition_cost = Column(Numeric(16, 2), nullable=True)  # estimated demolition + site clearing cost
+
     property = relationship("Property", back_populates="development_plans")
     planned_units_rel = relationship("Unit", back_populates="development_plan", cascade="all, delete-orphan")
     planned_debt_rel = relationship("DebtFacility", back_populates="development_plan", cascade="all, delete-orphan")

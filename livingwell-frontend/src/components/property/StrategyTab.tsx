@@ -767,6 +767,8 @@ function PlanCard({
         annual_rent_increase_pct: plan.annual_rent_increase_pct != null ? Number(plan.annual_rent_increase_pct) : 3,
         occupancy_during_construction: (plan as any).occupancy_during_construction !== false,
         during_construction_revenue_pct: (plan as any).during_construction_revenue_pct ?? "",
+        is_demolition: (plan as any).is_demolition || false,
+        demolition_cost: Number((plan as any).demolition_cost) || 0,
       });
       setDirty(false);
       setUnitsLoaded(false);
@@ -845,6 +847,48 @@ function PlanCard({
                     placeholder="Describe what this plan involves — e.g., full kitchen renovation with new cabinets, countertops, appliances, and flooring..."
                   />
                 </div>
+                {/* Demolition / Bare Land flag — primarily for As-Is plans */}
+                {(plan.plan_name === "As-Is" || form.is_demolition) && (
+                  <div className="col-span-2 rounded-lg border bg-amber-50/50 border-amber-200 p-3 space-y-2">
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={!!form.is_demolition}
+                        onChange={e => {
+                          sf("is_demolition", e.target.checked);
+                          if (e.target.checked) {
+                            sf("planned_beds", 0);
+                            sf("planned_units", 0);
+                            sf("occupancy_during_construction", false);
+                            sf("projected_annual_revenue", 0);
+                            sf("projected_annual_noi", 0);
+                          }
+                        }}
+                        className="rounded accent-amber-600"
+                      />
+                      <span className="text-xs font-semibold text-amber-900">Demolition / Bare Land</span>
+                    </label>
+                    <p className="text-[10px] text-amber-700 leading-relaxed pl-6">
+                      {form.is_demolition
+                        ? "Structure will be demolished. Bedrooms, occupancy, and revenue are set to zero. Demolition costs can be budgeted below."
+                        : "Check this if the existing structure will be demolished. This eliminates all occupancy and revenue from this plan."
+                      }
+                    </p>
+                    {form.is_demolition && (
+                      <div className="pl-6 space-y-1">
+                        <Label className="text-[10px]">Estimated Demolition Cost ($)</Label>
+                        <Input
+                          type="number"
+                          value={form.demolition_cost || ""}
+                          onChange={e => sf("demolition_cost", Number(e.target.value))}
+                          placeholder="e.g. 25000"
+                          className="h-7 text-xs w-40"
+                        />
+                        <p className="text-[9px] text-amber-600">Include site clearing, environmental, and disposal costs. Leave blank or 0 if included in a separate development plan.</p>
+                      </div>
+                    )}
+                  </div>
+                )}
                 <div className="space-y-1"><Label className="text-xs">Start Date</Label><input type="date" value={form.development_start_date || ""} onChange={e => sf("development_start_date", e.target.value)} className="h-8 text-sm w-full rounded-md border px-3" /></div>
                 <div className="space-y-1"><Label className="text-xs">Duration (days)</Label><Input type="number" value={form.construction_duration_days || ""} onChange={e => sf("construction_duration_days", e.target.value)} className="h-8 text-sm" /></div>
                 <div className="space-y-1"><Label className="text-xs">Lease-Up (months)</Label><Input type="number" value={form.lease_up_months != null ? form.lease_up_months : ""} onChange={e => sf("lease_up_months", e.target.value)} className="h-8 text-sm" /><p className="text-[9px] text-muted-foreground">0 = beds occupied immediately after completion</p></div>
