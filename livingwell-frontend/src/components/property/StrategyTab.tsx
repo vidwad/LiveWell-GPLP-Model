@@ -6,8 +6,9 @@ import { apiClient } from "@/lib/api";
 import { toast } from "sonner";
 import {
   Plus, ChevronDown, ChevronRight, Layers, Calendar,
-  DollarSign, Trash2, GripHorizontal, Save, Target, ExternalLink,
+  DollarSign, Trash2, GripHorizontal, Save, Target, ExternalLink, Import,
 } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -102,6 +103,44 @@ export function StrategyTab({ propertyId, canEdit, property }: StrategyTabProps)
     } catch { toast.error("Failed to delete"); }
   };
 
+  // Import plan from another property
+  const [showImport, setShowImport] = useState(false);
+  const [importSourceProp, setImportSourceProp] = useState("");
+  const [importSourcePlan, setImportSourcePlan] = useState("");
+  const [importing, setImporting] = useState(false);
+
+  const { data: allProperties } = useQuery<any[]>({
+    queryKey: ["properties-for-import"],
+    queryFn: () => apiClient.get("/api/portfolio/properties?limit=500").then(r => {
+      const d = r.data;
+      return (Array.isArray(d) ? d : d.items ?? []).filter((p: any) => p.property_id !== propertyId);
+    }),
+    enabled: showImport,
+  });
+
+  const { data: sourcePlans } = useQuery<any[]>({
+    queryKey: ["plans-for-import", importSourceProp],
+    queryFn: () => apiClient.get(`/api/portfolio/properties/${importSourceProp}/plans`).then(r => r.data),
+    enabled: !!importSourceProp,
+  });
+
+  const handleImportPlan = async () => {
+    if (!importSourcePlan) return;
+    setImporting(true);
+    try {
+      await apiClient.post(`/api/portfolio/properties/${propertyId}/plans/import/${importSourcePlan}`);
+      toast.success("Development plan imported successfully");
+      qc.invalidateQueries({ queryKey: ["development-plans", propertyId] });
+      setShowImport(false);
+      setImportSourceProp("");
+      setImportSourcePlan("");
+    } catch (err: any) {
+      toast.error(err?.response?.data?.detail || "Failed to import plan");
+    } finally {
+      setImporting(false);
+    }
+  };
+
   // Years for grid
   const startYear = timelineStart.getFullYear();
   const endYear = timelineEnd.getFullYear();
@@ -118,10 +157,90 @@ export function StrategyTab({ propertyId, canEdit, property }: StrategyTabProps)
           <p className="text-sm text-muted-foreground">Development timeline and plan details for this property.</p>
         </div>
         {canEdit && (
-          <Button onClick={handleAddPlan} disabled={creating} size="sm">
-            <Plus className="h-4 w-4 mr-1.5" />{creating ? "Adding..." : "Add Plan"}
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button onClick={() => setShowImport(!showImport)} variant="outline" size="sm">
+              <Import className="h-4 w-4 mr-1.5" />Import Plan
+            </Button>
+            <Button onClick={handleAddPlan} disabled={creating} size="sm">
+              <Plus className="h-4 w-4 mr-1.5" />{creating ? "Adding..." : "Add Plan"}
+            </Button>
+          </div>
         )}
+      </div>
+
+      {/* Import Plan Panel */}
+      {showImport && (
+        <Card className="border-blue-200 bg-blue-50/30">
+          <CardContent className="p-4">
+            <p className="text-sm font-semibold mb-3 flex items-center gap-2">
+              <Import className="h-4 w-4 text-blue-600" />
+              Import Development Plan from Another Property
+            </p>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div className="space-y-1">
+                <Label className="text-xs text-muted-foreground">Source Property</Label>
+                <Select
+                  value={importSourceProp}
+                  onValueChange={(v) => { setImportSourceProp(v); setImportSourcePlan(""); }}
+                >
+                  <SelectTrigger className="h-9 text-xs">
+                    <SelectValue placeholder="Select property..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {(allProperties || []).map((p: any) => (
+                      <SelectItem key={p.property_id} value={String(p.property_id)}>
+                        {p.address}, {p.city}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs text-muted-foreground">Development Plan</Label>
+                <Select
+                  value={importSourcePlan}
+                  onValueChange={setImportSourcePlan}
+                  disabled={!importSourceProp}
+                >
+                  <SelectTrigger className="h-9 text-xs">
+                    <SelectValue placeholder={importSourceProp ? "Select plan..." : "Select property first"} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {(sourcePlans || []).map((p: any) => (
+                      <SelectItem key={p.plan_id} value={String(p.plan_id)}>
+                        {p.plan_name || `Plan #${p.plan_id}`} — {p.planned_units} units, {p.planned_beds} beds
+                      </SelectItem>
+                    ))}
+                    {sourcePlans && sourcePlans.length === 0 && (
+                      <SelectItem value="__none__" disabled>No plans on this property</SelectItem>
+                    )}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="flex items-end gap-2">
+                <Button
+                  size="sm"
+                  onClick={handleImportPlan}
+                  disabled={!importSourcePlan || importing}
+                  className="h-9"
+                >
+                  {importing ? "Importing..." : "Import"}
+                </Button>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => { setShowImport(false); setImportSourceProp(""); setImportSourcePlan(""); }}
+                  className="h-9"
+                >
+                  Cancel
+                </Button>
+              </div>
+            </div>
+            <p className="text-[11px] text-muted-foreground mt-2">
+              Copies the plan, unit configurations, beds, revenue streams, and operating expenses. The imported plan will be set to Draft status.
+            </p>
+          </CardContent>
+        </Card>
       </div>
 
       {/* ═══ STRATEGY TIMELINE (Gantt) ═══ */}

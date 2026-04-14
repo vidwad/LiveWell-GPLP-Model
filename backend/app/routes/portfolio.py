@@ -329,6 +329,75 @@ def create_plan(
     return plan
 
 
+@router.post("/properties/{property_id}/plans/import/{source_plan_id}", response_model=DevelopmentPlanOut)
+def import_plan_from_property(
+    property_id: int,
+    source_plan_id: int,
+    db: Session = Depends(get_db),
+    _: User = Depends(require_gp_ops_pm),
+):
+    """Clone a development plan from another property into this one.
+    Copies all plan fields except property_id, plan_id, and status (set to draft).
+    Also copies associated units, beds, ancillary streams, and opex line items."""
+    prop = db.query(Property).filter(Property.property_id == property_id).first()
+    if not prop:
+        raise HTTPException(404, "Target property not found")
+
+    source = db.query(DevelopmentPlan).filter(DevelopmentPlan.plan_id == source_plan_id).first()
+    if not source:
+        raise HTTPException(404, "Source plan not found")
+
+    # Clone plan fields
+    skip = {"plan_id", "property_id", "status"}
+    plan_data = {c.name: getattr(source, c.name) for c in source.__table__.columns if c.name not in skip}
+    plan_data["property_id"] = property_id
+    plan_data["status"] = "draft"
+    plan_data["plan_name"] = f"{source.plan_name or 'Plan'} (imported)"
+
+    new_plan = DevelopmentPlan(**plan_data)
+    db.add(new_plan)
+    db.flush()
+
+    # Clone units + beds linked to this plan
+    from app.db.models import Unit, Bed, AncillaryRevenueStream, OperatingExpenseLineItem
+    source_units = db.query(Unit).filter(Unit.development_plan_id == source.plan_id).all()
+    for su in source_units:
+        unit_data = {c.name: getattr(su, c.name) for c in su.__table__.columns if c.name not in {"unit_id", "property_id", "development_plan_id"}}
+        unit_data["property_id"] = property_id
+        unit_data["development_plan_id"] = new_plan.plan_id
+        new_unit = Unit(**unit_data)
+        db.add(new_unit)
+        db.flush()
+        # Clone beds
+        for sb in db.query(Bed).filter(Bed.unit_id == su.unit_id).all():
+            bed_data = {c.name: getattr(sb, c.name) for c in sb.__table__.columns if c.name not in {"bed_id", "unit_id"}}
+            bed_data["unit_id"] = new_unit.unit_id
+            db.add(Bed(**bed_data))
+
+    # Clone ancillary revenue streams
+    for stream in db.query(AncillaryRevenueStream).filter(AncillaryRevenueStream.development_plan_id == source.plan_id).all():
+        s_data = {c.name: getattr(stream, c.name) for c in stream.__table__.columns if c.name not in {"stream_id", "property_id", "development_plan_id"}}
+        s_data["property_id"] = property_id
+        s_data["development_plan_id"] = new_plan.plan_id
+        db.add(AncillaryRevenueStream(**s_data))
+
+    # Clone operating expense line items
+    for opex in db.query(OperatingExpenseLineItem).filter(OperatingExpenseLineItem.development_plan_id == source.plan_id).all():
+        o_data = {c.name: getattr(opex, c.name) for c in opex.__table__.columns if c.name not in {"expense_item_id", "property_id", "development_plan_id"}}
+        o_data["property_id"] = property_id
+        o_data["development_plan_id"] = new_plan.plan_id
+        db.add(OperatingExpenseLineItem(**o_data))
+
+    try:
+        db.commit()
+        db.refresh(new_plan)
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(400, f"Failed to import plan: {type(e).__name__}: {e}")
+
+    return new_plan
+
+
 @router.delete("/plans/{plan_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_plan(
     plan_id: int,
