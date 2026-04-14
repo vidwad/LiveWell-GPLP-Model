@@ -818,7 +818,7 @@ function PlanCard({
         </div>
         <div className="flex items-center gap-3">
           <span className="text-sm font-bold tabular-nums">{fmt(totalCost)}</span>
-          {canEdit && (
+          {canEdit && !(plan.plan_name === "As-Is" && plan.version === 0) && (
             <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-red-500" onClick={e => { e.stopPropagation(); onDelete(); }}>
               <Trash2 className="h-3.5 w-3.5" />
             </Button>

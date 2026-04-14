@@ -391,17 +391,18 @@ export default function PropertyDetailPage({ params }: { params: { id: string } 
           { key: "as_is", label: "As-Is", icon: Eye },
         ];
 
-        // Add a tab for each plan
-        sortedPlans.forEach((plan, i) => {
-          const isLargeDev = plan.planned_units >= 3;
-          // Use plan_id as the phase key so each plan has a unique tab
-          phases.push({
-            key: `plan_${plan.plan_id}`,
-            label: plan.plan_name || `Plan ${i + 1}`,
-            icon: isLargeDev ? HardHat : Wrench,
-            planId: plan.plan_id,
+        // Add a tab for each plan (skip the auto-created As-Is plan — it's the hardcoded tab above)
+        sortedPlans
+          .filter((plan) => plan.plan_name !== "As-Is" || plan.version !== 0)
+          .forEach((plan, i) => {
+            const isLargeDev = plan.planned_units >= 3;
+            phases.push({
+              key: `plan_${plan.plan_id}`,
+              label: plan.plan_name || `Plan ${i + 1}`,
+              icon: isLargeDev ? HardHat : Wrench,
+              planId: plan.plan_id,
+            });
           });
-        });
 
         return (
           <div className="flex items-center gap-1 p-1 bg-muted/50 rounded-lg w-fit">
