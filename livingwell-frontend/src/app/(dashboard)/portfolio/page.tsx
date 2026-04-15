@@ -4,6 +4,7 @@ import Link from "next/link";
 import {
   Plus, Building2, Search, X, SlidersHorizontal, LayoutGrid, List, MapPin,
   ArrowUpDown, DollarSign, TrendingUp, Home, BedDouble, ChevronDown, ChevronUp,
+  Layers,
 } from "lucide-react";
 import { AddPropertyWizard } from "@/components/property/AddPropertyWizard";
 import { useProperties } from "@/hooks/usePortfolio";
@@ -23,7 +24,7 @@ import {
 } from "@/components/ui/select";
 import { formatCurrency, formatCurrencyCompact, formatDate } from "@/lib/utils";
 import { DevelopmentStage, Property } from "@/types/portfolio";
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, Fragment } from "react";
 
 /* ── stage config ─────────────────────────────────────────────── */
 const STAGE_COLORS: Record<DevelopmentStage, string> = {
@@ -114,6 +115,9 @@ export default function PortfolioPage() {
   const [sortKey, setSortKey] = useState<SortKey>("address");
   const [sortDir, setSortDir] = useState<SortDir>("asc");
 
+  /* group state */
+  const [groupByLp, setGroupByLp] = useState<boolean>(true);
+
   /* derive unique option lists from data */
   const lpOptions = useMemo(
     () => uniqueSorted(properties?.map((p) => p.lp_name)).map((name) => ({ label: name, value: name })),
@@ -162,6 +166,29 @@ export default function PortfolioPage() {
     return result;
   }, [properties, search, lpFilter, communityFilter, cityFilter, stageFilter, sortKey, sortDir]);
 
+  /* group filtered results by LP (with "Unassigned" bucket) */
+  const groupedByLp = useMemo(() => {
+    const groups = new Map<string, Property[]>();
+    const UNASSIGNED = "__unassigned__";
+    filtered.forEach((p) => {
+      const key = p.lp_name?.trim() ? p.lp_name : UNASSIGNED;
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key)!.push(p);
+    });
+    // Sort: named LPs alphabetically, Unassigned last
+    return Array.from(groups.entries())
+      .sort(([a], [b]) => {
+        if (a === UNASSIGNED) return 1;
+        if (b === UNASSIGNED) return -1;
+        return a.localeCompare(b);
+      })
+      .map(([key, items]) => ({
+        key,
+        label: key === UNASSIGNED ? "Unassigned" : key,
+        items,
+      }));
+  }, [filtered]);
+
   const activeFilterCount = [lpFilter, communityFilter, cityFilter, stageFilter].filter(
     (v) => v !== "all",
   ).length + (search ? 1 : 0);
@@ -172,6 +199,13 @@ export default function PortfolioPage() {
     setCommunityFilter("all");
     setCityFilter("all");
     setStageFilter("all");
+  };
+
+  /* per-group subtotals for header display */
+  const groupSubtotal = (items: Property[]) => {
+    const mv = items.reduce((s, p) => s + num(p.current_market_value), 0);
+    const noi = items.reduce((s, p) => s + computeNOI(p), 0);
+    return { mv, noi };
   };
 
   const toggleSort = useCallback((key: SortKey) => {
@@ -460,6 +494,21 @@ export default function PortfolioPage() {
               {sortDir === "asc" ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
             </button>
 
+            {/* Separator */}
+            <div className="h-6 w-px bg-border" />
+
+            {/* Group by LP toggle */}
+            <button
+              onClick={() => setGroupByLp((g) => !g)}
+              className={`flex items-center gap-1.5 px-3 h-9 rounded-md border text-sm hover:bg-muted ${
+                groupByLp ? "bg-muted border-foreground/20" : ""
+              }`}
+              title="Group properties by LP fund"
+            >
+              <Layers className="h-4 w-4" />
+              <span>Group by LP</span>
+            </button>
+
             {/* clear button */}
             {activeFilterCount > 0 && (
               <Button variant="ghost" size="sm" onClick={clearFilters} className="h-9 text-sm">
@@ -516,8 +565,8 @@ export default function PortfolioPage() {
         </div>
       ) : viewMode === "grid" ? (
         /* ── ENHANCED GRID VIEW ────────────────────────────── */
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {filtered.map((p) => {
+        (() => {
+          const renderCard = (p: Property) => {
             const noi = computeNOI(p);
             const capRate = computeCapRate(p);
             const mv = num(p.current_market_value);
@@ -620,8 +669,45 @@ export default function PortfolioPage() {
                 </Card>
               </Link>
             );
-          })}
-        </div>
+          };
+
+          if (groupByLp) {
+            return (
+              <div className="space-y-6">
+                {groupedByLp.map((g) => {
+                  const sub = groupSubtotal(g.items);
+                  return (
+                    <div key={g.key}>
+                      <div className="mb-3 flex items-baseline justify-between border-b pb-2">
+                        <div className="flex items-baseline gap-2">
+                          <Layers className="h-4 w-4 text-muted-foreground self-center" />
+                          <h3 className="text-base font-semibold">{g.label}</h3>
+                          <span className="text-xs text-muted-foreground">
+                            {g.items.length} {g.items.length === 1 ? "property" : "properties"}
+                          </span>
+                        </div>
+                        <div className="text-xs text-muted-foreground">
+                          MV: <span className="font-medium text-foreground">{sub.mv > 0 ? formatCurrencyCompact(sub.mv) : "—"}</span>
+                          <span className="mx-2">·</span>
+                          NOI: <span className="font-medium text-foreground">{sub.noi > 0 ? formatCurrencyCompact(sub.noi) : "—"}</span>
+                        </div>
+                      </div>
+                      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                        {g.items.map(renderCard)}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            );
+          }
+
+          return (
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {filtered.map(renderCard)}
+            </div>
+          );
+        })()
       ) : viewMode === "list" ? (
         /* ── ENHANCED LIST / TABLE VIEW ────────────────────── */
         <Card>
@@ -655,43 +741,75 @@ export default function PortfolioPage() {
                 </tr>
               </thead>
               <tbody>
-                {filtered.map((p) => {
-                  const noi = computeNOI(p);
-                  const capRate = computeCapRate(p);
-                  return (
-                    <tr
-                      key={p.property_id}
-                      className="border-b last:border-0 hover:bg-muted/30 cursor-pointer"
-                      onClick={() => { window.location.href = `/portfolio/${p.property_id}`; }}
-                    >
-                      <td className="px-4 py-3 font-medium">{p.address}</td>
-                      <td className="px-4 py-3 text-muted-foreground">{p.city}, {p.province}</td>
-                      <td className="px-4 py-3">
-                        <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${STAGE_COLORS[p.development_stage]}`}>
-                          {STAGE_LABELS[p.development_stage] ?? p.development_stage}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3 text-muted-foreground">{p.property_type ?? "—"}</td>
-                      <td className="px-4 py-3 text-muted-foreground truncate max-w-[120px]">{p.lp_name ?? "—"}</td>
-                      <td className="px-4 py-3 text-right font-medium">
-                        {num(p.purchase_price) > 0 ? formatCurrencyCompact(p.purchase_price!) : "—"}
-                      </td>
-                      <td className="px-4 py-3 text-right font-medium text-blue-600">
-                        {num(p.current_market_value) > 0 ? formatCurrencyCompact(p.current_market_value!) : "—"}
-                      </td>
-                      <td className="px-4 py-3 text-right font-medium">
-                        <span className={noi > 0 ? "text-green-600" : ""}>{noi > 0 ? formatCurrencyCompact(noi) : "—"}</span>
-                      </td>
-                      <td className="px-4 py-3 text-right">
-                        {capRate != null ? `${(capRate * 100).toFixed(2)}%` : "—"}
-                      </td>
-                      <td className="px-4 py-3">
-                        {p.zoning ? <Badge variant="outline">{p.zoning}</Badge> : "—"}
-                      </td>
-                      <td className="px-4 py-3 text-center">{p.bedrooms ?? "—"}</td>
-                    </tr>
-                  );
-                })}
+                {(() => {
+                  const renderRow = (p: Property) => {
+                    const noi = computeNOI(p);
+                    const capRate = computeCapRate(p);
+                    return (
+                      <tr
+                        key={p.property_id}
+                        className="border-b last:border-0 hover:bg-muted/30 cursor-pointer"
+                        onClick={() => { window.location.href = `/portfolio/${p.property_id}`; }}
+                      >
+                        <td className="px-4 py-3 font-medium">{p.address}</td>
+                        <td className="px-4 py-3 text-muted-foreground">{p.city}, {p.province}</td>
+                        <td className="px-4 py-3">
+                          <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${STAGE_COLORS[p.development_stage]}`}>
+                            {STAGE_LABELS[p.development_stage] ?? p.development_stage}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-muted-foreground">{p.property_type ?? "—"}</td>
+                        <td className="px-4 py-3 text-muted-foreground truncate max-w-[120px]">{p.lp_name ?? "—"}</td>
+                        <td className="px-4 py-3 text-right font-medium">
+                          {num(p.purchase_price) > 0 ? formatCurrencyCompact(p.purchase_price!) : "—"}
+                        </td>
+                        <td className="px-4 py-3 text-right font-medium text-blue-600">
+                          {num(p.current_market_value) > 0 ? formatCurrencyCompact(p.current_market_value!) : "—"}
+                        </td>
+                        <td className="px-4 py-3 text-right font-medium">
+                          <span className={noi > 0 ? "text-green-600" : ""}>{noi > 0 ? formatCurrencyCompact(noi) : "—"}</span>
+                        </td>
+                        <td className="px-4 py-3 text-right">
+                          {capRate != null ? `${(capRate * 100).toFixed(2)}%` : "—"}
+                        </td>
+                        <td className="px-4 py-3">
+                          {p.zoning ? <Badge variant="outline">{p.zoning}</Badge> : "—"}
+                        </td>
+                        <td className="px-4 py-3 text-center">{p.bedrooms ?? "—"}</td>
+                      </tr>
+                    );
+                  };
+
+                  if (groupByLp) {
+                    return groupedByLp.map((g) => {
+                      const sub = groupSubtotal(g.items);
+                      return (
+                        <Fragment key={g.key}>
+                          <tr className="bg-muted/40 border-b">
+                            <td colSpan={11} className="px-4 py-2">
+                              <div className="flex items-baseline justify-between">
+                                <div className="flex items-baseline gap-2">
+                                  <span className="text-sm font-semibold">{g.label}</span>
+                                  <span className="text-xs text-muted-foreground">
+                                    {g.items.length} {g.items.length === 1 ? "property" : "properties"}
+                                  </span>
+                                </div>
+                                <div className="text-xs text-muted-foreground">
+                                  MV: <span className="font-medium text-foreground">{sub.mv > 0 ? formatCurrencyCompact(sub.mv) : "—"}</span>
+                                  <span className="mx-2">·</span>
+                                  NOI: <span className="font-medium text-foreground">{sub.noi > 0 ? formatCurrencyCompact(sub.noi) : "—"}</span>
+                                </div>
+                              </div>
+                            </td>
+                          </tr>
+                          {g.items.map(renderRow)}
+                        </Fragment>
+                      );
+                    });
+                  }
+
+                  return filtered.map(renderRow);
+                })()}
               </tbody>
             </table>
           </div>
