@@ -38,6 +38,7 @@ export interface Property {
   current_market_value: string | null;
   lot_size: string | null;
   zoning: string | null;
+  rezoning_status: string | null;
   max_buildable_area: string | null;
   floor_area_ratio: string | null;
   development_stage: DevelopmentStage;

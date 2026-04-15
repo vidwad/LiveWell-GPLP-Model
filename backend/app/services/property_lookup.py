@@ -39,6 +39,7 @@ def _empty_result(address: str, city: str) -> dict:
         "current_market_value": None,
         "lot_size": None,
         "zoning": None,
+        "rezoning_status": None,
         "max_buildable_area": None,
         "floor_area_ratio": None,
         "year_built": None,
@@ -222,6 +223,47 @@ def _fetch_calgary_assessment(address: str) -> Optional[dict]:
         }
     except Exception as e:
         logger.warning("Calgary assessment lookup failed: %s", e)
+        return None
+
+
+CALGARY_REZONING_LAYER = (
+    "https://services1.arcgis.com/AVP60cs0Q9PEA8rH/arcgis/rest/services/"
+    "Home_Is_Here_Repeal_Parcels/FeatureServer/0/query"
+)
+
+
+def _fetch_calgary_rezoning_status(address: str) -> Optional[dict]:
+    """Look up Calgary's Citywide Rezoning for Housing status for a parcel.
+
+    Returns one of:
+      {"rezoning_status": "Rezoning", ...}     # parcel is proposed to be rezoned
+      {"rezoning_status": "Not Rezoning", ...} # parcel was not part of the citywide change
+      None — parcel not found in dataset
+    """
+    try:
+        addr_norm = _normalize_alberta_address(address)
+        # ADDRESS field uses exact match in this layer
+        params = {
+            "where": f"ADDRESS='{addr_norm}'",
+            "outFields": "ADDRESS,REZONING_STATUS,COMMUNITY",
+            "returnGeometry": "false",
+            "f": "json",
+        }
+        resp = requests.get(CALGARY_REZONING_LAYER, params=params, timeout=_TIMEOUT)
+        if resp.status_code != 200:
+            logger.warning("Calgary rezoning layer returned %d", resp.status_code)
+            return None
+        feats = resp.json().get("features", [])
+        if not feats:
+            return None
+        attrs = feats[0].get("attributes", {})
+        return {
+            "rezoning_status": attrs.get("REZONING_STATUS"),
+            "_source": "calgary_rezoning",
+            "_raw": attrs,
+        }
+    except Exception as e:
+        logger.warning("Calgary rezoning lookup failed: %s", e)
         return None
 
 
@@ -822,6 +864,12 @@ def lookup_property(
             result["raw_sources"]["calgary_assessment"] = assessment.get("_raw", {})
             _merge_data(result, assessment)
             result["sources_used"].append("City of Calgary Assessment")
+
+        rezoning = _fetch_calgary_rezoning_status(address)
+        if rezoning:
+            result["raw_sources"]["calgary_rezoning"] = rezoning.get("_raw", {})
+            _merge_data(result, rezoning)
+            result["sources_used"].append("Calgary Citywide Rezoning")
 
         landuse = _fetch_calgary_landuse(address)
         if landuse:

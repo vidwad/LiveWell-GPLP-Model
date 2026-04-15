@@ -367,6 +367,7 @@ def create_property_wizard(
         # Map of lookup field → Property attribute, gated to backfill (don't overwrite user input)
         backfill_fields = [
             "assessed_value", "current_market_value", "lot_size", "zoning",
+            "rezoning_status",
             "max_buildable_area", "floor_area_ratio", "year_built", "property_type",
             "property_style", "building_sqft", "garage", "neighbourhood", "ward",
             "legal_description", "latitude", "longitude", "roll_number",

@@ -96,24 +96,26 @@ function computeCapRate(p: Property): number | null {
   return noi / mv;
 }
 
-/* Calgary rezoned most residential parcels to R-CG / R-G in Aug 2024.
-   Highlight whether a property's stored zoning reflects that change. */
+/* Authoritative Calgary Citywide Rezoning for Housing status, sourced from
+   the City's Home_Is_Here_Repeal_Parcels feature service via lookup_property.
+   "Rezoning"     → parcel is proposed to be rezoned     (orange)
+   "Not Rezoning" → parcel was not part of the citywide change (green) */
 function calgaryZoningBadge(p: Property): { className: string; title: string } | null {
-  if (!p.zoning) return null;
-  const city = (p.city ?? "").toLowerCase();
-  if (!city.includes("calgary")) return null;
-  const z = p.zoning.toUpperCase().trim();
-  const aligned = /^R-?CG(\b|$)/.test(z) || /^R-?G(\b|$)/.test(z);
-  if (aligned) {
+  const status = p.rezoning_status?.trim();
+  if (!status) return null;
+  if (status === "Rezoning") {
     return {
-      className: "bg-green-100 text-green-800 border-green-300",
-      title: "Aligned with Calgary's Aug 2024 citywide R-CG rezoning",
+      className: "bg-orange-100 text-orange-800 border-orange-300",
+      title: "Calgary Citywide Rezoning: this parcel is proposed to be rezoned",
     };
   }
-  return {
-    className: "bg-amber-100 text-amber-800 border-amber-300",
-    title: `Potentially changing — Calgary's Aug 2024 citywide rezoning moves most parcels to R-CG. Current value: ${p.zoning}`,
-  };
+  if (status === "Not Rezoning") {
+    return {
+      className: "bg-green-100 text-green-800 border-green-300",
+      title: "Calgary Citywide Rezoning: this parcel was not part of the citywide rezoning for housing",
+    };
+  }
+  return null;
 }
 
 /* ── main page ────────────────────────────────────────────────── */

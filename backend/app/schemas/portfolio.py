@@ -52,6 +52,7 @@ class PropertyCreate(BaseModel):
     current_market_value: Decimal | None = None
     lot_size: Decimal | None = None
     zoning: str | None = None
+    rezoning_status: str | None = None
     max_buildable_area: Decimal | None = None
     floor_area_ratio: Decimal | None = None
     development_stage: DevelopmentStage = DevelopmentStage.prospect
@@ -124,6 +125,7 @@ class PropertyUpdate(BaseModel):
     current_market_value: Decimal | None = None
     lot_size: Decimal | None = None
     zoning: str | None = None
+    rezoning_status: str | None = None
     max_buildable_area: Decimal | None = None
     floor_area_ratio: Decimal | None = None
     development_stage: DevelopmentStage | None = None
@@ -196,6 +198,7 @@ class PropertyOut(BaseModel):
     current_market_value: Decimal | None
     lot_size: Decimal | None
     zoning: str | None
+    rezoning_status: str | None = None
     max_buildable_area: Decimal | None
     floor_area_ratio: Decimal | None
     development_stage: DevelopmentStage

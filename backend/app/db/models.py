@@ -1129,6 +1129,11 @@ class Property(Base):
     estimated_value = Column(Numeric(15, 2), nullable=True)
     lot_size = Column(Numeric(14, 2), nullable=True)
     zoning = Column(String(128), nullable=True)
+    # Calgary Citywide Rezoning for Housing status — values: "Rezoning" (proposed
+    # to be rezoned) or "Not Rezoning" (not part of the citywide change), or NULL
+    # for non-Calgary parcels. Sourced from the City's Home_Is_Here_Repeal_Parcels
+    # feature service.
+    rezoning_status = Column(String(64), nullable=True)
     max_buildable_area = Column(Numeric(14, 2), nullable=True)
     floor_area_ratio = Column(Numeric(5, 2), nullable=True)
     development_stage = Column(
