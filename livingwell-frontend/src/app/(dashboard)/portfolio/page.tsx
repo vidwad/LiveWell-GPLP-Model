@@ -96,6 +96,26 @@ function computeCapRate(p: Property): number | null {
   return noi / mv;
 }
 
+/* Calgary rezoned most residential parcels to R-CG / R-G in Aug 2024.
+   Highlight whether a property's stored zoning reflects that change. */
+function calgaryZoningBadge(p: Property): { className: string; title: string } | null {
+  if (!p.zoning) return null;
+  const city = (p.city ?? "").toLowerCase();
+  if (!city.includes("calgary")) return null;
+  const z = p.zoning.toUpperCase().trim();
+  const aligned = /^R-?CG(\b|$)/.test(z) || /^R-?G(\b|$)/.test(z);
+  if (aligned) {
+    return {
+      className: "bg-green-100 text-green-800 border-green-300",
+      title: "Aligned with Calgary's Aug 2024 citywide R-CG rezoning",
+    };
+  }
+  return {
+    className: "bg-amber-100 text-amber-800 border-amber-300",
+    title: `Potentially changing — Calgary's Aug 2024 citywide rezoning moves most parcels to R-CG. Current value: ${p.zoning}`,
+  };
+}
+
 /* ── main page ────────────────────────────────────────────────── */
 export default function PortfolioPage() {
   const { data: properties, isLoading } = useProperties();
@@ -631,9 +651,18 @@ export default function PortfolioPage() {
                       {p.property_type && (
                         <Badge variant="outline" className="text-xs font-normal">{p.property_type}</Badge>
                       )}
-                      {p.zoning && (
-                        <Badge variant="outline" className="text-xs font-normal bg-violet-50">{p.zoning}</Badge>
-                      )}
+                      {p.zoning && (() => {
+                        const hl = calgaryZoningBadge(p);
+                        return (
+                          <Badge
+                            variant="outline"
+                            className={`text-xs font-normal ${hl?.className ?? "bg-violet-50"}`}
+                            title={hl?.title}
+                          >
+                            {p.zoning}
+                          </Badge>
+                        );
+                      })()}
                       {p.bedrooms != null && p.bedrooms > 0 && (
                         <span className="text-muted-foreground">{p.bedrooms} bed{p.bedrooms !== 1 ? "s" : ""}</span>
                       )}
@@ -773,7 +802,18 @@ export default function PortfolioPage() {
                           {capRate != null ? `${(capRate * 100).toFixed(2)}%` : "—"}
                         </td>
                         <td className="px-4 py-3">
-                          {p.zoning ? <Badge variant="outline">{p.zoning}</Badge> : "—"}
+                          {p.zoning ? (() => {
+                            const hl = calgaryZoningBadge(p);
+                            return (
+                              <Badge
+                                variant="outline"
+                                className={hl?.className}
+                                title={hl?.title}
+                              >
+                                {p.zoning}
+                              </Badge>
+                            );
+                          })() : "—"}
                         </td>
                         <td className="px-4 py-3 text-center">{p.bedrooms ?? "—"}</td>
                       </tr>
