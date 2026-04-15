@@ -58,6 +58,7 @@ def _property_to_out(prop: Property) -> PropertyOut:
         current_market_value=prop.current_market_value,
         lot_size=prop.lot_size,
         zoning=prop.zoning,
+        rezoning_status=prop.rezoning_status,
         max_buildable_area=prop.max_buildable_area,
         floor_area_ratio=prop.floor_area_ratio,
         development_stage=prop.development_stage,
