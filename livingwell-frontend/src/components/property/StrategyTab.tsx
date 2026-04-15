@@ -136,7 +136,7 @@ export function StrategyTab({ propertyId, canEdit, property }: StrategyTabProps)
     try {
       await apiClient.post(`/api/portfolio/properties/${propertyId}/plans/import/${importSourcePlan}`);
       toast.success("Development plan imported successfully");
-      qc.invalidateQueries({ queryKey: ["development-plans", propertyId] });
+      qc.invalidateQueries({ queryKey: ["plans", propertyId] });
       setShowImport(false);
       setImportSourceProp("");
       setImportSourcePlan("");
