@@ -238,11 +238,10 @@ def _fetch_calgary_rezoning_status(address: str) -> Optional[dict]:
     Returns one of:
       {"rezoning_status": "Rezoning", ...}     # parcel is proposed to be rezoned
       {"rezoning_status": "Not Rezoning", ...} # parcel was not part of the citywide change
-      None — parcel not found in dataset
+      None — address could not be resolved as a Calgary parcel at all
     """
     try:
         addr_norm = _normalize_alberta_address(address)
-        # ADDRESS field uses exact match in this layer
         params = {
             "where": f"ADDRESS='{addr_norm}'",
             "outFields": "ADDRESS,REZONING_STATUS,COMMUNITY",
@@ -254,14 +253,31 @@ def _fetch_calgary_rezoning_status(address: str) -> Optional[dict]:
             logger.warning("Calgary rezoning layer returned %d", resp.status_code)
             return None
         feats = resp.json().get("features", [])
-        if not feats:
-            return None
-        attrs = feats[0].get("attributes", {})
-        return {
-            "rezoning_status": attrs.get("REZONING_STATUS"),
-            "_source": "calgary_rezoning",
-            "_raw": attrs,
-        }
+        if feats:
+            attrs = feats[0].get("attributes", {})
+            return {
+                "rezoning_status": attrs.get("REZONING_STATUS"),
+                "_source": "calgary_rezoning",
+                "_raw": attrs,
+            }
+        # Not in the rezoning layer — confirm parcel exists in Calgary's main
+        # assessment dataset before classifying as "Not Rezoning". The rezoning
+        # layer excludes parcels already at R-CG or zoned for non-residential
+        # use (M-C1, C-N, etc.); the City treats those as not part of the
+        # citywide rezoning for housing.
+        assess_resp = requests.get(
+            CALGARY_ASSESSMENT_URL,
+            params={"$where": f"address='{addr_norm}'", "$limit": 1},
+            timeout=_TIMEOUT,
+        )
+        if assess_resp.status_code == 200 and assess_resp.json():
+            return {
+                "rezoning_status": "Not Rezoning",
+                "_source": "calgary_rezoning_excluded",
+                "_raw": {"ADDRESS": addr_norm, "REZONING_STATUS": "Not Rezoning",
+                         "_note": "Excluded from citywide rezoning layer; confirmed Calgary parcel"},
+            }
+        return None
     except Exception as e:
         logger.warning("Calgary rezoning lookup failed: %s", e)
         return None
