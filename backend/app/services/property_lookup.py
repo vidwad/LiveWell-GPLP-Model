@@ -86,6 +86,32 @@ def _empty_result(address: str, city: str) -> dict:
     }
 
 
+# ── Address Normalization ────────────────────────────────────────────────
+
+# Long-form → municipal-dataset abbreviation. Applied as whole-word swaps
+# before LIKE queries hit Calgary/Edmonton open-data endpoints.
+_ALBERTA_SUFFIX_MAP = {
+    "STREET": "ST", "AVENUE": "AV", "DRIVE": "DR", "ROAD": "RD",
+    "BOULEVARD": "BV", "CRESCENT": "CR", "PLACE": "PL", "COURT": "CT",
+    "LANE": "LN", "TERRACE": "TC", "HEIGHTS": "HT", "MOUNT": "MT",
+    "PARK": "PA", "GATE": "GA", "GREEN": "GR", "VIEW": "VW", "CIRCLE": "CI",
+    "WAY": "WY", "TRAIL": "TR",
+}
+
+
+def _normalize_alberta_address(address: str) -> str:
+    """Uppercase + collapse long-form suffixes to Calgary/Edmonton abbreviations."""
+    import re as _re
+    s = address.upper().strip()
+    # Replace whole-word matches only (avoids breaking street names that contain
+    # a suffix substring, e.g. "AVENUE PARK" stays sensible).
+    for long, short in _ALBERTA_SUFFIX_MAP.items():
+        s = _re.sub(rf"\b{long}\b", short, s)
+    # Collapse repeated whitespace
+    s = _re.sub(r"\s+", " ", s)
+    return s
+
+
 # ── Calgary Open Data ────────────────────────────────────────────────────
 
 # Current Year dataset (replaces historical 6zp6-pxei which ended at 2022)
@@ -93,11 +119,48 @@ CALGARY_ASSESSMENT_URL = "https://data.calgary.ca/resource/4bsw-nn7w.json"
 CALGARY_LANDUSE_URL = "https://data.calgary.ca/resource/rkfr-buzb.json"
 
 
+def _calgary_geocode(address: str) -> tuple[Optional[float], Optional[float]]:
+    """Geocode via Calgary's free universal locator. Returns (lat, lng) or (None, None)."""
+    try:
+        addr_norm = _normalize_alberta_address(address)
+        geo_resp = requests.get(
+            "https://gis.calgary.ca/arcgis/rest/services/pub_Locator_Pro/"
+            "CalgaryUniversalLocator/GeocodeServer/findAddressCandidates",
+            params={"SingleLine": addr_norm, "outSR": "4326", "f": "json", "maxLocations": 1},
+            timeout=_TIMEOUT,
+        )
+        candidates = geo_resp.json().get("candidates", [])
+        if candidates:
+            loc = candidates[0].get("location", {})
+            return _to_float(loc.get("y")), _to_float(loc.get("x"))
+    except Exception as e:
+        logger.warning("Calgary geocoder failed: %s", e)
+    return None, None
+
+
+def _nominatim_geocode(address: str, city: str, province: str = "AB") -> tuple[Optional[float], Optional[float]]:
+    """Geocode via OpenStreetMap Nominatim. Returns (lat, lng) or (None, None)."""
+    try:
+        addr_norm = _normalize_alberta_address(address)
+        geo_resp = requests.get(
+            "https://nominatim.openstreetmap.org/search",
+            params={"q": f"{addr_norm}, {city}, {province}, Canada", "format": "json", "limit": 1},
+            headers={"User-Agent": "LivingWell-GPLP/1.0"},
+            timeout=_TIMEOUT,
+        )
+        geo_data = geo_resp.json()
+        if geo_data:
+            return _to_float(geo_data[0].get("lat")), _to_float(geo_data[0].get("lon"))
+    except Exception as e:
+        logger.warning("Nominatim geocoder failed: %s", e)
+    return None, None
+
+
 def _fetch_calgary_assessment(address: str) -> Optional[dict]:
     """Fetch property assessment data from City of Calgary Open Data."""
     try:
-        # Calgary's dataset uses uppercase addresses
-        addr_upper = address.upper().strip()
+        # Calgary's dataset stores addresses with abbreviated suffixes (ST, AV, DR…)
+        addr_upper = _normalize_alberta_address(address)
         params = {
             "$where": f"address LIKE '%{addr_upper}%'",
             "$limit": 5,
@@ -137,20 +200,7 @@ def _fetch_calgary_assessment(address: str) -> Optional[dict]:
 
         # Fallback: geocode via Calgary's free municipal geocoder
         if not lat or not lng:
-            try:
-                geo_resp = requests.get(
-                    "https://gis.calgary.ca/arcgis/rest/services/pub_Locator_Pro/"
-                    "CalgaryUniversalLocator/GeocodeServer/findAddressCandidates",
-                    params={"SingleLine": addr_upper, "outSR": "4326", "f": "json", "maxLocations": 1},
-                    timeout=_TIMEOUT,
-                )
-                candidates = geo_resp.json().get("candidates", [])
-                if candidates:
-                    loc = candidates[0].get("location", {})
-                    lng = loc.get("x")
-                    lat = loc.get("y")
-            except Exception:
-                pass
+            lat, lng = _calgary_geocode(addr_upper)
 
         return {
             "assessed_value": _to_decimal(rec.get("current_value") or rec.get("assessed_value")),
@@ -178,7 +228,7 @@ def _fetch_calgary_assessment(address: str) -> Optional[dict]:
 def _fetch_calgary_landuse(address: str) -> Optional[dict]:
     """Fetch zoning/land use data from City of Calgary."""
     try:
-        addr_upper = address.upper().strip()
+        addr_upper = _normalize_alberta_address(address)
         params = {
             "$where": f"address LIKE '%{addr_upper}%'",
             "$limit": 3,
@@ -212,7 +262,7 @@ EDMONTON_ASSESSMENT_URL = "https://data.edmonton.ca/resource/q7d6-ambg.json"
 def _fetch_edmonton_assessment(address: str) -> Optional[dict]:
     """Fetch property assessment from City of Edmonton Open Data."""
     try:
-        addr_upper = address.upper().strip()
+        addr_upper = _normalize_alberta_address(address)
         # Parse house number and street from address like "10623 75 AV NW"
         parts = addr_upper.split()
         data = None
@@ -269,19 +319,7 @@ def _fetch_edmonton_assessment(address: str) -> Optional[dict]:
 
         # Fallback: geocode via Nominatim (free, no API key)
         if not lat or not lng:
-            try:
-                geo_resp = requests.get(
-                    "https://nominatim.openstreetmap.org/search",
-                    params={"q": f"{addr_upper}, Edmonton, AB, Canada", "format": "json", "limit": 1},
-                    headers={"User-Agent": "LivingWell-GPLP/1.0"},
-                    timeout=_TIMEOUT,
-                )
-                geo_data = geo_resp.json()
-                if geo_data:
-                    lat = _to_float(geo_data[0].get("lat"))
-                    lng = _to_float(geo_data[0].get("lon"))
-            except Exception:
-                pass
+            lat, lng = _nominatim_geocode(addr_upper, "Edmonton", "AB")
 
         return {
             "assessed_value": _to_decimal(rec.get("assessed_value")),
@@ -660,6 +698,7 @@ def _ai_enrich_property(
         "assessed_value", "current_market_value", "lot_size", "zoning",
         "year_built", "property_type", "bedrooms", "neighbourhood",
         "estimated_monthly_rent", "estimated_rent_per_bed",
+        "latitude", "longitude",
     ] if not existing_data.get(k)]
 
     if not missing:
@@ -808,18 +847,37 @@ def lookup_property(
             _merge_data(result, mls_data)
             result["sources_used"].append("MLS (Repliers)")
 
-    # 3. OpenAI Web Search (real-time web browsing for listing data)
+    # 3. Realtor.ca public API (free, no key)
+    realtor_data = _fetch_realtor_ca(address, city, province or "AB")
+    if realtor_data:
+        result["raw_sources"]["realtor_ca"] = realtor_data.get("_raw", {})
+        _merge_data(result, realtor_data)
+        result["sources_used"].append("Realtor.ca")
+
+    # 4. OpenAI Web Search (real-time web browsing for listing data)
     openai_data = _fetch_openai_web_search(address, city, province or "AB")
     if openai_data:
         result["raw_sources"]["openai_web_search"] = {k: v for k, v in openai_data.items() if not k.startswith("_")}
         _merge_data(result, openai_data)
         result["sources_used"].append("OpenAI Web Search")
 
-    # 4. Claude AI Enrichment (fill remaining gaps with knowledge-based estimates)
+    # 5. Claude AI Enrichment (fill remaining gaps with knowledge-based estimates)
     ai_data = _ai_enrich_property(address, city, result)
     if ai_data:
         _merge_data(result, ai_data)
         result["sources_used"].append("AI Estimate (Claude)")
+
+    # 6. Geocoder safety net — always run if lat/long still missing
+    if result.get("latitude") is None or result.get("longitude") is None:
+        lat = lng = None
+        if "calgary" in city_lower:
+            lat, lng = _calgary_geocode(address)
+        if lat is None or lng is None:
+            lat, lng = _nominatim_geocode(address, city, province or "AB")
+        if lat is not None and lng is not None:
+            result["latitude"] = lat
+            result["longitude"] = lng
+            result["sources_used"].append("Geocoder")
 
     # 4. Development plan suggestions (if zoning is available)
     if result.get("zoning"):

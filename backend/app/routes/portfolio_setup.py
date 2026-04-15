@@ -358,6 +358,49 @@ def create_property_wizard(
     db.flush()
     PID = prop.property_id
 
+    # ── Auto-enrich from municipal / listing / geocoder sources ──
+    # Best-effort: failures must not block property creation.
+    try:
+        from app.services.property_lookup import lookup_property
+        from decimal import Decimal as _Dec
+        enriched = lookup_property(p.address, p.city, p.province or "AB")
+        # Map of lookup field → Property attribute, gated to backfill (don't overwrite user input)
+        backfill_fields = [
+            "assessed_value", "current_market_value", "lot_size", "zoning",
+            "max_buildable_area", "floor_area_ratio", "year_built", "property_type",
+            "property_style", "building_sqft", "garage", "neighbourhood", "ward",
+            "legal_description", "latitude", "longitude", "roll_number",
+            "assessment_class", "tax_amount", "tax_year", "mls_number",
+            "list_price", "last_sold_price", "last_sold_date",
+        ]
+        decimal_fields = {
+            "assessed_value", "current_market_value", "lot_size", "max_buildable_area",
+            "floor_area_ratio", "building_sqft", "latitude", "longitude",
+            "tax_amount", "list_price", "last_sold_price",
+        }
+        int_fields = {"year_built", "tax_year"}
+        for field in backfill_fields:
+            new_val = enriched.get(field)
+            if new_val is None or getattr(prop, field, None) is not None:
+                continue
+            if field in decimal_fields:
+                try:
+                    new_val = _Dec(str(new_val))
+                except Exception:
+                    continue
+            elif field in int_fields:
+                try:
+                    new_val = int(new_val)
+                except (ValueError, TypeError):
+                    continue
+            setattr(prop, field, new_val)
+        db.flush()
+    except Exception as exc:  # noqa: BLE001
+        import logging
+        logging.getLogger(__name__).warning(
+            "Property auto-enrichment failed for %s: %s", p.address, exc
+        )
+
     # ── Baseline Unit + Beds ──
     bl_unit = Unit(
         property_id=PID, unit_number="House", unit_type=UnitType.shared,
