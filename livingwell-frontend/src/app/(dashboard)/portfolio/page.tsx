@@ -106,13 +106,13 @@ function calgaryZoningBadge(p: Property): { className: string; title: string } |
   if (status === "Rezoning") {
     return {
       className: "bg-orange-100 text-orange-800 border-orange-300",
-      title: "Calgary Citywide Rezoning: this parcel is proposed to be rezoned",
+      title: "Affected by proposed repeal of 2024 citywide R-CG rezoning",
     };
   }
   if (status === "Not Rezoning") {
     return {
       className: "bg-green-100 text-green-800 border-green-300",
-      title: "Calgary Citywide Rezoning: this parcel was not part of the citywide rezoning for housing",
+      title: "Not affected by proposed repeal of 2024 citywide rezoning",
     };
   }
   return null;
