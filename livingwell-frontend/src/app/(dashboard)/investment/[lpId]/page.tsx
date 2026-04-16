@@ -1021,92 +1021,8 @@ export default function LPDetailPage() {
           {/* ── Owned Properties ── */}
           <OwnedPropertiesSection lpId={lpId} />
 
-          {/* ── Target Properties ── */}
-          <div className="flex justify-between items-center">
-            <h3 className="text-sm font-semibold">Target Properties (Pipeline)</h3>
-            {canEdit && <Button size="sm" onClick={tpForm.openCreate}><Plus className="h-3.5 w-3.5 mr-1" /> Add Target Property</Button>}
-          </div>
-          {!targetProperties || targetProperties.length === 0 ? (
-            <Card><CardContent className="pt-6"><p className="text-sm text-muted-foreground">No target properties in the pipeline.</p></CardContent></Card>
-          ) : (
-            targetProperties.map((tp) => (
-              <Card key={tp.target_property_id}>
-                <CardHeader className="pb-2">
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                    <div>
-                      <CardTitle className="text-sm flex items-center gap-2">
-                        <MapPin className="h-4 w-4 shrink-0" />{tp.address}{tp.city && `, ${tp.city}`}
-                      </CardTitle>
-                      <p className="text-xs text-muted-foreground mt-0.5">{tp.intended_community ?? "—"} · Zoning: {tp.zoning ?? "—"} · Lot: {tp.lot_size ? `${fmtNum(tp.lot_size)} sqft` : "—"}</p>
-                    </div>
-                    <div className="flex items-center gap-2 self-start">
-                      <Badge variant={TP_STATUS_VARIANT[tp.status] ?? "outline"} className="text-xs">{statusLabel(tp.status)}</Badge>
-                      {canEdit && <Button variant="ghost" size="sm" onClick={() => tpForm.openEdit(tp.target_property_id, {
-                        address: tp.address || "", city: tp.city || "", province: tp.province || "AB",
-                        intended_community: tp.intended_community || "", status: tp.status,
-                        estimated_acquisition_price: tp.estimated_acquisition_price || "",
-                        lot_size: tp.lot_size || "", zoning: tp.zoning || "",
-                        current_sqft: tp.current_sqft || "", current_bedrooms: tp.current_bedrooms != null ? String(tp.current_bedrooms) : "",
-                        current_bathrooms: tp.current_bathrooms != null ? String(tp.current_bathrooms) : "",
-                        current_condition: tp.current_condition || "", current_assessed_value: tp.current_assessed_value || "",
-                        interim_monthly_revenue: tp.interim_monthly_revenue || "",
-                        interim_monthly_expenses: tp.interim_monthly_expenses || "",
-                        interim_occupancy_percent: tp.interim_occupancy_percent || "",
-                        interim_hold_months: tp.interim_hold_months != null ? String(tp.interim_hold_months) : "",
-                        planned_units: tp.planned_units != null ? String(tp.planned_units) : "",
-                        planned_beds: tp.planned_beds != null ? String(tp.planned_beds) : "",
-                        planned_sqft: tp.planned_sqft || "",
-                        construction_budget: tp.construction_budget || "", hard_costs: tp.hard_costs || "",
-                        soft_costs: tp.soft_costs || "", contingency_percent: tp.contingency_percent || "",
-                        construction_duration_months: tp.construction_duration_months != null ? String(tp.construction_duration_months) : "",
-                        stabilized_monthly_revenue: tp.stabilized_monthly_revenue || "",
-                        stabilized_monthly_expenses: tp.stabilized_monthly_expenses || "",
-                        stabilized_occupancy_percent: tp.stabilized_occupancy_percent || "",
-                        stabilized_annual_noi: tp.stabilized_annual_noi || "",
-                        stabilized_cap_rate: tp.stabilized_cap_rate || "", stabilized_value: tp.stabilized_value || "",
-                        assumed_ltv_percent: tp.assumed_ltv_percent || "", assumed_interest_rate: tp.assumed_interest_rate || "",
-                        assumed_amortization_months: tp.assumed_amortization_months != null ? String(tp.assumed_amortization_months) : "",
-                        assumed_debt_amount: tp.assumed_debt_amount || "",
-                        target_acquisition_date: tp.target_acquisition_date || "",
-                        target_completion_date: tp.target_completion_date || "",
-                        target_stabilization_date: tp.target_stabilization_date || "",
-                        notes: tp.notes || "",
-                      })}><Pencil className="h-3.5 w-3.5" /></Button>}
-                      {canEdit && !tp.converted_property_id && tp.status !== "acquired" && (
-                        <Button variant="outline" size="sm" onClick={() => {
-                          if (confirm(`Convert "${tp.address}" to an actual property? This will create a new property record.`)) {
-                            convertTargetProperty.mutate({ tpId: tp.target_property_id, lpId });
-                          }
-                        }}>
-                          <ArrowRightLeft className="h-3.5 w-3.5 mr-1" /> Convert
-                        </Button>
-                      )}
-                      {tp.converted_property_id && (
-                        <Badge variant="default" className="text-xs">Converted → #{tp.converted_property_id}</Badge>
-                      )}
-                    </div>
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-3 text-sm">
-                    <div><p className="text-xs text-muted-foreground">Est. Acquisition</p><p className="font-semibold tabular-nums">{tp.estimated_acquisition_price ? formatCurrencyCompact(tp.estimated_acquisition_price) : "—"}</p></div>
-                    <div><p className="text-xs text-muted-foreground">Construction Budget</p><p className="font-semibold tabular-nums">{tp.construction_budget ? formatCurrencyCompact(tp.construction_budget) : "—"}</p></div>
-                    <div><p className="text-xs text-muted-foreground">Planned Units / Beds</p><p className="font-semibold">{tp.planned_units ?? "—"} / {tp.planned_beds ?? "—"}</p></div>
-                    <div><p className="text-xs text-muted-foreground">Planned Sqft</p><p className="font-semibold tabular-nums">{tp.planned_sqft ? fmtNum(tp.planned_sqft) : "—"}</p></div>
-                    <div><p className="text-xs text-muted-foreground">Interim Revenue/mo</p><p className="font-semibold tabular-nums">{tp.interim_monthly_revenue ? formatCurrency(tp.interim_monthly_revenue) : "—"}</p></div>
-                    <div><p className="text-xs text-muted-foreground">Interim Hold</p><p className="font-semibold">{tp.interim_hold_months ? `${tp.interim_hold_months} months` : "—"}</p></div>
-                    <div><p className="text-xs text-muted-foreground">Estimated Stabilized NOI</p><p className="font-semibold tabular-nums">{tp.stabilized_annual_noi ? formatCurrencyCompact(tp.stabilized_annual_noi) : "—"}</p></div>
-                    <div><p className="text-xs text-muted-foreground">Estimated Stabilized Value</p><p className="font-semibold tabular-nums">{tp.stabilized_value ? formatCurrencyCompact(tp.stabilized_value) : "—"}</p></div>
-                    <div><p className="text-xs text-muted-foreground">Assumed Debt</p><p className="font-semibold tabular-nums">{tp.assumed_debt_amount ? formatCurrencyCompact(tp.assumed_debt_amount) : "—"}</p></div>
-                    <div><p className="text-xs text-muted-foreground">LTV / Rate</p><p className="font-semibold">{fmtPct(tp.assumed_ltv_percent)} / {fmtPct(tp.assumed_interest_rate)}</p></div>
-                    <div><p className="text-xs text-muted-foreground">Target Acquisition</p><p className="font-semibold">{fmtDate(tp.target_acquisition_date)}</p></div>
-                    <div><p className="text-xs text-muted-foreground">Target Stabilization</p><p className="font-semibold">{fmtDate(tp.target_stabilization_date)}</p></div>
-                  </div>
-                  {tp.notes && <p className="text-xs text-muted-foreground mt-3 italic">{tp.notes}</p>}
-                </CardContent>
-              </Card>
-            ))
-          )}
+          {/* ── Prospect Properties Pipeline ── */}
+          <ProspectPropertiesSection lpId={lpId} />
         </TabsContent>
 
         {/* ── Documents Tab ──────────────────────────────────────── */}
@@ -1460,6 +1376,87 @@ const STAGE_ORDER: string[] = [
   "stabilized",
   "exit",
 ];
+
+function ProspectPropertiesSection({ lpId }: { lpId: number }) {
+  const { data: allProperties, isLoading } = usePropertiesByLp(lpId);
+  const prospects = React.useMemo(
+    () => (allProperties ?? []).filter((p) => p.development_stage === "prospect"),
+    [allProperties],
+  );
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between">
+        <h3 className="text-sm font-semibold flex items-center gap-2">
+          <Target className="h-4 w-4" />
+          Prospect Properties (Pipeline)
+          <span className="text-xs font-normal text-muted-foreground">
+            {isLoading ? "" : `${prospects.length} ${prospects.length === 1 ? "prospect" : "prospects"}`}
+          </span>
+        </h3>
+      </div>
+
+      {isLoading ? (
+        <Card><CardContent className="pt-6"><p className="text-sm text-muted-foreground">Loading…</p></CardContent></Card>
+      ) : prospects.length === 0 ? (
+        <Card>
+          <CardContent className="pt-6">
+            <p className="text-sm text-muted-foreground">
+              No prospects for this LP. Add a property from the{" "}
+              <Link href="/portfolio" className="underline hover:text-foreground">Properties page</Link>{" "}
+              and set its stage to Prospect.
+            </p>
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {prospects.map((p) => {
+            const mv = Number(p.current_market_value ?? 0);
+            const pp = Number(p.purchase_price ?? 0);
+            return (
+              <Link key={p.property_id} href={`/portfolio/${p.property_id}`} className="block">
+                <Card className="h-full cursor-pointer transition-all hover:shadow-md hover:border-blue-300 group">
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm leading-tight truncate group-hover:text-blue-600 transition-colors">
+                      {p.address}
+                    </CardTitle>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      {p.city}, {p.province}
+                      {p.neighbourhood && <span> · {p.neighbourhood}</span>}
+                    </p>
+                  </CardHeader>
+                  <CardContent className="space-y-2 pb-3">
+                    <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-xs">
+                      <div>
+                        <span className="text-muted-foreground block">Target Acquisition</span>
+                        <span className="font-medium">{pp > 0 ? formatCurrencyCompact(pp) : "—"}</span>
+                      </div>
+                      <div>
+                        <span className="text-muted-foreground block">Est. Market Value</span>
+                        <span className="font-medium">{mv > 0 ? formatCurrencyCompact(mv) : "—"}</span>
+                      </div>
+                      <div>
+                        <span className="text-muted-foreground block">Zoning</span>
+                        <span className="font-medium">{p.zoning ?? "—"}</span>
+                      </div>
+                      <div>
+                        <span className="text-muted-foreground block">Beds</span>
+                        <span className="font-medium">{p.bedrooms ?? "—"}</span>
+                      </div>
+                    </div>
+                    <p className="text-[11px] text-muted-foreground italic pt-1">
+                      Click to edit — change stage to move into Property Holdings.
+                    </p>
+                  </CardContent>
+                </Card>
+              </Link>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
 
 function OwnedPropertiesSection({ lpId }: { lpId: number }) {
   const { data: allProperties, isLoading } = usePropertiesByLp(lpId);
