@@ -875,12 +875,41 @@ function StreetViewCard({ property }: { property: Record<string, any> }) {
   const address: string | undefined = property.address;
   const city: string | undefined = property.city;
   const province: string | undefined = property.province;
-  const lat = property.latitude != null ? Number(property.latitude) : NaN;
-  const lng = property.longitude != null ? Number(property.longitude) : NaN;
-  const hasCoords = Number.isFinite(lat) && Number.isFinite(lng) && lat !== 0 && lng !== 0;
+  const storedLat = property.latitude != null ? Number(property.latitude) : NaN;
+  const storedLng = property.longitude != null ? Number(property.longitude) : NaN;
+  const hasStoredCoords =
+    Number.isFinite(storedLat) && Number.isFinite(storedLng) && storedLat !== 0 && storedLng !== 0;
   const hasAddress = !!address?.trim();
 
   const [mode, setMode] = React.useState<"map" | "streetview">("streetview");
+
+  // Client-side geocoding fallback via Nominatim when the property has an
+  // address but no stored lat/long. Keyless, cached per mount. Means Street
+  // View works even before "Look Up Property Data" has been run.
+  const [geoCoords, setGeoCoords] = React.useState<{ lat: number; lng: number } | null>(null);
+  React.useEffect(() => {
+    if (hasStoredCoords || !hasAddress) return;
+    let cancelled = false;
+    const query = [address, city, province, "Canada"].filter(Boolean).join(", ");
+    fetch(
+      `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&limit=1`,
+    )
+      .then((r) => r.ok ? r.json() : null)
+      .then((data) => {
+        if (cancelled || !Array.isArray(data) || data.length === 0) return;
+        const lat = Number(data[0].lat);
+        const lng = Number(data[0].lon);
+        if (Number.isFinite(lat) && Number.isFinite(lng)) {
+          setGeoCoords({ lat, lng });
+        }
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [address, city, province, hasAddress, hasStoredCoords]);
+
+  const lat = hasStoredCoords ? storedLat : geoCoords?.lat ?? NaN;
+  const lng = hasStoredCoords ? storedLng : geoCoords?.lng ?? NaN;
+  const hasCoords = Number.isFinite(lat) && Number.isFinite(lng);
 
   if (!hasAddress && !hasCoords) {
     return (
@@ -976,9 +1005,9 @@ function StreetViewCard({ property }: { property: Record<string, any> }) {
           className="rounded-md border"
           title={`${mode === "streetview" ? "Google Street View" : "Google Map"} for ${property.address}`}
         />
-        {mode === "streetview" && !hasCoords && (
+        {mode === "streetview" && !hasCoords && hasAddress && (
           <p className="text-[11px] text-muted-foreground mt-2">
-            Street View is most reliable with coordinates. Run <strong>Look Up Property Data</strong> below to fetch lat/long for this property.
+            Couldn't resolve this address to coordinates. Run <strong>Look Up Property Data</strong> below to persist lat/long.
           </p>
         )}
       </CardContent>
