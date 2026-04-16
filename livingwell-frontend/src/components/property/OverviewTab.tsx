@@ -869,16 +869,47 @@ export function OverviewTab({
 
 // ── AI Preliminary Property Assessment ──────────────────────────────
 
-// ── Location — Street View + Map links (opens Google Maps in new tab) ──
+// ── Google Street View ──────────────────────────────────────────────
 
 function StreetViewCard({ property }: { property: Record<string, any> }) {
   const address: string | undefined = property.address;
   const city: string | undefined = property.city;
   const province: string | undefined = property.province;
-  const lat = property.latitude != null ? Number(property.latitude) : NaN;
-  const lng = property.longitude != null ? Number(property.longitude) : NaN;
-  const hasCoords = Number.isFinite(lat) && Number.isFinite(lng) && lat !== 0 && lng !== 0;
+  const storedLat = property.latitude != null ? Number(property.latitude) : NaN;
+  const storedLng = property.longitude != null ? Number(property.longitude) : NaN;
+  const hasStoredCoords =
+    Number.isFinite(storedLat) && Number.isFinite(storedLng) && storedLat !== 0 && storedLng !== 0;
   const hasAddress = !!address?.trim();
+
+  const [mode, setMode] = React.useState<"map" | "streetview">("streetview");
+
+  // Client-side geocoding fallback via Nominatim when the property has an
+  // address but no stored lat/long. Keyless, cached per mount. Means Street
+  // View works even before "Look Up Property Data" has been run.
+  const [geoCoords, setGeoCoords] = React.useState<{ lat: number; lng: number } | null>(null);
+  React.useEffect(() => {
+    if (hasStoredCoords || !hasAddress) return;
+    let cancelled = false;
+    const query = [address, city, province, "Canada"].filter(Boolean).join(", ");
+    fetch(
+      `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&limit=1`,
+    )
+      .then((r) => r.ok ? r.json() : null)
+      .then((data) => {
+        if (cancelled || !Array.isArray(data) || data.length === 0) return;
+        const lat = Number(data[0].lat);
+        const lng = Number(data[0].lon);
+        if (Number.isFinite(lat) && Number.isFinite(lng)) {
+          setGeoCoords({ lat, lng });
+        }
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [address, city, province, hasAddress, hasStoredCoords]);
+
+  const lat = hasStoredCoords ? storedLat : geoCoords?.lat ?? NaN;
+  const lng = hasStoredCoords ? storedLng : geoCoords?.lng ?? NaN;
+  const hasCoords = Number.isFinite(lat) && Number.isFinite(lng);
 
   if (!hasAddress && !hasCoords) {
     return (
@@ -891,60 +922,94 @@ function StreetViewCard({ property }: { property: Record<string, any> }) {
         </CardHeader>
         <CardContent>
           <p className="text-sm text-muted-foreground">
-            Add a street address or lat/long for this property to enable map and Street View links.
+            Add a street address (or lat/long) for this property to see the map and Street View.
           </p>
         </CardContent>
       </Card>
     );
   }
 
+  // Map: prefer the address — Google renders a clean pin on the parcel.
+  // Street View: prefer coordinates — `cbll` reliably locates the nearest
+  // panorama; address-based svembed often falls back to a non-interactive
+  // map when Google can't snap the geocoded point to a panorama.
   const q = hasAddress
     ? encodeURIComponent([address, city, province, "Canada"].filter(Boolean).join(", "))
-    : `${lat},${lng}`;
+    : null;
 
-  // Keyless Google Maps deep-links — always work, no API key, no iframe.
-  const mapLink = `https://www.google.com/maps/search/?api=1&query=${q}`;
-  const streetViewLink = hasCoords
-    ? `https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=${lat},${lng}`
-    : `https://www.google.com/maps/place/?q=${q}`;
+  const mapSrc = q
+    ? `https://maps.google.com/maps?q=${q}&output=embed`
+    : `https://maps.google.com/maps?q=${lat},${lng}&output=embed`;
+
+  const streetViewSrc = hasCoords
+    ? `https://maps.google.com/maps?q=&layer=c&cbll=${lat},${lng}&cbp=11,0,0,0,0&output=svembed`
+    : `https://maps.google.com/maps?q=${q}&layer=c&output=svembed`;
+
+  const mapsLink =
+    mode === "streetview"
+      ? (hasCoords
+          ? `https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=${lat},${lng}`
+          : `https://www.google.com/maps/place/?q=${q}`)
+      : (q
+          ? `https://www.google.com/maps/search/?api=1&query=${q}`
+          : `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`);
 
   return (
     <Card>
       <CardHeader className="pb-3">
-        <CardTitle className="text-base flex items-center gap-2">
-          <MapPin className="h-4 w-4 text-muted-foreground" />
-          Location
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-3">
-        <p className="text-sm text-muted-foreground">
-          {address}
-          {city && `, ${city}`}
-          {province && `, ${province}`}
-          {hasCoords && <span className="text-xs ml-2">({lat.toFixed(5)}, {lng.toFixed(5)})</span>}
-        </p>
-        <div className="flex flex-wrap gap-2">
-          <a
-            href={streetViewLink}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-1.5 rounded-md border bg-background px-3 py-1.5 text-sm font-medium hover:bg-muted transition-colors"
-          >
-            <MapPin className="h-4 w-4" />
-            Open Street View
-            <ExternalLink className="h-3 w-3 text-muted-foreground" />
-          </a>
-          <a
-            href={mapLink}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-1.5 rounded-md border bg-background px-3 py-1.5 text-sm font-medium hover:bg-muted transition-colors"
-          >
-            <MapPin className="h-4 w-4" />
-            Open Map
-            <ExternalLink className="h-3 w-3 text-muted-foreground" />
-          </a>
+        <div className="flex items-center justify-between gap-2">
+          <CardTitle className="text-base flex items-center gap-2">
+            <MapPin className="h-4 w-4 text-muted-foreground" />
+            {mode === "streetview" ? "Street View" : "Map"}
+          </CardTitle>
+          <div className="flex items-center gap-2">
+            <div className="flex items-center rounded-md border bg-muted/30 text-xs">
+              <button
+                type="button"
+                onClick={() => setMode("map")}
+                className={`px-2.5 py-1 rounded-l-md transition-colors ${
+                  mode === "map" ? "bg-background font-semibold" : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                Map
+              </button>
+              <button
+                type="button"
+                onClick={() => setMode("streetview")}
+                className={`px-2.5 py-1 rounded-r-md transition-colors ${
+                  mode === "streetview" ? "bg-background font-semibold" : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                Street View
+              </button>
+            </div>
+            <a
+              href={mapsLink}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-xs text-blue-600 hover:underline flex items-center gap-1"
+            >
+              Open in Google Maps <ExternalLink className="h-3 w-3" />
+            </a>
+          </div>
         </div>
+      </CardHeader>
+      <CardContent>
+        <iframe
+          key={mode}
+          src={mode === "streetview" ? streetViewSrc : mapSrc}
+          width="100%"
+          height="360"
+          loading="lazy"
+          referrerPolicy="no-referrer-when-downgrade"
+          className="rounded-md border"
+          title={`${mode === "streetview" ? "Google Street View" : "Google Map"} for ${property.address}`}
+        />
+        {mode === "streetview" && !hasCoords && hasAddress && (
+          <p className="text-[11px] text-muted-foreground mt-2">
+            Couldn't resolve this address to coordinates. Run <strong>Look Up Property Data</strong> below to persist lat/long.
+          </p>
+        )}
       </CardContent>
     </Card>
   );
