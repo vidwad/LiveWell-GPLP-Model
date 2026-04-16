@@ -24,7 +24,9 @@ import {
 } from "@/components/ui/select";
 import { formatCurrency, formatCurrencyCompact, formatDate } from "@/lib/utils";
 import { DevelopmentStage, Property } from "@/types/portfolio";
-import { useState, useMemo, useCallback, Fragment } from "react";
+import { useState, useMemo, useCallback, Fragment, useEffect } from "react";
+import { APIProvider, Map as GMap, AdvancedMarker } from "@vis.gl/react-google-maps";
+import { settingsApi } from "@/lib/api";
 
 /* ── stage config ─────────────────────────────────────────────── */
 const STAGE_COLORS: Record<DevelopmentStage, string> = {
@@ -723,6 +725,7 @@ export default function PortfolioPage() {
                           NOI: <span className="font-medium text-foreground">{sub.noi > 0 ? formatCurrencyCompact(sub.noi) : "—"}</span>
                         </div>
                       </div>
+                      <LpGroupMap properties={g.items} />
                       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                         {g.items.map(renderCard)}
                       </div>
@@ -938,5 +941,92 @@ function PropertyMapView({ properties }: { properties: Property[] }) {
         </div>
       </CardContent>
     </Card>
+  );
+}
+
+/* ── LP Group Map — mini Google map above each LP's property grid ──── */
+
+// Cache the Maps API key at module level so every LP group doesn't refetch it.
+let _cachedMapsKey: string | null = null;
+let _keyFetchPromise: Promise<string> | null = null;
+
+function useGoogleMapsKey() {
+  const [key, setKey] = useState(_cachedMapsKey ?? "");
+  useEffect(() => {
+    if (_cachedMapsKey != null) return;
+    if (!_keyFetchPromise) {
+      _keyFetchPromise = (async () => {
+        try {
+          const envKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
+          if (envKey) { _cachedMapsKey = envKey; return envKey; }
+          const settings: Array<{ key: string; value: string }> = await settingsApi.getAll("api_keys");
+          const gm = settings.find((s) => s.key === "GOOGLE_MAPS_API_KEY");
+          const v = gm?.value && !gm.value.includes("••") ? gm.value : "";
+          _cachedMapsKey = v;
+          return v;
+        } catch {
+          _cachedMapsKey = "";
+          return "";
+        }
+      })();
+    }
+    _keyFetchPromise.then((v) => setKey(v));
+  }, []);
+  return key;
+}
+
+function LpGroupMap({ properties }: { properties: Property[] }) {
+  const mapsKey = useGoogleMapsKey();
+  const geoProps = properties.filter(
+    (p) => p.latitude && p.longitude && Number(p.latitude) !== 0 && Number(p.longitude) !== 0,
+  );
+  if (geoProps.length === 0) return null;
+
+  const lats = geoProps.map((p) => Number(p.latitude));
+  const lngs = geoProps.map((p) => Number(p.longitude));
+  const center = {
+    lat: (Math.min(...lats) + Math.max(...lats)) / 2,
+    lng: (Math.min(...lngs) + Math.max(...lngs)) / 2,
+  };
+  const spanLat = Math.max(...lats) - Math.min(...lats);
+  const spanLng = Math.max(...lngs) - Math.min(...lngs);
+  const span = Math.max(spanLat, spanLng);
+  const zoom = span < 0.005 ? 16 : span < 0.02 ? 14 : span < 0.1 ? 12 : span < 0.5 ? 10 : 8;
+
+  if (!mapsKey) {
+    return (
+      <div className="mb-3 rounded-md border border-dashed bg-muted/20 px-3 py-2 text-xs text-muted-foreground">
+        Add a <code className="font-mono">GOOGLE_MAPS_API_KEY</code> in{" "}
+        <Link href="/settings" className="text-blue-600 hover:underline">Settings</Link> to see the LP map here.
+      </div>
+    );
+  }
+
+  return (
+    <div className="mb-3 overflow-hidden rounded-md border">
+      <APIProvider apiKey={mapsKey}>
+        <GMap
+          defaultCenter={center}
+          defaultZoom={zoom}
+          mapId={`lp-group-map-${geoProps[0]?.lp_id ?? "x"}`}
+          style={{ width: "100%", height: "260px" }}
+          gestureHandling="cooperative"
+          disableDefaultUI={false}
+          zoomControl
+          streetViewControl={false}
+          mapTypeControl={false}
+          fullscreenControl
+        >
+          {geoProps.map((p) => (
+            <AdvancedMarker
+              key={p.property_id}
+              position={{ lat: Number(p.latitude), lng: Number(p.longitude) }}
+              title={`${p.address}\n${p.city}, ${p.province}`}
+              onClick={() => { window.location.href = `/portfolio/${p.property_id}`; }}
+            />
+          ))}
+        </GMap>
+      </APIProvider>
+    </div>
   );
 }
