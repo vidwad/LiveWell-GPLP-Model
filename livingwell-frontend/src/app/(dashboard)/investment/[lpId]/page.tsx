@@ -1448,9 +1448,10 @@ const STAGE_BADGE: Record<string, { label: string; color: string }> = {
   exit:              { label: "Exit",              color: "bg-red-50 text-red-700 border-red-200" },
 };
 
-// Canonical order for stage groups (matches the lifecycle progression)
+// Canonical order for stage groups (matches the lifecycle progression).
+// Property Holdings excludes "prospect" — those haven't been acquired yet
+// and belong on the pipeline views, not in LP holdings analytics.
 const STAGE_ORDER: string[] = [
-  "prospect",
   "acquisition",
   "interim_operation",
   "planning",
@@ -1461,7 +1462,11 @@ const STAGE_ORDER: string[] = [
 ];
 
 function OwnedPropertiesSection({ lpId }: { lpId: number }) {
-  const { data: properties, isLoading } = usePropertiesByLp(lpId);
+  const { data: allProperties, isLoading } = usePropertiesByLp(lpId);
+  const properties = React.useMemo(
+    () => allProperties?.filter((p) => p.development_stage !== "prospect"),
+    [allProperties],
+  );
   // Default = list view per spec
   const [viewMode, setViewMode] = useState<"list" | "card">("list");
 
@@ -1470,7 +1475,7 @@ function OwnedPropertiesSection({ lpId }: { lpId: number }) {
     if (!properties) return [] as Array<{ stage: string; cfg: { label: string; color: string }; items: typeof properties }>;
     const buckets: Record<string, typeof properties> = {};
     for (const p of properties) {
-      const k = p.development_stage || "prospect";
+      const k = p.development_stage || "acquisition";
       (buckets[k] ||= []).push(p);
     }
     // Stages in canonical order, then any unknown stages alphabetically

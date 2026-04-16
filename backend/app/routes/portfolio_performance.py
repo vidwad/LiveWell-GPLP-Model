@@ -17,7 +17,7 @@ from app.db.models import (
     Property, Unit, Bed, DevelopmentPlan, DebtFacility, DebtStatus,
     AcquisitionBaseline, ExitForecast, ExitActual,
     AncillaryRevenueStream, OperatingExpenseLineItem,
-    User,
+    DevelopmentStage, User,
 )
 from app.core.deps import require_investor_or_above
 from app.services.calculations import calculate_annual_debt_service
@@ -1165,7 +1165,14 @@ def get_lp_portfolio_cashflow(
     if not lp:
         raise HTTPException(404, "LP not found")
 
-    properties = db.query(Property).filter(Property.lp_id == lp_id).all()
+    # Exclude prospect-stage properties — they haven't been acquired yet and
+    # would distort cash-flow / LP / GP return projections.
+    properties = (
+        db.query(Property)
+        .filter(Property.lp_id == lp_id)
+        .filter(Property.development_stage != DevelopmentStage.prospect)
+        .all()
+    )
     if not properties:
         return {
             "lp_id": lp_id, "lp_name": lp.name, "property_count": 0,
