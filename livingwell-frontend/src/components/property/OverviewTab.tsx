@@ -881,7 +881,7 @@ function StreetViewCard({ property }: { property: Record<string, any> }) {
     Number.isFinite(storedLat) && Number.isFinite(storedLng) && storedLat !== 0 && storedLng !== 0;
   const hasAddress = !!address?.trim();
 
-  const [mode, setMode] = React.useState<"map" | "streetview">("streetview");
+  const [mode, setMode] = React.useState<"map" | "streetview">("map");
 
   // Client-side geocoding fallback via Nominatim when the property has an
   // address but no stored lat/long. Keyless, cached per mount. Means Street
