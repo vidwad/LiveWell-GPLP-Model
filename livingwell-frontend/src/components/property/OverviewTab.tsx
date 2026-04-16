@@ -872,11 +872,15 @@ export function OverviewTab({
 // ── Google Street View ──────────────────────────────────────────────
 
 function StreetViewCard({ property }: { property: Record<string, any> }) {
+  const address: string | undefined = property.address;
+  const city: string | undefined = property.city;
+  const province: string | undefined = property.province;
   const lat = property.latitude != null ? Number(property.latitude) : NaN;
   const lng = property.longitude != null ? Number(property.longitude) : NaN;
   const hasCoords = Number.isFinite(lat) && Number.isFinite(lng) && lat !== 0 && lng !== 0;
+  const hasAddress = !!address?.trim();
 
-  if (!hasCoords) {
+  if (!hasAddress && !hasCoords) {
     return (
       <Card>
         <CardHeader className="pb-3">
@@ -887,15 +891,27 @@ function StreetViewCard({ property }: { property: Record<string, any> }) {
         </CardHeader>
         <CardContent>
           <p className="text-sm text-muted-foreground">
-            Latitude and longitude are not set for this property. Use <strong>Look Up Property Data</strong> below to fetch coordinates from Calgary open data, then refresh.
+            Add a street address (or lat/long) for this property to see Google Street View.
           </p>
         </CardContent>
       </Card>
     );
   }
 
-  const embedSrc = `https://maps.google.com/maps?q=&layer=c&cbll=${lat},${lng}&cbp=11,0,0,0,0&output=svembed`;
-  const mapsLink = `https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=${lat},${lng}`;
+  // Prefer the street address — Google resolves it to the nearest panorama.
+  // Fall back to lat/long only when no address is stored.
+  let embedSrc: string;
+  let mapsLink: string;
+  if (hasAddress) {
+    const q = encodeURIComponent(
+      [address, city, province, "Canada"].filter(Boolean).join(", "),
+    );
+    embedSrc = `https://maps.google.com/maps?q=${q}&layer=c&output=svembed`;
+    mapsLink = `https://www.google.com/maps/place/?q=${q}`;
+  } else {
+    embedSrc = `https://maps.google.com/maps?q=&layer=c&cbll=${lat},${lng}&cbp=11,0,0,0,0&output=svembed`;
+    mapsLink = `https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=${lat},${lng}`;
+  }
 
   return (
     <Card>
