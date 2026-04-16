@@ -564,11 +564,11 @@ export default function LPDetailPage() {
         <div className="overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0">
           <TabsList variant="line" className="w-full sm:w-auto">
             <TabsTrigger value="overview" className="text-xs sm:text-sm">Overview</TabsTrigger>
+            <TabsTrigger value="documents" className="text-xs sm:text-sm">Documents</TabsTrigger>
             <TabsTrigger value="tranches" className="text-xs sm:text-sm">Tranches</TabsTrigger>
             <TabsTrigger value="subscriptions" className="text-xs sm:text-sm">Subscriptions</TabsTrigger>
             <TabsTrigger value="holdings" className="text-xs sm:text-sm">Investor Holdings</TabsTrigger>
             <TabsTrigger value="pipeline" className="text-xs sm:text-sm">Property Holdings</TabsTrigger>
-            <TabsTrigger value="documents" className="text-xs sm:text-sm">Documents</TabsTrigger>
             <TabsTrigger value="portfolio-cashflow" className="text-xs sm:text-sm">Portfolio Cash Flow</TabsTrigger>
             <TabsTrigger value="projections-lp" className="text-xs sm:text-sm">Projected LP Returns</TabsTrigger>
             <TabsTrigger value="projections-gp" className="text-xs sm:text-sm">Projected GP Returns</TabsTrigger>
