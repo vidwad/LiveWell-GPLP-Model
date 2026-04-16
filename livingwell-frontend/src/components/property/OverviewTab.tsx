@@ -911,6 +911,39 @@ function StreetViewCard({ property }: { property: Record<string, any> }) {
   const lng = hasStoredCoords ? storedLng : geoCoords?.lng ?? NaN;
   const hasCoords = Number.isFinite(lat) && Number.isFinite(lng);
 
+  // Orient Street View to face the property. Google's nearest panorama is
+  // typically on the street out front; the default heading is 0° (north),
+  // so the camera ends up pointing down the road. Fetch the panorama
+  // location via the free Street View metadata endpoint and compute the
+  // bearing from that point back to the property.
+  const embedKeyForHeading = process.env.NEXT_PUBLIC_GOOGLE_MAPS_EMBED_KEY;
+  const [heading, setHeading] = React.useState<number | null>(null);
+  React.useEffect(() => {
+    if (!hasCoords || !embedKeyForHeading) return;
+    let cancelled = false;
+    fetch(
+      `https://maps.googleapis.com/maps/api/streetview/metadata?location=${lat},${lng}&key=${embedKeyForHeading}`,
+    )
+      .then((r) => r.ok ? r.json() : null)
+      .then((data) => {
+        if (cancelled || !data || data.status !== "OK") return;
+        const pLat = data.location?.lat;
+        const pLng = data.location?.lng;
+        if (typeof pLat !== "number" || typeof pLng !== "number") return;
+        const toRad = (d: number) => (d * Math.PI) / 180;
+        const toDeg = (r: number) => (r * 180) / Math.PI;
+        const φ1 = toRad(pLat);
+        const φ2 = toRad(lat);
+        const Δλ = toRad(lng - pLng);
+        const y = Math.sin(Δλ) * Math.cos(φ2);
+        const x = Math.cos(φ1) * Math.sin(φ2) - Math.sin(φ1) * Math.cos(φ2) * Math.cos(Δλ);
+        const brg = (toDeg(Math.atan2(y, x)) + 360) % 360;
+        setHeading(brg);
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [lat, lng, hasCoords, embedKeyForHeading]);
+
   if (!hasAddress && !hasCoords) {
     return (
       <Card>
@@ -946,7 +979,9 @@ function StreetViewCard({ property }: { property: Record<string, any> }) {
     : null;
 
   const streetViewSrc = hasEmbedKey && hasCoords
-    ? `https://www.google.com/maps/embed/v1/streetview?key=${embedKey}&location=${lat},${lng}&fov=90`
+    ? `https://www.google.com/maps/embed/v1/streetview?key=${embedKey}&location=${lat},${lng}&fov=90${
+        heading != null ? `&heading=${heading.toFixed(1)}` : ""
+      }&pitch=0`
     : null;
 
   const mapsLink =
