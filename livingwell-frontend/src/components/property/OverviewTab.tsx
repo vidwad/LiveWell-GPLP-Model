@@ -880,66 +880,97 @@ function StreetViewCard({ property }: { property: Record<string, any> }) {
   const hasCoords = Number.isFinite(lat) && Number.isFinite(lng) && lat !== 0 && lng !== 0;
   const hasAddress = !!address?.trim();
 
+  const [mode, setMode] = React.useState<"map" | "streetview">("map");
+
   if (!hasAddress && !hasCoords) {
     return (
       <Card>
         <CardHeader className="pb-3">
           <CardTitle className="text-base flex items-center gap-2">
             <MapPin className="h-4 w-4 text-muted-foreground" />
-            Street View
+            Location
           </CardTitle>
         </CardHeader>
         <CardContent>
           <p className="text-sm text-muted-foreground">
-            Add a street address (or lat/long) for this property to see Google Street View.
+            Add a street address (or lat/long) for this property to see the map and Street View.
           </p>
         </CardContent>
       </Card>
     );
   }
 
-  // Prefer the street address — Google resolves it to the nearest panorama.
-  // Fall back to lat/long only when no address is stored.
-  let embedSrc: string;
-  let mapsLink: string;
-  if (hasAddress) {
-    const q = encodeURIComponent(
-      [address, city, province, "Canada"].filter(Boolean).join(", "),
-    );
-    embedSrc = `https://maps.google.com/maps?q=${q}&layer=c&output=svembed`;
-    mapsLink = `https://www.google.com/maps/place/?q=${q}`;
-  } else {
-    embedSrc = `https://maps.google.com/maps?q=&layer=c&cbll=${lat},${lng}&cbp=11,0,0,0,0&output=svembed`;
-    mapsLink = `https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=${lat},${lng}`;
-  }
+  // Prefer the street address — Google resolves it to the nearest panorama /
+  // map pin. Fall back to lat/long only when no address is stored.
+  const q = hasAddress
+    ? encodeURIComponent([address, city, province, "Canada"].filter(Boolean).join(", "))
+    : null;
+
+  const mapSrc = q
+    ? `https://maps.google.com/maps?q=${q}&output=embed`
+    : `https://maps.google.com/maps?q=${lat},${lng}&output=embed`;
+
+  const streetViewSrc = q
+    ? `https://maps.google.com/maps?q=${q}&layer=c&output=svembed`
+    : `https://maps.google.com/maps?q=&layer=c&cbll=${lat},${lng}&cbp=11,0,0,0,0&output=svembed`;
+
+  const mapsLink = q
+    ? (mode === "streetview"
+        ? `https://www.google.com/maps/place/?q=${q}`
+        : `https://www.google.com/maps/search/?api=1&query=${q}`)
+    : (mode === "streetview"
+        ? `https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=${lat},${lng}`
+        : `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`);
 
   return (
     <Card>
       <CardHeader className="pb-3">
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between gap-2">
           <CardTitle className="text-base flex items-center gap-2">
             <MapPin className="h-4 w-4 text-muted-foreground" />
-            Street View
+            {mode === "streetview" ? "Street View" : "Map"}
           </CardTitle>
-          <a
-            href={mapsLink}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-xs text-blue-600 hover:underline flex items-center gap-1"
-          >
-            Open in Google Maps <ExternalLink className="h-3 w-3" />
-          </a>
+          <div className="flex items-center gap-2">
+            <div className="flex items-center rounded-md border bg-muted/30 text-xs">
+              <button
+                type="button"
+                onClick={() => setMode("map")}
+                className={`px-2.5 py-1 rounded-l-md transition-colors ${
+                  mode === "map" ? "bg-background font-semibold" : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                Map
+              </button>
+              <button
+                type="button"
+                onClick={() => setMode("streetview")}
+                className={`px-2.5 py-1 rounded-r-md transition-colors ${
+                  mode === "streetview" ? "bg-background font-semibold" : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                Street View
+              </button>
+            </div>
+            <a
+              href={mapsLink}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-xs text-blue-600 hover:underline flex items-center gap-1"
+            >
+              Open in Google Maps <ExternalLink className="h-3 w-3" />
+            </a>
+          </div>
         </div>
       </CardHeader>
       <CardContent>
         <iframe
-          src={embedSrc}
+          src={mode === "streetview" ? streetViewSrc : mapSrc}
           width="100%"
           height="360"
           loading="lazy"
           referrerPolicy="no-referrer-when-downgrade"
           className="rounded-md border"
-          title={`Google Street View for ${property.address}`}
+          title={`${mode === "streetview" ? "Google Street View" : "Google Map"} for ${property.address}`}
         />
       </CardContent>
     </Card>
