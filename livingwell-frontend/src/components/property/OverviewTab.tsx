@@ -2,7 +2,7 @@
 
 import React, { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { MapPin, DollarSign, Calendar, Building2, Landmark, TrendingUp, Pencil, Loader2, Sparkles, RefreshCw, AlertTriangle, Target, ChevronRight, CheckCircle2 } from "lucide-react";
+import { MapPin, DollarSign, Calendar, Building2, Landmark, TrendingUp, Pencil, Loader2, Sparkles, RefreshCw, AlertTriangle, Target, ChevronRight, CheckCircle2, ExternalLink } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -225,6 +225,9 @@ export function OverviewTab({
     <div className="space-y-6">
       {/* Investment Summary — Key Returns Snapshot */}
       <InvestmentSummaryCard propertyId={property.property_id} />
+
+      {/* Google Street View */}
+      <StreetViewCard property={property} />
 
       {/* Import from URL or PDF */}
       <PropertyImporter compact onImport={async (data) => {
@@ -865,6 +868,67 @@ export function OverviewTab({
 
 
 // ── AI Preliminary Property Assessment ──────────────────────────────
+
+// ── Google Street View ──────────────────────────────────────────────
+
+function StreetViewCard({ property }: { property: Record<string, any> }) {
+  const lat = property.latitude != null ? Number(property.latitude) : NaN;
+  const lng = property.longitude != null ? Number(property.longitude) : NaN;
+  const hasCoords = Number.isFinite(lat) && Number.isFinite(lng) && lat !== 0 && lng !== 0;
+
+  if (!hasCoords) {
+    return (
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base flex items-center gap-2">
+            <MapPin className="h-4 w-4 text-muted-foreground" />
+            Street View
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p className="text-sm text-muted-foreground">
+            Latitude and longitude are not set for this property. Use <strong>Look Up Property Data</strong> below to fetch coordinates from Calgary open data, then refresh.
+          </p>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  const embedSrc = `https://maps.google.com/maps?q=&layer=c&cbll=${lat},${lng}&cbp=11,0,0,0,0&output=svembed`;
+  const mapsLink = `https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=${lat},${lng}`;
+
+  return (
+    <Card>
+      <CardHeader className="pb-3">
+        <div className="flex items-center justify-between">
+          <CardTitle className="text-base flex items-center gap-2">
+            <MapPin className="h-4 w-4 text-muted-foreground" />
+            Street View
+          </CardTitle>
+          <a
+            href={mapsLink}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-xs text-blue-600 hover:underline flex items-center gap-1"
+          >
+            Open in Google Maps <ExternalLink className="h-3 w-3" />
+          </a>
+        </div>
+      </CardHeader>
+      <CardContent>
+        <iframe
+          src={embedSrc}
+          width="100%"
+          height="360"
+          loading="lazy"
+          referrerPolicy="no-referrer-when-downgrade"
+          className="rounded-md border"
+          title={`Google Street View for ${property.address}`}
+        />
+      </CardContent>
+    </Card>
+  );
+}
 
 // ── Investment Summary Card ─────────────────────────────────────────
 
