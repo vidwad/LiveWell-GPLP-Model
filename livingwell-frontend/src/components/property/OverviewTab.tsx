@@ -929,21 +929,25 @@ function StreetViewCard({ property }: { property: Record<string, any> }) {
     );
   }
 
-  // Map: prefer the address — Google renders a clean pin on the parcel.
-  // Street View: prefer coordinates — `cbll` reliably locates the nearest
-  // panorama; address-based svembed often falls back to a non-interactive
-  // map when Google can't snap the geocoded point to a panorama.
+  // Google Maps Embed API key — supplied at build time. Without it, the
+  // keyless svembed URL is blocked by X-Frame-Options: SAMEORIGIN, so we
+  // fall back to an "open in a new tab" button.
+  const embedKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_EMBED_KEY;
+  const hasEmbedKey = !!embedKey;
+
   const q = hasAddress
     ? encodeURIComponent([address, city, province, "Canada"].filter(Boolean).join(", "))
     : null;
 
-  const mapSrc = q
-    ? `https://maps.google.com/maps?q=${q}&output=embed`
-    : `https://maps.google.com/maps?q=${lat},${lng}&output=embed`;
+  const mapSrc = hasEmbedKey
+    ? (q
+        ? `https://www.google.com/maps/embed/v1/place?key=${embedKey}&q=${q}`
+        : `https://www.google.com/maps/embed/v1/view?key=${embedKey}&center=${lat},${lng}&zoom=17`)
+    : null;
 
-  const streetViewSrc = hasCoords
-    ? `https://maps.google.com/maps?q=&layer=c&cbll=${lat},${lng}&cbp=11,0,0,0,0&output=svembed`
-    : `https://maps.google.com/maps?q=${q}&layer=c&output=svembed`;
+  const streetViewSrc = hasEmbedKey && hasCoords
+    ? `https://www.google.com/maps/embed/v1/streetview?key=${embedKey}&location=${lat},${lng}&fov=90`
+    : null;
 
   const mapsLink =
     mode === "streetview"
@@ -953,6 +957,8 @@ function StreetViewCard({ property }: { property: Record<string, any> }) {
       : (q
           ? `https://www.google.com/maps/search/?api=1&query=${q}`
           : `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`);
+
+  const activeSrc = mode === "streetview" ? streetViewSrc : mapSrc;
 
   return (
     <Card>
@@ -995,16 +1001,36 @@ function StreetViewCard({ property }: { property: Record<string, any> }) {
         </div>
       </CardHeader>
       <CardContent>
-        <iframe
-          key={mode}
-          src={mode === "streetview" ? streetViewSrc : mapSrc}
-          width="100%"
-          height="360"
-          loading="lazy"
-          referrerPolicy="no-referrer-when-downgrade"
-          className="rounded-md border"
-          title={`${mode === "streetview" ? "Google Street View" : "Google Map"} for ${property.address}`}
-        />
+        {activeSrc ? (
+          <iframe
+            key={`${mode}-${activeSrc}`}
+            src={activeSrc}
+            width="100%"
+            height="360"
+            loading="lazy"
+            allowFullScreen
+            referrerPolicy="no-referrer-when-downgrade"
+            className="rounded-md border"
+            title={`${mode === "streetview" ? "Google Street View" : "Google Map"} for ${property.address}`}
+          />
+        ) : (
+          <div className="rounded-md border bg-muted/20 p-6 text-center space-y-3">
+            <p className="text-sm text-muted-foreground">
+              {!hasEmbedKey
+                ? "Google Maps Embed API key not configured — set NEXT_PUBLIC_GOOGLE_MAPS_EMBED_KEY to enable the embedded view."
+                : "Coordinates not available for Street View."}
+            </p>
+            <a
+              href={mapsLink}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1 text-sm text-blue-600 hover:underline"
+            >
+              Open {mode === "streetview" ? "Street View" : "on the map"} in Google Maps
+              <ExternalLink className="h-3.5 w-3.5" />
+            </a>
+          </div>
+        )}
         {mode === "streetview" && !hasCoords && hasAddress && (
           <p className="text-[11px] text-muted-foreground mt-2">
             Couldn't resolve this address to coordinates. Run <strong>Look Up Property Data</strong> below to persist lat/long.

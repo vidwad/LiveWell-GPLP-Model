@@ -55,6 +55,7 @@ services:
       dockerfile: Dockerfile
       args:
         NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://165.22.226.72:8000}
+        NEXT_PUBLIC_GOOGLE_MAPS_EMBED_KEY: ${NEXT_PUBLIC_GOOGLE_MAPS_EMBED_KEY:-}
     restart: unless-stopped
     depends_on:
       - backend
