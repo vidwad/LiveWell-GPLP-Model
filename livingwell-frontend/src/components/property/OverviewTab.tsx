@@ -880,7 +880,7 @@ function StreetViewCard({ property }: { property: Record<string, any> }) {
   const hasCoords = Number.isFinite(lat) && Number.isFinite(lng) && lat !== 0 && lng !== 0;
   const hasAddress = !!address?.trim();
 
-  const [mode, setMode] = React.useState<"map" | "streetview">("map");
+  const [mode, setMode] = React.useState<"map" | "streetview">("streetview");
 
   if (!hasAddress && !hasCoords) {
     return (
@@ -900,8 +900,10 @@ function StreetViewCard({ property }: { property: Record<string, any> }) {
     );
   }
 
-  // Prefer the street address — Google resolves it to the nearest panorama /
-  // map pin. Fall back to lat/long only when no address is stored.
+  // Map: prefer the address — Google renders a clean pin on the parcel.
+  // Street View: prefer coordinates — `cbll` reliably locates the nearest
+  // panorama; address-based svembed often falls back to a non-interactive
+  // map when Google can't snap the geocoded point to a panorama.
   const q = hasAddress
     ? encodeURIComponent([address, city, province, "Canada"].filter(Boolean).join(", "))
     : null;
@@ -910,17 +912,18 @@ function StreetViewCard({ property }: { property: Record<string, any> }) {
     ? `https://maps.google.com/maps?q=${q}&output=embed`
     : `https://maps.google.com/maps?q=${lat},${lng}&output=embed`;
 
-  const streetViewSrc = q
-    ? `https://maps.google.com/maps?q=${q}&layer=c&output=svembed`
-    : `https://maps.google.com/maps?q=&layer=c&cbll=${lat},${lng}&cbp=11,0,0,0,0&output=svembed`;
+  const streetViewSrc = hasCoords
+    ? `https://maps.google.com/maps?q=&layer=c&cbll=${lat},${lng}&cbp=11,0,0,0,0&output=svembed`
+    : `https://maps.google.com/maps?q=${q}&layer=c&output=svembed`;
 
-  const mapsLink = q
-    ? (mode === "streetview"
-        ? `https://www.google.com/maps/place/?q=${q}`
-        : `https://www.google.com/maps/search/?api=1&query=${q}`)
-    : (mode === "streetview"
-        ? `https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=${lat},${lng}`
-        : `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`);
+  const mapsLink =
+    mode === "streetview"
+      ? (hasCoords
+          ? `https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=${lat},${lng}`
+          : `https://www.google.com/maps/place/?q=${q}`)
+      : (q
+          ? `https://www.google.com/maps/search/?api=1&query=${q}`
+          : `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`);
 
   return (
     <Card>
@@ -964,6 +967,7 @@ function StreetViewCard({ property }: { property: Record<string, any> }) {
       </CardHeader>
       <CardContent>
         <iframe
+          key={mode}
           src={mode === "streetview" ? streetViewSrc : mapSrc}
           width="100%"
           height="360"
@@ -972,6 +976,11 @@ function StreetViewCard({ property }: { property: Record<string, any> }) {
           className="rounded-md border"
           title={`${mode === "streetview" ? "Google Street View" : "Google Map"} for ${property.address}`}
         />
+        {mode === "streetview" && !hasCoords && (
+          <p className="text-[11px] text-muted-foreground mt-2">
+            Street View is most reliable with coordinates. Run <strong>Look Up Property Data</strong> below to fetch lat/long for this property.
+          </p>
+        )}
       </CardContent>
     </Card>
   );
