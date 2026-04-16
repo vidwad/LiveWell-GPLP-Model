@@ -66,7 +66,7 @@ DEFAULT_SETTINGS = [
         "key": "CLAUDE_MODEL",
         "category": "ai",
         "label": "Claude Model",
-        "description": "Which Claude model to use for AI features. Options: claude-sonnet-4-20250514, claude-opus-4-20250514, claude-haiku-4-5-20251001.",
+        "description": "Which Claude model to use for AI features. Default: claude-opus-4-7 (most capable). Other options: claude-sonnet-4-6 (fast/cheap), claude-haiku-4-5 (fastest).",
         "is_secret": False,
     },
     {
@@ -167,7 +167,7 @@ def _ensure_defaults(db: Session):
             elif defn["key"] == "OPENAI_API_KEY":
                 env_value = env_settings.OPENAI_API_KEY or ""
             elif defn["key"] == "CLAUDE_MODEL":
-                env_value = env_settings.CLAUDE_MODEL or "claude-sonnet-4-20250514"
+                env_value = env_settings.CLAUDE_MODEL or "claude-opus-4-7"
             elif defn["key"] == "FRONTEND_URL":
                 env_value = env_settings.FRONTEND_URL or ""
             elif defn["key"] == "ENVIRONMENT":
@@ -395,7 +395,7 @@ def get_integration_status(
                 ],
             },
         ],
-        "ai_model": settings.get("CLAUDE_MODEL", "claude-sonnet-4-20250514"),
+        "ai_model": settings.get("CLAUDE_MODEL", "claude-opus-4-7"),
         "environment": settings.get("ENVIRONMENT", "development"),
     }
 
