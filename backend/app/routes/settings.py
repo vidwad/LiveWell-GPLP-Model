@@ -38,7 +38,7 @@ DEFAULT_SETTINGS = [
         "key": "GOOGLE_MAPS_API_KEY",
         "category": "api_keys",
         "label": "Google Maps API Key",
-        "description": "Enables interactive map view in Area Research with property markers and radius overlay. Requires Maps JavaScript API enabled. Get your key at console.cloud.google.com.",
+        "description": "Enables interactive map view in Area Research (Maps JavaScript API) and Street View panorama on the property Overview tab (Maps Embed API). Enable both APIs in your Google Cloud project. Get your key at console.cloud.google.com.",
         "is_secret": False,  # Client-side key — safe to expose to browser
     },
     {
@@ -381,7 +381,7 @@ def get_integration_status(
                 "features": [
                     "Area Research Map View",
                     "Property Markers & Overlays",
-                    "Satellite / Street View",
+                    "Property Street View Panorama",
                     "Radius Visualization",
                 ],
             },
