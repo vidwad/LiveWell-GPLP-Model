@@ -12,6 +12,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { PropertyLookup } from "@/components/property/PropertyLookup";
 import { PropertyImporter } from "@/components/property/PropertyImporter";
+import { PropertyStreetView } from "@/components/property/PropertyStreetView";
 import { formatCurrencyCompact, formatDate } from "@/lib/utils";
 import { apiClient } from "@/lib/api";
 import { toast } from "sonner";
@@ -448,6 +449,15 @@ export function OverviewTab({
           </CardContent>
         </Card>
       </div>
+
+      {/* Google Street View */}
+      <PropertyStreetView
+        address={property.address}
+        city={property.city}
+        province={property.province}
+        latitude={property.latitude != null ? Number(property.latitude) : undefined}
+        longitude={property.longitude != null ? Number(property.longitude) : undefined}
+      />
 
       {/* Property Specifications & Municipal Data */}
       {(property.year_built || property.property_type || property.bedrooms || property.neighbourhood || property.tax_amount || property.mls_number) && (
