@@ -1072,6 +1072,9 @@ class QuickAddLeadBody(BaseModel):
     net_worth_range: Optional[str] = None
     investment_goals: Optional[str] = None
     referral_source: Optional[str] = None
+    accreditation_verified_at: Optional[str] = None
+    accreditation_expires_at: Optional[str] = None
+    research_summary: Optional[str] = None
     update_existing: bool = False  # If True, overwrite matched record with incoming data
 
 
@@ -1138,7 +1141,7 @@ def quick_add_lead(
                 "risk_tolerance": body.risk_tolerance, "re_knowledge": body.re_knowledge,
                 "other_investments": body.other_investments, "income_range": body.income_range,
                 "net_worth_range": body.net_worth_range, "investment_goals": body.investment_goals,
-                "referral_source": body.referral_source,
+                "referral_source": body.referral_source, "research_summary": body.research_summary,
             }
             if body.email:
                 updatable["email"] = body.email
@@ -1178,6 +1181,7 @@ def quick_add_lead(
             net_worth_range=body.net_worth_range,
             investment_goals=body.investment_goals,
             referral_source=body.referral_source,
+            research_summary=body.research_summary,
         )
         is_new = True
         db.add(inv)
@@ -1186,6 +1190,16 @@ def quick_add_lead(
         except Exception:
             db.rollback()
             return {"investor_id": None, "name": body.name, "is_new": False, "message": f"Skipped duplicate: '{body.name}'"}
+
+    # Set accreditation dates if provided (ISO strings → date objects)
+    from datetime import date as _date
+    for attr, val in [("accreditation_verified_at", body.accreditation_verified_at),
+                      ("accreditation_expires_at", body.accreditation_expires_at)]:
+        if val:
+            try:
+                setattr(inv, attr, _date.fromisoformat(val[:10]))
+            except (ValueError, TypeError):
+                pass
 
     # Create IOI if LP and amount provided
     ioi = None

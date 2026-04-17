@@ -472,11 +472,27 @@ function InvestorOnboardingPage() {
     { key: "indicated_amount", label: "Indicated Amount" },
   ];
 
+  // ── Unified field list for CSV export + import round-trip ──
+  const CSV_FIELDS = [
+    "investor_id", "first_name", "last_name", "company_name", "name", "email",
+    "phone", "mobile",
+    "street_address", "street_address_2", "city", "province", "postal_code", "country", "address",
+    "entity_type", "jurisdiction",
+    "accredited_status", "exemption_type", "accreditation_verified_at", "accreditation_expires_at",
+    "tax_id", "banking_info",
+    "investor_status", "onboarding_status",
+    "linkedin_url", "risk_tolerance", "re_knowledge", "other_investments",
+    "income_range", "net_worth_range", "investment_goals", "referral_source",
+    "source", "indicated_amount",
+    "notes", "research_summary",
+    "created_at", "invited_at", "onboarding_started_at", "onboarding_completed_at", "approved_at",
+  ];
+
   // ── CSV Export ──
   const handleExport = useCallback(() => {
     const list = investors ?? [];
     if (list.length === 0) return;
-    const headers = ["investor_id", "first_name", "last_name", "company_name", "email", "phone", "mobile", "street_address", "street_address_2", "city", "province", "postal_code", "country", "entity_type", "jurisdiction", "accredited_status", "exemption_type", "tax_id", "banking_info", "investor_status", "onboarding_status", "notes", "created_at"];
+    const headers = CSV_FIELDS;
     const rows = list.map((inv: any) =>
       headers.map((h) => {
         const val = inv[h] ?? "";
@@ -587,7 +603,7 @@ function InvestorOnboardingPage() {
 
       // Auto-map columns by matching header names
       const autoMapping: Record<string, string> = {};
-      const fieldKeys = ["first_name", "last_name", "company_name", "name", "email", "phone", "mobile", "street_address", "street_address_2", "city", "province", "postal_code", "country", "address", "entity_type", "jurisdiction", "accredited_status", "exemption_type", "tax_id", "banking_info", "investor_status", "onboarding_status", "source", "notes", "indicated_amount"];
+      const fieldKeys = CSV_FIELDS;
       headers.forEach((h, idx) => {
         const normalized = h.toLowerCase().replace(/[^a-z0-9]/g, "_");
         for (const fk of fieldKeys) {
@@ -650,7 +666,17 @@ function InvestorOnboardingPage() {
         ? { first_name: name }
         : { name };
       if (email) body.email = email;
-      const optionalFields = ["last_name", "company_name", "phone", "mobile", "street_address", "street_address_2", "city", "province", "postal_code", "country", "address", "entity_type", "jurisdiction", "accredited_status", "exemption_type", "tax_id", "banking_info", "investor_status", "onboarding_status", "source", "notes"];
+      const optionalFields = [
+        "last_name", "company_name", "phone", "mobile",
+        "street_address", "street_address_2", "city", "province", "postal_code", "country", "address",
+        "entity_type", "jurisdiction",
+        "accredited_status", "exemption_type", "accreditation_verified_at", "accreditation_expires_at",
+        "tax_id", "banking_info",
+        "investor_status", "onboarding_status",
+        "linkedin_url", "risk_tolerance", "re_knowledge", "other_investments",
+        "income_range", "net_worth_range", "investment_goals", "referral_source",
+        "source", "notes", "research_summary",
+      ];
       for (const field of optionalFields) {
         if (fieldToCol[field] !== undefined && row[fieldToCol[field]]) {
           body[field] = row[fieldToCol[field]];
