@@ -481,6 +481,7 @@ function InvestorOnboardingPage() {
     "accredited_status", "exemption_type", "accreditation_verified_at", "accreditation_expires_at",
     "tax_id", "banking_info",
     "investor_status", "onboarding_status",
+    "assigned_to",
     "linkedin_url", "risk_tolerance", "re_knowledge", "other_investments",
     "income_range", "net_worth_range", "investment_goals", "referral_source",
     "source", "indicated_amount",
@@ -495,11 +496,16 @@ function InvestorOnboardingPage() {
     const headers = CSV_FIELDS;
     const rows = list.map((inv: any) =>
       headers.map((h) => {
-        const val = inv[h] ?? "";
-        const str = String(val);
-        return str.includes(",") || str.includes('"') || str.includes("\n")
-          ? `"${str.replace(/"/g, '""')}"`
-          : str;
+        let val: string;
+        if (h === "assigned_to") {
+          const users = (inv.assigned_users as Array<{user_name: string}>) ?? [];
+          val = users.map((u) => u.user_name).filter(Boolean).join("; ");
+        } else {
+          val = String(inv[h] ?? "");
+        }
+        return val.includes(",") || val.includes('"') || val.includes("\n")
+          ? `"${val.replace(/"/g, '""')}"`
+          : val;
       }).join(",")
     );
     const csv = [headers.join(","), ...rows].join("\n");
@@ -675,7 +681,7 @@ function InvestorOnboardingPage() {
         "investor_status", "onboarding_status",
         "linkedin_url", "risk_tolerance", "re_knowledge", "other_investments",
         "income_range", "net_worth_range", "investment_goals", "referral_source",
-        "source", "notes", "research_summary",
+        "source", "notes", "research_summary", "assigned_to",
       ];
       for (const field of optionalFields) {
         if (fieldToCol[field] !== undefined && row[fieldToCol[field]]) {

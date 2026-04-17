@@ -1075,6 +1075,7 @@ class QuickAddLeadBody(BaseModel):
     accreditation_verified_at: Optional[str] = None
     accreditation_expires_at: Optional[str] = None
     research_summary: Optional[str] = None
+    assigned_to: Optional[str] = None  # semicolon-separated user names for import
     update_existing: bool = False  # If True, overwrite matched record with incoming data
 
 
@@ -1200,6 +1201,25 @@ def quick_add_lead(
                 setattr(inv, attr, _date.fromisoformat(val[:10]))
             except (ValueError, TypeError):
                 pass
+
+    # Assign users by name (semicolon-separated) if provided via CSV import
+    if body.assigned_to:
+        names = [n.strip() for n in body.assigned_to.split(";") if n.strip()]
+        for name in names:
+            user = db.query(User).filter(User.full_name == name).first()
+            if not user:
+                parts = name.split()
+                if len(parts) >= 2:
+                    user = db.query(User).filter(
+                        User.first_name == parts[0], User.last_name == " ".join(parts[1:])
+                    ).first()
+            if user:
+                exists = db.query(ContactAssignment).filter(
+                    ContactAssignment.investor_id == inv.investor_id,
+                    ContactAssignment.user_id == user.user_id,
+                ).first()
+                if not exists:
+                    db.add(ContactAssignment(investor_id=inv.investor_id, user_id=user.user_id))
 
     # Create IOI if LP and amount provided
     ioi = None
