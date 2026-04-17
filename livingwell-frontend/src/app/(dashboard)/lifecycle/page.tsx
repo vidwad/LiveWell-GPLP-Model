@@ -62,6 +62,25 @@ export default function LifecyclePage() {
     return ((yearFrac - startYear) / totalYears) * 100;
   };
 
+  // Group properties by LP — must be before any early returns to preserve hook order
+  const groupedByLp = useMemo(() => {
+    const props = data?.properties || [];
+    const groups = new Map<string, { lp_id: number | null; lp_name: string; properties: any[] }>();
+    for (const p of props) {
+      const key = p.lp_id ? `lp-${p.lp_id}` : "unassigned";
+      const name = p.lp_name || "Unassigned (no LP)";
+      if (!groups.has(key)) {
+        groups.set(key, { lp_id: p.lp_id ?? null, lp_name: name, properties: [] });
+      }
+      groups.get(key)!.properties.push(p);
+    }
+    return Array.from(groups.values()).sort((a, b) => {
+      if (a.lp_id === null && b.lp_id !== null) return 1;
+      if (b.lp_id === null && a.lp_id !== null) return -1;
+      return a.lp_name.localeCompare(b.lp_name);
+    });
+  }, [data]);
+
   if (isLoading) {
     return (
       <div className="space-y-4">
@@ -74,25 +93,6 @@ export default function LifecyclePage() {
   const properties = data?.properties || [];
   const alerts = data?.alerts || [];
   const summary = data?.summary || {};
-
-  // Group properties by LP
-  const groupedByLp = useMemo(() => {
-    const groups = new Map<string, { lp_id: number | null; lp_name: string; properties: any[] }>();
-    for (const p of properties) {
-      const key = p.lp_id ? `lp-${p.lp_id}` : "unassigned";
-      const name = p.lp_name || "Unassigned (no LP)";
-      if (!groups.has(key)) {
-        groups.set(key, { lp_id: p.lp_id ?? null, lp_name: name, properties: [] });
-      }
-      groups.get(key)!.properties.push(p);
-    }
-    // Unassigned group sorts last; otherwise alphabetic by LP name
-    return Array.from(groups.values()).sort((a, b) => {
-      if (a.lp_id === null && b.lp_id !== null) return 1;
-      if (b.lp_id === null && a.lp_id !== null) return -1;
-      return a.lp_name.localeCompare(b.lp_name);
-    });
-  }, [properties]);
 
   return (
     <div className="space-y-6">
