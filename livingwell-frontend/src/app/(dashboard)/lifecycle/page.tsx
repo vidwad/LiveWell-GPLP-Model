@@ -75,6 +75,25 @@ export default function LifecyclePage() {
   const alerts = data?.alerts || [];
   const summary = data?.summary || {};
 
+  // Group properties by LP
+  const groupedByLp = useMemo(() => {
+    const groups = new Map<string, { lp_id: number | null; lp_name: string; properties: any[] }>();
+    for (const p of properties) {
+      const key = p.lp_id ? `lp-${p.lp_id}` : "unassigned";
+      const name = p.lp_name || "Unassigned (no LP)";
+      if (!groups.has(key)) {
+        groups.set(key, { lp_id: p.lp_id ?? null, lp_name: name, properties: [] });
+      }
+      groups.get(key)!.properties.push(p);
+    }
+    // Unassigned group sorts last; otherwise alphabetic by LP name
+    return Array.from(groups.values()).sort((a, b) => {
+      if (a.lp_id === null && b.lp_id !== null) return 1;
+      if (b.lp_id === null && a.lp_id !== null) return -1;
+      return a.lp_name.localeCompare(b.lp_name);
+    });
+  }, [properties]);
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -158,15 +177,41 @@ export default function LifecyclePage() {
             </div>
           </div>
 
-          {/* Property rows */}
+          {/* Property rows grouped by LP */}
           {properties.length === 0 ? (
             <div className="py-12 text-center text-muted-foreground">
               <Building2 className="h-10 w-10 mx-auto mb-3 text-muted-foreground/30" />
               <p className="text-sm">No properties found</p>
             </div>
           ) : (
-            properties.map((prop: any) => (
-              <div key={prop.property_id} className="flex border-b hover:bg-muted/30 transition-colors group">
+            groupedByLp.flatMap((group) => [
+              <div
+                key={`group-${group.lp_id ?? "unassigned"}`}
+                className="flex border-b bg-muted/40 sticky top-[33px] z-[5]"
+              >
+                <div className="w-56 shrink-0 px-4 py-2 border-r flex items-center gap-2">
+                  <Building2 className="h-3.5 w-3.5 text-muted-foreground" />
+                  {group.lp_id ? (
+                    <Link
+                      href={`/investment/${group.lp_id}`}
+                      className="text-xs font-semibold truncate hover:text-primary"
+                      title={group.lp_name}
+                    >
+                      {group.lp_name}
+                    </Link>
+                  ) : (
+                    <span className="text-xs font-semibold truncate text-muted-foreground">
+                      {group.lp_name}
+                    </span>
+                  )}
+                  <Badge variant="outline" className="text-[10px] px-1.5 py-0 ml-auto">
+                    {group.properties.length}
+                  </Badge>
+                </div>
+                <div className="flex-1" />
+              </div>,
+              ...group.properties.map((prop: any) => (
+                <div key={prop.property_id} className="flex border-b hover:bg-muted/30 transition-colors group">
                 {/* Property info */}
                 <div className="w-56 shrink-0 px-4 py-3 border-r">
                   <Link href={`/portfolio/${prop.property_id}`} className="group/link">
@@ -268,7 +313,8 @@ export default function LifecyclePage() {
                   </div>
                 </div>
               </div>
-            ))
+              )),
+            ])
           )}
         </CardContent>
       </Card>

@@ -14,7 +14,7 @@ from app.db.session import get_db
 from app.db.models import (
     Property, DevelopmentPlan, DevelopmentStage,
     AcquisitionBaseline, ExitForecast,
-    User,
+    LPEntity, User,
 )
 from app.core.deps import require_investor_or_above
 
@@ -35,6 +35,11 @@ def get_portfolio_timeline(
     """Return timeline data for all properties for a Gantt-style view."""
     properties = db.query(Property).order_by(Property.property_id).all()
     today = date.today()
+
+    # Preload LP names for grouping
+    lp_names: dict[int, str] = {
+        lp.lp_id: lp.name for lp in db.query(LPEntity).all()
+    }
 
     rows = []
     alerts = []
@@ -201,6 +206,8 @@ def get_portfolio_timeline(
             "property_id": pid,
             "address": prop.address,
             "city": prop.city,
+            "lp_id": prop.lp_id,
+            "lp_name": lp_names.get(prop.lp_id) if prop.lp_id else None,
             "stage": stage,
             "status": status,
             "status_label": status_label,
