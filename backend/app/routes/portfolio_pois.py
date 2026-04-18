@@ -21,11 +21,13 @@ router = APIRouter()
 
 _CACHE: dict[str, tuple[float, dict]] = {}
 _TTL_SECONDS = 24 * 3600
+# Bump when the bucket shape / probe set changes to invalidate stale entries
+_CACHE_VERSION = 2
 
 
 def _cache_key(lat: float, lng: float, radius: int) -> str:
     # Snap to 3 decimals (~110 m) so nearby requests share cache entries
-    return f"{round(lat, 3)}:{round(lng, 3)}:{radius}"
+    return f"v{_CACHE_VERSION}:{round(lat, 3)}:{round(lng, 3)}:{radius}"
 
 
 @router.get("/portfolio/lp-pois")

@@ -93,58 +93,88 @@ def get_lp_relevant_pois(lat: float, lng: float, api_key: str, radius_m: int = 2
       - pharmacies: retail pharmacies
       - libraries: public libraries
       - senior_care: nursing homes / retirement residences / assisted living (RetireWell)
-    """
-    # (label, google place type or None, keyword or None)
-    queries = [
-        ("treatment_centers", None, "addiction treatment center OR rehab OR detox"),
-        ("universities", "university", None),
-        ("colleges", None, "college OR polytechnic OR technical institute"),
-        ("hospitals", "hospital", None),
-        ("pharmacies", "pharmacy", None),
-        ("libraries", "library", None),
-        ("senior_care", None, "nursing home OR retirement residence OR assisted living"),
-    ]
 
-    results: dict = {}
+    Each bucket can issue multiple Nearby Search queries (Places API `keyword`
+    does NOT support OR-syntax — it matches the literal phrase). Results are
+    de-duplicated globally by place_id so a place only appears under one bucket.
+    """
+    # bucket -> list of (place_type, keyword) probes
+    buckets: dict[str, list[tuple[str | None, str | None]]] = {
+        "treatment_centers": [
+            (None, "addiction treatment center"),
+            (None, "drug rehab"),
+            (None, "detox"),
+            (None, "recovery center"),
+            (None, "sober living"),
+            (None, "mental health clinic"),
+        ],
+        "universities": [("university", None)],
+        "colleges": [
+            (None, "college"),
+            (None, "polytechnic"),
+            (None, "technical institute"),
+        ],
+        "hospitals": [("hospital", None)],
+        "pharmacies": [("pharmacy", None)],
+        "libraries": [("library", None)],
+        "senior_care": [
+            (None, "nursing home"),
+            (None, "retirement residence"),
+            (None, "assisted living"),
+            (None, "senior living"),
+        ],
+    }
+
+    results: dict[str, list[dict]] = {}
     seen_place_ids: set[str] = set()
-    for label, place_type, keyword in queries:
-        try:
-            params = {
-                "location": f"{lat},{lng}",
-                "radius": radius_m,
-                "key": api_key,
-            }
-            if place_type:
-                params["type"] = place_type
-            if keyword:
-                params["keyword"] = keyword
-            resp = requests.get(
-                "https://maps.googleapis.com/maps/api/place/nearbysearch/json",
-                params=params,
-                timeout=10,
-            )
-            data = resp.json()
-            places = []
-            for p in (data.get("results") or [])[:8]:
-                pid = p.get("place_id")
-                if pid and pid in seen_place_ids:
-                    continue
-                if pid:
-                    seen_place_ids.add(pid)
-                loc = p.get("geometry", {}).get("location", {})
-                places.append({
-                    "place_id": pid,
-                    "name": p.get("name"),
-                    "address": p.get("vicinity"),
-                    "rating": p.get("rating"),
-                    "user_ratings_total": p.get("user_ratings_total"),
-                    "lat": loc.get("lat"),
-                    "lng": loc.get("lng"),
-                })
-            results[label] = places
-        except Exception as e:
-            logger.warning("LP POI lookup failed for %s: %s", label, e)
-            results[label] = []
+
+    for label, probes in buckets.items():
+        collected: list[dict] = []
+        for place_type, keyword in probes:
+            try:
+                params: dict = {
+                    "location": f"{lat},{lng}",
+                    "radius": radius_m,
+                    "key": api_key,
+                }
+                if place_type:
+                    params["type"] = place_type
+                if keyword:
+                    params["keyword"] = keyword
+                resp = requests.get(
+                    "https://maps.googleapis.com/maps/api/place/nearbysearch/json",
+                    params=params,
+                    timeout=10,
+                )
+                data = resp.json()
+                status = data.get("status")
+                if status not in ("OK", "ZERO_RESULTS"):
+                    logger.warning(
+                        "Places API %s returned status=%s error=%s",
+                        label, status, data.get("error_message"),
+                    )
+                for p in data.get("results") or []:
+                    pid = p.get("place_id")
+                    if pid and pid in seen_place_ids:
+                        continue
+                    if pid:
+                        seen_place_ids.add(pid)
+                    loc = p.get("geometry", {}).get("location", {})
+                    collected.append({
+                        "place_id": pid,
+                        "name": p.get("name"),
+                        "address": p.get("vicinity"),
+                        "rating": p.get("rating"),
+                        "user_ratings_total": p.get("user_ratings_total"),
+                        "lat": loc.get("lat"),
+                        "lng": loc.get("lng"),
+                    })
+            except Exception as e:
+                logger.warning("LP POI lookup failed for %s (%s/%s): %s", label, place_type, keyword, e)
+
+        # Cap bucket size after merging all probes; higher user_ratings_total wins
+        collected.sort(key=lambda x: (x.get("user_ratings_total") or 0), reverse=True)
+        results[label] = collected[:12]
 
     return results
 
