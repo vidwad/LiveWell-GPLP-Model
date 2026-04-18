@@ -179,6 +179,25 @@ def get_lp_relevant_pois(lat: float, lng: float, api_key: str, radius_m: int = 2
     return results
 
 
+def geocode_address(address: str, api_key: str) -> tuple[float | None, float | None]:
+    """Resolve a free-form address to (lat, lng) via Google Geocoding API."""
+    try:
+        resp = requests.get(
+            "https://maps.googleapis.com/maps/api/geocode/json",
+            params={"address": address, "key": api_key},
+            timeout=10,
+        )
+        data = resp.json()
+        if data.get("status") != "OK":
+            logger.warning("Geocode failed for %s: %s %s", address, data.get("status"), data.get("error_message"))
+            return (None, None)
+        loc = data["results"][0]["geometry"]["location"]
+        return (float(loc["lat"]), float(loc["lng"]))
+    except Exception as e:
+        logger.warning("Geocode exception for %s: %s", address, e)
+        return (None, None)
+
+
 def get_calgary_assessment(address: str) -> dict:
     """Look up property assessment from City of Calgary Open Data."""
     try:

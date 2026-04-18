@@ -984,6 +984,10 @@ type Poi = {
   user_ratings_total?: number;
   lat?: number;
   lng?: number;
+  manual?: boolean;
+  phone?: string;
+  website?: string;
+  notes?: string;
 };
 
 type PoiBuckets = {
@@ -1043,11 +1047,12 @@ function LpGroupMap({ properties }: { properties: Property[] }) {
   // Dynamic search radius: wider span → wider POI radius (capped)
   const radius = Math.min(Math.max(Math.round(span * 111_000 * 0.8) + 1500, 1500), 6000);
 
+  const lpId = geoProps[0]?.lp_id;
   const { data: poiData } = useQuery<{ pois: PoiBuckets }>({
-    queryKey: ["lp-pois", Math.round(center.lat * 1000) / 1000, Math.round(center.lng * 1000) / 1000, radius],
+    queryKey: ["lp-pois", Math.round(center.lat * 1000) / 1000, Math.round(center.lng * 1000) / 1000, radius, lpId ?? null],
     queryFn: async () => {
       const r = await apiClient.get("/api/portfolio/lp-pois", {
-        params: { lat: center.lat, lng: center.lng, radius },
+        params: { lat: center.lat, lng: center.lng, radius, lp_id: lpId },
       });
       return r.data;
     },
@@ -1099,15 +1104,25 @@ function LpGroupMap({ properties }: { properties: Property[] }) {
             const meta = POI_CATEGORY_META[cat];
             return list
               .filter((p) => typeof p.lat === "number" && typeof p.lng === "number")
-              .map((p, idx) => (
-                <AdvancedMarker
-                  key={`${cat}-${p.place_id ?? idx}`}
-                  position={{ lat: p.lat as number, lng: p.lng as number }}
-                  title={`${meta.label}: ${p.name}${p.rating ? ` (${p.rating}★ · ${p.user_ratings_total ?? 0})` : ""}${p.address ? `\n${p.address}` : ""}`}
-                >
-                  <Pin background={meta.color} borderColor={meta.border} glyphColor="#ffffff" glyph={meta.glyph} scale={0.85} />
-                </AdvancedMarker>
-              ));
+              .map((p, idx) => {
+                const ratingStr = p.rating ? ` (${p.rating}★ · ${p.user_ratings_total ?? 0})` : "";
+                const manualTag = p.manual ? " [curated]" : "";
+                return (
+                  <AdvancedMarker
+                    key={`${cat}-${p.place_id ?? idx}`}
+                    position={{ lat: p.lat as number, lng: p.lng as number }}
+                    title={`${meta.label}${manualTag}: ${p.name}${ratingStr}${p.address ? `\n${p.address}` : ""}${p.phone ? `\n${p.phone}` : ""}`}
+                  >
+                    <Pin
+                      background={meta.color}
+                      borderColor={p.manual ? "#000000" : meta.border}
+                      glyphColor="#ffffff"
+                      glyph={p.manual ? "★" : meta.glyph}
+                      scale={p.manual ? 1 : 0.85}
+                    />
+                  </AdvancedMarker>
+                );
+              });
           })}
         </GMap>
       </APIProvider>

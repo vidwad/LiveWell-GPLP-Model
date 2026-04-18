@@ -74,6 +74,9 @@ app.include_router(timeline_router, prefix="/api", tags=["timeline"])
 from app.routes.portfolio_pois import router as portfolio_pois_router
 app.include_router(portfolio_pois_router, prefix="/api", tags=["portfolio-pois"])
 
+from app.routes.manual_pois import router as manual_pois_router
+app.include_router(manual_pois_router, prefix="/api", tags=["manual-pois"])
+
 from app.routes.database_backups import router as database_backups_router
 app.include_router(database_backups_router, prefix="/api/admin/backups", tags=["admin-backups"])
 

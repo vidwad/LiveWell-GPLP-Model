@@ -15,6 +15,7 @@ from sqlalchemy.orm import Session
 from app.core.deps import require_investor_or_above
 from app.db.models import PlatformSetting, User
 from app.db.session import get_db
+from app.routes.manual_pois import manual_pois_for_area
 from app.services.location_services import get_lp_relevant_pois
 
 router = APIRouter()
@@ -35,27 +36,42 @@ def get_lp_pois(
     lat: float = Query(..., ge=-90, le=90),
     lng: float = Query(..., ge=-180, le=180),
     radius: int = Query(2000, ge=200, le=10000),
+    lp_id: int | None = Query(None),
     db: Session = Depends(get_db),
     current_user: User = Depends(require_investor_or_above),
 ):
-    """Return nearby facilities relevant to the LP verticals."""
+    """Return nearby facilities relevant to the LP verticals.
+
+    Merges Google Places results (cached per coords/radius) with
+    manually-curated POIs from the database (filtered by LP scope).
+    """
     key = _cache_key(lat, lng, radius)
     now = time.time()
+
+    # Google Places portion — cached
     hit = _CACHE.get(key)
     if hit and now - hit[0] < _TTL_SECONDS:
-        return {"cached": True, "pois": hit[1]}
+        google_pois = hit[1]
+    else:
+        gm = db.query(PlatformSetting).filter(PlatformSetting.key == "GOOGLE_MAPS_API_KEY").first()
+        api_key = gm.value if gm and gm.value else None
+        if not api_key:
+            raise HTTPException(
+                status_code=400,
+                detail="GOOGLE_MAPS_API_KEY not configured. Set it in Platform Settings.",
+            )
+        google_pois = get_lp_relevant_pois(lat=lat, lng=lng, api_key=api_key, radius_m=radius)
+        # Only cache when Places returned data — avoids pinning empty results
+        # caused by REQUEST_DENIED / OVER_QUERY_LIMIT for 24h
+        if any(google_pois.get(b) for b in google_pois):
+            _CACHE[key] = (now, google_pois)
 
-    gm = db.query(PlatformSetting).filter(PlatformSetting.key == "GOOGLE_MAPS_API_KEY").first()
-    api_key = gm.value if gm and gm.value else None
-    if not api_key:
-        raise HTTPException(
-            status_code=400,
-            detail="GOOGLE_MAPS_API_KEY not configured. Set it in Platform Settings.",
-        )
+    # Manual POIs — never cached (cheap DB query; changes need to appear immediately)
+    manual = manual_pois_for_area(db, lat=lat, lng=lng, radius_m=radius, lp_id=lp_id)
 
-    pois = get_lp_relevant_pois(lat=lat, lng=lng, api_key=api_key, radius_m=radius)
-    # Only cache when Places returned data — avoids pinning empty results
-    # caused by REQUEST_DENIED / OVER_QUERY_LIMIT for 24h
-    if any(pois.get(bucket) for bucket in pois):
-        _CACHE[key] = (now, pois)
-    return {"cached": False, "pois": pois}
+    # Merge: manual POIs prepend their category list so they render on top
+    merged: dict[str, list] = {}
+    for cat in set(list(google_pois.keys()) + list(manual.keys())):
+        merged[cat] = (manual.get(cat) or []) + (google_pois.get(cat) or [])
+
+    return {"cached": bool(hit), "pois": merged}

@@ -3043,3 +3043,40 @@ class LPDocument(Base):
 
     lp = relationship("LPEntity")
     uploader = relationship("User", foreign_keys=[uploaded_by])
+
+
+class ManualPoi(Base):
+    """Manually-curated point of interest for the LP mini-map.
+
+    Used to pin facilities that Google Places doesn't index (e.g., treatment
+    centers that keep addresses off public Business Profiles). Rendered on
+    the LP mini-map alongside Google results, distinguished by a star glyph.
+    """
+    __tablename__ = "manual_pois"
+
+    poi_id = Column(Integer, primary_key=True, index=True)
+
+    # Scope: nullable lp_id = global (shows on every LP map); set = LP-specific
+    lp_id = Column(Integer, ForeignKey("lp_entities.lp_id", ondelete="CASCADE"), nullable=True, index=True)
+
+    # One of the category keys the frontend understands (treatment_centers,
+    # universities, colleges, hospitals, pharmacies, libraries, senior_care)
+    category = Column(String(64), nullable=False, index=True)
+
+    name = Column(String(256), nullable=False)
+    address = Column(String(512), nullable=True)
+    latitude = Column(Numeric(10, 7), nullable=False)
+    longitude = Column(Numeric(11, 7), nullable=False)
+
+    phone = Column(String(64), nullable=True)
+    website = Column(String(512), nullable=True)
+    notes = Column(Text, nullable=True)
+
+    is_active = Column(Boolean, nullable=False, default=True)
+
+    created_by = Column(Integer, ForeignKey("users.user_id"), nullable=True)
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    updated_at = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    lp = relationship("LPEntity")
+    creator = relationship("User", foreign_keys=[created_by])
