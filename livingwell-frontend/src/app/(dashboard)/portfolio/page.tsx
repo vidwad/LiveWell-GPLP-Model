@@ -25,8 +25,9 @@ import {
 import { formatCurrency, formatCurrencyCompact, formatDate } from "@/lib/utils";
 import { DevelopmentStage, Property } from "@/types/portfolio";
 import { useState, useMemo, useCallback, Fragment, useEffect } from "react";
-import { APIProvider, Map as GMap, AdvancedMarker } from "@vis.gl/react-google-maps";
-import { settingsApi } from "@/lib/api";
+import { APIProvider, Map as GMap, AdvancedMarker, Pin } from "@vis.gl/react-google-maps";
+import { settingsApi, apiClient } from "@/lib/api";
+import { useQuery } from "@tanstack/react-query";
 
 /* ── stage config ─────────────────────────────────────────────── */
 const STAGE_COLORS: Record<DevelopmentStage, string> = {
@@ -975,23 +976,87 @@ function useGoogleMapsKey() {
   return key;
 }
 
+type Poi = {
+  place_id?: string;
+  name?: string;
+  address?: string;
+  rating?: number;
+  user_ratings_total?: number;
+  lat?: number;
+  lng?: number;
+};
+
+type PoiBuckets = {
+  treatment_centers?: Poi[];
+  universities?: Poi[];
+  colleges?: Poi[];
+  hospitals?: Poi[];
+  pharmacies?: Poi[];
+  libraries?: Poi[];
+  senior_care?: Poi[];
+};
+
+const POI_CATEGORY_META: Record<
+  keyof PoiBuckets,
+  { label: string; color: string; glyph: string; border: string }
+> = {
+  treatment_centers: { label: "Treatment / Rehab", color: "#dc2626", glyph: "T", border: "#7f1d1d" },
+  universities:      { label: "University",        color: "#2563eb", glyph: "U", border: "#1e3a8a" },
+  colleges:          { label: "College",           color: "#0891b2", glyph: "C", border: "#164e63" },
+  hospitals:         { label: "Hospital",          color: "#e11d48", glyph: "H", border: "#881337" },
+  pharmacies:        { label: "Pharmacy",          color: "#16a34a", glyph: "R", border: "#14532d" },
+  libraries:         { label: "Library",           color: "#a16207", glyph: "L", border: "#713f12" },
+  senior_care:       { label: "Senior / Care",     color: "#9333ea", glyph: "S", border: "#581c87" },
+};
+
 function LpGroupMap({ properties }: { properties: Property[] }) {
   const mapsKey = useGoogleMapsKey();
   const geoProps = properties.filter(
     (p) => p.latitude && p.longitude && Number(p.latitude) !== 0 && Number(p.longitude) !== 0,
   );
-  if (geoProps.length === 0) return null;
 
-  const lats = geoProps.map((p) => Number(p.latitude));
-  const lngs = geoProps.map((p) => Number(p.longitude));
-  const center = {
-    lat: (Math.min(...lats) + Math.max(...lats)) / 2,
-    lng: (Math.min(...lngs) + Math.max(...lngs)) / 2,
-  };
-  const spanLat = Math.max(...lats) - Math.min(...lats);
-  const spanLng = Math.max(...lngs) - Math.min(...lngs);
+  // POI category visibility toggles
+  const [activeCats, setActiveCats] = useState<Record<keyof PoiBuckets, boolean>>({
+    treatment_centers: true,
+    universities: true,
+    colleges: true,
+    hospitals: true,
+    pharmacies: false,
+    libraries: false,
+    senior_care: true,
+  });
+
+  const hasGeo = geoProps.length > 0;
+  const lats = hasGeo ? geoProps.map((p) => Number(p.latitude)) : [];
+  const lngs = hasGeo ? geoProps.map((p) => Number(p.longitude)) : [];
+  const center = hasGeo
+    ? {
+        lat: (Math.min(...lats) + Math.max(...lats)) / 2,
+        lng: (Math.min(...lngs) + Math.max(...lngs)) / 2,
+      }
+    : { lat: 0, lng: 0 };
+  const spanLat = hasGeo ? Math.max(...lats) - Math.min(...lats) : 0;
+  const spanLng = hasGeo ? Math.max(...lngs) - Math.min(...lngs) : 0;
   const span = Math.max(spanLat, spanLng);
-  const zoom = span < 0.005 ? 16 : span < 0.02 ? 14 : span < 0.1 ? 12 : span < 0.5 ? 10 : 8;
+  const zoom = span < 0.005 ? 15 : span < 0.02 ? 13 : span < 0.1 ? 12 : span < 0.5 ? 10 : 8;
+
+  // Dynamic search radius: wider span → wider POI radius (capped)
+  const radius = Math.min(Math.max(Math.round(span * 111_000 * 0.8) + 1500, 1500), 6000);
+
+  const { data: poiData } = useQuery<{ pois: PoiBuckets }>({
+    queryKey: ["lp-pois", Math.round(center.lat * 1000) / 1000, Math.round(center.lng * 1000) / 1000, radius],
+    queryFn: async () => {
+      const r = await apiClient.get("/api/portfolio/lp-pois", {
+        params: { lat: center.lat, lng: center.lng, radius },
+      });
+      return r.data;
+    },
+    enabled: hasGeo && !!mapsKey,
+    staleTime: 24 * 60 * 60 * 1000,
+    retry: false,
+  });
+
+  if (!hasGeo) return null;
 
   if (!mapsKey) {
     return (
@@ -1002,6 +1067,8 @@ function LpGroupMap({ properties }: { properties: Property[] }) {
     );
   }
 
+  const pois = poiData?.pois || {};
+
   return (
     <div className="mb-3 overflow-hidden rounded-md border">
       <APIProvider apiKey={mapsKey}>
@@ -1009,7 +1076,7 @@ function LpGroupMap({ properties }: { properties: Property[] }) {
           defaultCenter={center}
           defaultZoom={zoom}
           mapId={`lp-group-map-${geoProps[0]?.lp_id ?? "x"}`}
-          style={{ width: "100%", height: "260px" }}
+          style={{ width: "100%", height: "300px" }}
           gestureHandling="cooperative"
           disableDefaultUI={false}
           zoomControl
@@ -1025,8 +1092,53 @@ function LpGroupMap({ properties }: { properties: Property[] }) {
               onClick={() => { window.location.href = `/portfolio/${p.property_id}`; }}
             />
           ))}
+
+          {(Object.keys(POI_CATEGORY_META) as (keyof PoiBuckets)[]).flatMap((cat) => {
+            if (!activeCats[cat]) return [];
+            const list = pois[cat] || [];
+            const meta = POI_CATEGORY_META[cat];
+            return list
+              .filter((p) => typeof p.lat === "number" && typeof p.lng === "number")
+              .map((p, idx) => (
+                <AdvancedMarker
+                  key={`${cat}-${p.place_id ?? idx}`}
+                  position={{ lat: p.lat as number, lng: p.lng as number }}
+                  title={`${meta.label}: ${p.name}${p.rating ? ` (${p.rating}★ · ${p.user_ratings_total ?? 0})` : ""}${p.address ? `\n${p.address}` : ""}`}
+                >
+                  <Pin background={meta.color} borderColor={meta.border} glyphColor="#ffffff" glyph={meta.glyph} scale={0.85} />
+                </AdvancedMarker>
+              ));
+          })}
         </GMap>
       </APIProvider>
+
+      {/* Category toggle legend */}
+      <div className="flex flex-wrap gap-1.5 border-t bg-muted/20 px-2 py-1.5">
+        {(Object.keys(POI_CATEGORY_META) as (keyof PoiBuckets)[]).map((cat) => {
+          const meta = POI_CATEGORY_META[cat];
+          const count = (pois[cat] || []).length;
+          const on = activeCats[cat];
+          return (
+            <button
+              key={cat}
+              type="button"
+              onClick={() => setActiveCats((prev) => ({ ...prev, [cat]: !prev[cat] }))}
+              className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] transition ${
+                on ? "border-transparent text-white" : "bg-white text-muted-foreground opacity-60 hover:opacity-100"
+              }`}
+              style={on ? { backgroundColor: meta.color } : undefined}
+              title={`${meta.label}${count ? ` (${count})` : " — none nearby"}`}
+            >
+              <span
+                className="inline-block h-2 w-2 rounded-full"
+                style={{ backgroundColor: on ? "#ffffff" : meta.color }}
+              />
+              {meta.label}
+              {count > 0 && <span className="opacity-75">· {count}</span>}
+            </button>
+          );
+        })}
+      </div>
     </div>
   );
 }

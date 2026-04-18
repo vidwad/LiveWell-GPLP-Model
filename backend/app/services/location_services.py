@@ -82,6 +82,73 @@ def get_nearby_places(lat: float, lng: float, api_key: str, radius_m: int = 1000
     return results
 
 
+def get_lp_relevant_pois(lat: float, lng: float, api_key: str, radius_m: int = 2000) -> dict:
+    """POIs useful to the LP verticals (recovery/student/senior housing).
+
+    Returns buckets:
+      - treatment_centers: rehab / addiction / detox / mental-health clinics (RecoverWell)
+      - universities: post-secondary institutions (StudyWell)
+      - colleges: community colleges / technical institutes (StudyWell)
+      - hospitals: acute care hospitals
+      - pharmacies: retail pharmacies
+      - libraries: public libraries
+      - senior_care: nursing homes / retirement residences / assisted living (RetireWell)
+    """
+    # (label, google place type or None, keyword or None)
+    queries = [
+        ("treatment_centers", None, "addiction treatment center OR rehab OR detox"),
+        ("universities", "university", None),
+        ("colleges", None, "college OR polytechnic OR technical institute"),
+        ("hospitals", "hospital", None),
+        ("pharmacies", "pharmacy", None),
+        ("libraries", "library", None),
+        ("senior_care", None, "nursing home OR retirement residence OR assisted living"),
+    ]
+
+    results: dict = {}
+    seen_place_ids: set[str] = set()
+    for label, place_type, keyword in queries:
+        try:
+            params = {
+                "location": f"{lat},{lng}",
+                "radius": radius_m,
+                "key": api_key,
+            }
+            if place_type:
+                params["type"] = place_type
+            if keyword:
+                params["keyword"] = keyword
+            resp = requests.get(
+                "https://maps.googleapis.com/maps/api/place/nearbysearch/json",
+                params=params,
+                timeout=10,
+            )
+            data = resp.json()
+            places = []
+            for p in (data.get("results") or [])[:8]:
+                pid = p.get("place_id")
+                if pid and pid in seen_place_ids:
+                    continue
+                if pid:
+                    seen_place_ids.add(pid)
+                loc = p.get("geometry", {}).get("location", {})
+                places.append({
+                    "place_id": pid,
+                    "name": p.get("name"),
+                    "address": p.get("vicinity"),
+                    "rating": p.get("rating"),
+                    "user_ratings_total": p.get("user_ratings_total"),
+                    "lat": loc.get("lat"),
+                    "lng": loc.get("lng"),
+                })
+            results[label] = places
+        except Exception as e:
+            logger.warning("LP POI lookup failed for %s: %s", label, e)
+            results[label] = []
+
+    return results
+
+
 def get_calgary_assessment(address: str) -> dict:
     """Look up property assessment from City of Calgary Open Data."""
     try:
