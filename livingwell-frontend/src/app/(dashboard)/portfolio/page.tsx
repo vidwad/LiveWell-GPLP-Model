@@ -1030,6 +1030,9 @@ function LpGroupMap({ properties }: { properties: Property[] }) {
     senior_care: true,
   });
 
+  // Map view: roadmap (default) or hybrid (satellite + labels)
+  const [mapType, setMapType] = useState<"roadmap" | "hybrid">("roadmap");
+
   const hasGeo = geoProps.length > 0;
   const lats = hasGeo ? geoProps.map((p) => Number(p.latitude)) : [];
   const lngs = hasGeo ? geoProps.map((p) => Number(p.longitude)) : [];
@@ -1077,18 +1080,35 @@ function LpGroupMap({ properties }: { properties: Property[] }) {
   return (
     <div className="mb-3 overflow-hidden rounded-md border">
       <APIProvider apiKey={mapsKey}>
-        <GMap
-          defaultCenter={center}
-          defaultZoom={zoom}
-          mapId={`lp-group-map-${geoProps[0]?.lp_id ?? "x"}`}
-          style={{ width: "100%", height: "300px" }}
-          gestureHandling="cooperative"
-          disableDefaultUI={false}
-          zoomControl
-          streetViewControl={false}
-          mapTypeControl={false}
-          fullscreenControl
-        >
+        <div className="relative">
+          {/* Map-type toggle overlay */}
+          <div className="absolute top-2 left-2 z-10 inline-flex overflow-hidden rounded-md border border-black/10 bg-white shadow-sm text-[11px] font-medium">
+            {(["roadmap", "hybrid"] as const).map((t) => (
+              <button
+                key={t}
+                type="button"
+                onClick={() => setMapType(t)}
+                className={`px-2.5 py-1 transition ${
+                  mapType === t ? "bg-slate-800 text-white" : "bg-white text-slate-700 hover:bg-slate-50"
+                }`}
+              >
+                {t === "roadmap" ? "Map" : "Satellite"}
+              </button>
+            ))}
+          </div>
+          <GMap
+            defaultCenter={center}
+            defaultZoom={zoom}
+            mapId={`lp-group-map-${geoProps[0]?.lp_id ?? "x"}`}
+            mapTypeId={mapType}
+            style={{ width: "100%", height: "300px" }}
+            gestureHandling="cooperative"
+            disableDefaultUI={false}
+            zoomControl
+            streetViewControl={false}
+            mapTypeControl={false}
+            fullscreenControl
+          >
           {geoProps.map((p) => (
             <AdvancedMarker
               key={p.property_id}
@@ -1124,7 +1144,8 @@ function LpGroupMap({ properties }: { properties: Property[] }) {
                 );
               });
           })}
-        </GMap>
+          </GMap>
+        </div>
       </APIProvider>
 
       {/* Category toggle legend */}
