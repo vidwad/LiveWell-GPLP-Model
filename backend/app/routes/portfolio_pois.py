@@ -54,5 +54,8 @@ def get_lp_pois(
         )
 
     pois = get_lp_relevant_pois(lat=lat, lng=lng, api_key=api_key, radius_m=radius)
-    _CACHE[key] = (now, pois)
+    # Only cache when Places returned data — avoids pinning empty results
+    # caused by REQUEST_DENIED / OVER_QUERY_LIMIT for 24h
+    if any(pois.get(bucket) for bucket in pois):
+        _CACHE[key] = (now, pois)
     return {"cached": False, "pois": pois}
