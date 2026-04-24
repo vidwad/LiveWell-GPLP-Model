@@ -36,7 +36,8 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { formatCurrency, cn } from "@/lib/utils";
-import { ai } from "@/lib/api";
+import { ai, apiClient } from "@/lib/api";
+import { FileText, Download } from "lucide-react";
 import { AreaResearchMap } from "@/components/property/AreaResearchMap";
 
 /* ── Types ─────────────────────────────────────────────────────────────── */
@@ -359,6 +360,61 @@ export function AreaResearchTab({ propertyId, address, city, zoning, latitude, l
     },
   });
 
+  // ── PDF report generation (Manus primary, Claude fallback) ──────────────
+  const [reportJobId, setReportJobId] = useState<number | null>(null);
+  const [reportStatus, setReportStatus] = useState<string | null>(null);
+  const [reportError, setReportError] = useState<string | null>(null);
+  const [reportEngine, setReportEngine] = useState<string | null>(null);
+
+  React.useEffect(() => {
+    if (!reportJobId || !propertyId) return;
+    if (reportStatus === "completed" || reportStatus === "failed") return;
+    const handle = setInterval(async () => {
+      try {
+        const { data } = await apiClient.get(
+          `/api/portfolio/${propertyId}/area-report/${reportJobId}`,
+        );
+        setReportStatus(data.status);
+        setReportEngine(data.engine);
+        if (data.error) setReportError(data.error);
+        if (data.status === "completed") {
+          toast.success(`Report ready${data.engine ? ` (${data.engine})` : ""}`);
+        } else if (data.status === "failed") {
+          toast.error("Report generation failed");
+        }
+      } catch {
+        // keep polling; transient errors happen
+      }
+    }, 4000);
+    return () => clearInterval(handle);
+  }, [reportJobId, reportStatus, propertyId]);
+
+  const generateReport = async () => {
+    if (!propertyId) return;
+    try {
+      setReportError(null);
+      setReportEngine(null);
+      const { data } = await apiClient.post(
+        `/api/portfolio/${propertyId}/area-report/generate`,
+      );
+      setReportJobId(data.job_id);
+      setReportStatus(data.status || "pending");
+      toast.info("Generating report — this takes up to 8 minutes");
+    } catch (e: any) {
+      toast.error(e?.response?.data?.detail || "Failed to start report");
+    }
+  };
+
+  const downloadReport = () => {
+    if (!propertyId || !reportJobId) return;
+    window.open(
+      `/api/portfolio/${propertyId}/area-report/${reportJobId}/pdf`,
+      "_blank",
+    );
+  };
+
+  const reportInFlight = reportStatus && !["completed", "failed"].includes(reportStatus);
+
   return (
     <div className="space-y-6">
       {/* ── Search Controls ──────────────────────────────────────── */}
@@ -425,23 +481,74 @@ export function AreaResearchTab({ propertyId, address, city, zoning, latitude, l
             </div>
           </div>
 
-          <Button
-            onClick={() => mutation.mutate()}
-            disabled={mutation.isPending}
-            className="w-full sm:w-auto"
-          >
-            {mutation.isPending ? (
+          <div className="flex flex-wrap gap-2">
+            <Button
+              onClick={() => mutation.mutate()}
+              disabled={mutation.isPending}
+              className="w-full sm:w-auto"
+            >
+              {mutation.isPending ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Researching Area...
+                </>
+              ) : (
+                <>
+                  <MapPin className="mr-2 h-4 w-4" />
+                  {result ? "Refresh Research" : "Generate Area Research"}
+                </>
+              )}
+            </Button>
+
+            {/* Print Report — only appears after research exists */}
+            {result && propertyId && (
               <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Researching Area...
-              </>
-            ) : (
-              <>
-                <MapPin className="mr-2 h-4 w-4" />
-                {result ? "Refresh Research" : "Generate Area Research"}
+                {reportStatus === "completed" ? (
+                  <Button
+                    variant="outline"
+                    onClick={downloadReport}
+                    className="w-full sm:w-auto"
+                  >
+                    <Download className="mr-2 h-4 w-4" />
+                    Download PDF Report
+                    {reportEngine && (
+                      <Badge variant="secondary" className="ml-2 text-[10px]">
+                        {reportEngine}
+                      </Badge>
+                    )}
+                  </Button>
+                ) : (
+                  <Button
+                    variant="outline"
+                    onClick={generateReport}
+                    disabled={!!reportInFlight}
+                    className="w-full sm:w-auto"
+                  >
+                    {reportInFlight ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        {reportStatus === "gathering"
+                          ? "Gathering data..."
+                          : reportStatus === "synthesizing"
+                          ? "Synthesizing report..."
+                          : reportStatus === "rendering"
+                          ? "Rendering PDF..."
+                          : "Preparing..."}
+                      </>
+                    ) : (
+                      <>
+                        <FileText className="mr-2 h-4 w-4" />
+                        Print Report
+                      </>
+                    )}
+                  </Button>
+                )}
               </>
             )}
-          </Button>
+          </div>
+          {reportStatus === "failed" && reportError && (
+            <p className="text-xs text-red-600 mt-2">Report failed: {reportError}</p>
+          )}
           {lastUpdated && (
             <p className="text-xs text-muted-foreground mt-2">
               <Clock className="inline h-3 w-3 mr-1" />

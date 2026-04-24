@@ -3045,6 +3045,40 @@ class LPDocument(Base):
     uploader = relationship("User", foreign_keys=[uploaded_by])
 
 
+class AreaReportJob(Base):
+    """Async job that produces a comprehensive PDF report for a property.
+
+    Aggregates all available context (property fundamentals, dev plans, debt,
+    units, recent area-research output) and drives an LLM (Manus primary,
+    Claude fallback) to synthesize it into a professional HTML document,
+    which is then rendered to PDF.
+    """
+    __tablename__ = "area_report_jobs"
+
+    id = Column(Integer, primary_key=True, index=True)
+    property_id = Column(Integer, ForeignKey("properties.property_id", ondelete="CASCADE"), nullable=False, index=True)
+
+    # Status: pending -> gathering -> synthesizing -> rendering -> completed | failed
+    status = Column(String(32), nullable=False, default="pending")
+    engine = Column(String(32), nullable=True)  # "manus" or "claude" (whichever actually produced content)
+    error = Column(Text, nullable=True)
+
+    # External engine tracking
+    manus_task_id = Column(String(128), nullable=True)
+
+    # Artifacts
+    html_content = Column(Text, nullable=True)
+    pdf_file_path = Column(String(512), nullable=True)
+    pdf_file_size = Column(BigInteger, nullable=True)
+
+    created_by = Column(Integer, ForeignKey("users.user_id"), nullable=True)
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    updated_at = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    property = relationship("Property")
+    creator = relationship("User", foreign_keys=[created_by])
+
+
 class ManualPoi(Base):
     """Manually-curated point of interest for the LP mini-map.
 
