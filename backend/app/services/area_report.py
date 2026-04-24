@@ -311,12 +311,45 @@ def call_manus(system_prompt: str, user_prompt: str, api_key: str) -> str:
 
 # ── Claude fallback ─────────────────────────────────────────────────────────
 
-def call_claude(system_prompt: str, user_prompt: str) -> str:
-    if not settings.ANTHROPIC_API_KEY:
-        raise RuntimeError("ANTHROPIC_API_KEY not set")
+def _get_anthropic_key(db=None) -> Optional[str]:
+    """Read Anthropic key from env first, Platform Settings table as fallback."""
+    if settings.ANTHROPIC_API_KEY:
+        return settings.ANTHROPIC_API_KEY
+    from app.db.session import SessionLocal
+    own = db is None
+    d = db or SessionLocal()
+    try:
+        row = d.query(PlatformSetting).filter(PlatformSetting.key == "ANTHROPIC_API_KEY").first()
+        return row.value if row and row.value else None
+    finally:
+        if own:
+            d.close()
+
+
+def _get_claude_model(db=None) -> str:
+    env_model = getattr(settings, "CLAUDE_MODEL", None)
+    if env_model:
+        return env_model
+    from app.db.session import SessionLocal
+    own = db is None
+    d = db or SessionLocal()
+    try:
+        row = d.query(PlatformSetting).filter(PlatformSetting.key == "CLAUDE_MODEL").first()
+        return (row.value if row and row.value else None) or "claude-opus-4-7"
+    finally:
+        if own:
+            d.close()
+
+
+def call_claude(system_prompt: str, user_prompt: str, db=None) -> str:
+    api_key = _get_anthropic_key(db)
+    if not api_key:
+        raise RuntimeError(
+            "ANTHROPIC_API_KEY not configured. Set it in Platform Settings or .env."
+        )
     import anthropic
-    client = anthropic.Anthropic(api_key=settings.ANTHROPIC_API_KEY)
-    model = getattr(settings, "CLAUDE_MODEL", None) or "claude-opus-4-7"
+    client = anthropic.Anthropic(api_key=api_key)
+    model = _get_claude_model(db)
     resp = client.messages.create(
         model=model,
         max_tokens=8000,
@@ -416,7 +449,7 @@ def run_report_job(job_id: int):
                 logger.warning("Manus failed, falling back to Claude: %s", manus_err)
 
         if html_raw is None:
-            html_raw = call_claude(REPORT_SYSTEM_PROMPT, user_prompt)
+            html_raw = call_claude(REPORT_SYSTEM_PROMPT, user_prompt, db=db)
             engine_used = "claude"
 
         html = _extract_html(html_raw)
