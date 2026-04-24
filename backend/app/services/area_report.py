@@ -51,6 +51,25 @@ def gather_property_context(db, property_id: int) -> dict[str, Any]:
     if not prop:
         raise ValueError(f"Property {property_id} not found")
 
+    # Pull any saved area research snapshot — keep resilient if module missing
+    area_research_snapshot = None
+    try:
+        from app.db.models import PropertyAreaResearch
+        ar = (
+            db.query(PropertyAreaResearch)
+            .filter(PropertyAreaResearch.property_id == property_id)
+            .order_by(PropertyAreaResearch.updated_at.desc())
+            .first()
+        )
+        if ar:
+            area_research_snapshot = {
+                "radius_miles": getattr(ar, "radius_miles", None),
+                "updated_at": str(ar.updated_at) if ar.updated_at else None,
+                "data": getattr(ar, "data", None),
+            }
+    except Exception as _e:
+        logger.debug("No area research snapshot available: %s", _e)
+
     lp = db.query(LPEntity).filter(LPEntity.lp_id == prop.lp_id).first() if prop.lp_id else None
     baseline = db.query(AcquisitionBaseline).filter(AcquisitionBaseline.property_id == property_id).first()
     forecast = db.query(ExitForecast).filter(ExitForecast.property_id == property_id).first()
@@ -84,8 +103,12 @@ def gather_property_context(db, property_id: int) -> dict[str, Any]:
             "year_built": getattr(prop, "year_built", None),
             "building_sqft": getattr(prop, "building_sqft", None),
             "lot_size_sqft": getattr(prop, "lot_size_sqft", None),
-            "current_zoning": getattr(prop, "current_zoning", None),
-            "notes": getattr(prop, "notes", None),
+            "zoning": getattr(prop, "zoning", None),
+            "rezoning_status": getattr(prop, "rezoning_status", None),
+            "lot_size": _d(getattr(prop, "lot_size", None)),
+            "max_buildable_area": _d(getattr(prop, "max_buildable_area", None)),
+            "listing_description": getattr(prop, "listing_description", None),
+            "ai_assessment": getattr(prop, "ai_assessment", None),
         },
         "lp": {
             "lp_id": lp.lp_id,
@@ -107,13 +130,28 @@ def gather_property_context(db, property_id: int) -> dict[str, Any]:
         "development_plans": [
             {
                 "plan_name": p.plan_name,
+                "description": p.description,
+                "status": p.status.value if p.status else None,
+                "planned_units": p.planned_units,
+                "planned_beds": p.planned_beds,
+                "planned_sqft": _d(p.planned_sqft),
                 "start_date": str(p.development_start_date) if p.development_start_date else None,
                 "completion_date": str(p.estimated_completion_date) if p.estimated_completion_date else None,
+                "stabilization_date": str(p.estimated_stabilization_date) if p.estimated_stabilization_date else None,
+                "construction_duration_days": p.construction_duration_days,
                 "hard_costs": _d(p.hard_costs),
                 "soft_costs": _d(p.soft_costs),
-                "site_prep_costs": _d(p.site_prep_costs),
+                "site_costs": _d(p.site_costs),
                 "financing_costs": _d(p.financing_costs),
-                "contingency_costs": _d(p.contingency_costs),
+                "contingency_percent": _d(p.contingency_percent),
+                "estimated_construction_cost": _d(p.estimated_construction_cost),
+                "projected_annual_revenue": _d(p.projected_annual_revenue),
+                "projected_annual_noi": _d(p.projected_annual_noi),
+                "exit_sale_year": p.exit_sale_year,
+                "exit_sale_price": _d(p.exit_sale_price),
+                "exit_cap_rate": _d(p.exit_cap_rate),
+                "exit_irr": _d(p.exit_irr),
+                "exit_equity_multiple": _d(p.exit_equity_multiple),
             }
             for p in plans
         ],
@@ -121,9 +159,16 @@ def gather_property_context(db, property_id: int) -> dict[str, Any]:
             {
                 "lender": d.lender_name,
                 "debt_type": d.debt_type.value if d.debt_type else None,
-                "principal_amount": _d(d.principal_amount),
+                "debt_purpose": d.debt_purpose,
+                "commitment_amount": _d(d.commitment_amount),
+                "drawn_amount": _d(d.drawn_amount),
+                "outstanding_balance": _d(d.outstanding_balance),
                 "interest_rate": _d(d.interest_rate),
+                "rate_type": d.rate_type,
                 "term_months": d.term_months,
+                "amortization_months": d.amortization_months,
+                "maturity_date": str(d.maturity_date) if d.maturity_date else None,
+                "is_cmhc_insured": d.is_cmhc_insured,
                 "status": d.status.value if d.status else None,
             }
             for d in debt
@@ -132,8 +177,12 @@ def gather_property_context(db, property_id: int) -> dict[str, Any]:
             {
                 "unit_number": u.unit_number,
                 "unit_type": u.unit_type.value if u.unit_type else None,
-                "size_sqft": _d(getattr(u, "size_sqft", None)),
-                "rent_amount": _d(getattr(u, "rent_amount", None)),
+                "bed_count": u.bed_count,
+                "sqft": _d(u.sqft),
+                "monthly_rent": _d(u.monthly_rent),
+                "floor": u.floor,
+                "is_legal_suite": u.is_legal_suite,
+                "is_occupied": u.is_occupied,
             }
             for u in units
         ],
@@ -147,6 +196,7 @@ def gather_property_context(db, property_id: int) -> dict[str, Any]:
             }
             for v in valuations
         ],
+        "area_research": area_research_snapshot,
     }
 
 
