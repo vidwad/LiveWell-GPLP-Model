@@ -405,12 +405,25 @@ export function AreaResearchTab({ propertyId, address, city, zoning, latitude, l
     }
   };
 
-  const downloadReport = () => {
+  const downloadReport = async () => {
     if (!propertyId || !reportJobId) return;
-    window.open(
-      `/api/portfolio/${propertyId}/area-report/${reportJobId}/pdf`,
-      "_blank",
-    );
+    try {
+      const resp = await apiClient.get(
+        `/api/portfolio/${propertyId}/area-report/${reportJobId}/pdf`,
+        { responseType: "blob" },
+      );
+      const blob = new Blob([resp.data], { type: "application/pdf" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `property-${propertyId}-area-report.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch (e: any) {
+      toast.error(e?.response?.data?.detail || "Download failed");
+    }
   };
 
   const reportInFlight = reportStatus && !["completed", "failed"].includes(reportStatus);
