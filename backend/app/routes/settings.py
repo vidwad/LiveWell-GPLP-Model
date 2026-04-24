@@ -49,6 +49,13 @@ DEFAULT_SETTINGS = [
         "is_secret": True,
     },
     {
+        "key": "MANUS_API_KEY",
+        "category": "api_keys",
+        "label": "Manus API Key",
+        "description": "Stored for future Manus AI integrations. Not yet wired to any feature. Rotate in the Manus dashboard if the value is ever exposed.",
+        "is_secret": True,
+    },
+    {
         "key": "RESEND_API_KEY",
         "category": "api_keys",
         "label": "Resend API Key (Email)",
