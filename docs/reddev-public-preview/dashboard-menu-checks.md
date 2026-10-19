@@ -1,0 +1,7 @@
+# Dashboard menu and local handoff checks
+
+Desktop and narrow-desktop checks at 1440×900 and 1140×800 passed: Dashboard Login is visible in the header and there is no horizontal overflow. At 390×844 the grouped mobile menu's Dashboard Login navigated to the local gateway; the page accurately states that the live sign-in address is awaiting configuration. Footer and header share the same component. The existing homepage geometry and 95% grouped decoration-cap assertions remain in the successful 18-page build.
+
+The URL helper rejects missing/malformed values, non-HTTPS public links, embedded credentials, query tokens and fragment tokens. Local HTTP requires explicit development opt-in; production defaults reject it. The shared component uses the confirmed environment URL only when valid, opens external dashboard access in a new tab with noopener/noreferrer, and otherwise uses a local non-credential gateway. No dashboard login was executed and no credentials were handled.
+
+Typecheck, lint, 15 inquiry/navigation/dashboard regressions, build and all 18-page static-link/metadata/image/landmark checks passed. New Vercel project reddev-public is connected to the selected GitHub monorepo's reddevrei-site root. Existing projects, backend/dashboard code and domains/DNS/mail remain unchanged. The actual deployed LiveWell hostname remains an owner-supplied configuration dependency, not an invented default. This is not a claim that the dashboard is absent or not deployed.

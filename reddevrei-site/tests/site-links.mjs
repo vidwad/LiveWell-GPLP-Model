@@ -52,8 +52,14 @@ for (const route of routes) {
     }
   }
   for (const match of html.matchAll(/<img\b[^>]*\bsrc="([^"]+)"/g)) {
-    const src = match[1];
-    if (src.startsWith("/brand/") && !existsSync(join("out", src.slice(1))))
+    const src = match[1].replace(/&amp;/g, "&");
+    const imageUrl = new URL(src, "https://review.invalid");
+    const imagePath = decodeURIComponent(imageUrl.pathname);
+    if (
+      imageUrl.origin === "https://review.invalid" &&
+      imagePath.startsWith("/brand/") &&
+      !existsSync(join("out", imagePath.slice(1)))
+    )
       problems.push(`${route.path}: missing packaged image ${src}`);
   }
 }
