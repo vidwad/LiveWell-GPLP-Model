@@ -6,6 +6,7 @@ import {
   PageHero,
   PageNote,
 } from "@/components/marketing/PageShell";
+import { aboutCopy } from "@/content/company";
 import { teamProfiles } from "@/content/team-profiles";
 import { pageMetadata } from "@/lib/metadata";
 import styles from "./page.module.css";
@@ -75,23 +76,8 @@ export default function AboutUsPage() {
             <div className={styles.companyRule} aria-hidden="true" />
           </div>
           <div className="copy-flow">
-            <p className={styles.lead}>
-              RedDev Real Estate Investments describes its work as identifying
-              and developing properties while seeking to enhance the communities
-              it serves.
-            </p>
-            <p>
-              Its current company profile says the team brings experience across
-              real estate investment, finance, construction, and project
-              management. It describes an approach that combines market
-              analysis, strategic planning, and hands-on project management.
-            </p>
-            <p>
-              The company’s stated focus is building long-term partnerships
-              grounded in trust, transparency, and shared success. Its active
-              real estate work and any investment or project details should be
-              confirmed directly with the team.
-            </p>
+            <p className={styles.lead}>{aboutCopy.company[0]}</p>
+            <p>{aboutCopy.company[1]}</p>
             <Link className="text-link" href="#team">
               Meet the RedDev team <ArrowUpRight size={18} aria-hidden="true" />
             </Link>
@@ -114,23 +100,11 @@ export default function AboutUsPage() {
           <div className={styles.directionCopy}>
             <section>
               <p className={styles.directionLabel}>VISION</p>
-              <p>
-                RedDev’s stated vision is to be a leading real estate investment
-                company, recognized for transforming communities through
-                strategic property investments and creating sustainable value
-                for investors, tenants, and the communities it serves.
-              </p>
+              <p>{aboutCopy.vision}</p>
             </section>
             <section>
               <p className={styles.directionLabel}>MISSION</p>
-              <p>
-                Its stated mission is to create real estate investment
-                opportunities that enhance communities and enrich lives, using
-                collective strengths, industry expertise, and strategic
-                partnerships. The current source describes rigorous due
-                diligence, value-add strategies, and proactive property
-                management as central to that approach.
-              </p>
+              <p>{aboutCopy.mission}</p>
             </section>
           </div>
         </div>
@@ -149,11 +123,7 @@ export default function AboutUsPage() {
               </p>
               <h2 id="values-heading">What guides the work.</h2>
             </div>
-            <p>
-              These principles are carried from RedDev’s public company profile
-              and shape how it describes relationships with investors, partners,
-              and communities.
-            </p>
+            <p>{aboutCopy.valuesIntro}</p>
           </div>
           <dl className={styles.valuesList}>
             {values.map((value, index) => (
@@ -183,11 +153,7 @@ export default function AboutUsPage() {
               </p>
               <h2 id="team-heading">People behind the perspective.</h2>
             </div>
-            <p>
-              From investment and finance to construction, project management,
-              and communications, the current public roster reflects a range of
-              experience working toward a shared direction.
-            </p>
+            <p>{aboutCopy.teamIntro}</p>
           </div>
 
           <PageNote title="Profile and contact information">

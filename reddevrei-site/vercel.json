@@ -9,6 +9,46 @@
       "source": "/contact-us-2/",
       "destination": "/contact/",
       "permanent": true
+    },
+    {
+      "source": "/acquire",
+      "destination": "/our-approach/#acquire",
+      "permanent": true
+    },
+    {
+      "source": "/acquire/",
+      "destination": "/our-approach/#acquire",
+      "permanent": true
+    },
+    {
+      "source": "/enhance",
+      "destination": "/our-approach/#enhance",
+      "permanent": true
+    },
+    {
+      "source": "/enhance/",
+      "destination": "/our-approach/#enhance",
+      "permanent": true
+    },
+    {
+      "source": "/manage",
+      "destination": "/our-approach/#manage",
+      "permanent": true
+    },
+    {
+      "source": "/manage/",
+      "destination": "/our-approach/#manage",
+      "permanent": true
+    },
+    {
+      "source": "/report",
+      "destination": "/our-approach/#report-comply",
+      "permanent": true
+    },
+    {
+      "source": "/report/",
+      "destination": "/our-approach/#report-comply",
+      "permanent": true
     }
   ]
 }

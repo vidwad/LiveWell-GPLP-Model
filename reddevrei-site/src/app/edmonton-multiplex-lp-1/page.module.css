@@ -130,3 +130,30 @@
     padding: 23px 0 0 21px;
   }
 }
+
+.introGrid {
+  margin-top: 36px;
+  align-items: start;
+}
+.specRow {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 22px;
+  margin-top: 24px;
+}
+.specRow img {
+  height: 80px;
+  width: auto;
+}
+.specRow img:last-child {
+  height: 110px;
+}
+.dealGallery {
+  margin-top: 40px;
+}
+.subheading {
+  font-size: 18px;
+  font-weight: 600;
+  margin-bottom: 14px;
+}

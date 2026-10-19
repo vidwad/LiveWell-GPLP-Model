@@ -1852,3 +1852,66 @@ html.js [data-reveal="in"] {
     transform: none;
   }
 }
+
+/* Home: content carried over from the original site */
+.home-syndication {
+  max-width: 300px;
+  margin-top: 28px;
+  border: 0;
+  background: transparent;
+}
+.home-inline-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 22px;
+  margin-top: 26px;
+}
+.home-approach-intro {
+  display: grid;
+  grid-template-columns: minmax(0, 1.1fr) minmax(0, 0.9fr);
+  gap: 40px;
+  align-items: center;
+  margin-bottom: 42px;
+}
+.home-opportunity-location {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 22px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 1.4px;
+  color: var(--red);
+}
+.home-opportunity-title {
+  font-size: 22px;
+  line-height: 1.25;
+  margin: 8px 0 14px;
+}
+.investment-panel .home-opportunity-copy {
+  font-size: 12px;
+  line-height: 1.85;
+  color: var(--muted);
+  margin-bottom: 10px;
+}
+.home-opportunity-eligibility {
+  font-size: 12px;
+  font-weight: 650;
+  color: #2c2724;
+  margin: 14px 0 12px;
+}
+.home-gate-note {
+  margin-top: 18px;
+}
+.home-gate-note a {
+  color: var(--red);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+@media (max-width: 900px) {
+  .home-approach-intro {
+    grid-template-columns: 1fr;
+    gap: 24px;
+  }
+}

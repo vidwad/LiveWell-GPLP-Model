@@ -3,6 +3,7 @@ import "@fontsource-variable/public-sans";
 import "@fontsource-variable/open-sans";
 import "./globals.css";
 import "@/styles/pages.css";
+import "@/styles/original-content.css";
 import SiteHeader from "@/components/marketing/SiteHeader";
 import SiteFooter from "@/components/marketing/SiteFooter";
 import RouteScrollReset from "@/components/marketing/RouteScrollReset";

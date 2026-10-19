@@ -1,3 +1,4 @@
+import Image from "next/image";
 import Link from "next/link";
 import {
   ArrowRight,
@@ -8,11 +9,18 @@ import {
   MessageCircle,
 } from "lucide-react";
 
+const stepIcons = [FileSearch, MessageCircle, BookOpen];
+
 import {
   PageCallout,
   PageHero,
   PageNote,
 } from "@/components/marketing/PageShell";
+import {
+  accreditedAcknowledgement,
+  investCopy,
+  opportunity,
+} from "@/content/company";
 import { pageMetadata } from "@/lib/metadata";
 
 import styles from "./page.module.css";
@@ -20,41 +28,17 @@ import styles from "./page.module.css";
 export const metadata = pageMetadata({
   title: "Invest With Us",
   description:
-    "Learn how to discuss RedDev real estate investment opportunities, review approved materials and connect with the team.",
+    "Explore RedDev’s current opportunities, including the Edmonton Multiplex Limited Partnership 1, and the next steps to invest.",
   path: "/invest/",
 });
-
-const nextSteps = [
-  {
-    number: "01",
-    title: "Learn about RedDev",
-    description:
-      "Explore our integrated approach to multifamily real estate and the work behind each stage of the process.",
-    Icon: BookOpen,
-  },
-  {
-    number: "02",
-    title: "Start a conversation",
-    description:
-      "Tell us what you would like to discuss. Our team can confirm current availability and the appropriate next step.",
-    Icon: MessageCircle,
-  },
-  {
-    number: "03",
-    title: "Review approved materials",
-    description:
-      "Where appropriate, review the current formal materials carefully with your independent professional advisers.",
-    Icon: FileSearch,
-  },
-];
 
 export default function InvestPage() {
   return (
     <>
       <PageHero
-        eyebrow="INVEST WITH REDDEV"
-        title="A relationship-led way to learn more."
-        description="Explore RedDev’s approach, ask considered questions and review current information at the right pace."
+        eyebrow="CURRENT OPPORTUNITIES"
+        title="Explore our current opportunities for a unique blend of income and growth potential."
+        description={opportunity.intro}
         breadcrumbLabel="Invest With Us"
         image={{
           src: "/brand/edmonton-bridge.jpg",
@@ -63,48 +47,8 @@ export default function InvestPage() {
       />
 
       <section
-        className="page-section"
-        aria-labelledby="investment-introduction"
-      >
-        <div className="container page-split">
-          <div className={styles.introductionHeading}>
-            <p className="eyebrow">
-              <span />A CONVERSATION FIRST
-            </p>
-            <h2 id="investment-introduction">
-              Investing is more than a transaction.
-            </h2>
-            <span className={styles.goldRule} aria-hidden="true" />
-          </div>
-          <div className="copy-flow">
-            <p className={styles.lead}>
-              We work with people who want to understand the approach behind an
-              opportunity before deciding whether it may be right for them.
-            </p>
-            <p>
-              Start by getting to know RedDev, our multifamily focus and the
-              people involved. Then bring the questions that matter to you. A
-              direct conversation gives our team the chance to clarify what is
-              currently available and whether further information may be
-              appropriate.
-            </p>
-            <div className={styles.inlineLinks}>
-              <Link className="text-link" href="/our-approach/">
-                Explore our approach{" "}
-                <ArrowUpRight size={18} aria-hidden="true" />
-              </Link>
-              <Link className="text-link" href="/student-housing/">
-                Learn about student housing{" "}
-                <ArrowUpRight size={18} aria-hidden="true" />
-              </Link>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <section
         id="opportunities"
-        className="page-section page-section-warm page-anchor"
+        className="page-section page-anchor"
         aria-labelledby="opportunities-heading"
       >
         <div className="container">
@@ -112,16 +56,11 @@ export default function InvestPage() {
             <div>
               <p className="eyebrow">
                 <span />
-                PROJECT INFORMATION
+                CURRENT OPPORTUNITIES
               </p>
-              <h2 id="opportunities-heading">
-                Opportunities are confirmed with our team.
-              </h2>
+              <h2 id="opportunities-heading">{opportunity.title}</h2>
             </div>
-            <p>
-              Information on a project page does not indicate that an
-              opportunity is currently open or available.
-            </p>
+            <p>{opportunity.eligibility}</p>
           </div>
 
           <article className={styles.opportunityFeature}>
@@ -129,32 +68,105 @@ export default function InvestPage() {
               <span>01</span>
               <i />
             </div>
-            <div className={styles.opportunityCopy}>
+            <div className={`${styles.opportunityCopy} oc-copy`}>
               <p className={styles.projectEyebrow}>
-                <MapPin size={15} aria-hidden="true" /> EDMONTON, ALBERTA
+                <MapPin size={15} aria-hidden="true" />{" "}
+                {opportunity.location.toUpperCase()}
               </p>
-              <h3>Edmonton Multiplex Limited Partnership 1</h3>
-              <p>
-                This project page is retained as a place to learn about the
-                Edmonton Multiplex Limited Partnership 1. Its presence here is
-                informational only. Please speak with our team to confirm the
-                project’s current status, availability and any next steps.
-              </p>
+              {opportunity.paragraphs.map((paragraph) => (
+                <p key={paragraph.slice(0, 40)}>{paragraph}</p>
+              ))}
             </div>
-            <Link
-              className="button button-primary"
-              href="/edmonton-multiplex-lp-1/"
-            >
-              View project information{" "}
-              <ArrowRight size={18} aria-hidden="true" />
-            </Link>
+            <a className="button button-primary" href="#accredited">
+              Learn more <ArrowRight size={18} aria-hidden="true" />
+            </a>
           </article>
         </div>
       </section>
 
       <section
+        id="accredited"
+        className="oc-section oc-section-warm page-anchor"
+        aria-labelledby="accredited-heading"
+      >
+        <div className="container">
+          <div className="oc-heading">
+            <p className="eyebrow">
+              <span /> BEFORE YOU CONTINUE
+            </p>
+            <h2 id="accredited-heading">{accreditedAcknowledgement.title}</h2>
+          </div>
+          <div className="oc-gate">
+            {accreditedAcknowledgement.paragraphs.map((paragraph) => (
+              <p key={paragraph.slice(0, 40)}>{paragraph}</p>
+            ))}
+            <p className="oc-gate-statement">
+              {accreditedAcknowledgement.statement}
+            </p>
+            <Link
+              href={accreditedAcknowledgement.href}
+              className="button button-primary"
+            >
+              {accreditedAcknowledgement.buttonLabel}{" "}
+              <ArrowRight size={18} aria-hidden="true" />
+            </Link>
+          </div>
+        </div>
+      </section>
+
+      <section
+        className="oc-section"
+        aria-labelledby="presentation-heading"
+      >
+        <div className="container oc-split oc-split-wide">
+          <div className="oc-copy">
+            <p className="eyebrow">
+              <span /> INVESTOR PRESENTATION
+            </p>
+            <h2 id="presentation-heading">
+              {investCopy.presentation.title}
+            </h2>
+            <p>
+              An overview of the Edmonton Multiplex Limited Partnership
+              opportunity. The full project page carries the offering summary,
+              financing terms, documents and investor FAQs.
+            </p>
+            <div className="oc-actions">
+              <Link
+                href="/edmonton-multiplex-lp-1/"
+                className="button button-primary"
+              >
+                View the project page{" "}
+                <ArrowRight size={18} aria-hidden="true" />
+              </Link>
+            </div>
+          </div>
+          <div>
+            <div className="oc-embed">
+              <iframe
+                loading="lazy"
+                src={investCopy.presentation.embed}
+                title="RedDev investor presentation"
+                allowFullScreen
+              />
+            </div>
+            <p className="oc-embed-link">
+              <a
+                href={investCopy.presentation.link}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                Open the presentation in a new tab{" "}
+                <ArrowUpRight size={13} aria-hidden="true" />
+              </a>
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <section
         id="next-steps"
-        className="page-section page-anchor"
+        className="page-section page-section-warm page-anchor"
         aria-labelledby="next-steps-heading"
       >
         <div className="container">
@@ -162,20 +174,22 @@ export default function InvestPage() {
             <div>
               <p className="eyebrow">
                 <span />
-                PRACTICAL NEXT STEPS
+                NEXT STEPS TO INVEST
               </p>
               <h2 id="next-steps-heading">
-                Take the time to understand the details.
+                Review, connect, and commit at your own pace.
               </h2>
             </div>
             <p>
-              The process is designed for questions, current information and
-              careful review—not online investment execution.
+              Each step keeps you in control: read the materials, ask the
+              questions that matter, and decide with your own advisers.
             </p>
           </div>
 
           <ol className={styles.stepsList}>
-            {nextSteps.map(({ number, title, description, Icon }) => (
+            {investCopy.nextSteps.map(({ number, title, description }, index) => {
+              const Icon = stepIcons[index];
+              return (
               <li key={number}>
                 <div className={styles.stepNumber} aria-hidden="true">
                   {number}
@@ -191,53 +205,90 @@ export default function InvestPage() {
                   <p>{description}</p>
                 </div>
               </li>
-            ))}
+              );
+            })}
           </ol>
+        </div>
+      </section>
 
-          <div className={styles.informationGrid}>
-            <PageNote title="Important information">
-              <p>
-                This website provides general information only. It is not
-                financial, legal or tax advice, and it is not an offer to sell
-                or a solicitation to buy securities or participate in an
-                investment.
-              </p>
-              <p>
-                If an opportunity is available, it is subject to current
-                eligibility requirements and the applicable formal offering
-                materials. Real estate investments involve risk. Consider the
-                information with independent professional advisers before making
-                any decision.
-              </p>
-            </PageNote>
-            <aside
-              className={styles.contactAside}
-              aria-labelledby="questions-heading"
-            >
-              <p className={styles.contactKicker}>QUESTIONS ABOUT INVESTING?</p>
-              <h3 id="questions-heading">Start with the right information.</h3>
-              <p>
-                Use our contact page to prepare an investment email draft. It
-                opens in your email app for review and is not submitted through
-                this website.
-              </p>
+      <section className="oc-section" aria-labelledby="experience-heading">
+        <div className="container oc-split">
+          <div className="oc-copy">
+            <p className="eyebrow">
+              <span /> WHY REDDEV
+            </p>
+            <h2 id="experience-heading">{investCopy.experience.title}</h2>
+            <p className="oc-lead">{investCopy.experience.lead}</p>
+            <p>{investCopy.experience.body}</p>
+            <h3>{investCopy.distributions.title}</h3>
+            <p>{investCopy.distributions.body}</p>
+            <p className="oc-caveat">{investCopy.distributions.caveat}</p>
+            <div className="oc-actions">
               <Link
-                className="button button-outline"
                 href="/contact/?type=investment"
+                className="button button-primary"
               >
-                Prepare an investment email{" "}
-                <ArrowUpRight size={18} aria-hidden="true" />
+                Invest with RedDev <ArrowUpRight size={18} aria-hidden="true" />
               </Link>
-            </aside>
+            </div>
           </div>
+          <figure className="oc-figure oc-figure-contain">
+            <Image
+              src={investCopy.distributions.image.src}
+              alt={investCopy.distributions.image.alt}
+              width={investCopy.distributions.image.width}
+              height={investCopy.distributions.image.height}
+              sizes="(max-width: 900px) 100vw, 45vw"
+            />
+          </figure>
+        </div>
+      </section>
+
+      <section className="page-section page-section-warm">
+        <div className={`container ${styles.informationGrid}`}>
+          <PageNote title="Important information">
+            <p>
+              Material on this website is not financial advice. Please consult a
+              certified financial advisor. The content and information on this
+              website is not an investment offer, and any offer will be made in
+              the form of a private placement memorandum. Opportunities shared
+              on this website are only open to accredited investors.
+            </p>
+            <p>
+              Real estate investments involve risk. Consider the information with
+              independent professional advisers before making any decision, and
+              read the{" "}
+              <Link href="/investment-disclosures/">
+                Investment Disclosures
+              </Link>
+              .
+            </p>
+          </PageNote>
+          <aside
+            className={styles.contactAside}
+            aria-labelledby="questions-heading"
+          >
+            <p className={styles.contactKicker}>QUESTIONS ABOUT INVESTING?</p>
+            <h3 id="questions-heading">Speak with the investment team.</h3>
+            <p>
+              Ask about the Edmonton Multiplex LP, request the investor package
+              or discuss your eligibility.
+            </p>
+            <Link
+              className="button button-outline"
+              href="/contact/?type=investment"
+            >
+              Contact the team <ArrowUpRight size={18} aria-hidden="true" />
+            </Link>
+          </aside>
         </div>
       </section>
 
       <PageCallout
-        title="The right partnership starts with a conversation."
-        description="In this preview, the contact page prepares an email draft for your review. It does not submit an inquiry, open an account or execute an investment."
+        title="Have a question? Get in touch with us today."
+        description="The RedDev team is available to discuss our opportunities and the next steps to invest."
         href="/contact/?type=investment"
-        label="Prepare an investment email"
+        label="Contact Us"
       />
     </>
   );

@@ -334,3 +334,14 @@
     justify-content: center;
   }
 }
+
+.graphic {
+  margin-top: 26px;
+  border: 0;
+  background: transparent;
+}
+.graphic figcaption {
+  font: 500 12px/1.6 var(--font-heading);
+  color: #930011;
+  letter-spacing: 0.3px;
+}

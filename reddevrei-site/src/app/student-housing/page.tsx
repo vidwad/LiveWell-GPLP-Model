@@ -1,47 +1,51 @@
 import Image from "next/image";
 import Link from "next/link";
-import { ArrowRight, ArrowUpRight } from "lucide-react";
+import { ArrowRight, ArrowUpRight, Download } from "lucide-react";
 
-import {
-  PageCallout,
-  PageHero,
-  PageNote,
-} from "@/components/marketing/PageShell";
+import { PageCallout, PageHero } from "@/components/marketing/PageShell";
+import { studentHousing as sh, type Picture } from "@/content/student-housing";
 import { pageMetadata } from "@/lib/metadata";
 import styles from "./page.module.css";
 
 export const metadata = pageMetadata({
   title: "Student Housing",
   description:
-    "Explore RedDev’s student-housing focus in Edmonton, including furnished accommodation, utilities, Wi-Fi and a university-community setting.",
+    "High-quality, affordable purpose-built student accommodations in Edmonton, Alberta: furnished suites near the University of Alberta, floor plans, amenities and the tenant portal.",
   path: "/student-housing/",
 });
 
-const accommodationDetails = [
-  {
-    term: "Furnished living",
-    description:
-      "The original RedDev page describes fully furnished student housing designed to make the move-in experience more straightforward.",
-  },
-  {
-    term: "Everyday essentials",
-    description:
-      "Utilities and Wi-Fi are identified in the original material as part of the student-housing service. Please ask the team to confirm current inclusions.",
-  },
-  {
-    term: "Student-oriented setting",
-    description:
-      "The public page positions the housing near Edmonton university communities, with amenities intended to support student life.",
-  },
-];
+function Figure({
+  picture,
+  sizes,
+  contain = false,
+  caption,
+}: {
+  picture: Picture;
+  sizes: string;
+  contain?: boolean;
+  caption?: string;
+}) {
+  return (
+    <figure className={`oc-figure${contain ? " oc-figure-contain" : ""}`}>
+      <Image
+        src={picture.src}
+        alt={picture.alt}
+        width={picture.width}
+        height={picture.height}
+        sizes={sizes}
+      />
+      {caption && <figcaption>{caption}</figcaption>}
+    </figure>
+  );
+}
 
 export default function StudentHousingPage() {
   return (
     <>
       <PageHero
         eyebrow="STUDENT HOUSING"
-        title="Housing shaped around Edmonton’s student community."
-        description="RedDev’s original student-housing material centres on purpose-built, furnished accommodation near Edmonton university communities, with everyday essentials considered together."
+        title={sh.hero.subtitle}
+        description={sh.mission.body}
         breadcrumbLabel="Student Housing"
         image={{
           src: "/brand/student-housing-exterior.jpg",
@@ -51,36 +55,20 @@ export default function StudentHousingPage() {
 
       <section
         className={`page-section ${styles.introduction}`}
-        aria-labelledby="student-housing-overview"
+        aria-labelledby="mission-heading"
       >
-        <div className="container page-split">
-          <div>
+        <div className="container oc-split">
+          <div className="oc-copy">
             <p className="eyebrow">
-              <span /> A STUDENT-CENTRED APPROACH
+              <span /> MISSION STATEMENT
             </p>
-            <h2 id="student-housing-overview">
-              A considered place to live while studying.
+            <h2 id="mission-heading">
+              Accessible, affordable, purpose-built student housing.
             </h2>
-          </div>
-          <div className="copy-flow">
-            <p>
-              RedDev’s original public material presents accessible,
-              purpose-built student housing in Edmonton. Its focus is on a
-              practical housing experience for students, from furnished living
-              spaces to the services and amenities that support day-to-day life.
-            </p>
-            <p>
-              If you are looking for current accommodation information, the team
-              can help direct your question. For investment information, please
-              use the separate investment inquiry route.
-            </p>
+            <p>{sh.mission.body}</p>
             <div className={styles.audienceLinks}>
-              <Link
-                href="/contact/?type=student-housing"
-                className="button button-gold"
-              >
-                Ask About Student Housing{" "}
-                <ArrowRight size={18} aria-hidden="true" />
+              <Link href={sh.hero.cta.href} className="button button-gold">
+                {sh.hero.cta.label} <ArrowRight size={18} aria-hidden="true" />
               </Link>
               <Link href="/contact/?type=investment" className="text-link">
                 Investment Questions{" "}
@@ -88,158 +76,285 @@ export default function StudentHousingPage() {
               </Link>
             </div>
           </div>
+          <div className="oc-gallery oc-gallery-2">
+            {sh.mission.images.map((picture) => (
+              <Figure key={picture.src} picture={picture} sizes="(max-width: 900px) 50vw, 25vw" />
+            ))}
+          </div>
         </div>
       </section>
 
-      <section
-        className={`page-section page-section-warm ${styles.livingSection}`}
-        aria-labelledby="living-heading"
-      >
-        <div className={`container ${styles.livingLayout}`}>
-          <figure className={styles.interiorFigure}>
-            <Image
-              src="/brand/student-kitchen.jpg"
-              alt="Bright kitchen with an island, pendant lights and black appliances"
-              width={4269}
-              height={2400}
-              sizes="(max-width: 900px) 100vw, 52vw"
-            />
-            <figcaption>
-              Illustrative image from the original RedDev student-housing page;
-              it does not confirm a current accommodation, configuration or
-              availability.
-            </figcaption>
-          </figure>
-          <div className={`copy-flow ${styles.livingCopy}`}>
+      <section className="oc-section oc-section-warm" aria-labelledby="demand-heading">
+        <div className="container oc-split">
+          <div className="oc-copy">
             <p className="eyebrow">
-              <span /> IN EDMONTON
+              <span /> MARKET DEMAND
             </p>
-            <h2 id="living-heading">A university-community context.</h2>
-            <p>
-              The student-housing page places its accommodation offering within
-              Edmonton’s university communities. The intent is straightforward:
-              provide housing that responds to the routines of student life
-              while keeping the living experience considered and connected.
+            <h2 id="demand-heading">
+              2.2 million students. About 200,000 purpose-built beds.
+            </h2>
+            <p>{sh.demand.body}</p>
+          </div>
+          <div className="oc-copy">
+            <p className="eyebrow">
+              <span /> MULTIPLEX HOUSING
             </p>
-            <p>
-              The exterior and interior images on this page are retained from
-              the original RedDev student-housing page as illustrative context
-              only. They are not statements of present ownership, project status
-              or an active housing offer.
-            </p>
+            <h2>{sh.multiplex.title}</h2>
+            <p>{sh.multiplex.body}</p>
+          </div>
+        </div>
+      </section>
+
+      <section className="oc-section" aria-labelledby="multiplex-heading">
+        <div className="container oc-split oc-split-reverse">
+          <Figure picture={sh.multiplex.image} sizes="(max-width: 900px) 100vw, 45vw" />
+          <div className="oc-copy">
+            <h2 id="multiplex-heading">{sh.multiplex.subtitle}</h2>
+            <p>{sh.multiplex.detail}</p>
+            <div className="oc-actions">
+              <a
+                href={sh.multiplex.document.href}
+                className="button button-primary"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                {sh.multiplex.document.label}{" "}
+                <Download size={17} aria-hidden="true" />
+              </a>
+            </div>
+            <p className="oc-small">{sh.multiplex.document.note}</p>
           </div>
         </div>
       </section>
 
       <section
-        className={`page-section ${styles.detailsSection}`}
-        aria-labelledby="details-heading"
+        id="projects"
+        className="oc-section oc-section-warm page-anchor"
+        aria-labelledby="projects-heading"
       >
-        <div className="container page-split">
-          <div>
+        <div className="container">
+          <div className="oc-heading">
             <p className="eyebrow">
-              <span /> WHAT THE ORIGINAL PAGE DESCRIBES
+              <span /> CURRENT PROJECTS
             </p>
-            <h2 id="details-heading">Furnished, connected accommodation.</h2>
+            <h2 id="projects-heading">{sh.projects.edmonton.title}</h2>
           </div>
-          <dl className={styles.accommodationList}>
-            {accommodationDetails.map((detail) => (
-              <div key={detail.term}>
-                <dt>{detail.term}</dt>
-                <dd>{detail.description}</dd>
+          <div className="oc-split oc-split-wide">
+            <Figure picture={sh.projects.photo} sizes="(max-width: 900px) 100vw, 45vw" />
+            <div className="oc-copy">
+              <p>{sh.projects.edmonton.body}</p>
+              <h3>{sh.projects.units.title}</h3>
+              <p>{sh.projects.units.body}</p>
+            </div>
+          </div>
+          <div className={`oc-split oc-split-wide ${styles.projectDetails}`}>
+            <Figure picture={sh.projects.edmonton.image} sizes="(max-width: 900px) 100vw, 45vw" />
+            <div className="oc-split">
+              <Figure picture={sh.projects.units.map} sizes="(max-width: 900px) 100vw, 22vw" contain />
+              <div className="oc-copy">
+                <h3>{sh.projects.distances.title}</h3>
+                <ul className="oc-check-list">
+                  {sh.projects.distances.items.map((item) => (
+                    <li key={item}>{item}</li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section className="oc-section" aria-labelledby="features-heading">
+        <div className="container oc-split oc-split-wide">
+          <div className="oc-copy">
+            <p className="eyebrow">
+              <span /> {sh.unitFeatures.kicker.toUpperCase()}
+            </p>
+            <h2 id="features-heading">{sh.unitFeatures.title}</h2>
+            {sh.unitFeatures.groups.map((group) => (
+              <div key={group.title}>
+                <h4>{group.title}</h4>
+                <ul className="oc-check-list">
+                  {group.items.map((item) => (
+                    <li key={item}>{item}</li>
+                  ))}
+                </ul>
               </div>
             ))}
-          </dl>
+          </div>
+          <Figure picture={sh.unitFeatures.graphic} sizes="(max-width: 900px) 100vw, 55vw" contain />
+        </div>
+      </section>
+
+      <section className="oc-section oc-section-warm" aria-labelledby="plans-heading">
+        <div className="container">
+          <div className="oc-heading">
+            <p className="eyebrow">
+              <span /> LAYOUTS
+            </p>
+            <h2 id="plans-heading">{sh.floorPlans.title}</h2>
+          </div>
+          <div className="oc-gallery oc-gallery-3 oc-gallery-natural">
+            {sh.floorPlans.images.map((picture) => (
+              <Figure key={picture.src} picture={picture} sizes="(max-width: 600px) 100vw, 33vw" contain />
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section className="oc-section" aria-labelledby="kitchen-heading">
+        <div className="container oc-split">
+          <div className="oc-copy">
+            <h2 id="kitchen-heading">{sh.kitchen.title}</h2>
+            <p>{sh.kitchen.body}</p>
+          </div>
+          <div className="oc-copy">
+            <h2>{sh.furniture.title}</h2>
+            <p>{sh.furniture.body}</p>
+          </div>
+        </div>
+      </section>
+
+      <section className="oc-section oc-section-warm" aria-labelledby="bedroom-heading">
+        <div className="container">
+          <div className="oc-heading">
+            <h2 id="bedroom-heading">{sh.bedroom.title}</h2>
+          </div>
+          <div className="oc-gallery oc-gallery-4">
+            {sh.bedroom.images.map((picture) => (
+              <Figure key={picture.src} picture={picture} sizes="(max-width: 600px) 100vw, 25vw" />
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section className="oc-section" aria-labelledby="portal-heading">
+        <div className="container oc-split oc-split-reverse">
+          <div className="oc-gallery oc-gallery-2">
+            {sh.portal.images.map((picture) => (
+              <Figure key={picture.src} picture={picture} sizes="(max-width: 900px) 50vw, 25vw" />
+            ))}
+          </div>
+          <div className="oc-copy">
+            <p className="eyebrow">
+              <span /> MULTIPLEX HOUSING APP
+            </p>
+            <h2 id="portal-heading">{sh.portal.title}</h2>
+            <p>{sh.portal.body}</p>
+          </div>
+        </div>
+      </section>
+
+      <section className="oc-section oc-section-warm" aria-labelledby="amenities-heading">
+        <div className="container oc-split">
+          <div className="oc-copy">
+            <h2 id="amenities-heading">{sh.amenities.title}</h2>
+            <p>{sh.amenities.body}</p>
+          </div>
+          <div className="oc-gallery oc-gallery-2 oc-gallery-natural">
+            {sh.amenities.images.map((picture) => (
+              <Figure key={picture.src} picture={picture} sizes="(max-width: 900px) 50vw, 25vw" contain />
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section className="oc-section" aria-labelledby="infrastructure-heading">
+        <div className="container">
+          <div className="oc-heading">
+            <h2 id="infrastructure-heading">{sh.infrastructure.title}</h2>
+          </div>
+          <div className="oc-blurbs">
+            {sh.infrastructure.blurbs.map((blurb) => (
+              <div className="oc-blurb" key={blurb.title}>
+                <h3>{blurb.title}</h3>
+                <p>{blurb.body}</p>
+              </div>
+            ))}
+          </div>
+          <div className={`oc-gallery oc-gallery-2 ${styles.infrastructureGallery}`}>
+            {sh.infrastructure.images.map((picture) => (
+              <Figure key={picture.src} picture={picture} sizes="(max-width: 900px) 100vw, 50vw" />
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section className="oc-section oc-section-warm" aria-labelledby="referral-heading">
+        <div className="container oc-split">
+          <div className="oc-copy">
+            <h2 id="referral-heading">{sh.referral.title}</h2>
+            <p>{sh.referral.body}</p>
+          </div>
+          <Figure picture={sh.referral.image} sizes="(max-width: 900px) 100vw, 45vw" />
         </div>
       </section>
 
       <section
-        className={`page-section page-section-warm ${styles.confirmationSection}`}
-        aria-labelledby="current-information-heading"
+        id="investing"
+        className="oc-section oc-section-dark page-anchor"
+        aria-labelledby="investing-heading"
       >
-        <div className={`container ${styles.confirmationLayout}`}>
-          <div>
+        <div className="container oc-split">
+          <div className="oc-copy">
             <p className="eyebrow">
-              <span /> CURRENT INFORMATION
+              <span /> SMART HOUSING, SMARTER INVESTING
             </p>
-            <h2 id="current-information-heading">
-              Ask the team about the details that matter to you.
-            </h2>
-          </div>
-          <PageNote title="Project details are being reconciled">
-            <p>
-              The original material refers separately to Garneau multiplexes and
-              a Queen Alexandra flagship. Their configurations should not be
-              combined. Current locations, accommodation details, amenities and
-              availability need confirmation directly from the RedDev team.
-            </p>
-          </PageNote>
-        </div>
-      </section>
-
-      <section
-        className={`page-section ${styles.faqSection}`}
-        aria-labelledby="student-faqs"
-      >
-        <div className={`container ${styles.faqLayout}`}>
-          <div>
-            <p className="eyebrow">
-              <span /> FREQUENTLY ASKED QUESTIONS
-            </p>
-            <h2 id="student-faqs">Questions about student housing.</h2>
-            <p>
-              For current details tailored to your question, please contact the
-              team directly.
-            </p>
-          </div>
-          <div className={styles.faqs}>
-            <details>
-              <summary>Is the student housing furnished?</summary>
-              <p>
-                The original RedDev page describes fully furnished housing.
-                Please contact the team to confirm current furnishings for a
-                particular location.
-              </p>
-            </details>
-            <details>
-              <summary>Are utilities and Wi-Fi included?</summary>
-              <p>
-                The original material refers to utilities and Wi-Fi. The team
-                can confirm what is currently included.
-              </p>
-            </details>
-            <details>
-              <summary>Is the housing near university communities?</summary>
-              <p>
-                The original page positions the housing near Edmonton university
-                communities. Ask the team for current location information.
-              </p>
-            </details>
-            <details>
-              <summary>
-                I have an investment question. Where should I start?
-              </summary>
-              <p>
-                Use the separate investment inquiry route so your question
-                reaches the appropriate RedDev team member.
-              </p>
-              <Link
-                href="/contact/?type=investment"
-                className={styles.inlineQuestionLink}
-              >
-                Ask an investment question{" "}
-                <ArrowUpRight size={16} aria-hidden="true" />
+            <h2 id="investing-heading">{sh.investing.lead}</h2>
+            <p>{sh.investing.body}</p>
+            <div className="oc-actions">
+              <Link href={sh.investing.cta.href} className="button button-gold">
+                {sh.investing.cta.label}{" "}
+                <ArrowRight size={18} aria-hidden="true" />
               </Link>
-            </details>
+              <Link href="/contact/?type=investment" className="button button-light-outline">
+                Speak with the team{" "}
+                <ArrowUpRight size={18} aria-hidden="true" />
+              </Link>
+            </div>
+          </div>
+          <div className="oc-copy">
+            <h3>{sh.investing.whyTitle}</h3>
+            <ul className="oc-check-list">
+              {sh.investing.why.map((item) => (
+                <li key={item}>{item}</li>
+              ))}
+            </ul>
+            <p className="oc-small">
+              Valuation and vacancy figures are as stated on RedDev’s original
+              page. Investment information is subject to the{" "}
+              <Link href="/investment-disclosures/">
+                Investment Disclosures
+              </Link>{" "}
+              and the formal offering documents.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <section className="oc-section" aria-labelledby="leasing-heading">
+        <div className="container oc-split oc-split-reverse">
+          <Figure picture={sh.leasing.image} sizes="(max-width: 900px) 100vw, 45vw" />
+          <div className="oc-copy">
+            <p className="eyebrow">
+              <span /> PRE-LEASING
+            </p>
+            <h2 id="leasing-heading">{sh.leasing.title}</h2>
+            <p>{sh.leasing.body}</p>
+            <div className="oc-actions">
+              <Link href={sh.leasing.cta.href} className="button button-primary">
+                {sh.leasing.cta.label} <ArrowRight size={18} aria-hidden="true" />
+              </Link>
+            </div>
           </div>
         </div>
       </section>
 
       <PageCallout
-        title="Have a student-housing question?"
-        description="For current accommodation, inclusion or location information, connect directly with the RedDev team."
+        title="Have a question? Get in touch with us today."
+        description="Ask about units, pre-leasing availability or the investment opportunity behind RedDev’s student housing."
         href="/contact/?type=student-housing"
-        label="Ask About Student Housing"
+        label="Contact Us"
       />
     </>
   );

@@ -1,6 +1,54 @@
 {
   "redirects": [
-    { "source": "/contact-us-2", "destination": "/contact/", "type": 301 },
-    { "source": "/contact-us-2/", "destination": "/contact/", "type": 301 }
+    {
+      "source": "/contact-us-2",
+      "destination": "/contact/",
+      "type": 301
+    },
+    {
+      "source": "/contact-us-2/",
+      "destination": "/contact/",
+      "type": 301
+    },
+    {
+      "source": "/acquire",
+      "destination": "/our-approach/#acquire",
+      "type": 301
+    },
+    {
+      "source": "/acquire/",
+      "destination": "/our-approach/#acquire",
+      "type": 301
+    },
+    {
+      "source": "/enhance",
+      "destination": "/our-approach/#enhance",
+      "type": 301
+    },
+    {
+      "source": "/enhance/",
+      "destination": "/our-approach/#enhance",
+      "type": 301
+    },
+    {
+      "source": "/manage",
+      "destination": "/our-approach/#manage",
+      "type": 301
+    },
+    {
+      "source": "/manage/",
+      "destination": "/our-approach/#manage",
+      "type": 301
+    },
+    {
+      "source": "/report",
+      "destination": "/our-approach/#report-comply",
+      "type": 301
+    },
+    {
+      "source": "/report/",
+      "destination": "/our-approach/#report-comply",
+      "type": 301
+    }
   ]
 }

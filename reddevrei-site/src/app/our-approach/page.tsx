@@ -1,33 +1,34 @@
+import Image from "next/image";
 import Link from "next/link";
 import { ArrowRight, ArrowUpRight } from "lucide-react";
-import {
-  PageCallout,
-  PageHero,
-  PageNote,
-} from "@/components/marketing/PageShell";
+import { PageCallout, PageHero } from "@/components/marketing/PageShell";
 import { approach } from "@/content/approach";
+import { approachDetail } from "@/content/approach-detail";
 import { pageMetadata } from "@/lib/metadata";
 import styles from "./page.module.css";
 
 export const metadata = pageMetadata({
   title: "Our Approach",
   description:
-    "Explore RedDev’s connected approach to multifamily real estate: Analyze, Acquire, Enhance, Manage, and Report & Comply.",
+    "RedDev follows a systematic process to identify, acquire, enhance, manage and report on multifamily investments, using real estate syndication under an Offering Memorandum.",
   path: "/our-approach/",
 });
 
+const stageId = (title: string) =>
+  title.toLowerCase().replaceAll(" & ", "-").replaceAll(" ", "-");
+
 const anchors = approach.map((step) => ({
   label: `${step.number} ${step.title}`,
-  href: `#${step.title.toLowerCase().replaceAll(" & ", "-").replaceAll(" ", "-")}`,
+  href: `#${stageId(step.title)}`,
 }));
 
 export default function OurApproachPage() {
   return (
     <>
       <PageHero
-        eyebrow="OUR APPROACH"
-        title="A connected process, from first look to ongoing accountability."
-        description="RedDev’s approach brings investment strategy, purposeful development, property operations and regular reporting into one connected process."
+        eyebrow="INVESTMENT APPROACH"
+        title="We follow a systematic process."
+        description="Identify, acquire, enhance, manage and report. A vertically integrated model that keeps control over quality, costs and performance at every stage."
         breadcrumbLabel="Our Approach"
       />
 
@@ -55,25 +56,34 @@ export default function OurApproachPage() {
         <div className="container page-split">
           <div>
             <p className="eyebrow">
-              <span /> ONE CONNECTED PROCESS
+              <span /> OUR INVESTMENT APPROACH
             </p>
             <h2 id="approach-overview">
-              Investment decisions meet the realities of building and operating.
+              Grounded in market understanding and thorough due diligence.
             </h2>
+            <figure className={`oc-figure oc-figure-contain ${styles.graphic}`}>
+              <Image
+                src={approachDetail.graphics.syndication.src}
+                alt={approachDetail.graphics.syndication.alt}
+                width={approachDetail.graphics.syndication.width}
+                height={approachDetail.graphics.syndication.height}
+                sizes="(max-width: 900px) 60vw, 30vw"
+              />
+              <figcaption>{approachDetail.dueDiligenceCaption}</figcaption>
+            </figure>
           </div>
           <div className="copy-flow">
-            <p>
-              RedDev’s five stages connect the early work of evaluating a
-              property with the ongoing responsibilities of development,
-              management and communication. The process is intended to keep the
-              work connected as a property moves from analysis through
-              operations.
-            </p>
-            <p>
-              It is a practical sequence rather than a promise of a particular
-              result. Each property and situation calls for its own assessment,
-              decisions and professional advice.
-            </p>
+            <p>{approachDetail.overview}</p>
+            <figure className={`oc-figure oc-figure-contain ${styles.graphic}`}>
+              <Image
+                src={approachDetail.graphics.funnel.src}
+                alt={approachDetail.graphics.funnel.alt}
+                width={approachDetail.graphics.funnel.width}
+                height={approachDetail.graphics.funnel.height}
+                sizes="(max-width: 900px) 100vw, 50vw"
+              />
+            </figure>
+            <p>{approachDetail.syndication}</p>
             <Link href="/about-us/#team" className="text-link">
               Meet the people behind RedDev{" "}
               <ArrowUpRight size={18} aria-hidden="true" />
@@ -100,23 +110,32 @@ export default function OurApproachPage() {
 
           <ol className={styles.timeline}>
             {approach.map((step) => {
-              const id = step.title
-                .toLowerCase()
-                .replaceAll(" & ", "-")
-                .replaceAll(" ", "-");
+              const detail = approachDetail.stages.find(
+                (stage) => stage.title === step.title,
+              );
               return (
                 <li
-                  id={id}
+                  id={stageId(step.title)}
                   className={`page-anchor ${styles.step}`}
                   key={step.number}
                 >
                   <div className={styles.stepNumber} aria-hidden="true">
                     {step.number}
                   </div>
-                  <article className={styles.stepBody}>
+                  <article className={`${styles.stepBody} oc-copy`}>
                     <p className={styles.stepDetail}>{step.detail}</p>
                     <h3>{step.title}</h3>
-                    <p>{step.description}</p>
+                    {(detail?.paragraphs ?? [step.description]).map(
+                      (paragraph) => (
+                        <p key={paragraph.slice(0, 40)}>{paragraph}</p>
+                      ),
+                    )}
+                    {detail?.more && (
+                      <Link href={detail.more.href} className="text-link">
+                        {detail.more.label}{" "}
+                        <ArrowUpRight size={17} aria-hidden="true" />
+                      </Link>
+                    )}
                   </article>
                 </li>
               );
@@ -126,78 +145,34 @@ export default function OurApproachPage() {
       </section>
 
       <section
-        className="page-section"
-        aria-labelledby="connected-responsibilities"
+        id="advantages"
+        className="oc-section page-anchor"
+        aria-labelledby="advantages-heading"
       >
-        <div className="container page-split">
-          <div>
+        <div className="container">
+          <div className="oc-heading">
             <p className="eyebrow">
-              <span /> ACROSS THE WORK
+              <span /> WHY REDDEV
             </p>
-            <h2 id="connected-responsibilities">
-              A view across investment, development and operations.
-            </h2>
+            <h2 id="advantages-heading">{approachDetail.advantages.title}</h2>
+            <p>{approachDetail.advantages.intro}</p>
           </div>
-          <div className={`copy-flow ${styles.responsibilitiesCopy}`}>
-            <div>
-              <h3>Investment perspective</h3>
-              <p>
-                Analysis, acquisition and capital structuring establish the
-                early framework: understand the market and property, then
-                negotiate and structure financing thoughtfully.
-              </p>
-            </div>
-            <div>
-              <h3>Development and value creation</h3>
-              <p>
-                Enhancement centres on purposeful development, property
-                improvements and better operating practices as appropriate to
-                the property.
-              </p>
-            </div>
-            <div>
-              <h3>Operations and communication</h3>
-              <p>
-                Management remains connected to the day-to-day experience of the
-                property and its residents, while regular reporting helps keep
-                investment partners informed.
-              </p>
-            </div>
+          <div className="oc-blurbs">
+            {approachDetail.advantages.items.map((item, index) => (
+              <div className="oc-blurb" key={item.title}>
+                <span className="oc-blurb-number" aria-hidden="true">
+                  0{index + 1}
+                </span>
+                <h3>{item.title}</h3>
+                <p>{item.body}</p>
+              </div>
+            ))}
           </div>
         </div>
       </section>
 
       <section
-        className={`page-section page-section-warm ${styles.contextSection}`}
-        aria-labelledby="context-heading"
-      >
-        <div className={`container ${styles.contextLayout}`}>
-          <div>
-            <p className="eyebrow">
-              <span /> CONTEXT MATTERS
-            </p>
-            <h2 id="context-heading">
-              A process supports decisions; it does not remove uncertainty.
-            </h2>
-          </div>
-          <PageNote title="Current information and risk context">
-            <p>
-              Real estate investment, property operations, development,
-              financing and compliance can involve uncertainty. RedDev’s
-              published process describes how the team approaches the work; it
-              does not promise a particular outcome.
-            </p>
-            <p>
-              For current materials, project details, eligibility or disclosure
-              information, please speak with the RedDev team directly before
-              making decisions or relying on older corporate materials.
-            </p>
-          </PageNote>
-        </div>
-      </section>
-
-      <section
-        className={`page-section ${styles.nextSection}`}
+        className={`page-section page-section-warm ${styles.nextSection}`}
         aria-labelledby="next-conversation"
       >
         <div className={`container ${styles.nextLayout}`}>
@@ -207,8 +182,8 @@ export default function OurApproachPage() {
             </p>
             <h2 id="next-conversation">Questions about the approach?</h2>
             <p>
-              Connect with the team to discuss the process and request current
-              information.
+              Connect with the team to discuss the process, current
+              opportunities and the formal offering materials.
             </p>
           </div>
           <Link
@@ -221,10 +196,10 @@ export default function OurApproachPage() {
       </section>
 
       <PageCallout
-        title="Talk through our approach with the team."
-        description="For current materials or a conversation about RedDev’s process, get in touch directly."
+        title="Have a question? Get in touch with us today."
+        description="Material on this website is not financial advice and is not an investment offer; any offer will be made in the form of a private placement memorandum."
         href="/contact/?type=general-question"
-        label="Speak with Our Team"
+        label="Contact Us"
       />
     </>
   );

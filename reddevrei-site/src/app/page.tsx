@@ -6,6 +6,7 @@ import {
   ArrowUpRight,
   Building2,
   ChartNoAxesCombined,
+  Download,
   FileCheck2,
   Handshake,
   KeyRound,
@@ -14,6 +15,12 @@ import {
   ShieldCheck,
 } from "lucide-react";
 import { approach } from "@/content/approach";
+import {
+  accreditedAcknowledgement,
+  brochure,
+  homeCopy,
+  opportunity,
+} from "@/content/company";
 import { team } from "@/content/team";
 import { insights } from "@/content/insights";
 import { media } from "@/content/media";
@@ -40,7 +47,7 @@ export default function HomePage() {
         </div>
         <div className="hero-copy">
           <p className="eyebrow hero-eyebrow">
-            <span /> REAL ESTATE. REAL PURPOSE.
+            <span /> {homeCopy.kicker}
           </p>
           <h1 id="hero-title">
             Invest in places.
@@ -51,20 +58,14 @@ export default function HomePage() {
               <br className="hero-break" /> value.
             </em>
           </h1>
-          <p className="hero-description">
-            Multifamily real estate investment, development and management. A
-            disciplined approach. A shared vision for what comes next.
-          </p>
+          <p className="hero-description">{homeCopy.lead}</p>
           <div className="hero-actions">
-            <Link
-              href="/contact/?type=investment"
-              className="button button-gold"
-            >
-              Speak with Our Team <ArrowUpRight size={19} />
+            <Link href="/invest/" className="button button-gold">
+              View Opportunities <ArrowUpRight size={19} />
             </Link>
-            <a href="#approach" className="button button-light-outline">
-              Explore Our Approach <ArrowRight size={18} />
-            </a>
+            <Link href="/about-us/" className="button button-light-outline">
+              About Us <ArrowRight size={18} />
+            </Link>
           </div>
           <div className="hero-bottom">
             <span>
@@ -109,34 +110,36 @@ export default function HomePage() {
         <div className="container about-layout">
           <div>
             <p className="eyebrow">
-              <span className="eyebrow-line" /> ABOUT REDDEV
+              <span className="eyebrow-line" /> WELCOME
             </p>
             <h2>
               More than properties.
               <br />
               <span className="text-red">Partnerships.</span>
             </h2>
+            <figure className="oc-figure oc-figure-contain home-syndication">
+              <Image
+                src={homeCopy.syndicationGraphic.src}
+                alt={homeCopy.syndicationGraphic.alt}
+                width={homeCopy.syndicationGraphic.width}
+                height={homeCopy.syndicationGraphic.height}
+                sizes="(max-width: 900px) 60vw, 30vw"
+              />
+            </figure>
           </div>
           <div className="about-copy">
-            <p className="lead">
-              Good real estate starts with a clear vision—and the right people
-              to bring it to life.
-            </p>
-            <p>
-              RedDev Real Estate Investments brings together experience in real
-              estate, construction and financial management. We identify
-              opportunities, develop thoughtfully and stay involved in the
-              places we create.
-            </p>
-            <p>
-              Our integrated approach connects investment strategy with the
-              realities of building and operating multifamily housing. For our
-              partners, that means one team with a shared commitment to
-              transparency, quality and long-term value.
-            </p>
-            <Link href="/about-us/#team" className="text-link">
-              Meet the people behind RedDev <ArrowUpRight size={19} />
-            </Link>
+            <p className="lead">{homeCopy.lead}</p>
+            {homeCopy.welcome.map((paragraph) => (
+              <p key={paragraph.slice(0, 40)}>{paragraph}</p>
+            ))}
+            <div className="home-inline-actions">
+              <Link href="/about-us/" className="button button-primary">
+                Learn More <ArrowRight size={18} />
+              </Link>
+              <Link href="/invest/" className="text-link">
+                Invest with Us <ArrowUpRight size={19} />
+              </Link>
+            </div>
           </div>
         </div>
         <div className="container principles-row">
@@ -173,6 +176,28 @@ export default function HomePage() {
               From the first analysis to ongoing reporting.
             </p>
           </div>
+          <div className="home-approach-intro">
+            <p className="oc-lead">{homeCopy.approachIntro}</p>
+            <article className="oc-doc">
+              <figure className="oc-figure">
+                <Image
+                  src={brochure.image.src}
+                  alt={brochure.image.alt}
+                  width={brochure.image.width}
+                  height={brochure.image.height}
+                  sizes="150px"
+                />
+              </figure>
+              <div>
+                <h3>{brochure.title}</h3>
+                <p>{brochure.blurb}</p>
+                <a href={brochure.href} className="button button-primary">
+                  {brochure.label} <Download size={17} aria-hidden="true" />
+                </a>
+                <span className="oc-doc-note">{brochure.note}</span>
+              </div>
+            </article>
+          </div>
           <div className="process-list">
             {approach.map((step, index) => {
               const Icon = processIcons[index];
@@ -183,7 +208,7 @@ export default function HomePage() {
                     <Icon size={27} strokeWidth={1.4} />
                   </div>
                   <h3>{step.title}</h3>
-                  <p>{step.description}</p>
+                  <p>{homeCopy.stageBlurbs[step.title] ?? step.description}</p>
                   <span className="step-detail">{step.detail}</span>
                 </div>
               );
@@ -191,8 +216,8 @@ export default function HomePage() {
           </div>
           <div className="approach-bottom">
             <p>Connected expertise. Clear accountability.</p>
-            <Link href="/contact/" className="text-link">
-              Talk through our approach <ArrowUpRight size={19} />
+            <Link href="/our-approach/" className="text-link">
+              Learn more about our approach <ArrowUpRight size={19} />
             </Link>
           </div>
         </div>
@@ -224,23 +249,24 @@ export default function HomePage() {
             </span>
           </h2>
           <p className="lead">
-            Thoughtfully designed housing for the next chapter of life.
+            High-quality, affordable student accommodations in Edmonton,
+            Alberta.
           </p>
           <p>
-            We focus on accessible, purpose-built student housing in university
-            communities. Well-designed spaces, furnished living and practical
-            amenities help create a place where students can feel at home.
+            RedDev’s mission is to develop accessible and affordable
+            purpose-built student housing that meets the growing demand for
+            quality off-campus living. By strategically investing in high-growth
+            university towns, we aim to provide students with safe,
+            well-designed, and fully furnished housing solutions that ease
+            financial burdens while fostering a sense of community.
           </p>
           <p>
-            Our Edmonton focus brings development experience and hands-on
-            management together, with students, investment partners and the
-            wider community in mind.
+            Three modern student-focused multiplexes in Garneau, Edmonton, each
+            with eight fully furnished units within walking distance of the
+            University of Alberta.
           </p>
-          <Link
-            href="/contact/?type=student-housing"
-            className="button button-primary"
-          >
-            Let’s talk student housing <ArrowUpRight size={18} />
+          <Link href="/student-housing/" className="button button-primary">
+            Explore student housing <ArrowUpRight size={18} />
           </Link>
         </div>
       </section>
@@ -256,55 +282,68 @@ export default function HomePage() {
               <br />
               <span className="text-red">A thoughtful investment.</span>
             </h2>
-            <p>
-              Real estate investing is a relationship, not just a transaction.
-              We work with investment partners who value a disciplined process,
-              clear communication and the potential of multifamily housing.
-            </p>
-            <Link
-              href="/contact/?type=investment"
-              className="button button-primary"
-            >
-              Start a conversation <ArrowUpRight size={18} />
+            <p className="lead">{homeCopy.investLine}</p>
+            <p>{opportunity.intro}</p>
+            <Link href="/invest/" className="button button-primary">
+              View current opportunities <ArrowUpRight size={18} />
             </Link>
           </div>
-          <div className="investment-panel">
+          <article className="investment-panel">
             <div className="panel-top">
               <ChartNoAxesCombined size={29} strokeWidth={1.4} />
-              <span>YOUR NEXT STEPS</span>
+              <span>CURRENT OPPORTUNITY</span>
             </div>
-            <ol>
-              <li>
-                <span>01</span>
-                <div>
-                  <h3>Get to know RedDev</h3>
-                  <p>Understand our approach and the people behind it.</p>
-                </div>
-              </li>
-              <li>
-                <span>02</span>
-                <div>
-                  <h3>Connect with our team</h3>
-                  <p>
-                    Discuss your interests and ask the questions that matter.
-                  </p>
-                </div>
-              </li>
-              <li>
-                <span>03</span>
-                <div>
-                  <h3>Review the details</h3>
-                  <p>
-                    Consider approved project information with your professional
-                    advisers.
-                  </p>
-                </div>
-              </li>
-            </ol>
-            <p className="investment-note">
-              Opportunity availability and investor eligibility are confirmed
-              directly with our team. This website is not an offer of
-              securities.
+            <p className="home-opportunity-location">
+              <MapPin size={14} aria-hidden="true" /> {opportunity.location}
+            </p>
+            <h3 className="home-opportunity-title">{opportunity.title}</h3>
+            {opportunity.paragraphs.map((paragraph) => (
+              <p className="home-opportunity-copy" key={paragraph.slice(0, 40)}>
+                {paragraph}
+              </p>
+            ))}
+            <p className="home-opportunity-eligibility">
+              {opportunity.eligibility}
+            </p>
+            <a href="#accredited" className="text-link">
+              Learn more <ArrowDown size={17} aria-hidden="true" />
+            </a>
+          </article>
+        </div>
+      </section>
+
+      <section
+        id="accredited"
+        className="oc-section oc-section-warm page-anchor"
+        aria-labelledby="accredited-heading"
+      >
+        <div className="container">
+          <div className="oc-heading">
+            <p className="eyebrow">
+              <span className="eyebrow-line" /> BEFORE YOU CONTINUE
+            </p>
+            <h2 id="accredited-heading">{accreditedAcknowledgement.title}</h2>
+          </div>
+          <div className="oc-gate">
+            {accreditedAcknowledgement.paragraphs.map((paragraph) => (
+              <p key={paragraph.slice(0, 40)}>{paragraph}</p>
+            ))}
+            <p className="oc-gate-statement">
+              {accreditedAcknowledgement.statement}
+            </p>
+            <Link
+              href={accreditedAcknowledgement.href}
+              className="button button-primary"
+            >
+              {accreditedAcknowledgement.buttonLabel}{" "}
+              <ArrowRight size={18} aria-hidden="true" />
+            </Link>
+            <p className="oc-small home-gate-note">
+              Please also read the{" "}
+              <Link href="/investment-disclosures/">
+                Investment Disclosures
+              </Link>
+              .
             </p>
           </div>
         </div>
@@ -377,14 +416,15 @@ export default function HomePage() {
           <div className="section-heading">
             <div>
               <p className="eyebrow">
-                <span className="eyebrow-line" /> INSIGHTS & PERSPECTIVES
+                <span className="eyebrow-line" /> NEWS & INSIGHTS
               </p>
               <h2>A more informed perspective.</h2>
             </div>
             <Link href="/blog/" className="text-link">
-              Read our insights <ArrowUpRight size={19} />
+              View all <ArrowUpRight size={19} />
             </Link>
           </div>
+          <p className="team-intro">{homeCopy.insightsIntro}</p>
           <div className="insight-list">
             {insights.map((article) => (
               <article className="insight" key={article.href}>
@@ -406,50 +446,46 @@ export default function HomePage() {
                   {article.author}
                 </div>
                 <Link href={article.href} className="insight-read">
-                  Read perspective <ArrowUpRight size={17} />
+                  Read more <ArrowUpRight size={17} />
                   <span className="sr-only">: {article.title}</span>
                 </Link>
               </article>
             ))}
           </div>
-          <p className="archive-note">
-            From the RedDev archive. Original publication dates are retained;
-            commentary is not a statement of current offering availability.
-          </p>
         </div>
       </section>
 
       <section className="closing-cta">
         <div className="container">
           <div>
-            <p className="eyebrow">LET’S BUILD WHAT COMES NEXT.</p>
+            <p className="eyebrow">HAVE A QUESTION?</p>
             <h2>
-              The right partnership
+              Get in touch
               <br />
-              starts with a conversation.
+              with us today.
             </h2>
           </div>
           <Link href="/contact/" className="button button-gold">
-            Speak with Our Team <ArrowUpRight size={20} />
+            Contact Us <ArrowUpRight size={20} />
           </Link>
         </div>
       </section>
       <section id="disclosures" className="disclosures">
         <div className="container">
           <p>
-            <strong>Investment information.</strong> Material on this website is
-            not financial advice. Please consult a certified financial advisor.
-            This information is not an offer to sell or a solicitation to buy
-            securities. Any investment offer will be made through formal
-            offering documents and is subject to eligibility requirements. Real
-            estate investments involve risk; returns are not guaranteed.
+            <strong>Disclaimers.</strong> Material on this website is not
+            financial advice. Please consult a certified financial advisor. The
+            content and information on this website is not an investment offer,
+            and any offer will be made in the form of a private placement
+            memorandum. Opportunities shared on this website are only open to
+            accredited investors. Real estate investments involve risk; returns
+            are not guaranteed.
           </p>
           <p>
-            <strong>Website preview.</strong> This is the first-stage RedDev
-            redevelopment preview. Contact messages open in your own email
-            application and are not submitted to or stored by this website. For
-            current project information, contact{" "}
-            <a href={`mailto:${site.email}`}>{site.email}</a>.
+            <strong>Contact.</strong> Messages sent from this website open in
+            your own email application. For current project information, contact{" "}
+            <a href={`mailto:${site.email}`}>{site.email}</a> or call{" "}
+            <a href={site.phoneHref}>{site.phone}</a>.
           </p>
         </div>
       </section>
