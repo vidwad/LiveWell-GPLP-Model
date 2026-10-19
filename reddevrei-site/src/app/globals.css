@@ -1578,3 +1578,277 @@ main:focus {
     transform: none;
   }
 }
+
+/* ---------------------------------------------------------------------------
+   Motion. One easing and one set of behaviours, in the Pookt vocabulary:
+   content fades, lifts and un-blurs as it arrives; decorative motion is slow
+   and quiet; hovers answer with a small lift or an arrow nudge. Everything
+   below is cancelled under prefers-reduced-motion at the end of this file.
+   --------------------------------------------------------------------------- */
+:root {
+  --ease-reveal: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@keyframes rise-in {
+  from {
+    opacity: 0;
+    transform: translateY(22px);
+    filter: blur(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+    filter: none;
+  }
+}
+@keyframes settle-zoom {
+  from {
+    transform: scale(1.07);
+  }
+  to {
+    transform: scale(1);
+  }
+}
+@keyframes globe-drift {
+  from {
+    transform: translate3d(0, 0, 0) rotate(0deg);
+  }
+  to {
+    transform: translate3d(0, -16px, 0) rotate(4deg);
+  }
+}
+@keyframes nudge-down {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(5px);
+  }
+}
+
+/* Scroll-in reveal (MotionReveal.tsx tags the elements). Hidden only once
+   the document is known to be scripted. */
+html.js [data-reveal] {
+  opacity: 0;
+  transform: translateY(26px);
+  filter: blur(6px);
+  transition:
+    opacity 0.65s var(--ease-reveal),
+    transform 0.65s var(--ease-reveal),
+    filter 0.65s var(--ease-reveal);
+  transition-delay: calc(var(--reveal-i, 0) * 90ms);
+}
+html.js [data-reveal="in"] {
+  opacity: 1;
+  transform: none;
+  filter: none;
+}
+
+/* Home hero entrance: copy arrives line by line, the side note follows, the
+   photo settles from a slight zoom, the globe drifts, the scroll cue breathes. */
+.hero-copy > * {
+  animation: rise-in 0.8s var(--ease-reveal) both;
+}
+.hero-copy > :nth-child(1) {
+  animation-delay: 0.1s;
+}
+.hero-copy > :nth-child(2) {
+  animation-delay: 0.2s;
+}
+.hero-copy > :nth-child(3) {
+  animation-delay: 0.34s;
+}
+.hero-copy > :nth-child(4) {
+  animation-delay: 0.46s;
+}
+.hero-copy > :nth-child(5) {
+  animation-delay: 0.62s;
+}
+.hero-visual > * {
+  animation: rise-in 0.8s var(--ease-reveal) both;
+  animation-delay: 0.55s;
+}
+.hero-visual > .hero-visual-note {
+  animation-delay: 0.7s;
+}
+.hero-image {
+  animation: settle-zoom 18s ease-out both;
+}
+.hero-treatment::after {
+  animation: globe-drift 36s ease-in-out infinite alternate;
+}
+.hero-bottom > a {
+  transition:
+    border-color 0.2s,
+    background-color 0.2s;
+}
+.hero-bottom > a:hover {
+  border-color: var(--gold);
+  background: #ffffff14;
+}
+.hero-bottom > a svg {
+  animation: nudge-down 2.2s ease-in-out infinite;
+}
+
+/* Inner page heroes share the entrance. */
+.inner-hero-content > * {
+  animation: rise-in 0.7s var(--ease-reveal) both;
+}
+.inner-hero-content > :nth-child(1) {
+  animation-delay: 0.05s;
+}
+.inner-hero-content > :nth-child(2) {
+  animation-delay: 0.15s;
+}
+.inner-hero-content > :nth-child(3) {
+  animation-delay: 0.27s;
+}
+.inner-hero-content > :nth-child(4) {
+  animation-delay: 0.4s;
+}
+.inner-hero-photo {
+  animation: settle-zoom 16s ease-out both;
+}
+
+/* Hover responses. Arrows nudge in the direction they point. */
+.button svg,
+.text-link svg,
+.insight-read svg {
+  transition: transform 0.22s var(--ease-reveal);
+}
+:is(.button, .text-link, .insight-read, .insight):hover .lucide-arrow-up-right {
+  transform: translate(3px, -3px);
+}
+:is(.button, .text-link):hover .lucide-arrow-right {
+  transform: translateX(4px);
+}
+.text-link {
+  transition:
+    color 0.18s,
+    border-color 0.18s;
+}
+
+.principles-row svg,
+.step-top svg {
+  transition:
+    transform 0.3s var(--ease-reveal),
+    color 0.2s;
+}
+.principles-row > div:hover svg {
+  transform: translateY(-3px);
+  color: var(--red-dark);
+}
+.principles-row span,
+.process-step h3,
+.team-member h3,
+.investment-panel h3,
+.step-top span {
+  transition: color 0.2s;
+}
+.process-step:hover .step-top svg {
+  transform: translateY(-3px) scale(1.06);
+}
+.process-step:hover h3,
+.process-step:hover .step-top span,
+.investment-panel li:hover h3 {
+  color: var(--red);
+}
+
+.team-photo > img {
+  transition:
+    transform 0.7s var(--ease-reveal),
+    filter 0.4s;
+}
+.team-member:hover .team-photo > img {
+  transform: scale(1.04);
+  filter: saturate(1);
+}
+.team-member:hover h3 {
+  color: var(--red);
+}
+.team-initials > span {
+  transition: color 0.3s;
+}
+.team-member:hover .team-initials > span {
+  color: var(--red);
+}
+
+.insight h3 a {
+  transition: color 0.18s;
+}
+.insight:hover h3 a {
+  color: var(--red);
+}
+.insight-image > img {
+  transition: transform 0.7s var(--ease-reveal);
+}
+.insight:hover .insight-image > img {
+  transform: scale(1.04);
+}
+
+/* The wider-team expander: entries arrive in sequence when it opens. */
+.full-team > summary {
+  transition: color 0.18s;
+}
+.full-team > summary:hover {
+  color: var(--red);
+}
+.full-team[open] .wider-team > div {
+  animation: rise-in 0.5s var(--ease-reveal) both;
+}
+.full-team[open] .wider-team > :nth-child(2) {
+  animation-delay: 0.06s;
+}
+.full-team[open] .wider-team > :nth-child(3) {
+  animation-delay: 0.12s;
+}
+.full-team[open] .wider-team > :nth-child(4) {
+  animation-delay: 0.18s;
+}
+.full-team[open] .wider-team > :nth-child(5) {
+  animation-delay: 0.24s;
+}
+.full-team[open] .wider-team > :nth-child(6) {
+  animation-delay: 0.3s;
+}
+.full-team[open] .wider-team > :nth-child(n + 7) {
+  animation-delay: 0.36s;
+}
+
+.focus-strip span {
+  transition: color 0.2s;
+}
+.focus-strip span:hover {
+  color: var(--red);
+}
+
+/* Reduced motion: everything arrives in place. The site-wide backstop above
+   already collapses durations; these rules also stop the loops and keep
+   revealed content fully visible without waiting for the observer. */
+@media (prefers-reduced-motion: reduce) {
+  html.js [data-reveal] {
+    opacity: 1;
+    transform: none;
+    filter: none;
+    transition: none;
+  }
+  .hero-copy > *,
+  .hero-visual > *,
+  .hero-image,
+  .hero-treatment::after,
+  .hero-bottom > a svg,
+  .inner-hero-content > *,
+  .inner-hero-photo,
+  .full-team[open] .wider-team > div {
+    animation: none !important;
+  }
+  .principles-row > div:hover svg,
+  .process-step:hover .step-top svg,
+  .team-member:hover .team-photo > img,
+  .insight:hover .insight-image > img,
+  :is(.button, .text-link, .insight-read, .insight):hover .lucide-arrow-up-right,
+  :is(.button, .text-link):hover .lucide-arrow-right {
+    transform: none;
+  }
+}

@@ -7,6 +7,7 @@ import SiteHeader from "@/components/marketing/SiteHeader";
 import SiteFooter from "@/components/marketing/SiteFooter";
 import RouteScrollReset from "@/components/marketing/RouteScrollReset";
 import BackToTop from "@/components/marketing/BackToTop";
+import MotionReveal from "@/components/marketing/MotionReveal";
 import { site } from "@/config/site";
 import { articles } from "@/content/articles";
 
@@ -45,8 +46,17 @@ export default function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
       <body>
+        {/* Marks the document as scripted before anything paints, so the
+            scroll-in reveal (MotionReveal, globals.css `html.js [data-reveal]`)
+            can hide content that is about to animate without a visitor who
+            has JavaScript off ever losing it. */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: 'document.documentElement.classList.add("js");',
+          }}
+        />
         <a className="skip-link" href="#main-content">
           Skip to content
         </a>
@@ -59,6 +69,7 @@ export default function RootLayout({
         <SiteFooter />
         <RouteScrollReset />
         <BackToTop />
+        <MotionReveal />
       </body>
     </html>
   );
