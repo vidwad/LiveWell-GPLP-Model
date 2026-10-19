@@ -3,6 +3,7 @@ import Link from "next/link";
 import { ArrowUpRight, Download, Film } from "lucide-react";
 
 import { PageCallout, PageHero } from "@/components/marketing/PageShell";
+import { TeamProfiles } from "@/components/marketing/TeamProfiles";
 import { edmontonLp as lp } from "@/content/edmonton-lp";
 import { edmontonLpFaq } from "@/content/edmonton-lp-faq";
 import type { Picture } from "@/content/student-housing";
@@ -416,9 +417,13 @@ export default function EdmontonMultiplexLpPage() {
       <section className="oc-section" aria-labelledby="team-heading">
         <div className="container">
           <div className="oc-heading">
+            <p className="eyebrow">
+              <span /> THE PEOPLE BEHIND THE PARTNERSHIP
+            </p>
             <h2 id="team-heading">{lp.team.title}</h2>
+            <p>{lp.team.intro}</p>
           </div>
-          <Figure picture={lp.team.graphic} sizes="(max-width: 900px) 100vw, 800px" contain />
+          <TeamProfiles />
           <p className="oc-small">
             <Link href="/about-us/#team">
               Meet the full RedDev team <ArrowUpRight size={13} aria-hidden="true" />

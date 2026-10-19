@@ -180,7 +180,8 @@ export const edmontonLp = {
     "At RedDev REI, we create investment opportunities that go beyond the ordinary. Our Edmonton Multiplex Limited Partnership focuses on building a thriving community while delivering solid financial returns. Explore the potential of investing in quality student housing that meets the needs of today’s tenants. Join us in shaping the future of real estate in Edmonton.",
   team: {
     title: "Our Investment Team",
-    graphic: o("people.webp", "The RedDev investment team", 798, 249),
+    intro:
+      "Our team at RedDev REI is composed of experienced professionals dedicated to transforming the real estate landscape. Get to know the leaders who drive our vision and mission forward.",
   },
   education: {
     title: "Cover 100% of Your Child’s University Education Costs",
