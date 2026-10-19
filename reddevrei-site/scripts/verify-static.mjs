@@ -34,9 +34,27 @@ assert.ok(
 );
 
 const routes = JSON.parse(readFileSync("out/manus-routes.json", "utf8"));
-assert.deepEqual(
-  routes.routes.map((route) => route.path),
-  ["/", "/contact/"],
+const paths = routes.routes.map((route) => route.path);
+for (const path of [
+  "/",
+  "/about-us/",
+  "/our-approach/",
+  "/student-housing/",
+  "/invest/",
+  "/edmonton-multiplex-lp-1/",
+  "/blog/",
+  "/contact/",
+  "/privacy-policy/",
+  "/terms/",
+  "/investment-disclosures/",
+  "/accessibility/",
+]) {
+  assert.ok(paths.includes(path), `Complete public site must include ${path}`);
+}
+assert.equal(
+  new Set(paths).size,
+  paths.length,
+  "Route manifest cannot contain duplicate paths",
 );
 
 const heroCSS = readFileSync("src/app/globals.css", "utf8");

@@ -8,5 +8,5 @@
     "skipLibCheck": true,
     "outDir": ".test-build"
   },
-  "include": ["src/lib/inquiry.ts", "tests/inquiry.test.ts"]
+  "include": ["src/lib/inquiry.ts", "src/lib/navigation.ts", "tests/*.test.ts"]
 }

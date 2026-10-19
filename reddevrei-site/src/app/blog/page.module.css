@@ -1,0 +1,42 @@
+.introduction {
+  display: grid;
+  grid-template-columns: minmax(0, 1.1fr) minmax(260px, 0.75fr);
+  gap: 64px;
+  align-items: end;
+  margin-bottom: 50px;
+}
+
+.introduction h2 {
+  max-width: 630px;
+}
+
+.introduction > p {
+  max-width: 430px;
+  padding-bottom: 4px;
+  color: #5d5651;
+  font-size: 14px;
+  line-height: 1.85;
+}
+
+.archiveNote {
+  width: min(100%, 770px);
+  margin-top: 44px;
+}
+
+@media (max-width: 800px) {
+  .introduction {
+    grid-template-columns: 1fr;
+    gap: 18px;
+    margin-bottom: 36px;
+  }
+}
+
+@media (max-width: 650px) {
+  .introduction > p {
+    font-size: 13px;
+  }
+
+  .archiveNote {
+    margin-top: 34px;
+  }
+}

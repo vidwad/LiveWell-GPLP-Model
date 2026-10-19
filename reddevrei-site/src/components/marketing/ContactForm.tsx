@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { Suspense, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { Check, ClipboardCopy, ExternalLink } from "lucide-react";
 
 import {
@@ -43,7 +44,41 @@ function describedBy(helpId: string, errorId: string, hasError: boolean) {
 }
 
 export function ContactForm({ recipient }: ContactFormProps) {
-  const [values, setValues] = useState<InquiryValues>(initialValues);
+  return (
+    <Suspense
+      fallback={
+        <ContactFormBody recipient={recipient} initialType="general-question" />
+      }
+    >
+      <QueryAwareContactForm recipient={recipient} />
+    </Suspense>
+  );
+}
+
+function QueryAwareContactForm({ recipient }: ContactFormProps) {
+  const searchParams = useSearchParams();
+  const requestedType = searchParams.get("type");
+  const initialType =
+    requestedType && isInquiryType(requestedType)
+      ? requestedType
+      : "general-question";
+  return (
+    <ContactFormBody
+      key={initialType}
+      recipient={recipient}
+      initialType={initialType}
+    />
+  );
+}
+
+function ContactFormBody({
+  recipient,
+  initialType,
+}: ContactFormProps & { initialType: InquiryValues["inquiryType"] }) {
+  const [values, setValues] = useState<InquiryValues>(() => ({
+    ...initialValues,
+    inquiryType: initialType,
+  }));
   const [errors, setErrors] = useState<InquiryErrors>({});
   const [draft, setDraft] = useState<InquiryDraft | null>(null);
   const [status, setStatus] = useState("");

@@ -15,21 +15,22 @@ export const navigation = [
   { label: "Home", href: "/" },
   {
     label: "About Us",
-    href: "/#about",
+    href: "/about-us/",
     children: [
-      { label: "Our Company", href: "/#about" },
-      { label: "Our Team", href: "/#team" },
+      { label: "Our Company", href: "/about-us/" },
+      { label: "Our Team", href: "/about-us/#team" },
     ],
   },
-  { label: "Our Approach", href: "/#approach" },
-  { label: "Student Housing", href: "/#student-housing" },
+  { label: "Our Approach", href: "/our-approach/" },
+  { label: "Student Housing", href: "/student-housing/" },
   {
     label: "Invest With Us",
-    href: "/#invest",
+    href: "/invest/",
     children: [
-      { label: "Investing with RedDev", href: "/#invest" },
-      { label: "Speak with Our Team", href: "/contact/?type=investment" },
+      { label: "Investing with RedDev", href: "/invest/" },
+      { label: "Project Information", href: "/edmonton-multiplex-lp-1/" },
+      { label: "Next Steps", href: "/invest/#next-steps" },
     ],
   },
-  { label: "Insights", href: "/#insights" },
+  { label: "Insights", href: "/blog/" },
 ] as const;

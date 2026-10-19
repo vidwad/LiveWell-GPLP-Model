@@ -1,0 +1,338 @@
+.introductionHeading {
+  position: relative;
+}
+
+.introductionHeading h2 {
+  max-width: 420px;
+}
+
+.goldRule {
+  display: block;
+  width: 56px;
+  height: 2px;
+  margin-top: 30px;
+  background: #e6b741;
+}
+
+.lead {
+  max-width: 620px;
+  color: #2a2522 !important;
+  font-family: "Public Sans Variable", sans-serif;
+  font-size: clamp(19px, 2vw, 24px) !important;
+  font-weight: 400;
+  line-height: 1.58 !important;
+}
+
+.inlineLinks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px 30px;
+  margin-top: 28px;
+}
+
+.inlineLinks :global(.text-link) {
+  min-height: 44px;
+}
+
+.sectionHeading {
+  display: grid;
+  grid-template-columns: minmax(0, 1.25fr) minmax(240px, 0.75fr);
+  gap: 72px;
+  align-items: end;
+  margin-bottom: 44px;
+}
+
+.sectionHeading h2 {
+  max-width: 690px;
+}
+
+.sectionHeading > p,
+.stepsIntro > p {
+  padding-bottom: 5px;
+  color: #625a55;
+  font-size: 13px;
+  line-height: 1.8;
+}
+
+.opportunityFeature {
+  display: grid;
+  grid-template-columns: 78px minmax(0, 1fr) auto;
+  gap: 32px;
+  align-items: center;
+  padding: 37px 0;
+  border-top: 1px solid #d9d0c4;
+  border-bottom: 1px solid #d9d0c4;
+}
+
+.projectMark {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 18px;
+  color: #930011;
+  font-family: "Public Sans Variable", sans-serif;
+  font-size: 18px;
+  line-height: 1;
+}
+
+.projectMark i {
+  width: 47px;
+  height: 2px;
+  background: #e6b741;
+}
+
+.opportunityCopy {
+  max-width: 690px;
+}
+
+.projectEyebrow,
+.contactKicker {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #930011;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 1.65px;
+  line-height: 1.45;
+}
+
+.opportunityCopy h3 {
+  margin-top: 13px;
+  color: #211b18;
+  font-size: clamp(23px, 2.3vw, 31px);
+  font-weight: 450;
+  line-height: 1.2;
+}
+
+.opportunityCopy > p:last-child {
+  margin-top: 14px;
+  color: #5d5651;
+  font-size: 13px;
+  line-height: 1.85;
+}
+
+.opportunityFeature :global(.button) {
+  min-width: 211px;
+}
+
+.stepsIntro {
+  display: grid;
+  grid-template-columns: minmax(0, 1.25fr) minmax(240px, 0.75fr);
+  gap: 72px;
+  align-items: end;
+  margin-bottom: 45px;
+}
+
+.stepsIntro h2 {
+  max-width: 670px;
+}
+
+.stepsList {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid #d9d3c8;
+  border-bottom: 1px solid #d9d3c8;
+}
+
+.stepsList li {
+  display: grid;
+  grid-template-columns: 40px 31px minmax(0, 1fr);
+  gap: 15px;
+  min-height: 218px;
+  padding: 30px 28px 28px 0;
+}
+
+.stepsList li + li {
+  padding-left: 29px;
+  border-left: 1px solid #d9d3c8;
+}
+
+.stepNumber {
+  color: #806d57;
+  font-family: "Public Sans Variable", sans-serif;
+  font-size: 14px;
+}
+
+.stepIcon {
+  margin-top: 1px;
+  color: #930011;
+}
+
+.stepsList h3 {
+  color: #27211e;
+  font-size: 19px;
+  font-weight: 500;
+  line-height: 1.25;
+}
+
+.stepsList p {
+  margin-top: 14px;
+  color: #5e5751;
+  font-size: 12px;
+  line-height: 1.85;
+}
+
+.informationGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(280px, 0.8fr);
+  gap: 34px;
+  align-items: stretch;
+  margin-top: 44px;
+}
+
+.contactAside {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  padding: 27px 30px 30px;
+  border-top: 3px solid #930011;
+  background: #fef6e1;
+}
+
+.contactAside h3 {
+  max-width: 315px;
+  margin-top: 13px;
+  color: #3b0b14;
+  font-size: 24px;
+  font-weight: 450;
+  line-height: 1.25;
+}
+
+.contactAside > p:not(.contactKicker) {
+  margin-top: 14px;
+  color: #5a5049;
+  font-size: 12px;
+  line-height: 1.8;
+}
+
+.contactAside :global(.button) {
+  width: 100%;
+  margin-top: auto;
+  padding-top: 18px;
+  transform: none;
+}
+
+@media (max-width: 900px) {
+  .sectionHeading,
+  .stepsIntro {
+    gap: 38px;
+  }
+
+  .opportunityFeature {
+    grid-template-columns: 62px minmax(0, 1fr);
+  }
+
+  .opportunityFeature :global(.button) {
+    grid-column: 2;
+    width: fit-content;
+  }
+
+  .stepsList li {
+    grid-template-columns: 33px 28px minmax(0, 1fr);
+    gap: 11px;
+    padding-right: 17px;
+  }
+
+  .stepsList li + li {
+    padding-left: 17px;
+  }
+
+  .informationGrid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 650px) {
+  .goldRule {
+    margin-top: 24px;
+  }
+
+  .lead {
+    font-size: 18px !important;
+  }
+
+  .inlineLinks {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
+    margin-top: 22px;
+  }
+
+  .sectionHeading,
+  .stepsIntro {
+    display: block;
+    margin-bottom: 32px;
+  }
+
+  .sectionHeading > p,
+  .stepsIntro > p {
+    margin-top: 18px;
+    padding-bottom: 0;
+    font-size: 12px;
+  }
+
+  .opportunityFeature {
+    grid-template-columns: 1fr;
+    gap: 19px;
+    padding: 28px 0 30px;
+  }
+
+  .projectMark {
+    flex-direction: row;
+    align-items: center;
+  }
+
+  .opportunityFeature :global(.button) {
+    grid-column: auto;
+    width: 100%;
+  }
+
+  .opportunityCopy h3 {
+    font-size: 25px;
+  }
+
+  .stepsList {
+    grid-template-columns: 1fr;
+  }
+
+  .stepsList li,
+  .stepsList li + li {
+    min-height: 0;
+    padding: 25px 0;
+    border-left: 0;
+    border-top: 1px solid #d9d3c8;
+  }
+
+  .stepsList li:first-child {
+    border-top: 0;
+  }
+
+  .stepsList li {
+    grid-template-columns: 43px 31px minmax(0, 1fr);
+    gap: 12px;
+  }
+
+  .stepsList h3 {
+    font-size: 20px;
+  }
+
+  .stepsList p {
+    font-size: 12px;
+  }
+
+  .informationGrid {
+    margin-top: 33px;
+  }
+
+  .contactAside {
+    padding: 24px 22px 23px;
+  }
+
+  .contactAside h3 {
+    font-size: 23px;
+  }
+}

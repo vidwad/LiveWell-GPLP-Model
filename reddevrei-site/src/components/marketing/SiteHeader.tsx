@@ -6,6 +6,7 @@ import { ChevronDown, Menu, X } from "lucide-react";
 import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { usePathname } from "next/navigation";
 import { navigation, site } from "@/config/site";
+import { sectionIsActive as matchSection } from "@/lib/navigation";
 import styles from "./navigation.module.css";
 
 type NavigationItem = (typeof navigation)[number];
@@ -13,14 +14,6 @@ type NavigationChild = { readonly label: string; readonly href: string };
 
 function childrenFor(item: NavigationItem): readonly NavigationChild[] {
   return "children" in item ? item.children : [];
-}
-
-function sectionIsActive(pathname: string, hash: string, href: string) {
-  if (href === "/") {
-    return pathname === "/" && !hash;
-  }
-
-  return pathname === "/" && hash === href.slice(1);
 }
 
 function focusableElements(container: HTMLElement) {
@@ -65,7 +58,11 @@ function DesktopDisclosure({
         className={`${styles.desktopNavLink} ${styles.disclosureButton} ${isActive ? styles.active : ""}`}
         aria-expanded={isOpen}
         aria-controls={menuId}
-        onClick={onToggle}
+        onClick={(event) => {
+          // A pointer enters and opens the menu before clicking: do not close it again.
+          if (event.detail === 0) onToggle();
+          else onHoverChange(true);
+        }}
       >
         <span>{item.label}</span>
         <ChevronDown
@@ -97,9 +94,15 @@ function DesktopDisclosure({
 
 type HeaderContentProps = {
   pathname: string;
+  articlePaths: readonly string[];
 };
 
-function HeaderContent({ pathname }: HeaderContentProps) {
+function HeaderContent({ pathname, articlePaths }: HeaderContentProps) {
+  const sectionIsActive = (
+    currentPath: string,
+    currentHash: string,
+    href: string,
+  ) => matchSection(currentPath, currentHash, href, articlePaths);
   const [hash, setHash] = useState("");
   const [scrolled, setScrolled] = useState(false);
   const [openMenu, setOpenMenu] = useState<string | null>(null);
@@ -440,10 +443,20 @@ function HeaderContent({ pathname }: HeaderContentProps) {
   );
 }
 
-export function SiteHeader() {
+export function SiteHeader({
+  articlePaths = [],
+}: {
+  articlePaths?: readonly string[];
+}) {
   const pathname = usePathname() ?? "/";
 
-  return <HeaderContent key={pathname} pathname={pathname} />;
+  return (
+    <HeaderContent
+      key={pathname}
+      pathname={pathname}
+      articlePaths={articlePaths}
+    />
+  );
 }
 
 export default SiteHeader;

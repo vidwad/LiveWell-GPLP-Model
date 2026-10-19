@@ -13,8 +13,8 @@ const companyLinks = [
 const investingLinks = [
   { label: "Student Housing", href: navigation[3].href },
   { label: "Investing with RedDev", href: navigation[4].children[0].href },
-  { label: "Speak with Our Team", href: navigation[4].children[1].href },
-  { label: "Disclosures", href: "/#disclosures" },
+  { label: "Project Information", href: "/edmonton-multiplex-lp-1/" },
+  { label: "Disclosures", href: "/investment-disclosures/" },
 ] as const;
 
 export function SiteFooter() {
@@ -86,11 +86,17 @@ export function SiteFooter() {
                 <a href={site.phoneHref}>{site.phone}</a>
                 <span>{site.location}</span>
               </address>
+              <Link href="/accessibility/" className={styles.accessibilityLink}>
+                Accessibility
+              </Link>
               <Link
-                href="/contact/#accessibility"
+                href="/privacy-policy/"
                 className={styles.accessibilityLink}
               >
-                Accessibility
+                Privacy information
+              </Link>
+              <Link href="/terms/" className={styles.accessibilityLink}>
+                Website use & terms
               </Link>
             </section>
           </div>

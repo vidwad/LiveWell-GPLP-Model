@@ -1,0 +1,132 @@
+.overviewGrid,
+.confirmationGrid,
+.informationGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 0.84fr) minmax(0, 1.16fr);
+  gap: 72px;
+  align-items: start;
+}
+
+.studentGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.16fr) minmax(230px, 0.52fr);
+  gap: 72px;
+  align-items: end;
+}
+
+.sectionLead {
+  position: sticky;
+  top: 116px;
+}
+
+.sectionLead h2 {
+  max-width: 510px;
+  color: #151515;
+  font-family: var(--font-heading);
+  font-size: clamp(30px, 3.25vw, 46px);
+  line-height: 1.13;
+  letter-spacing: -1.2px;
+}
+
+.confirmationList {
+  margin: 0;
+  border-top: 1px solid #d8cfc5;
+}
+
+.confirmationList > div {
+  display: grid;
+  grid-template-columns: minmax(150px, 0.62fr) minmax(0, 1.38fr);
+  gap: 28px;
+  padding: 25px 0;
+  border-bottom: 1px solid #d8cfc5;
+}
+
+.confirmationList dt {
+  color: #930011;
+  font-family: var(--font-heading);
+  font-size: 18px;
+  font-weight: 650;
+  line-height: 1.35;
+}
+
+.confirmationList dd {
+  margin: 0;
+  color: #554f4a;
+  font-family: var(--font-body);
+  line-height: 1.85;
+}
+
+.imageContext {
+  padding: 29px 0 5px 28px;
+  border-left: 1px solid #d8cfc5;
+}
+
+.imageRule {
+  display: block;
+  width: 52px;
+  height: 3px;
+  margin-bottom: 21px;
+  background: #e6b741;
+}
+
+.imageContext p {
+  color: #930011;
+  font-family: var(--font-heading);
+  font-size: 20px;
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+.imageContext small {
+  display: block;
+  margin-top: 11px;
+  color: #625b55;
+  font-family: var(--font-body);
+  font-size: 12px;
+  line-height: 1.75;
+}
+
+.relatedLink {
+  padding-top: 5px;
+  color: #3e3935 !important;
+}
+
+.relatedLink a {
+  color: #930011;
+  font-weight: 700;
+}
+
+@media (max-width: 900px) {
+  .overviewGrid,
+  .confirmationGrid,
+  .informationGrid,
+  .studentGrid {
+    grid-template-columns: 1fr;
+    gap: 31px;
+  }
+
+  .sectionLead {
+    position: static;
+  }
+
+  .imageContext {
+    max-width: 570px;
+  }
+}
+
+@media (max-width: 650px) {
+  .sectionLead h2 {
+    font-size: 30px;
+    letter-spacing: -0.7px;
+  }
+
+  .confirmationList > div {
+    grid-template-columns: 1fr;
+    gap: 8px;
+    padding: 21px 0;
+  }
+
+  .imageContext {
+    padding: 23px 0 0 21px;
+  }
+}

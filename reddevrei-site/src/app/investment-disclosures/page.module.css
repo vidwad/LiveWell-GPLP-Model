@@ -1,0 +1,104 @@
+.introGrid,
+.contentGrid,
+.processLayout,
+.termsRow {
+  display: grid;
+  grid-template-columns: minmax(0, 0.82fr) minmax(0, 1.18fr);
+  gap: 72px;
+  align-items: start;
+}
+
+.introGrid h2,
+.sectionLead h2,
+.processLayout h2,
+.termsRow h2 {
+  max-width: 480px;
+  font-size: clamp(30px, 3.2vw, 46px);
+  line-height: 1.13;
+  letter-spacing: -1.2px;
+}
+
+.sectionLead {
+  position: sticky;
+  top: 116px;
+}
+
+.contentGrid + .contentGrid {
+  margin-top: 40px;
+}
+
+.processLayout {
+  grid-template-columns: minmax(0, 0.82fr) minmax(0, 1.18fr);
+}
+
+.steps {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid #d8cfc5;
+}
+
+.steps li {
+  display: grid;
+  grid-template-columns: 48px 1fr;
+  gap: 20px;
+  padding: 23px 0;
+  border-bottom: 1px solid #d8cfc5;
+}
+
+.steps li > span {
+  color: #930011;
+  font-family: var(--font-public-sans), sans-serif;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  padding-top: 3px;
+}
+
+.steps h3 {
+  margin: 0 0 7px;
+  font-size: 21px;
+  font-weight: 600;
+}
+
+.steps p {
+  margin: 0;
+  color: #55504d;
+  line-height: 1.8;
+}
+
+.proseInline {
+  max-width: 670px;
+  margin: 0;
+  color: #55504d;
+  line-height: 1.9;
+}
+
+@media (max-width: 900px) {
+  .introGrid,
+  .contentGrid,
+  .processLayout,
+  .termsRow {
+    grid-template-columns: 1fr;
+    gap: 30px;
+  }
+
+  .sectionLead {
+    position: static;
+  }
+}
+
+@media (max-width: 650px) {
+  .introGrid h2,
+  .sectionLead h2,
+  .processLayout h2,
+  .termsRow h2 {
+    font-size: 30px;
+    letter-spacing: -0.7px;
+  }
+
+  .steps li {
+    grid-template-columns: 38px 1fr;
+    gap: 12px;
+  }
+}

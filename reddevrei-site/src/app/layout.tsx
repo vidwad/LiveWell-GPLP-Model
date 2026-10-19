@@ -2,9 +2,11 @@ import type { Metadata } from "next";
 import "@fontsource-variable/public-sans";
 import "@fontsource-variable/open-sans";
 import "./globals.css";
+import "@/styles/pages.css";
 import SiteHeader from "@/components/marketing/SiteHeader";
 import SiteFooter from "@/components/marketing/SiteFooter";
 import { site } from "@/config/site";
+import { articles } from "@/content/articles";
 
 export const metadata: Metadata = {
   title: {
@@ -46,7 +48,9 @@ export default function RootLayout({
         <a className="skip-link" href="#main-content">
           Skip to content
         </a>
-        <SiteHeader />
+        <SiteHeader
+          articlePaths={articles.map((article) => `/${article.slug}/`)}
+        />
         <main id="main-content" tabIndex={-1}>
           {children}
         </main>

@@ -1,0 +1,6 @@
+{
+  "redirects": [
+    { "source": "/contact-us-2", "destination": "/contact/", "type": 301 },
+    { "source": "/contact-us-2/", "destination": "/contact/", "type": 301 }
+  ]
+}

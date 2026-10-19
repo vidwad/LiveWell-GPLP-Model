@@ -1,0 +1,259 @@
+.introduction {
+  position: relative;
+}
+
+.introduction::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: max(24px, calc((100vw - 1180px) / 2));
+  width: 82px;
+  height: 3px;
+  background: #e6b741;
+}
+
+.audienceLinks {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 18px 25px;
+  padding-top: 7px;
+}
+
+.audienceLinks :global(.button) {
+  min-height: 48px;
+}
+
+.audienceLinks :global(.text-link) {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+}
+
+.livingSection {
+  border-top: 0 !important;
+}
+
+.livingLayout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.14fr) minmax(0, 0.86fr);
+  align-items: center;
+  gap: clamp(38px, 6vw, 85px);
+}
+
+.interiorFigure {
+  margin: 0;
+}
+
+.interiorFigure img {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 1.775 / 1;
+  object-fit: cover;
+}
+
+.interiorFigure figcaption {
+  max-width: 630px;
+  margin-top: 13px;
+  color: #665d56;
+  font-size: 11px;
+  line-height: 1.65;
+}
+
+.livingCopy h2 {
+  max-width: 440px;
+}
+
+.detailsSection {
+  border-top: 0 !important;
+}
+
+.accommodationList {
+  margin: 0;
+  border-top: 2px solid #e6b741;
+}
+
+.accommodationList > div {
+  display: grid;
+  grid-template-columns: minmax(145px, 0.44fr) minmax(0, 1fr);
+  gap: 26px;
+  padding: 25px 0 27px;
+  border-bottom: 1px solid #e4ddd1;
+}
+
+.accommodationList dt {
+  color: #5c0915;
+  font-family: var(--font-public-sans), "Public Sans", sans-serif;
+  font-size: 17px;
+  font-weight: 650;
+  line-height: 1.35;
+}
+
+.accommodationList dd {
+  margin: 0;
+  color: #554f4a;
+  font-size: 14px;
+  line-height: 1.85;
+}
+
+.confirmationSection {
+  border-top: 0 !important;
+}
+
+.confirmationLayout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(340px, 0.9fr);
+  align-items: start;
+  gap: clamp(36px, 6vw, 88px);
+}
+
+.confirmationLayout h2 {
+  max-width: 570px;
+}
+
+.faqLayout {
+  display: grid;
+  grid-template-columns: minmax(0, 0.77fr) minmax(0, 1.23fr);
+  align-items: start;
+  gap: clamp(42px, 7vw, 98px);
+}
+
+.faqLayout > div:first-child > p:last-child {
+  max-width: 360px;
+  margin-top: 17px;
+  color: #5a534d;
+  font-size: 14px;
+  line-height: 1.8;
+}
+
+.faqs {
+  border-top: 2px solid #930011;
+}
+
+.faqs details {
+  border-bottom: 1px solid #e2dbd2;
+}
+
+.faqs summary {
+  display: flex;
+  align-items: center;
+  min-height: 58px;
+  padding: 14px 34px 14px 2px;
+  color: #2d2927;
+  cursor: pointer;
+  font-family: var(--font-public-sans), "Public Sans", sans-serif;
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1.4;
+  list-style: none;
+  position: relative;
+}
+
+.faqs summary::-webkit-details-marker {
+  display: none;
+}
+
+.faqs summary::after {
+  content: "+";
+  position: absolute;
+  right: 4px;
+  color: #930011;
+  font-family: "Open Sans", sans-serif;
+  font-size: 24px;
+  font-weight: 300;
+  line-height: 1;
+}
+
+.faqs details[open] summary::after {
+  content: "–";
+}
+
+.faqs summary:focus-visible,
+.inlineQuestionLink:focus-visible {
+  outline: 3px solid #e6b741;
+  outline-offset: 3px;
+}
+
+.faqs details > p {
+  max-width: 690px;
+  margin: 0;
+  padding: 0 34px 20px 2px;
+  color: #5a534d;
+  font-size: 14px;
+  line-height: 1.85;
+}
+
+.inlineQuestionLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 44px;
+  margin: -2px 0 17px 2px;
+  color: #930011;
+  font-size: 13px;
+  font-weight: 700;
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 4px;
+}
+
+@media (max-width: 900px) {
+  .livingLayout,
+  .confirmationLayout,
+  .faqLayout {
+    grid-template-columns: 1fr;
+  }
+
+  .livingLayout,
+  .confirmationLayout,
+  .faqLayout {
+    gap: 34px;
+  }
+
+  .interiorFigure {
+    max-width: 760px;
+  }
+
+  .faqLayout > div:first-child > p:last-child {
+    max-width: 640px;
+  }
+}
+
+@media (max-width: 650px) {
+  .introduction::before {
+    left: 20px;
+    width: 58px;
+  }
+
+  .audienceLinks {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 11px;
+  }
+
+  .audienceLinks :global(.button) {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .interiorFigure img {
+    aspect-ratio: 1.35 / 1;
+  }
+
+  .accommodationList > div {
+    grid-template-columns: 1fr;
+    gap: 8px;
+    padding-block: 21px;
+  }
+
+  .accommodationList dt {
+    font-size: 16px;
+  }
+
+  .faqs summary {
+    min-height: 62px;
+    font-size: 15px;
+  }
+}

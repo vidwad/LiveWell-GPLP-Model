@@ -256,8 +256,7 @@ main:focus {
   position: absolute;
   z-index: 0;
   pointer-events: none;
-  background: url("/manus-storage/async-images/EZCMYLDqgscC27j4nV8sDq/image-1.webp")
-    center / contain no-repeat;
+  background: url("/brand/wireframe-globe.webp") center / contain no-repeat;
   opacity: 0.17;
   mask-image: linear-gradient(135deg, transparent 5%, #000 57%);
 }

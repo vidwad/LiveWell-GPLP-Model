@@ -134,9 +134,9 @@ export default function HomePage() {
               partners, that means one team with a shared commitment to
               transparency, quality and long-term value.
             </p>
-            <a href="#team" className="text-link">
+            <Link href="/about-us/#team" className="text-link">
               Meet the people behind RedDev <ArrowUpRight size={19} />
-            </a>
+            </Link>
           </div>
         </div>
         <div className="container principles-row">
@@ -381,71 +381,40 @@ export default function HomePage() {
               </p>
               <h2>A more informed perspective.</h2>
             </div>
-            <a
-              href="https://reddevrei.com/blog/"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-link"
-            >
+            <Link href="/blog/" className="text-link">
               Read our insights <ArrowUpRight size={19} />
-              <span className="sr-only">
-                {" "}
-                on our current website, opens in a new tab
-              </span>
-            </a>
+            </Link>
           </div>
           <div className="insight-list">
             {insights.map((article) => (
               <article className="insight" key={article.href}>
-                <a
-                  href={article.href}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="insight-image"
-                >
+                <Link href={article.href} className="insight-image">
                   <Image
                     src={`/brand/${article.image}`}
                     alt={article.alt}
                     fill
                     sizes="(max-width: 600px) 100vw, 33vw"
                   />
-                </a>
+                </Link>
                 <div className="insight-category">{article.category}</div>
                 <h3>
-                  <a
-                    href={article.href}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                  >
-                    {article.title}
-                    <span className="sr-only">
-                      {" "}
-                      — opens on our current website in a new tab
-                    </span>
-                  </a>
+                  <Link href={article.href}>{article.title}</Link>
                 </h3>
                 <div className="insight-meta">
                   {article.date}
                   <span />
                   {article.author}
                 </div>
-                <a
-                  href={article.href}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="insight-read"
-                >
+                <Link href={article.href} className="insight-read">
                   Read perspective <ArrowUpRight size={17} />
-                  <span className="sr-only">
-                    : {article.title}, opens in a new tab
-                  </span>
-                </a>
+                  <span className="sr-only">: {article.title}</span>
+                </Link>
               </article>
             ))}
           </div>
           <p className="archive-note">
-            From the RedDev archive. Articles open on our current website while
-            content migration is underway.
+            From the RedDev archive. Original publication dates are retained;
+            commentary is not a statement of current offering availability.
           </p>
         </div>
       </section>

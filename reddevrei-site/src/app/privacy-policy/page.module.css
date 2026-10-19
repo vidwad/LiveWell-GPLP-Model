@@ -1,0 +1,45 @@
+.policy {
+  padding-top: 58px;
+}
+
+.policy h2 {
+  color: #930011;
+  border-top: 1px solid #e6ded4;
+  padding-top: 26px;
+}
+
+.policy .updated {
+  margin: 28px 0 34px;
+  padding-left: 18px;
+  border-left: 2px solid #e6b741;
+  color: #6b625d;
+  font-size: 13px;
+  line-height: 1.75;
+}
+
+.approvalBlock {
+  margin-top: 44px;
+  padding: 24px 26px;
+  background: #fef6e1;
+  border-top: 3px solid #e6b741;
+}
+
+.approvalBlock .eyebrow {
+  margin-bottom: 12px;
+  color: #930011;
+}
+
+.approvalBlock p:last-child {
+  margin: 0;
+  color: #4f4945;
+}
+
+@media (max-width: 650px) {
+  .policy {
+    padding-top: 42px;
+  }
+
+  .approvalBlock {
+    padding: 21px 20px;
+  }
+}

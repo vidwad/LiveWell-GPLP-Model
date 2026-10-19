@@ -5,11 +5,11 @@
   "packageManager": "pnpm@11.25.0",
   "scripts": {
     "dev": "next dev --hostname 0.0.0.0 --port 3000",
-    "build": "next build && node scripts/verify-static.mjs",
-    "preview": "serve out --listen tcp://0.0.0.0:3000 --no-clipboard",
+    "build": "next build && node scripts/sync-routes.mjs && node scripts/verify-static.mjs && node tests/site-links.mjs",
+    "preview": "serve out --listen tcp://0.0.0.0:3000 --no-clipboard --config ../serve.json --no-port-switching",
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
-    "test": "tsc -p tsconfig.test.json && node --test .test-build/tests/inquiry.test.js"
+    "test": "tsc -p tsconfig.test.json && node --test .test-build/tests/*.test.js"
   },
   "dependencies": {
     "@fontsource-variable/open-sans": "5.3.0",
