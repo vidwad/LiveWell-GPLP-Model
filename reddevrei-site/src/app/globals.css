@@ -206,6 +206,7 @@ main:focus {
 }
 .hero {
   --hero-seam: #700b18;
+  --hero-overlay-cap: 0.95;
   display: grid;
   grid-template-columns: 53% 47%;
   min-height: 755px;
@@ -214,15 +215,30 @@ main:focus {
   color: white;
   overflow: hidden;
 }
+.hero-backdrop,
+.hero-treatment {
+  position: absolute;
+  inset: 0;
+}
+.hero-backdrop {
+  z-index: 0;
+}
+.hero-treatment {
+  z-index: 1;
+  opacity: var(--hero-overlay-cap);
+  isolation: isolate;
+  overflow: hidden;
+  pointer-events: none;
+}
 .hero-copy {
   padding: 173px 48px 32px max(48px, calc((100vw - 1240px) / 2));
   background: transparent;
   position: relative;
-  z-index: 1;
+  z-index: 2;
   isolation: isolate;
   overflow: hidden;
 }
-.hero-copy::before,
+.hero-treatment::before,
 .closing-cta::before {
   content: "";
   position: absolute;
@@ -234,7 +250,7 @@ main:focus {
     repeating-linear-gradient(90deg, #0000000a 0 1px, transparent 1px 5px);
   mix-blend-mode: soft-light;
 }
-.hero-copy::after,
+.hero-treatment::after,
 .closing-cta::after {
   content: "";
   position: absolute;
@@ -245,10 +261,14 @@ main:focus {
   opacity: 0.17;
   mask-image: linear-gradient(135deg, transparent 5%, #000 57%);
 }
-.hero-copy::after {
+.hero-treatment::before,
+.hero-treatment::after {
+  z-index: 1;
+}
+.hero-treatment::after {
   width: 690px;
   height: 690px;
-  right: -245px;
+  left: clamp(0px, 22vw, 420px);
   bottom: -175px;
 }
 .hero-copy > *,
@@ -322,9 +342,8 @@ main:focus {
   color: var(--gold);
 }
 .hero-visual {
-  position: absolute;
-  inset: 0 0 0 24%;
-  z-index: 0;
+  position: relative;
+  z-index: 2;
   min-height: 755px;
 }
 .hero-image {
@@ -334,18 +353,19 @@ main:focus {
 .hero-image-shade {
   position: absolute;
   inset: 0;
+  z-index: 0;
   pointer-events: none;
   background:
     linear-gradient(
       90deg,
       var(--hero-seam) 0%,
-      #700b18fc 12%,
-      #6c0c19f2 24%,
-      #620e1ade 36%,
-      #531019bd 48%,
-      #40111796 60%,
-      #2c111475 72%,
-      #1b101056 84%,
+      #700b18fc 18%,
+      #6c0c19f2 34%,
+      #620e1ade 46%,
+      #531019bd 56%,
+      #40111796 66%,
+      #2c111475 77%,
+      #1b101056 88%,
       #09090933 100%
     ),
     linear-gradient(180deg, #00000026 0%, #00000008 45%, #0000007a 100%);
@@ -1104,10 +1124,10 @@ main:focus {
   body {
     font-size: 14px;
   }
-  .hero-copy::after {
+  .hero-treatment::after {
     width: 560px;
     height: 560px;
-    right: -270px;
+    left: 10%;
     bottom: -165px;
     opacity: 0.13;
   }
@@ -1146,13 +1166,13 @@ main:focus {
       linear-gradient(
         180deg,
         var(--hero-seam) 0%,
-        #700b18fc 12%,
-        #6c0c19f2 24%,
-        #620e1ade 36%,
-        #531019bd 48%,
-        #40111796 60%,
-        #2c111475 72%,
-        #1b101056 84%,
+        #700b18fc 18%,
+        #6c0c19f2 34%,
+        #620e1ade 46%,
+        #531019bd 56%,
+        #40111796 66%,
+        #2c111475 77%,
+        #1b101056 88%,
         #09090933 100%
       ),
       linear-gradient(180deg, transparent 35%, #00000070 100%);
@@ -1198,7 +1218,6 @@ main:focus {
   }
   .hero-visual {
     position: relative;
-    inset: auto;
     min-height: 330px;
   }
   .hero-location {

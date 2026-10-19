@@ -39,6 +39,35 @@ assert.deepEqual(
   ["/", "/contact/"],
 );
 
+const heroCSS = readFileSync("src/app/globals.css", "utf8");
+const capMatch = heroCSS.match(/--hero-overlay-cap:\s*([\d.]+)\s*;/);
+assert.ok(capMatch, "Hero must declare its decorative overlay cap");
+const cap = Number(capMatch[1]);
+assert.ok(
+  cap > 0 && cap <= 0.95,
+  "Combined decorative opacity cannot exceed 95%",
+);
+assert.ok(
+  [...heroCSS.matchAll(/\.hero-treatment\s*\{([^}]+)\}/g)].some((match) =>
+    match[1].includes("opacity: var(--hero-overlay-cap)"),
+  ),
+  "Cap must be applied to the whole decorative group, not individual gradient stops",
+);
+assert.ok(
+  !/\.hero-copy::(?:before|after)/.test(heroCSS),
+  "Grain and globe must not stack as uncapped overlays outside the treatment group",
+);
+assert.ok(
+  /class="hero-backdrop"><img[^>]+class="hero-image"/.test(home),
+  "Photo must be in its own complete-hero backdrop, not the right foreground panel",
+);
+assert.ok(
+  home.includes(
+    'class="hero-treatment" aria-hidden="true"><div class="hero-image-shade"',
+  ),
+  "Gradient must be nested inside the capped decorative group",
+);
+
 console.log(
-  "Static export verified: four original portraits, no native form submission, direct email fallback, exact public routes.",
+  "Static export verified: original portraits, safe inquiry fallback, public routes, full-hero photo and 95% combined overlay cap.",
 );

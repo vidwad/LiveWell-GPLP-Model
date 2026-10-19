@@ -25,6 +25,19 @@ export default function HomePage() {
   return (
     <>
       <section className="hero" aria-labelledby="hero-title">
+        <div className="hero-backdrop">
+          <Image
+            src={media.hero.src}
+            alt={media.hero.alt}
+            fill
+            priority
+            sizes="100vw"
+            className="hero-image"
+          />
+        </div>
+        <div className="hero-treatment" aria-hidden="true">
+          <div className="hero-image-shade" />
+        </div>
         <div className="hero-copy">
           <p className="eyebrow hero-eyebrow">
             <span /> REAL ESTATE. REAL PURPOSE.
@@ -65,15 +78,6 @@ export default function HomePage() {
           </div>
         </div>
         <div className="hero-visual">
-          <Image
-            src={media.hero.src}
-            alt={media.hero.alt}
-            fill
-            priority
-            sizes="(max-width: 650px) 100vw, 76vw"
-            className="hero-image"
-          />
-          <div className="hero-image-shade" />
           <div className="hero-location">
             <MapPin size={16} /> EDMONTON, ALBERTA
           </div>
