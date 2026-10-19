@@ -70,7 +70,7 @@ export default function HomePage() {
             alt={media.hero.alt}
             fill
             priority
-            sizes="(max-width: 900px) 100vw, 47vw"
+            sizes="(max-width: 650px) 100vw, 76vw"
             className="hero-image"
           />
           <div className="hero-image-shade" />

@@ -216,9 +216,13 @@ main:focus {
 }
 .hero-copy {
   padding: 173px 48px 32px max(48px, calc((100vw - 1240px) / 2));
-  background:
-    linear-gradient(90deg, transparent 55%, var(--hero-seam) 100%),
-    linear-gradient(125deg, #7a0b18 0%, #5a0812 80%);
+  background: linear-gradient(
+    90deg,
+    #700b18 0%,
+    #5a0812f2 55%,
+    #090909a3 82%,
+    #09090900 100%
+  );
   position: relative;
   z-index: 1;
   isolation: isolate;
@@ -324,7 +328,9 @@ main:focus {
   color: var(--gold);
 }
 .hero-visual {
-  position: relative;
+  position: absolute;
+  inset: 0 0 0 24%;
+  z-index: 0;
   min-height: 755px;
 }
 .hero-image {
@@ -339,11 +345,11 @@ main:focus {
     linear-gradient(
       90deg,
       var(--hero-seam) 0%,
-      #090909f2 5%,
-      #090909c4 17%,
-      #09090980 33%,
-      #0000001a 68%,
-      #00000010 100%
+      #090909e6 18%,
+      #090909b3 38%,
+      #0909097a 62%,
+      #0000004d 82%,
+      #00000038 100%
     ),
     linear-gradient(180deg, #00000066 0%, transparent 46%, #000000ab 100%);
 }
@@ -365,8 +371,9 @@ main:focus {
 .hero-visual-note {
   position: absolute;
   bottom: 43px;
-  left: 39px;
+  left: auto;
   right: 36px;
+  width: calc(47vw - 75px);
   display: flex;
   flex-direction: column;
   align-items: flex-start;
@@ -981,7 +988,8 @@ main:focus {
     font-size: 8px;
   }
   .hero-visual-note {
-    left: 26px;
+    left: auto;
+    width: calc(47vw - 62px);
     bottom: 36px;
   }
   .hero-visual-note strong {
@@ -1142,9 +1150,10 @@ main:focus {
     background: linear-gradient(
       180deg,
       var(--hero-seam) 0%,
-      #090909eb 6%,
-      #09090999 24%,
-      #00000025 57%,
+      #090909e6 15%,
+      #090909a6 35%,
+      #00000059 62%,
+      #00000059 82%,
       #000000a6 100%
     );
   }
@@ -1188,6 +1197,8 @@ main:focus {
     height: 38px;
   }
   .hero-visual {
+    position: relative;
+    inset: auto;
     min-height: 330px;
   }
   .hero-location {
@@ -1198,6 +1209,7 @@ main:focus {
   .hero-visual-note {
     bottom: 23px;
     left: 23px;
+    width: auto;
   }
   .hero-visual-note strong {
     font-size: 29px;
