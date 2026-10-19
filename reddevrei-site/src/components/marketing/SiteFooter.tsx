@@ -1,6 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { navigation, site } from "@/config/site";
+import { DashboardLoginLink } from "./DashboardLoginLink";
 import styles from "./navigation.module.css";
 
 const companyLinks = [
@@ -59,6 +60,9 @@ export function SiteFooter() {
                     <Link href={link.href}>{link.label}</Link>
                   </li>
                 ))}
+                <li>
+                  <DashboardLoginLink className={styles.footerDashboardLink} />
+                </li>
               </ul>
             </section>
 

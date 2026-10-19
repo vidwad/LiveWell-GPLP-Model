@@ -4,9 +4,9 @@ This is the separate Next.js public application at `reddevrei-site/` in `vidwad/
 
 ## Run and check
 
-Use Node 22 and pnpm 11.25.0. Run `pnpm install --frozen-lockfile`, then `pnpm dev` for local development. For the shared review Preview use `pnpm build && pnpm preview`; the production export is served on `0.0.0.0:3000`, avoiding development hot-reload hydration issues through the Preview proxy. Rebuild after changing source. This is a preview, not production publication.
+Use Node 24 (`.nvmrc`) and pnpm 11.25.0. Run `pnpm install --frozen-lockfile`, then `pnpm dev` for loopback-only local development at localhost:3000. `pnpm build && pnpm preview:local` serves the actual static export locally. For the shared Cloud review Preview use `pnpm build && pnpm preview` on `0.0.0.0:3000`; `dev:cloud` is explicit for Cloud hot reload. Rebuild after changing source. This is a review preview, not a RedDev domain cutover.
 
-Run `pnpm typecheck`, `pnpm lint` and `pnpm test`. The twelve inquiry/navigation regressions cover validation, safe draft encoding and active-route behaviour. `pnpm build` generates static HTML, synchronizes the complete route manifest/sitemap and checks every page's initial metadata, H1/main landmarks, local links, section anchors and packaged images. It also preserves the original leadership portraits and 95% grouped hero-decoration cap. `tests/responsive-hero.mjs` is a reusable browser check for the approved desktop and four phone layouts.
+Run `pnpm typecheck`, `pnpm lint` and `pnpm test`. Inquiry/navigation/dashboard URL regressions cover validation, safe draft encoding, active routes and safe external login configuration. `pnpm build` generates static HTML, synchronizes the complete route manifest/sitemap and checks every page's initial metadata, H1/main landmarks, local links, section anchors and packaged images. It also preserves the original leadership portraits and 95% grouped hero-decoration cap. `tests/responsive-hero.mjs` is a reusable browser check for the approved desktop and four phone layouts.
 
 ## Implemented public pages
 
@@ -33,3 +33,9 @@ Student housing and LP pages deliberately avoid treating conflicting historic co
 The preview remains noindex and robots-disallowed. Set `NEXT_PUBLIC_SITE_ORIGIN=https://reddevrei.com` and `NEXT_PUBLIC_SITE_INDEXABLE=true` only for an approved production build. Canonical/sharing metadata and sitemap entries depend on that explicit origin. No confidential platform information is included; noindex is not access control.
 
 The managed review workspace and the public app's feature branch are saved separately. Do not merge into the production default branch, publish, change domain/mail DNS or replace WordPress until approvals and the intended launch configuration are complete. A domain cutover must preserve email records and the rollback route. ESLint 9 is intentionally pinned to the current Next lint-plugin peer range.
+
+## Dashboard access and Vercel handoff
+
+The desktop/mobile/footer Dashboard Login entry uses `NEXT_PUBLIC_DASHBOARD_LOGIN_URL` only after the existing LiveWell HTTPS `/login` address is confirmed. It opens externally with `noopener noreferrer`; unset or unsafe values lead to the honest `/dashboard-login/` gateway. Query/fragment tokens and embedded credentials are rejected. Local localhost HTTP is accepted only during development. Authentication remains in `livingwell-frontend`, not this public app.
+
+The separate Vercel project is `reddev-public`, rooted at `reddevrei-site/`, connected to this GitHub repository and configured for Node 24, pinned pnpm install/build and static `out` output. Review protection and noindex remain enabled; no domains or existing Vercel projects were repointed. See `../docs/reddev-public-preview/LOCAL_HANDOFF.md` for the full VS Code/Claude prompt and `VERCEL_DEPLOYMENT.md` for the actual deployment result and remaining approvals. Continue on `feat/reddev-public-preview`; do not merge into `master` merely to deploy a review build.

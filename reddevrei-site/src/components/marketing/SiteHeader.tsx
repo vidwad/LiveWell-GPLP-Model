@@ -7,6 +7,7 @@ import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { usePathname } from "next/navigation";
 import { navigation, site } from "@/config/site";
 import { sectionIsActive as matchSection } from "@/lib/navigation";
+import { DashboardLoginLink } from "./DashboardLoginLink";
 import styles from "./navigation.module.css";
 
 type NavigationItem = (typeof navigation)[number];
@@ -325,6 +326,7 @@ function HeaderContent({ pathname, articlePaths }: HeaderContentProps) {
           </nav>
 
           <div className={styles.headerActions}>
+            <DashboardLoginLink className={styles.dashboardUtility} />
             <Link href="/contact/" className={styles.contactCta}>
               <span className={styles.desktopCtaLabel}>
                 Speak with Our Team
@@ -426,6 +428,12 @@ function HeaderContent({ pathname, articlePaths }: HeaderContentProps) {
               })}
             </nav>
 
+            <div className={styles.mobileDashboardBlock}>
+              <DashboardLoginLink
+                className={styles.mobileDashboardLink}
+                onClick={() => closeMobile()}
+              />
+            </div>
             <div className={styles.mobileContactBlock}>
               <p>Looking to discuss an investment?</p>
               <Link
