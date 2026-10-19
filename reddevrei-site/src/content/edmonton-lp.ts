@@ -60,7 +60,22 @@ export const edmontonLp = {
   deal: {
     title: "The Deal",
     subtitle: "Offering Summary & Investment Returns",
-    returns: o("proj-returns.webp", "Projected returns summary graphic", 313, 219),
+    // The original site showed these as three small images (Spec-Graphic,
+    // Spec-Graphic-1 and Proj-Returns, 158–313 px wide). They are rebuilt as
+    // markup so they stay sharp at full width on phones; figures unchanged.
+    stats: [
+      { value: "3", label: "MultiPlex Buildings", tone: "red" },
+      { value: "84", label: "Student Bedrooms", tone: "brown" },
+    ] as const,
+    projectedReturns: {
+      title: "Projected Returns",
+      rows: [
+        { term: "Average annualized return on investment", value: "36%" },
+        { term: "Average annualized distribution after year 1", value: "15%" },
+        { term: "Equity multiplier", value: "3.2x" },
+        { term: "Term", value: "5 year" },
+      ],
+    },
     gallery: [
       o("whatsapp-image-2024-05-29-at-14-43-55-5b04198b.webp", "Garneau site photograph", 1600, 1200),
       o("adobestock-385943993.webp", "Construction planning on site", 1800, 1200),
@@ -68,10 +83,6 @@ export const edmontonLp = {
       o("reddev-social-media-landing-page-1.webp", "Edmonton Student Housing LP 1 overview graphic", 1094, 626),
       o("reddev-social-media-landing-page-3.webp", "Edmonton Student Housing LP 1 highlights graphic", 808, 394),
       o("reddev-social-media-landing-page-4.webp", "Edmonton Student Housing LP 1 returns graphic", 488, 392),
-    ],
-    specs: [
-      o("spec-graphic.webp", "Unit specification icon", 158, 162),
-      o("spec-graphic-1.webp", "Unit specification icon", 157, 162),
     ],
   },
   project: {

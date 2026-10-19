@@ -135,19 +135,126 @@
   margin-top: 36px;
   align-items: start;
 }
-.specRow {
+.dealFigures {
+  margin-top: 28px;
+  max-width: 380px;
+}
+.dealFigures .statTiles {
+  list-style: none;
+  margin: 0 0 22px;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+.dealFigures .statTile {
+  margin: 0;
+  line-height: 1;
+  aspect-ratio: 1;
   display: flex;
+  flex-direction: column;
   align-items: center;
-  flex-wrap: wrap;
-  gap: 22px;
-  margin-top: 24px;
+  justify-content: center;
+  gap: 4px;
+  border-radius: 18%;
+  color: #fff;
+  text-align: center;
+  padding: 8%;
 }
-.specRow img {
-  height: 80px;
-  width: auto;
+.statRed {
+  background: #a12a2c;
 }
-.specRow img:last-child {
-  height: 110px;
+.statBrown {
+  background: #6c472c;
+}
+.dealFigures .statValue {
+  font: 300 clamp(48px, 7vw, 72px) / 1 var(--font-heading);
+  letter-spacing: -1px;
+}
+.dealFigures .statLabel {
+  font-size: 13px;
+  line-height: 1.3;
+  color: #fff;
+}
+.returnsTable {
+  width: 100%;
+  border-collapse: collapse;
+  border: 1px solid #b28a44;
+  background: #fdf6e3;
+  font-family: var(--font-heading);
+}
+.returnsTable caption {
+  caption-side: top;
+  padding: 12px 10px;
+  border: 1px solid #b28a44;
+  border-bottom: 0;
+  background: #fdf6e3;
+  font-size: 17px;
+  font-weight: 650;
+  color: #6c472c;
+}
+.returnsTable th,
+.returnsTable td {
+  border-top: 1px solid #cdc2ae;
+  padding: 12px 10px;
+  text-align: center;
+  vertical-align: middle;
+}
+.returnsTable th {
+  width: 55%;
+  background: #e0ba57;
+  color: #4a3208;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.4px;
+  line-height: 1.4;
+  text-transform: uppercase;
+}
+.returnsTable td {
+  color: #5a4636;
+  font-size: 20px;
+  font-weight: 450;
+}
+.returnsNote {
+  margin-top: 10px;
+  font-size: 11px;
+  line-height: 1.6;
+  color: #7a7167;
+}
+.returnsNote a {
+  color: #930011;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+/* Phones: the figures span the full content width and scale up. */
+@media (max-width: 600px) {
+  .dealFigures {
+    max-width: none;
+  }
+  .dealFigures .statTiles {
+    gap: 14px;
+  }
+  .dealFigures .statValue {
+    font-size: clamp(56px, 20vw, 96px);
+  }
+  .dealFigures .statLabel {
+    font-size: clamp(12px, 3.8vw, 15px);
+  }
+  .returnsTable caption {
+    font-size: 20px;
+    padding: 14px 10px;
+  }
+  .returnsTable th {
+    font-size: 12px;
+    padding: 16px 10px;
+  }
+  .returnsTable td {
+    font-size: 24px;
+    padding: 16px 10px;
+  }
+  .returnsNote {
+    font-size: 12px;
+  }
 }
 .dealGallery {
   margin-top: 40px;

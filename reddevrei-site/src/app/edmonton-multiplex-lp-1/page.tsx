@@ -156,22 +156,34 @@ export default function EdmontonMultiplexLpPage() {
               <p className="oc-lead">{lp.project.subtitle}</p>
               <p>{lp.project.body}</p>
               <p>{lp.project.problemSolution}</p>
-              <div className={styles.specRow}>
-                {lp.deal.specs.map((picture) => (
-                  <Image
-                    key={picture.src}
-                    src={picture.src}
-                    alt={picture.alt}
-                    width={picture.width}
-                    height={picture.height}
-                  />
-                ))}
-                <Image
-                  src={lp.deal.returns.src}
-                  alt={lp.deal.returns.alt}
-                  width={lp.deal.returns.width}
-                  height={lp.deal.returns.height}
-                />
+              <div className={styles.dealFigures}>
+                <ul className={styles.statTiles}>
+                  {lp.deal.stats.map((stat) => (
+                    <li
+                      key={stat.label}
+                      className={`${styles.statTile} ${stat.tone === "red" ? styles.statRed : styles.statBrown}`}
+                    >
+                      <span className={styles.statValue}>{stat.value}</span>
+                      <span className={styles.statLabel}>{stat.label}</span>
+                    </li>
+                  ))}
+                </ul>
+                <table className={styles.returnsTable}>
+                  <caption>{lp.deal.projectedReturns.title}</caption>
+                  <tbody>
+                    {lp.deal.projectedReturns.rows.map((row) => (
+                      <tr key={row.term}>
+                        <th scope="row">{row.term}</th>
+                        <td>{row.value}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                <p className={styles.returnsNote}>
+                  Projections, not guarantees. See the{" "}
+                  <a href="#returns">investor cash flow illustration</a> and
+                  the Offering Documents.
+                </p>
               </div>
             </div>
             <div>
