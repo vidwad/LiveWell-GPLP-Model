@@ -205,7 +205,7 @@ main:focus {
   transform: translateY(0);
 }
 .hero {
-  --hero-seam: #5a0812;
+  --hero-seam: #090909;
   display: grid;
   grid-template-columns: 53% 47%;
   min-height: 755px;
@@ -218,7 +218,7 @@ main:focus {
   padding: 173px 48px 32px max(48px, calc((100vw - 1240px) / 2));
   background:
     linear-gradient(90deg, transparent 55%, var(--hero-seam) 100%),
-    linear-gradient(125deg, #7a0b18 0%, var(--hero-seam) 80%);
+    linear-gradient(125deg, #7a0b18 0%, #5a0812 80%);
   position: relative;
   z-index: 1;
   isolation: isolate;
@@ -339,13 +339,13 @@ main:focus {
     linear-gradient(
       90deg,
       var(--hero-seam) 0%,
-      #5a0812f2 5%,
-      #5a0812c4 17%,
-      #5a081280 33%,
-      #22070c1a 68%,
-      #22070c10 100%
+      #090909f2 5%,
+      #090909c4 17%,
+      #09090980 33%,
+      #0000001a 68%,
+      #00000010 100%
     ),
-    linear-gradient(180deg, #17060b66 0%, transparent 46%, #17060bab 100%);
+    linear-gradient(180deg, #00000066 0%, transparent 46%, #000000ab 100%);
 }
 .hero-location {
   position: absolute;
@@ -357,7 +357,7 @@ main:focus {
   font-size: 9px;
   letter-spacing: 1.7px;
   color: #fff;
-  background: #2509104d;
+  background: #11111166;
   backdrop-filter: blur(10px);
   padding: 10px 13px;
   border: 1px solid #ffffff30;
@@ -1142,10 +1142,10 @@ main:focus {
     background: linear-gradient(
       180deg,
       var(--hero-seam) 0%,
-      #5a0812eb 6%,
-      #5a081299 24%,
-      #25080e25 57%,
-      #17060ba6 100%
+      #090909eb 6%,
+      #09090999 24%,
+      #00000025 57%,
+      #000000a6 100%
     );
   }
   .hero h1 {
