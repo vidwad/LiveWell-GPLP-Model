@@ -1,0 +1,6 @@
+{
+  "routes": [
+    { "path": "/", "title": "RedDev | Multifamily Real Estate Investments" },
+    { "path": "/contact/", "title": "Contact RedDev" }
+  ]
+}

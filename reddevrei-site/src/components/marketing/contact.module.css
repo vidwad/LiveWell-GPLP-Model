@@ -1,0 +1,472 @@
+.page {
+  padding: 8.75rem 0 6rem;
+  background:
+    linear-gradient(
+      180deg,
+      rgba(254, 246, 225, 0.92) 0,
+      rgba(254, 246, 225, 0) 24rem
+    ),
+    var(--cream);
+  color: var(--ink);
+}
+
+.breadcrumbs {
+  margin-bottom: clamp(2.75rem, 6vw, 5.5rem);
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.breadcrumbs ol {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.breadcrumbs li + li::before {
+  margin-right: 0.65rem;
+  color: var(--gold);
+  content: "/";
+}
+
+.breadcrumbLink {
+  color: inherit;
+  text-decoration: none;
+  text-underline-offset: 0.25em;
+}
+
+.breadcrumbLink:hover,
+.breadcrumbLink:focus-visible {
+  color: var(--red);
+  text-decoration: underline;
+}
+
+.breadcrumbCurrent {
+  color: var(--ink);
+}
+
+.hero {
+  max-width: 54rem;
+  padding-bottom: clamp(3.75rem, 7vw, 6.5rem);
+}
+
+.intro :global(.eyebrow) {
+  margin: 0 0 1.1rem;
+}
+
+.intro h1 {
+  max-width: 47rem;
+  margin: 0;
+  color: var(--red);
+  font-size: clamp(2.9rem, 6.1vw, 5.4rem);
+  font-weight: 700;
+  letter-spacing: -0.065em;
+  line-height: 0.99;
+}
+
+.lede {
+  max-width: 39rem;
+  margin: 1.75rem 0 0;
+  color: var(--muted);
+  font-size: clamp(1.06rem, 1.75vw, 1.25rem);
+  line-height: 1.75;
+}
+
+.contentGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 0.79fr) minmax(31rem, 1.21fr);
+  gap: clamp(2.5rem, 7vw, 8rem);
+  align-items: start;
+}
+
+.contactPanel {
+  display: grid;
+  gap: 2.75rem;
+  padding: 0.25rem 0 0 0.15rem;
+}
+
+.sectionKicker {
+  margin: 0 0 0.75rem;
+  color: var(--red);
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.13em;
+  line-height: 1.2;
+}
+
+.contactPanel h2,
+.formHeader h2,
+.accessibilityNote h2 {
+  margin: 0;
+  color: var(--ink);
+  font-size: clamp(1.55rem, 2.7vw, 2.15rem);
+  letter-spacing: -0.04em;
+  line-height: 1.13;
+}
+
+.contactPanel > div > p:last-child,
+.formHeader > p:last-child {
+  margin: 1rem 0 0;
+  color: var(--muted);
+  line-height: 1.7;
+}
+
+.contactList {
+  display: grid;
+  gap: 1.25rem;
+  margin: 0;
+}
+
+.contactList > div {
+  padding-bottom: 1.25rem;
+  border-bottom: 1px solid var(--line);
+}
+
+.contactList dt {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  margin-bottom: 0.46rem;
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.11em;
+  text-transform: uppercase;
+}
+
+.contactList dt svg {
+  color: var(--gold);
+}
+
+.contactList dd {
+  margin: 0 0 0 1.85rem;
+  color: var(--ink);
+  font-size: 1rem;
+  line-height: 1.5;
+}
+
+.contactList a,
+.accessibilityNote a {
+  color: var(--red);
+  font-weight: 700;
+  text-decoration-color: rgba(147, 0, 17, 0.35);
+  text-underline-offset: 0.22em;
+}
+
+.contactList a:hover,
+.contactList a:focus-visible,
+.accessibilityNote a:hover,
+.accessibilityNote a:focus-visible {
+  text-decoration-color: currentcolor;
+}
+
+.accessibilityNote {
+  position: relative;
+  padding: 1.35rem 1.4rem 1.4rem;
+  border-left: 3px solid var(--gold);
+  background: rgba(255, 255, 255, 0.45);
+}
+
+.accessibilityNote h2 {
+  font-size: 1.03rem;
+}
+
+.accessibilityNote p {
+  margin: 0.7rem 0 0;
+  color: var(--muted);
+  font-size: 0.94rem;
+  line-height: 1.65;
+}
+
+.formCard {
+  padding: clamp(1.55rem, 4.2vw, 3.5rem);
+  border: 1px solid rgba(21, 21, 21, 0.09);
+  background: #fff;
+  box-shadow: 0 1.25rem 3.5rem rgba(62, 32, 22, 0.08);
+}
+
+.formHeader {
+  max-width: 41rem;
+}
+
+.formHeader h2 {
+  font-size: clamp(1.7rem, 3vw, 2.5rem);
+}
+
+.previewNote {
+  margin: 2rem 0 2.15rem;
+  padding: 1rem 1.1rem;
+  border: 1px solid rgba(230, 183, 65, 0.7);
+  background: rgba(254, 246, 225, 0.82);
+}
+
+.previewNote strong {
+  display: block;
+  color: var(--red);
+  font-size: 0.76rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.previewNote p {
+  margin: 0.35rem 0 0;
+  color: var(--ink);
+  font-size: 0.92rem;
+  line-height: 1.6;
+}
+
+.form {
+  display: grid;
+  gap: 1.35rem;
+}
+
+.fieldGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1.35rem 1.2rem;
+}
+
+.field {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.field label {
+  color: var(--ink);
+  font-size: 0.86rem;
+  font-weight: 750;
+  line-height: 1.35;
+}
+
+.field label > span:first-child {
+  color: var(--red);
+}
+
+.requiredText {
+  margin-left: 0.38rem;
+  color: var(--muted);
+  font-size: 0.69rem;
+  font-weight: 650;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.field input,
+.field select,
+.field textarea {
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 0;
+  background: #fff;
+  color: var(--ink);
+  font: inherit;
+  line-height: 1.4;
+  transition:
+    border-color 160ms ease,
+    box-shadow 160ms ease;
+}
+
+.field input,
+.field select {
+  min-height: 3.2rem;
+  padding: 0.75rem 0.85rem;
+}
+
+.field select {
+  cursor: pointer;
+}
+
+.field textarea {
+  min-height: 10rem;
+  padding: 0.85rem;
+  resize: vertical;
+}
+
+.field input:hover,
+.field select:hover,
+.field textarea:hover {
+  border-color: rgba(147, 0, 17, 0.58);
+}
+
+.field input:focus-visible,
+.field select:focus-visible,
+.field textarea:focus-visible,
+.copyButton:focus-visible,
+.draftActions a:focus-visible,
+.breadcrumbLink:focus-visible {
+  outline: 3px solid rgba(230, 183, 65, 0.75);
+  outline-offset: 3px;
+}
+
+.field input[aria-invalid="true"],
+.field textarea[aria-invalid="true"] {
+  border-color: var(--red);
+  box-shadow: 0 0 0 1px var(--red);
+}
+
+.fieldHelp,
+.fieldError {
+  margin: 0;
+  font-size: 0.78rem;
+  line-height: 1.45;
+}
+
+.fieldHelp {
+  color: var(--muted);
+}
+
+.fieldError {
+  color: var(--red);
+  font-weight: 700;
+}
+
+.formActions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 1rem 1.25rem;
+  padding-top: 0.4rem;
+}
+
+.formActions :global(.button),
+.draftActions :global(.button) {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+}
+
+.requiredLegend {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.requiredLegend span {
+  color: var(--red);
+  font-weight: 800;
+}
+
+.liveStatus {
+  margin: -0.1rem 0 0;
+  color: var(--ink);
+  font-size: 0.9rem;
+  font-weight: 650;
+  line-height: 1.5;
+}
+
+.draftActions {
+  display: grid;
+  gap: 1rem;
+  margin-top: 1.75rem;
+  padding-top: 1.6rem;
+  border-top: 1px solid var(--line);
+}
+
+.draftActions :global(.button) {
+  width: fit-content;
+  text-decoration: none;
+}
+
+.copyActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.7rem;
+}
+
+.copyButton {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.42rem;
+  min-height: 2.6rem;
+  padding: 0.55rem 0.75rem;
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--ink);
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.84rem;
+  font-weight: 700;
+}
+
+.copyButton:hover {
+  border-color: var(--red);
+  color: var(--red);
+}
+
+.draftFinePrint,
+.copyStatus {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.82rem;
+  line-height: 1.55;
+}
+
+.copyStatus {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.4rem;
+  color: var(--ink);
+}
+
+.copyStatus svg {
+  flex: 0 0 auto;
+  margin-top: 0.2rem;
+  color: var(--gold);
+}
+
+@media (max-width: 860px) {
+  .page {
+    padding-top: 7.8rem;
+  }
+
+  .contentGrid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 3.2rem;
+  }
+
+  .contactPanel {
+    max-width: 39rem;
+  }
+}
+
+@media (max-width: 580px) {
+  .page {
+    padding: 7rem 0 4rem;
+  }
+
+  .breadcrumbs {
+    margin-bottom: 2.6rem;
+  }
+
+  .hero {
+    padding-bottom: 3.35rem;
+  }
+
+  .fieldGrid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .formCard {
+    margin-inline: -0.15rem;
+    padding: 1.35rem 1.1rem;
+  }
+
+  .formActions :global(.button),
+  .draftActions :global(.button) {
+    width: 100%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .field input,
+  .field select,
+  .field textarea {
+    transition: none;
+  }
+}

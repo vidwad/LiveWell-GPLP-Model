@@ -1,0 +1,229 @@
+{
+  "schema_version": "1.0",
+  "harvested_at_utc": "2026-10-18T23:53:00Z",
+  "purpose": "Original-asset provenance for RedDev REI homepage reconstruction. No generated or substitute imagery was used.",
+  "source_material_reviewed": [
+    "/home/ubuntu/reddev-review/research/home.html",
+    "/home/ubuntu/reddev-review/research/all-home-styles.css",
+    "/home/ubuntu/reddev-review/assets"
+  ],
+  "downloaded_assets": [
+    {
+      "id": "reddev-logo-full-light",
+      "local_path": "/home/ubuntu/reddevrei/reddevrei-site/public/brand/logo-full-light.png",
+      "relative_public_path": "/brand/logo-full-light.png",
+      "source_type": "supplied original local asset",
+      "source_path": "/home/ubuntu/reddev-review/assets/logo-full-light.png",
+      "preservation": "Byte-for-byte copy; no resize, crop, conversion, or other modification.",
+      "mime_type": "image/png",
+      "width_px": 1847,
+      "height_px": 1087,
+      "bytes": 28060,
+      "sha256": "9ed7e9d99d1f4ad07bbc08a80334522b5ac84ac51d0ea6fa59a934724e682229"
+    },
+    {
+      "id": "reddev-logo-wide-light",
+      "local_path": "/home/ubuntu/reddevrei/reddevrei-site/public/brand/logo-wide-light.png",
+      "relative_public_path": "/brand/logo-wide-light.png",
+      "source_type": "supplied original local asset",
+      "source_path": "/home/ubuntu/reddev-review/assets/logo-wide-light.png",
+      "preservation": "Byte-for-byte copy; no resize, crop, conversion, or other modification.",
+      "mime_type": "image/png",
+      "width_px": 2202,
+      "height_px": 363,
+      "bytes": 21936,
+      "sha256": "bda5e296aaf1faf35fd19f3bb2d3824675909d3372be3df7499e88a8c817e544"
+    },
+    {
+      "id": "edmonton-skyline",
+      "relative_public_path": "/brand/edmonton-skyline.jpeg",
+      "source_page_or_url": "https://reddevrei.com/",
+      "retrieval_evidence": "Home image-search result 3",
+      "recovered_image_url": "https://files.manuscdn.com/search-media/108358424/3bX3XGwzSVYQBC3RWZgyTS/2YXYinKjcAhJo28StKwW58.jpeg",
+      "width_px": 1080,
+      "height_px": 675,
+      "bytes": 149890,
+      "sha256": "1bf6faeba970f7c131d26684c2e3e0b8c9928c7242b62ac2dbbcac5c562edf10",
+      "preservation": "Original pixels; no generated content or re-encoding."
+    },
+    {
+      "id": "student-kitchen",
+      "relative_public_path": "/brand/student-kitchen.jpg",
+      "source_page_or_url": "https://reddevrei.com/student-housing/",
+      "retrieval_evidence": "Student Housing image-search result 6",
+      "recovered_image_url": "https://files.manuscdn.com/search-media/108358424/3bX3XGwzSVYQBC3RWZgyTS/7vwKAwpSSRtRvwgbZrZNUn.jpg",
+      "width_px": 4269,
+      "height_px": 2400,
+      "bytes": 641434,
+      "sha256": "20493ee90d5b4d4893520921edc211677a7ccedfbba8f5096b3d3c5a6e560922",
+      "preservation": "Original pixels; no generated content or re-encoding."
+    },
+    {
+      "id": "edmonton-bridge",
+      "relative_public_path": "/brand/edmonton-bridge.jpg",
+      "source_page_or_url": "https://reddevrei.com/wp-content/uploads/2024/09/homepage-walterdale-bridge-e1727203326774.jpg",
+      "retrieval_evidence": "Original RedDev Edmonton landmark image, image-search result 8",
+      "recovered_image_url": "https://files.manuscdn.com/search-media/108358424/3bX3XGwzSVYQBC3RWZgyTS/C8udmL7hdA7gxi7NDbGcrf.jpg",
+      "width_px": 1080,
+      "height_px": 675,
+      "bytes": 168437,
+      "sha256": "fe62b0f366a5dbefe9bace8e91bac75a7bb31dc35c086f0448acea118b209243",
+      "preservation": "Original pixels; no generated content or re-encoding."
+    },
+    {
+      "id": "student-housing-exterior",
+      "relative_public_path": "/brand/student-housing-exterior.jpg",
+      "source_page_or_url": "https://reddevrei.com/student-housing/",
+      "retrieval_evidence": "Student Housing image-search result 1",
+      "recovered_image_url": "https://files.manuscdn.com/search-media/108358424/3bX3XGwzSVYQBC3RWZgyTS/BvECnLWPy3vYoJw7YmztWe.jpg",
+      "width_px": 1510,
+      "height_px": 930,
+      "bytes": 399042,
+      "sha256": "8f4fe9b4f41bedef4827fb6a8230d65869936c02057ed3431b8314c5a7db4b58",
+      "preservation": "Original pixels; no generated content or re-encoding."
+    },
+    {
+      "id": "insight-students",
+      "relative_public_path": "/brand/insight-students.jpg",
+      "source_page_or_url": "https://reddevrei.com/wp-content/uploads/2024/10/people-in-a-city-on-the-go-using-mobile-phones-and-2023-11-27-05-34-44-utc-1080x675.jpg",
+      "retrieval_evidence": "Original current article cover, direct download",
+      "recovered_image_url": "https://reddevrei.com/wp-content/uploads/2024/10/people-in-a-city-on-the-go-using-mobile-phones-and-2023-11-27-05-34-44-utc-1080x675.jpg",
+      "width_px": 1080,
+      "height_px": 675,
+      "bytes": 136193,
+      "sha256": "30eee618955e4243c741b54a32ef54e46d7ea2f21c6f71699b7bc6503e94a3cf",
+      "preservation": "Original pixels; no generated content or re-encoding."
+    },
+    {
+      "id": "insight-investors",
+      "relative_public_path": "/brand/insight-investors.jpg",
+      "source_page_or_url": "https://reddevrei.com/wp-content/uploads/2023/07/real-estate-agent-using-laptop-while-having-a-meet-2022-10-06-01-29-48-utc-1080x675.jpg",
+      "retrieval_evidence": "Original current article cover, direct download",
+      "recovered_image_url": "https://reddevrei.com/wp-content/uploads/2023/07/real-estate-agent-using-laptop-while-having-a-meet-2022-10-06-01-29-48-utc-1080x675.jpg",
+      "width_px": 1080,
+      "height_px": 675,
+      "bytes": 104519,
+      "sha256": "ac4141b445071b479e56d465b01803702ae1eca49c695701e8e6c84e7c21475d",
+      "preservation": "Original pixels; no generated content or re-encoding."
+    },
+    {
+      "id": "vid-wadhwani",
+      "relative_public_path": "/brand/vid-wadhwani.png",
+      "source_page_or_url": "https://reddevrei.com/about-us/",
+      "retrieval_evidence": "Portrait directly beside named profile; targeted image search result 4",
+      "recovered_image_url": "https://files.manuscdn.com/search-media/108358424/3bX3XGwzSVYQBC3RWZgyTS/XmrZm2qZsZY4aS8Litq4SK.png",
+      "width_px": 380,
+      "height_px": 381,
+      "bytes": 146136,
+      "sha256": "b2c748135d9cea1b522f276f4b2b059b129f41399cf1559f8f280df96d6b9a2d",
+      "preservation": "Original pixels; no generated content or re-encoding."
+    },
+    {
+      "id": "david-carkeek",
+      "relative_public_path": "/brand/david-carkeek.png",
+      "source_page_or_url": "https://reddevrei.com/about-us/",
+      "retrieval_evidence": "Portrait directly beside named profile; About image search result 3",
+      "recovered_image_url": "https://files.manuscdn.com/search-media/108358424/3bX3XGwzSVYQBC3RWZgyTS/U6MTkFYpt5kBsgjaR8YxCN.png",
+      "width_px": 359,
+      "height_px": 367,
+      "bytes": 127400,
+      "sha256": "c834908643c127d5a52093f388534d2e9a1803b6bff43596fc2b3640503b0158",
+      "preservation": "Original pixels; no generated content or re-encoding."
+    },
+    {
+      "id": "mark-kauhane",
+      "relative_public_path": "/brand/mark-kauhane.png",
+      "source_page_or_url": "https://reddevrei.com/about-us/",
+      "retrieval_evidence": "Portrait directly beside named profile; About image search result 8",
+      "recovered_image_url": "https://files.manuscdn.com/search-media/108358424/3bX3XGwzSVYQBC3RWZgyTS/seB4YZLK7UbwtAU37aMkzB.png",
+      "width_px": 367,
+      "height_px": 367,
+      "bytes": 121766,
+      "sha256": "e4af899dd7ff4f2c9d2e35f5760ff692d5b5a56e60929758199ccc723958931d",
+      "preservation": "Original pixels; no generated content or re-encoding."
+    },
+    {
+      "id": "nathan-wadhwani",
+      "relative_public_path": "/brand/nathan-wadhwani.png",
+      "source_page_or_url": "https://reddevrei.com/about-us/",
+      "retrieval_evidence": "Portrait directly beside named profile; targeted Nathan image search result 3",
+      "recovered_image_url": "https://files.manuscdn.com/search-media/108358424/3bX3XGwzSVYQBC3RWZgyTS/U3bAjLHD8VZQ66FFapkiR6.png",
+      "width_px": 367,
+      "height_px": 367,
+      "bytes": 145953,
+      "sha256": "dbb4029faf8a99554fa6ead1688e142641bf59ad0e1b571d66bfa7ff519c3915",
+      "preservation": "Original pixels; no generated content or re-encoding."
+    }
+  ],
+  "verified_original_image_candidates_not_downloaded": [
+    {
+      "id": "homepage-hero-invest-with-us",
+      "suggested_role": "Homepage hero / Invest With Us section",
+      "label": "Illustrative existing-site photo; the filename does not establish an actual RedDev project.",
+      "original_url": "https://reddevrei.com/wp-content/uploads/2024/09/IMG_0829-Photoroom.jpg",
+      "homepage_archive_evidence": {
+        "source_file": "/home/ubuntu/reddev-review/research/all-home-styles.css",
+        "css_selector": "div.et_pb_section.et_pb_section_3",
+        "section_text": "INVEST WITH US \u2014 RedDev invests alongside our partners to preserve wealth and secure financial freedom through cash-flowing multifamily real estate investments."
+      },
+      "availability": "not downloaded",
+      "access_result": "Direct original URL returned HTTP 403 (text/html) on 2026-10-18. Public WordPress REST media routes and exact Internet Archive CDX lookup did not yield a retrievable image.",
+      "dimensions": null
+    },
+    {
+      "id": "platinum-studio-accessible-interior",
+      "suggested_role": "Student-housing / interior image",
+      "label": "Illustrative existing-site interior photo; filename is not sufficient evidence that it depicts an actual RedDev project.",
+      "original_url": "https://reddevrei.com/wp-content/uploads/2024/10/Platinum_Studio_Accessible8_0-768x531-1.jpg",
+      "homepage_archive_evidence": {
+        "source_file": "/home/ubuntu/reddev-review/research/all-home-styles.css",
+        "css_selector": ".dsm_image_accordion_child_0",
+        "source_filename": "Platinum_Studio_Accessible8_0-768x531-1.jpg"
+      },
+      "availability": "not downloaded",
+      "access_result": "Direct original URL returned HTTP 403 (text/html) on 2026-10-18. Public WordPress REST media routes and exact Internet Archive CDX lookup did not yield a retrievable image.",
+      "dimensions": {
+        "width_px": 768,
+        "height_px": 531,
+        "basis": "Dimensions encoded in original source filename; file bytes could not be retrieved to independently inspect."
+      }
+    },
+    {
+      "id": "edmonton-walterdale-bridge",
+      "suggested_role": "Edmonton / student-housing project accordion visual",
+      "label": "Illustrative existing-site Edmonton city-landmark photo; it is not verified as an image of the Edmonton Multiplex LP property.",
+      "original_url": "https://reddevrei.com/wp-content/uploads/2024/09/homepage-walterdale-bridge-e1727203326774.jpg",
+      "homepage_archive_evidence": {
+        "source_file": "/home/ubuntu/reddev-review/research/all-home-styles.css",
+        "css_selector": ".dsm_image_accordion_child_1",
+        "accordion_title": "Edmonton Alberta",
+        "accordion_description": "The Edmonton Multiplex LP presents a unique opportunity for investors to gain steady rental income in a dynamic student housing community while benefiting from passive income, long-term capital appreciation and growing market demand."
+      },
+      "availability": "not downloaded",
+      "access_result": "Direct original URL returned HTTP 403 (text/html) on 2026-10-18. Public WordPress REST media routes and exact Internet Archive CDX lookup did not yield a retrievable image.",
+      "dimensions": null
+    }
+  ],
+  "team_portraits_and_about_data": {
+    "about_url": "https://reddevrei.com/about-us/",
+    "status": "four original leadership portraits recovered via image search; names verified against adjacent original About-page labels",
+    "reason": "The public WordPress pages/media endpoints at both reddevrei.com and www.reddevrei.com returned HTTP 403. The supplied homepage archive contains an About Us link but no accessible team portrait files. No authentication attempts, browser use, or bypass tooling was used."
+  },
+  "access_checks": {
+    "tested_direct_upload_urls": "HTTP 403 text/html",
+    "tested_public_wp_routes": [
+      "https://reddevrei.com/wp-json/wp/v2/media",
+      "https://www.reddevrei.com/wp-json/wp/v2/media",
+      "https://reddevrei.com/?rest_route=/wp/v2/media",
+      "https://www.reddevrei.com/?rest_route=/wp/v2/pages",
+      "https://reddevrei.com/wp-json/wp/v2/pages"
+    ],
+    "wp_route_result": "HTTP 403 text/html",
+    "archive_fallback": "Exact-URL Internet Archive CDX queries returned empty results; no broad image search was performed."
+  },
+  "use_notes": [
+    "Original logos and recovered images are usable. Earlier blocked URL candidates remain historical recovery notes.",
+    "City/interior pictures are illustrative existing-site images, not evidence of property ownership.",
+    "Do not associate any additional portrait with a name without source-label evidence."
+  ]
+}
