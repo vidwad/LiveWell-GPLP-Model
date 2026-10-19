@@ -97,36 +97,6 @@ export const teamProfiles: TeamProfile[] = [
     email: "kadenmoravek@reddevrei.com",
     phone: "(236) 868-0435",
   },
-  {
-    name: "Aidan Carkeek",
-    role: "Project Management Associate",
-    bio: [
-      "Aidan Carkeek, an Associate at RedDev Real Estate Investments, contributes a unique background in the marine industry and business management to the team. As the founder of several marine-related businesses, Aidan brings operational and entrepreneurial expertise, which enhances RedDev’s project execution capabilities.",
-      "In his role at RedDev, Aidan supports project logistics and quality control, applying his meticulous approach to ensure that developments meet RedDev’s high standards. His focus on detail and commitment to excellence align with RedDev’s mission to deliver well-managed, high-value investments that benefit both investors and the communities they serve.",
-    ],
-    email: "aidancarkeek@reddevrei.com",
-    phone: "(250) 732-7858",
-  },
-  {
-    name: "Cory Reddekopp",
-    role: "General Contractor",
-    bio: [
-      "Cory Reddekopp brings over two decades of construction and real estate development experience to the team. As the founder of Redline Building Corporation, Cory has overseen the completion of over 30 residential and commercial developments, including multifamily complexes and high-value custom homes. His expertise in project management and his extensive network of skilled trades ensure that RedDev’s projects are built to the highest standards.",
-      "At RedDev, Cory plays a crucial role in managing project timelines, costs, and construction quality. His hands-on approach to overseeing developments from conception to completion enables RedDev to consistently deliver on its promise of excellence and investor satisfaction. Cory’s construction knowledge and operational insight make him a pivotal figure in achieving RedDev’s vision for sustainable, high-quality real estate investments.",
-    ],
-    email: "coryreddekopp@reddevrei.com",
-    phone: "(587) 985-1295",
-  },
-  {
-    name: "Brandon Reddekopp",
-    role: "Property & Project Management Associate",
-    bio: [
-      "Brandon Reddekopp is a property & project management associate with over four years of experience in real estate development. As part of Redline Building Corporation, Brandon has contributed to numerous residential and commercial projects, honing his skills in project coordination and investment analysis.",
-      "At RedDev, Brandon plays a key role in managing project timelines, budget adherence, and quality assurance. His passion for real estate and commitment to continuous learning allow him to add significant value to RedDev’s development initiatives. Brandon’s hands-on approach ensures that each project aligns with RedDev’s standards for quality, investor satisfaction, and community impact.",
-    ],
-    email: "brandonreddekopp@reddevrei.com",
-    phone: "(780) 991-5832",
-  },
 ];
 
 export const teamProfileSources = {

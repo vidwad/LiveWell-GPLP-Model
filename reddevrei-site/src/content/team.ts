@@ -27,15 +27,4 @@ export const team = [
   { name: "Jacob Wadhwani", role: "Marketing Associate", initials: "JW" },
   { name: "Reid Muller", role: "Sales Associate", initials: "RM" },
   { name: "Kaden Moravek", role: "Sales Associate", initials: "KM" },
-  {
-    name: "Aidan Carkeek",
-    role: "Project Management Associate",
-    initials: "AC",
-  },
-  { name: "Cory Reddekopp", role: "General Contractor", initials: "CR" },
-  {
-    name: "Brandon Reddekopp",
-    role: "Property & Project Management Associate",
-    initials: "BR",
-  },
 ] as const;

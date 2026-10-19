@@ -238,7 +238,6 @@ main:focus {
   isolation: isolate;
   overflow: hidden;
 }
-.hero-treatment::before,
 .closing-cta::before {
   content: "";
   position: absolute;
@@ -260,7 +259,6 @@ main:focus {
   opacity: 0.17;
   mask-image: linear-gradient(135deg, transparent 5%, #000 57%);
 }
-.hero-treatment::before,
 .hero-treatment::after {
   z-index: 1;
 }
