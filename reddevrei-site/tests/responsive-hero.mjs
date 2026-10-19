@@ -118,7 +118,7 @@ export default async function checkResponsiveHero(page) {
         { polling: 100, timeout: 5000 },
       );
       await page.waitForFunction(
-        () => document.activeElement?.closest('[role="dialog"]'),
+        () => document.activeElement?.closest("#mobile-site-navigation"),
         null,
         { polling: 100, timeout: 5000 },
       );

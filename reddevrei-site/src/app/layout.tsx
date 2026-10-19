@@ -5,6 +5,8 @@ import "./globals.css";
 import "@/styles/pages.css";
 import SiteHeader from "@/components/marketing/SiteHeader";
 import SiteFooter from "@/components/marketing/SiteFooter";
+import RouteScrollReset from "@/components/marketing/RouteScrollReset";
+import BackToTop from "@/components/marketing/BackToTop";
 import { site } from "@/config/site";
 import { articles } from "@/content/articles";
 
@@ -55,6 +57,8 @@ export default function RootLayout({
           {children}
         </main>
         <SiteFooter />
+        <RouteScrollReset />
+        <BackToTop />
       </body>
     </html>
   );

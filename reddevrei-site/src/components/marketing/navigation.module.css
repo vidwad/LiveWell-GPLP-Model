@@ -7,14 +7,17 @@
   left: 0;
   min-height: var(--header-height);
   border-bottom: 1px solid transparent;
+  /* Starts as a fade over the hero and turns solid once scrolled (see
+     .isScrolled), as on the Pookt site. */
   background: linear-gradient(
     180deg,
-    rgba(63, 0, 9, 0.98) 0%,
-    rgba(91, 0, 14, 0.91) 69%,
-    rgba(102, 0, 16, 0.72) 100%
+    rgba(63, 0, 9, 0.9) 0%,
+    rgba(91, 0, 14, 0.6) 55%,
+    rgba(102, 0, 16, 0) 100%
   );
   color: var(--cream, #fef6e1);
   transition:
+    transform 300ms ease-out,
     min-height 220ms ease,
     background-color 220ms ease,
     box-shadow 220ms ease,
@@ -26,6 +29,12 @@
   border-color: rgba(230, 183, 65, 0.23);
   background: rgba(77, 0, 12, 0.97);
   box-shadow: 0 0.75rem 2.25rem rgba(31, 0, 5, 0.23);
+}
+
+/* Retracted while the visitor scrolls down; SiteHeader never applies this
+   while a menu is open or focus is inside the header. */
+.header.isHidden {
+  transform: translateY(-100%);
 }
 
 .headerInner {
@@ -254,18 +263,8 @@
   color: var(--gold, #e6b741);
 }
 
-.mobileOverlay,
-.mobilePanel,
-.mobileScrim {
+.mobilePanel {
   display: none;
-}
-
-.mobileOverlay {
-  --header-height: 5.625rem;
-}
-
-.mobileOverlayScrolled {
-  --header-height: 4.5rem;
 }
 
 .footer {
@@ -436,66 +435,25 @@
     display: inline;
   }
 
-  .mobileOverlay {
-    display: block;
-  }
-
-  .mobileScrim {
-    position: fixed;
-    z-index: 49;
-    top: var(--header-height);
-    right: 0;
-    bottom: 0;
-    left: 0;
-    width: 100%;
-    border: 0;
-    background: rgba(21, 21, 21, 0.52);
-    cursor: default;
-  }
-
+  /* In-flow panel under the header row (the header is fixed, so the panel
+     overlays the page without a scrim), capped to the viewport. */
   .mobilePanel {
-    position: fixed;
-    z-index: 51;
-    top: var(--header-height);
-    right: 0;
-    bottom: 0;
-    left: 0;
     display: block;
+    max-height: 85vh;
     overflow-y: auto;
     overscroll-behavior: contain;
     border-top: 1px solid rgba(230, 183, 65, 0.32);
+    border-bottom: 1px solid rgba(230, 183, 65, 0.32);
     background: #68000f;
     color: var(--cream, #fef6e1);
     box-shadow: 0 1rem 2.5rem rgba(31, 0, 5, 0.28);
   }
 
-  .mobilePanelHeader,
   .mobileNav,
   .mobileContactBlock {
     width: min(100% - 2rem, 42rem);
     margin-right: auto;
     margin-left: auto;
-  }
-
-  .mobilePanelHeader {
-    display: flex;
-    min-height: 4.5rem;
-    align-items: center;
-    justify-content: space-between;
-    border-bottom: 1px solid rgba(254, 246, 225, 0.15);
-  }
-
-  .mobilePanelLabel {
-    margin: 0;
-    color: var(--gold, #e6b741);
-    font-size: 0.7rem;
-    font-weight: 800;
-    letter-spacing: 0.15em;
-    text-transform: uppercase;
-  }
-
-  .mobileClose {
-    display: inline-flex;
   }
 
   .mobileNav {
@@ -731,5 +689,58 @@
 @media (max-width: 70rem) {
   .dashboardUtility {
     display: none;
+  }
+}
+
+/* Back-to-top control (BackToTop.tsx), as on the Pookt site. Rendered only
+   once the visitor has scrolled down, so it is never an invisible tab stop. */
+.backToTop {
+  position: fixed;
+  z-index: 40;
+  right: 1.25rem;
+  bottom: 1.25rem;
+  display: inline-flex;
+  width: 3rem;
+  height: 3rem;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--gold, #e6b741);
+  border-radius: 50%;
+  background: var(--gold, #e6b741);
+  color: var(--red, #930011);
+  box-shadow: 0 0.6rem 1.5rem rgba(31, 0, 5, 0.3);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition:
+    transform 200ms ease,
+    background-color 150ms ease,
+    border-color 150ms ease;
+}
+
+.backToTop:hover {
+  border-color: var(--cream, #fef6e1);
+  background: var(--cream, #fef6e1);
+  transform: translateY(-2px);
+}
+
+.backToTop:focus-visible {
+  outline: 3px solid var(--gold, #e6b741);
+  outline-offset: 3px;
+}
+
+@media (min-width: 70rem) {
+  .backToTop {
+    right: 2rem;
+    bottom: 2rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .backToTop {
+    transition: none !important;
+  }
+
+  .backToTop:hover {
+    transform: none;
   }
 }

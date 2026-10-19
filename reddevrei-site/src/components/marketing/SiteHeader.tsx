@@ -5,6 +5,7 @@ import Link from "next/link";
 import { ChevronDown, Menu, X } from "lucide-react";
 import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { usePathname } from "next/navigation";
+import { useScrollDirection } from "@/hooks/useScrollDirection";
 import { navigation, site } from "@/config/site";
 import { sectionIsActive as matchSection } from "@/lib/navigation";
 import { DashboardLoginLink } from "./DashboardLoginLink";
@@ -108,14 +109,21 @@ function HeaderContent({ pathname, articlePaths }: HeaderContentProps) {
   const [scrolled, setScrolled] = useState(false);
   const [openMenu, setOpenMenu] = useState<string | null>(null);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [focusWithinHeader, setFocusWithinHeader] = useState(false);
+  const scrollingDown = useScrollDirection();
+  // As on the Pookt site: the header retracts while the visitor reads down
+  // and returns on any scroll up, but never while a menu is open or keyboard
+  // focus is inside it.
+  const headerHidden =
+    scrollingDown && !mobileOpen && !openMenu && !focusWithinHeader;
   const desktopNavRef = useRef<HTMLElement | null>(null);
-  const mobileDialogRef = useRef<HTMLDivElement | null>(null);
+  const mobilePanelRef = useRef<HTMLDivElement | null>(null);
   const mobileTriggerRef = useRef<HTMLButtonElement | null>(null);
   const desktopTriggers = useRef(new Map<string, HTMLButtonElement>());
 
   useEffect(() => {
     const updateHash = () => setHash(window.location.hash);
-    const updateScroll = () => setScrolled(window.scrollY > 18);
+    const updateScroll = () => setScrolled(window.scrollY > 24);
 
     updateHash();
     updateScroll();
@@ -145,41 +153,17 @@ function HeaderContent({ pathname, articlePaths }: HeaderContentProps) {
   useEffect(() => {
     if (!mobileOpen) return;
 
-    const backgroundElements = [
-      document.querySelector<HTMLElement>("#main-content"),
-      document.querySelector<HTMLElement>("footer"),
-      document.querySelector<HTMLElement>("header"),
-      document.querySelector<HTMLElement>(".skip-link"),
-    ].filter((element): element is HTMLElement => element !== null);
-    const previousInertState = backgroundElements.map((element) => ({
-      element,
-      hadInertAttribute: element.hasAttribute("inert"),
-      inertValue: element.getAttribute("inert"),
-    }));
-    backgroundElements.forEach((element) => element.setAttribute("inert", ""));
-
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
+    // The panel is an ordinary in-flow part of the header, not a modal: the
+    // page behind it stays scrollable and interactive, as on the Pookt site.
+    // Focus still moves into it so a keyboard visitor lands on the first link.
     const focusTimer = window.setTimeout(() => {
-      const firstElement = mobileDialogRef.current
-        ? focusableElements(mobileDialogRef.current)[0]
+      const firstElement = mobilePanelRef.current
+        ? focusableElements(mobilePanelRef.current)[0]
         : undefined;
       firstElement?.focus();
     }, 0);
 
-    return () => {
-      window.clearTimeout(focusTimer);
-      document.body.style.overflow = previousOverflow;
-      previousInertState.forEach(
-        ({ element, hadInertAttribute, inertValue }) => {
-          if (hadInertAttribute) {
-            element.setAttribute("inert", inertValue ?? "");
-          } else {
-            element.removeAttribute("inert");
-          }
-        },
-      );
-    };
+    return () => window.clearTimeout(focusTimer);
   }, [mobileOpen]);
 
   useEffect(() => {
@@ -225,21 +209,6 @@ function HeaderContent({ pathname, articlePaths }: HeaderContentProps) {
     if (event.key === "Escape") {
       event.preventDefault();
       closeMobile(true);
-      return;
-    }
-
-    if (event.key !== "Tab" || !mobileDialogRef.current) return;
-    const elements = focusableElements(mobileDialogRef.current);
-    if (!elements.length) return;
-
-    const first = elements[0];
-    const last = elements[elements.length - 1];
-    if (event.shiftKey && document.activeElement === first) {
-      event.preventDefault();
-      last.focus();
-    } else if (!event.shiftKey && document.activeElement === last) {
-      event.preventDefault();
-      first.focus();
     }
   };
 
@@ -255,8 +224,16 @@ function HeaderContent({ pathname, articlePaths }: HeaderContentProps) {
   return (
     <>
       <header
-        className={`${styles.header} ${scrolled ? styles.isScrolled : ""}`}
+        className={`${styles.header} ${scrolled ? styles.isScrolled : ""} ${headerHidden ? styles.isHidden : ""}`}
         onKeyDown={handleHeaderKeyDown}
+        onFocusCapture={() => setFocusWithinHeader(true)}
+        onBlurCapture={(event) => {
+          if (
+            !event.currentTarget.contains(event.relatedTarget as Node | null)
+          ) {
+            setFocusWithinHeader(false);
+          }
+        }}
       >
         <div className={`container ${styles.headerInner}`}>
           <Link
@@ -352,40 +329,19 @@ function HeaderContent({ pathname, articlePaths }: HeaderContentProps) {
             </button>
           </div>
         </div>
-      </header>
 
-      {mobileOpen && (
-        <div
-          className={`${styles.mobileOverlay} ${scrolled ? styles.mobileOverlayScrolled : ""}`}
-        >
-          <button
-            type="button"
-            className={styles.mobileScrim}
-            aria-label="Close navigation menu"
-            tabIndex={-1}
-            onClick={() => closeMobile(true)}
-          />
+        {/* Phone menu, as on the Pookt site: it hangs under the header row
+            as part of the fixed header, full width, capped to the viewport
+            and scrollable. It is not a modal, so the page stays interactive
+            behind it; it closes on Escape, on any route change and when the
+            viewport grows to the desktop layout. */}
+        {mobileOpen && (
           <div
-            ref={mobileDialogRef}
+            ref={mobilePanelRef}
             id="mobile-site-navigation"
             className={styles.mobilePanel}
-            role="dialog"
-            aria-modal="true"
-            aria-label="Site navigation"
             onKeyDown={handleMobileKeyDown}
           >
-            <div className={styles.mobilePanelHeader}>
-              <p className={styles.mobilePanelLabel}>Explore RedDev</p>
-              <button
-                type="button"
-                className={styles.mobileClose}
-                aria-label="Close navigation menu"
-                onClick={() => closeMobile(true)}
-              >
-                <X aria-hidden="true" />
-              </button>
-            </div>
-
             <nav
               className={styles.mobileNav}
               aria-label="Mobile primary navigation"
@@ -445,8 +401,8 @@ function HeaderContent({ pathname, articlePaths }: HeaderContentProps) {
               </Link>
             </div>
           </div>
-        </div>
-      )}
+        )}
+      </header>
     </>
   );
 }
