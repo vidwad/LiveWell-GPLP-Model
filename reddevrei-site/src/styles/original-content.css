@@ -23,8 +23,35 @@
 .oc-section-dark h3 {
   color: #fff;
 }
+/* Text on the dark red band. These selectors are deliberately more
+   specific than the general .oc-copy / .oc-check-list / .oc-small rules
+   further down, which would otherwise turn this text grey. */
+.oc-section-dark .oc-copy p,
+.oc-section-dark .oc-copy li,
+.oc-section-dark .oc-check-list li,
 .oc-section-dark p {
-  color: #f0e4e5;
+  color: #fff;
+}
+.oc-section-dark .oc-copy h2,
+.oc-section-dark .oc-copy h3,
+.oc-section-dark .oc-copy h4 {
+  color: #fff;
+}
+.oc-section-dark .oc-copy .eyebrow,
+.oc-section-dark .eyebrow {
+  color: #e6b741;
+}
+.oc-section-dark .oc-check-list li::before {
+  background: #e6b741;
+}
+.oc-section-dark .oc-copy .oc-small,
+.oc-section-dark .oc-small {
+  color: rgba(255, 255, 255, 0.82);
+}
+.oc-section-dark a:not(.button) {
+  color: #e6b741;
+  text-decoration: underline;
+  text-underline-offset: 3px;
 }
 .oc-heading {
   max-width: 820px;
