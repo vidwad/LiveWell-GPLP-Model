@@ -6,6 +6,10 @@ A separate Next.js public application intended to live at `reddevrei-site/` in `
 
 Node 22 and pnpm 11.25.0 are used. From this folder run `pnpm install --frozen-lockfile`, then `pnpm dev`. The development server listens on `0.0.0.0:3000`. `pnpm typecheck`, `pnpm lint` and `pnpm build` provide the focused checks; the static build is emitted to `out/`.
 
+For the shared review Preview, use `pnpm build && pnpm preview` instead of the development server. This serves the production export on the same port and avoids the development hot-reload connection interfering with client hydration through the Preview proxy. Rebuild after source changes; this is still a preview, not production publication.
+
+`tests/responsive-hero.mjs` contains targeted browser checks for desktop preservation, four phone viewport sizes, full-screen hero height, clipping, complete-photo coverage, the 95% opacity cap and mobile menu open/Escape/focus behavior. The mobile hero uses dynamic viewport height so it follows the currently visible screen as browser controls change.
+
 ## Current scope
 
 The homepage and contact page use the original RedDev wordmark, palette, typography, investment process, team roster and existing-site imagery. Navigation to unfinished inner pages targets the corresponding homepage sections. Existing insights link to the original RedDev articles and keep their original dates. No opportunity is advertised as open; investor eligibility and current project details are handled directly with the company.

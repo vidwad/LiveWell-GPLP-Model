@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "next dev --hostname 0.0.0.0 --port 3000",
     "build": "next build && node scripts/verify-static.mjs",
+    "preview": "serve out --listen tcp://0.0.0.0:3000 --no-clipboard",
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
     "test": "tsc -p tsconfig.test.json && node --test .test-build/tests/inquiry.test.js"
@@ -24,6 +25,7 @@
     "@types/react-dom": "^19.0.0",
     "eslint": "9.39.1",
     "eslint-config-next": "16.4.2",
+    "serve": "14.2.6",
     "typescript": "5.9.3"
   }
 }

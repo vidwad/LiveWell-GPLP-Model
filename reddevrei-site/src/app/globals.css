@@ -1155,11 +1155,21 @@ main:focus {
   }
   .hero {
     grid-template-columns: 1fr;
+    grid-template-rows: minmax(0, 1fr) auto;
+    height: 100vh;
+    height: 100dvh;
     min-height: 0;
   }
   .hero-copy {
-    padding: 135px 24px 27px;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    padding: clamp(104px, 13dvh, 126px) 24px 12px;
+    overflow-y: auto;
     background: transparent;
+  }
+  .hero-copy > * {
+    flex-shrink: 0;
   }
   .hero-image-shade {
     background:
@@ -1178,7 +1188,7 @@ main:focus {
       linear-gradient(180deg, transparent 35%, #00000070 100%);
   }
   .hero h1 {
-    font-size: clamp(46px, 12vw, 62px);
+    font-size: clamp(36px, 10.5vw, 56px);
     letter-spacing: -2.4px;
     line-height: 1.1;
   }
@@ -1188,16 +1198,18 @@ main:focus {
   .hero-eyebrow {
     font-size: 8px;
     letter-spacing: 1.9px;
+    margin-bottom: 16px;
   }
   .hero-description {
     font-size: 13px;
     max-width: 440px;
-    margin-top: 21px;
+    margin-top: 16px;
+    line-height: 1.7;
   }
   .hero-actions {
     flex-direction: row;
-    gap: 12px;
-    margin-top: 27px;
+    gap: 10px;
+    margin-top: 20px;
   }
   .hero-actions .button {
     font-size: 10px;
@@ -1205,7 +1217,8 @@ main:focus {
     min-height: 47px;
   }
   .hero-bottom {
-    margin-top: 33px;
+    margin-top: auto;
+    padding-top: 16px;
     max-width: none;
   }
   .hero-bottom > span {
@@ -1213,32 +1226,45 @@ main:focus {
     line-height: 1.6;
   }
   .hero-bottom > a {
-    width: 38px;
-    height: 38px;
+    width: 44px;
+    height: 44px;
   }
   .hero-visual {
     position: relative;
-    min-height: 330px;
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 12px;
+    height: clamp(104px, 16dvh, 150px);
+    min-height: 0;
+    padding: 0 24px max(18px, env(safe-area-inset-bottom));
   }
   .hero-location {
-    top: 20px;
-    font-size: 8px;
-    right: 21px;
+    position: static;
+    max-width: 44%;
+    padding: 8px 10px;
+    gap: 5px;
+    font-size: 7px;
+    letter-spacing: 1px;
+    line-height: 1.4;
+  }
+  .hero-location > svg {
+    flex-shrink: 0;
   }
   .hero-visual-note {
-    bottom: 23px;
-    left: 23px;
+    position: static;
+    order: -1;
     width: auto;
   }
   .hero-visual-note strong {
-    font-size: 29px;
+    font-size: clamp(18px, 5.6vw, 24px);
   }
   .hero-visual-note > span:first-child {
-    font-size: 8px;
-    margin-bottom: 8px;
+    font-size: 7px;
+    margin-bottom: 6px;
   }
   .hero-note-rule {
-    margin-top: 13px;
+    margin-top: 10px;
   }
   .focus-strip > .container {
     min-height: 77px;
@@ -1486,7 +1512,7 @@ main:focus {
     align-items: stretch;
   }
   .hero h1 {
-    font-size: 43px;
+    font-size: clamp(32px, 10.5vw, 43px);
   }
   .hero-copy {
     padding-inline: 20px;
@@ -1502,6 +1528,39 @@ main:focus {
     right: 20px;
     width: max-content;
     max-width: calc(100% - 40px);
+  }
+}
+@media (max-width: 650px) and (max-height: 700px) {
+  .hero-copy {
+    padding-top: 104px;
+    padding-bottom: 8px;
+  }
+  .hero-eyebrow {
+    margin-bottom: 12px;
+  }
+  .hero h1 {
+    font-size: clamp(30px, 9vw, 42px);
+    line-height: 1.08;
+  }
+  .hero-description {
+    font-size: 12px;
+    line-height: 1.65;
+    margin-top: 12px;
+  }
+  .hero-actions {
+    margin-top: 16px;
+    gap: 8px;
+  }
+  .hero-actions .button {
+    min-height: 44px;
+    padding: 11px 12px;
+    font-size: 9px;
+  }
+  .hero-bottom {
+    padding-top: 10px;
+  }
+  .hero-visual {
+    height: 104px;
   }
 }
 @media (prefers-reduced-motion: reduce) {
