@@ -143,25 +143,29 @@
   transform: rotate(180deg);
 }
 
+/* The panel starts flush with the bottom of its menu item. The visible gap
+   is transparent padding inside the panel, so the pointer stays within the
+   hover area while it moves down to the links (as on the Pookt site). */
 .disclosurePanel {
   position: absolute;
-  top: calc(100% + 0.55rem);
+  top: 100%;
   left: 50%;
   width: max-content;
   min-width: 13.5rem;
   max-width: 18rem;
+  padding-top: 0.55rem;
   transform: translateX(-50%);
-  border: 1px solid rgba(230, 183, 65, 0.3);
-  border-radius: 0.35rem;
-  background: rgba(83, 0, 13, 0.99);
-  box-shadow: 0 1.2rem 2.7rem rgba(31, 0, 5, 0.36);
-  overflow: hidden;
 }
 
 .disclosureList {
   margin: 0;
   padding: 0.35rem;
   list-style: none;
+  border: 1px solid rgba(230, 183, 65, 0.3);
+  border-radius: 0.35rem;
+  background: rgba(83, 0, 13, 0.99);
+  box-shadow: 0 1.2rem 2.7rem rgba(31, 0, 5, 0.36);
+  overflow: hidden;
 }
 
 .disclosureLink {

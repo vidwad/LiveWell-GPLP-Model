@@ -12,6 +12,8 @@ import { DashboardLoginLink } from "./DashboardLoginLink";
 import styles from "./navigation.module.css";
 
 type NavigationItem = (typeof navigation)[number];
+
+const HOVER_CLOSE_DELAY_MS = 200;
 type NavigationChild = { readonly label: string; readonly href: string };
 
 function childrenFor(item: NavigationItem): readonly NavigationChild[] {
@@ -120,6 +122,30 @@ function HeaderContent({ pathname, articlePaths }: HeaderContentProps) {
   const mobilePanelRef = useRef<HTMLDivElement | null>(null);
   const mobileTriggerRef = useRef<HTMLButtonElement | null>(null);
   const desktopTriggers = useRef(new Map<string, HTMLButtonElement>());
+  // Hover-out waits briefly before closing a dropdown, so a pointer that
+  // drifts off the menu on its way to a link does not lose it.
+  const hoverCloseTimer = useRef<number | null>(null);
+
+  const cancelHoverClose = () => {
+    if (hoverCloseTimer.current !== null) {
+      window.clearTimeout(hoverCloseTimer.current);
+      hoverCloseTimer.current = null;
+    }
+  };
+
+  const hoverMenu = (label: string, shouldOpen: boolean) => {
+    cancelHoverClose();
+    if (shouldOpen) {
+      setOpenMenu(label);
+      return;
+    }
+    hoverCloseTimer.current = window.setTimeout(() => {
+      hoverCloseTimer.current = null;
+      setOpenMenu((current) => (current === label ? null : current));
+    }, HOVER_CLOSE_DELAY_MS);
+  };
+
+  useEffect(() => cancelHoverClose, []);
 
   useEffect(() => {
     const updateHash = () => setHash(window.location.hash);
@@ -286,12 +312,12 @@ function HeaderContent({ pathname, articlePaths }: HeaderContentProps) {
                     )
                   }
                   onHoverChange={(shouldOpen) =>
-                    setOpenMenu((current) => {
-                      if (shouldOpen) return item.label;
-                      return current === item.label ? null : current;
-                    })
+                    hoverMenu(item.label, shouldOpen)
                   }
-                  onNavigate={() => setOpenMenu(null)}
+                  onNavigate={() => {
+                    cancelHoverClose();
+                    setOpenMenu(null);
+                  }}
                   registerTrigger={(element) => {
                     if (element)
                       desktopTriggers.current.set(item.label, element);
