@@ -205,24 +205,18 @@ main:focus {
   transform: translateY(0);
 }
 .hero {
-  --hero-seam: #090909;
+  --hero-seam: #700b18;
   display: grid;
   grid-template-columns: 53% 47%;
   min-height: 755px;
-  background: var(--red-dark);
+  background: var(--hero-seam);
   position: relative;
   color: white;
   overflow: hidden;
 }
 .hero-copy {
   padding: 173px 48px 32px max(48px, calc((100vw - 1240px) / 2));
-  background: linear-gradient(
-    90deg,
-    #700b18 0%,
-    #5a0812f2 55%,
-    #090909a3 82%,
-    #09090900 100%
-  );
+  background: transparent;
   position: relative;
   z-index: 1;
   isolation: isolate;
@@ -345,13 +339,16 @@ main:focus {
     linear-gradient(
       90deg,
       var(--hero-seam) 0%,
-      #090909e6 18%,
-      #090909b3 38%,
-      #0909097a 62%,
-      #0000004d 82%,
-      #00000038 100%
+      #700b18fc 12%,
+      #6c0c19f2 24%,
+      #620e1ade 36%,
+      #531019bd 48%,
+      #40111796 60%,
+      #2c111475 72%,
+      #1b101056 84%,
+      #09090933 100%
     ),
-    linear-gradient(180deg, #00000066 0%, transparent 46%, #000000ab 100%);
+    linear-gradient(180deg, #00000026 0%, #00000008 45%, #0000007a 100%);
 }
 .hero-location {
   position: absolute;
@@ -1142,20 +1139,23 @@ main:focus {
   }
   .hero-copy {
     padding: 135px 24px 27px;
-    background:
-      linear-gradient(180deg, transparent 65%, var(--hero-seam) 100%),
-      linear-gradient(135deg, #7a0b18, #590811);
+    background: transparent;
   }
   .hero-image-shade {
-    background: linear-gradient(
-      180deg,
-      var(--hero-seam) 0%,
-      #090909e6 15%,
-      #090909a6 35%,
-      #00000059 62%,
-      #00000059 82%,
-      #000000a6 100%
-    );
+    background:
+      linear-gradient(
+        180deg,
+        var(--hero-seam) 0%,
+        #700b18fc 12%,
+        #6c0c19f2 24%,
+        #620e1ade 36%,
+        #531019bd 48%,
+        #40111796 60%,
+        #2c111475 72%,
+        #1b101056 84%,
+        #09090933 100%
+      ),
+      linear-gradient(180deg, transparent 35%, #00000070 100%);
   }
   .hero h1 {
     font-size: clamp(46px, 12vw, 62px);
