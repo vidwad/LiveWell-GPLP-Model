@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { LogIn } from "lucide-react";
-import { getDashboardLoginUrl } from "@/lib/dashboard";
+import { resolveDashboardLoginUrl } from "@/lib/dashboard";
 
 export function DashboardLoginLink({
   className,
@@ -9,10 +9,7 @@ export function DashboardLoginLink({
   className?: string;
   onClick?: () => void;
 }) {
-  const dashboardUrl = getDashboardLoginUrl(
-    process.env.NEXT_PUBLIC_DASHBOARD_LOGIN_URL,
-    { allowLocalHTTP: process.env.NODE_ENV === "development" },
-  );
+  const dashboardUrl = resolveDashboardLoginUrl();
   return (
     <Link
       href={dashboardUrl ?? "/dashboard-login/"}

@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { PageHero, PageNote } from "@/components/marketing/PageShell";
 import { DashboardLoginLink } from "@/components/marketing/DashboardLoginLink";
-import { getDashboardLoginUrl } from "@/lib/dashboard";
+import { resolveDashboardLoginUrl } from "@/lib/dashboard";
 import { pageMetadata } from "@/lib/metadata";
 
 export const metadata = pageMetadata({
@@ -12,10 +12,7 @@ export const metadata = pageMetadata({
 });
 
 export default function DashboardLoginPage() {
-  const dashboardUrl = getDashboardLoginUrl(
-    process.env.NEXT_PUBLIC_DASHBOARD_LOGIN_URL,
-    { allowLocalHTTP: process.env.NODE_ENV === "development" },
-  );
+  const dashboardUrl = resolveDashboardLoginUrl();
   return (
     <>
       <PageHero
